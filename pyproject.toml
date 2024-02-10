@@ -1,0 +1,72 @@
+[tool.black]
+line-length = 110
+target-version = ["py39"]
+
+[tool.isort]
+profile = "black"
+line_length = 110
+known_first_party = "github_app_geo_project"
+
+[tool.mypy]
+python_version = 3.9
+warn_redundant_casts = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+strict = true
+
+[tool.poetry]
+name = "github-app-geo-project"
+version = "0.0.0"
+description = ""
+readme = "README.md"
+authors = ["Stéphane Brunner <stephane.brunner@camptocamp.com>"]
+repository = "https://github.com/camptocamp/github-app-geo-project"
+license = "BSD-2-Clause"
+keywords = ["github", "application", "pyramid"]
+packages = [{ include = "github_app_geo_project" }]
+include = ["github_app_geo_project/py.typed"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Web Environment",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Typing :: Typed",
+]
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.12"
+c2cwsgiutils = { version = "6.0.4", optional = true, extras = ["standard", "oauth2", "test_images"] }
+pyramid-mako = "1.1.0"
+
+[tool.poetry.group.dev.dependencies]
+prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma"], version = "1.10.3" }
+prospector-profile-duplicated = "0.5.1"
+prospector-profile-utils = "1.7.2"
+pytest = "7.4.3"
+WebTest = "3.0.0"
+
+[tool.poetry.extras]
+application = ["c2cwsgiutils"]
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning", "poetry-plugin-tweak-dependencies-version", "poetry-plugin-drop-python-upper-constraint"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry-dynamic-versioning]
+enable = true
+vcs = "git"
+pattern = "^(?P<base>\\d+(\\.\\d+)*)"
+format-jinja = """
+{%- if env.get("VERSION_TYPE") == "version_branch" -%}
+{{serialize_pep440(bump_version(base, 1 if env.get("IS_MASTER") == "TRUE" else 2), dev=distance)}}
+{%- elif distance == 0 -%}
+{{serialize_pep440(base)}}
+{%- else -%}
+{{serialize_pep440(bump_version(base), dev=distance)}}
+{%- endif -%}
+"""
+
+[tool.poetry-plugin-tweak-dependencies-version]
+default = "present"

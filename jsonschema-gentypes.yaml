@@ -1,0 +1,15 @@
+headers: |
+  """
+  Automatically generated file from a JSON schema.
+  """
+
+pre_commit:
+  enabled: true
+  hooks_skip:
+    - jsonschema-gentypes
+  arguments:
+    - --color=never
+
+generate:
+  - source: config-schema.yaml
+    destination: github_app_geo_project/configuration.py

@@ -1,0 +1,10 @@
+/*.egg-info/
+__pycache__
+/.*.timestamps
+/tests/jsonschema_*.py
+/.coverage
+/build
+/dist
+/.github/changelog-generator-cache
+/docker-compose.override.yaml
+/results
