@@ -11,5 +11,7 @@ pre_commit:
     - --color=never
 
 generate:
-  - source: config-schema.yaml
-    destination: github_app_geo_project/configuration.py
+  - source: github_app_geo_project/project-schema.json
+    destination: github_app_geo_project/project_configuration.py
+  - source: github_app_geo_project/application-schema.json
+    destination: github_app_geo_project/application_configuration.py

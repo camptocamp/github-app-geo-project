@@ -11,6 +11,10 @@ This application will manage:
 - Delete old workflow jobs
 - Check and fix pre-commit hooks with less limitation than pre-commit.ci
 
+[project configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/tilecloud_chain/PROJECT-CONFIG.md).
+
+[application configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/tilecloud_chain/APPLICATION-CONFIG.md).
+
 ## Contributing
 
 Install the pre-commit hooks:
