@@ -35,6 +35,13 @@ classifiers = [
     "Typing :: Typed",
 ]
 
+[tool.poetry.scripts]
+process-queue = "github_app_geo_project.scripts.process_queue:main"
+send-event = "github_app_geo_project.scripts.send_event:main"
+
+[tool.poetry.plugins."paste.app_factory"]
+main = "github_app_geo_project.server:main"
+
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
 c2cwsgiutils = { version = "6.0.4", optional = true, extras = ["standard", "oauth2", "test_images"] }
