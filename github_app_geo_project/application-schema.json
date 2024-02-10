@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/project-schema.json",
+  "type": "object",
+  "title": "GitHub application project configuration",
+  "additionalProperties": false,
+  "definitions": {
+    "project": {
+      "type": "object",
+      "title": "Project",
+      "description": "The project configuration",
+      "additionalProperties": false,
+      "properties": {
+        "profile": {
+          "type": "string",
+          "title": "Profile",
+          "description": "The profile to use for the project"
+        },
+        "changelog": {
+          "type": "object",
+          "title": "Changelog",
+          "description": "The changelog generation configuration",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enabled",
+              "description": "Enable the changelog generation",
+              "default": true
+            }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "default-profile": {
+      "type": "string",
+      "title": "Default profile",
+      "description": "The profile name used by default"
+    },
+    "applications": {
+      "type": "object",
+      "title": "Applications",
+      "description": "The applications configuration",
+      "additionalProperties": {
+        "type": "object",
+        "title": "Application",
+        "description": "The application configuration",
+        "additionalProperties": false,
+        "properties": {
+          "if": {
+            "type": "string",
+            "title": "Application ID",
+            "description": "The application ID"
+          },
+          "private-key": {
+            "type": "string",
+            "title": "Application private key",
+            "description": "The private key used to authenticate the application"
+          }
+        }
+      }
+    },
+    "profiley": {
+      "type": "object",
+      "title": "Profiles",
+      "description": "The profiles configuration",
+      "additionalProperties": {
+        "$ref": "#/definitions/project"
+      }
+    }
+  }
+}

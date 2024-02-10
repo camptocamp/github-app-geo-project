@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/project-schema.json",
+  "type": "object",
+  "title": "GitHub application project configuration",
+  "additionalProperties": false,
+  "definitions": {},
+  "properties": {
+    "profile": {
+      "type": "string",
+      "title": "Profile",
+      "description": "The profile to use for the project"
+    },
+    "changelog": {
+      "type": "object",
+      "title": "Changelog",
+      "description": "The changelog generation configuration",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Enabled",
+          "description": "Enable the changelog generation",
+          "default": true
+        }
+      }
+    }
+  }
+}

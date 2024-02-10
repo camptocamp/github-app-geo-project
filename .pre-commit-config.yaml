@@ -118,13 +118,14 @@ repos:
       - id: jsonschema-gentypes
         files: |-
           (?x)^(
-              config-schema\.yaml
+              github_app_geo_project/project-schema\.json
+              |github_app_geo_project/application-schema\.json
           )$
   - repo: https://github.com/sbrunner/jsonschema2md2
     rev: 1.1.0
     hooks:
       - id: jsonschema2md
-        files: github_app_geo_project/project-schema\.json
+        files: ^github_app_geo_project/project-schema\.json$
         args:
           - --pre-commit
           - github_app_geo_project/project-schema.json
@@ -133,11 +134,11 @@ repos:
     rev: 1.1.0
     hooks:
       - id: jsonschema2md
-        files: github_app_geo_project/application-schema\.json
+        files: ^github_app_geo_project/application-schema\.json$
         args:
           - --pre-commit
           - github_app_geo_project/application-schema.json
-          - Application-CONFIG.md
+          - APPLICATION-CONFIG.md
   - repo: https://github.com/sbrunner/jsonschema-validator
     rev: 0.1.0
     hooks:
