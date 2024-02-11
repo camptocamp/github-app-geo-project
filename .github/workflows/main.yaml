@@ -49,6 +49,10 @@ jobs:
       - name: Environment
         run: c2cciutils-env
 
+      - run: pip install --requirement=requirements.txt
+      - run: poetry install
+      - run: poetry run prospector --output-format=pylint
+
       - run: make tests
       - run: make acceptance-tests
       - uses: actions/upload-artifact@v4
