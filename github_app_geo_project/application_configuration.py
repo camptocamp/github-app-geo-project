@@ -24,35 +24,12 @@ Application = TypedDict(
 )
 
 
-# Changelog.
-#
-# The changelog generation configuration
-Changelog = TypedDict(
-    "Changelog",
-    {
-        # Changelog create label.
-        #
-        # Automatically create the labels used in the changelog configuration
-        "create-label": bool,
-        # Changelog labels configuration.
-        #
-        # The labels configuration
-        "labels": dict[str, "ChangelogLabelConfiguration"],
-        # Changelog sections configuration.
-        #
-        # The sections configuration
-        "sections": list["ChangelogSectionConfiguration"],
-        # Changelog default section.
-        #
-        # The default section for items
-        "default-section": str,
-        # Changelog routing configuration.
-        #
-        # The routing configuration
-        "routing": list["ChangelogRoutingConfiguration"],
-    },
-    total=False,
-)
+Changelog = Union[str, Union[int, float], "_ChangelogObject", None, bool, None]
+"""
+Changelog.
+
+The changelog generation configuration
+"""
 
 
 class ChangelogLabelConfiguration(TypedDict, total=False):
@@ -158,6 +135,35 @@ GithubApplicationProjectConfiguration = TypedDict(
         #
         # The profiles configuration
         "profiles": dict[str, "_ProfilesAdditionalproperties"],
+    },
+    total=False,
+)
+
+
+# The changelog generation configuration
+_ChangelogObject = TypedDict(
+    "_ChangelogObject",
+    {
+        # Changelog create label.
+        #
+        # Automatically create the labels used in the changelog configuration
+        "create-label": bool,
+        # Changelog labels configuration.
+        #
+        # The labels configuration
+        "labels": dict[str, "ChangelogLabelConfiguration"],
+        # Changelog sections configuration.
+        #
+        # The sections configuration
+        "sections": list["ChangelogSectionConfiguration"],
+        # Changelog default section.
+        #
+        # The default section for items
+        "default-section": str,
+        # Changelog routing configuration.
+        #
+        # The routing configuration
+        "routing": list["ChangelogRoutingConfiguration"],
     },
     total=False,
 )

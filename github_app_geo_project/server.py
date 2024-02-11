@@ -10,6 +10,7 @@ from c2cwsgiutils import health_check
 from pyramid.config import Configurator
 from pyramid.router import Router
 from pyramid_mako import add_mako_renderer
+from sqlalchemy import engine_from_config
 
 import github_app_geo_project.configuration
 import github_app_geo_project.security
@@ -58,8 +59,8 @@ def main(global_config: Any, **settings: Any) -> Router:
         request_method="POST",
     )
     config.add_route(
-        "logs",
-        "logs/{id}",
+        "output",
+        "output/{id}",
         request_method="GET",
     )
 
@@ -69,5 +70,6 @@ def main(global_config: Any, **settings: Any) -> Router:
     )
 
     config.scan("github_app_geo_project.views")
+    engine_from_config(settings, "sqlalchemy.")
 
     return config.make_wsgi_app()
