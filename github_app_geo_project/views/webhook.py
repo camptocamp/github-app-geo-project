@@ -10,5 +10,8 @@ _LOGGER = logging.getLogger(__name__)
 @view_config(route_name="webhook", renderer="json")  # type: ignore
 def webhook(request: pyramid.request.Request) -> dict[str, Any]:
     """Receive GitHub application webhook URL."""
-    self.request.matchdict["application"]
+    application = self.request.matchdict["application"]
+
+    MODULES[application]
+
     return {}

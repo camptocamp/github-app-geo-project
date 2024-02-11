@@ -4,33 +4,190 @@
   "type": "object",
   "title": "GitHub application project configuration",
   "additionalProperties": false,
-  "definitions": {
-    "project": {
-      "type": "object",
-      "title": "Project",
-      "description": "The project configuration",
-      "additionalProperties": false,
-      "properties": {
-        "profile": {
-          "type": "string",
-          "title": "Profile",
-          "description": "The profile to use for the project"
-        },
-        "changelog": {
+  "$defs": {
+    "project-configuration": {
+      "oneOf": [
+        {
           "type": "object",
           "title": "Changelog",
           "description": "The changelog generation configuration",
-          "additionalProperties": false,
           "properties": {
-            "enabled": {
+            "create-label": {
               "type": "boolean",
-              "title": "Enabled",
-              "description": "Enable the changelog generation",
-              "default": true
+              "title": "Changelog create label",
+              "description": "Automatically create the labels used in the changelog configuration"
+            },
+            "labels": {
+              "type": "object",
+              "title": "Changelog labels configuration",
+              "description": "The labels configuration",
+              "additionalProperties": {
+                "type": "object",
+                "title": "Changelog label configuration",
+                "description": "The label configuration",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "title": "Changelog label description",
+                    "description": "The description of the label"
+                  },
+                  "color": {
+                    "type": "string",
+                    "title": "Changelog label color",
+                    "description": "The color of the label"
+                  }
+                }
+              }
+            },
+            "sections": {
+              "type": "array",
+              "title": "Changelog sections configuration",
+              "description": "The sections configuration",
+              "items": {
+                "type": "object",
+                "title": "Changelog section configuration",
+                "description": "The section configuration",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "title": "Changelog section description",
+                    "description": "The description of the section"
+                  }
+                }
+              }
+            },
+            "default-section": {
+              "type": "string",
+              "title": "Changelog default section",
+              "description": "The default section for items"
+            },
+            "routing": {
+              "type": "array",
+              "title": "Changelog routing configuration",
+              "description": "The routing configuration",
+              "items": {
+                "type": "object",
+                "title": "Changelog routing configuration",
+                "description": "The routing configuration",
+                "properties": {
+                  "section": {
+                    "type": "string",
+                    "title": "Changelog routing section",
+                    "description": "The section section affected to changelog items that match with the conditions"
+                  },
+                  "condition": {
+                    "type": "object",
+                    "title": "Changelog section routing condition",
+                    "description": "The condition to match with the changelog items",
+                    "$dynamicAnchor": "changelog-condition",
+                    "additionalProperties": false,
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "The type of the condition",
+                            "const": "const"
+                          },
+                          "value": {
+                            "type": "boolean",
+                            "description": "The value of the condition"
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "The type of the condition",
+                            "enum": ["and", "or"]
+                          },
+                          "conditions": {
+                            "type": "array",
+                            "description": "The value of the conditions",
+                            "items": {
+                              "$dynamicRef": "#changelog-condition"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "The type of the condition",
+                            "const": "label"
+                          },
+                          "value": {
+                            "type": "string",
+                            "description": "The value of the label"
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "The type of the condition",
+                            "const": "files"
+                          },
+                          "regex": {
+                            "type": "array",
+                            "description": "The list of regex that all the files should match",
+                            "items": {
+                              "type": "string",
+                              "description": "The regex that all the files should match"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "The type of the condition",
+                            "const": "author"
+                          },
+                          "value": {
+                            "type": "string",
+                            "description": "The value of the author"
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "The type of the condition",
+                            "const": "title"
+                          },
+                          "regex": {
+                            "type": "string",
+                            "description": "The regex the the title should match"
+                          }
+                        }
+                      },
+                      {
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "description": "The type of the condition",
+                            "const": "branch"
+                          },
+                          "regex": {
+                            "type": "string",
+                            "description": "The regex the the title should match"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
             }
           }
         }
-      }
+      ]
     }
   },
   "properties": {
@@ -38,6 +195,11 @@
       "type": "string",
       "title": "Default profile",
       "description": "The profile name used by default"
+    },
+    "default-application": {
+      "type": "string",
+      "title": "Default application",
+      "description": "The default Github Application to be used"
     },
     "applications": {
       "type": "object",
@@ -49,7 +211,7 @@
         "description": "The application configuration",
         "additionalProperties": false,
         "properties": {
-          "if": {
+          "id": {
             "type": "string",
             "title": "Application ID",
             "description": "The application ID"
@@ -62,12 +224,25 @@
         }
       }
     },
-    "profiley": {
+    "profiles": {
       "type": "object",
       "title": "Profiles",
       "description": "The profiles configuration",
       "additionalProperties": {
-        "$ref": "#/definitions/project"
+        "allOf": [
+          {
+            "properties": {
+              "inherits": {
+                "type": "string",
+                "title": "Inherits",
+                "description": "The profile to inherit from"
+              }
+            }
+          },
+          {
+            "$ref": "#/$defs/project-configuration"
+          }
+        ]
       }
     }
   }

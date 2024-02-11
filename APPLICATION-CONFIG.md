@@ -3,16 +3,49 @@
 ## Properties
 
 - **`default-profile`** _(string)_: The profile name used by default.
+- **`default-application`** _(string)_: The default Github Application to be used.
 - **`applications`** _(object)_: The applications configuration. Can contain additional properties.
   - **Additional properties** _(object)_: The application configuration. Cannot contain additional properties.
-    - **`if`** _(string)_: The application ID.
+    - **`id`** _(string)_: The application ID.
     - **`private-key`** _(string)_: The private key used to authenticate the application.
-- **`profiley`** _(object)_: The profiles configuration. Can contain additional properties.
-  - **Additional properties**: Refer to _[#/definitions/project](#definitions/project)_.
+- **`profiles`** _(object)_: The profiles configuration. Can contain additional properties.
+  - **Additional properties**
+    - **All of**
+      - - **`inherits`** _(string)_: The profile to inherit from.
+      - : Refer to _[#/$defs/project-configuration](#%24defs/project-configuration)_.
 
 ## Definitions
 
-- <a id="definitions/project"></a>**`project`** _(object)_: The project configuration. Cannot contain additional properties.
-  - **`profile`** _(string)_: The profile to use for the project.
-  - **`changelog`** _(object)_: The changelog generation configuration. Cannot contain additional properties.
-    - **`enabled`** _(boolean)_: Enable the changelog generation. Default: `true`.
+- <a id="%24defs/project-configuration"></a>**`project-configuration`**
+  - **One of**
+    - _object_: The changelog generation configuration.
+      - **`create-label`** _(boolean)_: Automatically create the labels used in the changelog configuration.
+      - **`labels`** _(object)_: The labels configuration. Can contain additional properties.
+        - **Additional properties** _(object)_: The label configuration.
+          - **`description`** _(string)_: The description of the label.
+          - **`color`** _(string)_: The color of the label.
+      - **`sections`** _(array)_: The sections configuration.
+        - **Items** _(object)_: The section configuration.
+          - **`description`** _(string)_: The description of the section.
+      - **`default-section`** _(string)_: The default section for items.
+      - **`routing`** _(array)_: The routing configuration.
+        - **Items** _(object)_: The routing configuration.
+          - **`section`** _(string)_: The section section affected to changelog items that match with the conditions.
+          - **`condition`** _(object)_: The condition to match with the changelog items. Cannot contain additional properties.
+            - **Any of**
+              - - **`type`** _(string)_: The type of the condition.
+                - **`value`** _(boolean)_: The value of the condition.
+              - - **`type`** _(string)_: The type of the condition. Must be one of: `["and", "or"]`.
+                - **`conditions`** _(array)_: The value of the conditions.
+                  - **Items**
+              - - **`type`** _(string)_: The type of the condition.
+                - **`value`** _(string)_: The value of the label.
+              - - **`type`** _(string)_: The type of the condition.
+                - **`regex`** _(array)_: The list of regex that all the files should match.
+                  - **Items** _(string)_: The regex that all the files should match.
+              - - **`type`** _(string)_: The type of the condition.
+                - **`value`** _(string)_: The value of the author.
+              - - **`type`** _(string)_: The type of the condition.
+                - **`regex`** _(string)_: The regex the the title should match.
+              - - **`type`** _(string)_: The type of the condition.
+                - **`regex`** _(string)_: The regex the the title should match.

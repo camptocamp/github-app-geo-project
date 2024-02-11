@@ -146,4 +146,6 @@ repos:
         files: |-
           (?x)^(
               ci/config\.yaml
+              |github_app_geo_project/project-schema\.json
+              |github_app_geo_project/application-schema\.json
           )$

@@ -10,7 +10,9 @@ def _main() -> None:
     with open("github_app_geo_project/application-schema.json", encoding="utf-8") as process_schema_file:
         application_schema = json.load(process_schema_file)
 
-        application_schema["definitions"]["project"]["properties"] = project_schema["properties"]
+        application_schema["$defs"]["project-configuration"] = project_schema["$defs"][
+            "project-configuration"
+        ]
     with open("github_app_geo_project/application-schema.json", "w", encoding="utf-8") as process_schema_file:
         json.dump(application_schema, process_schema_file, indent=2)
 
