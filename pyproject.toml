@@ -51,7 +51,7 @@ pygithub = "2.2.0"
 
 [tool.poetry.group.dev.dependencies]
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma"], version = "1.10.3" }
-prospector-profile-duplicated = "0.5.1"
+prospector-profile-duplicated = "1.0.1"
 prospector-profile-utils = "1.7.2"
 pytest = "7.4.3"
 WebTest = "3.0.0"

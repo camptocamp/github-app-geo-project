@@ -46,8 +46,15 @@ class GithubObjects:
 
     auth: github.Auth.AppAuth
     integration: github.GithubIntegration
+<<<<<<< HEAD
     token: github.Token.Token
+||||||| parent of 9676f57 (Continuing project structure)
+    token: github.Token
+=======
+    token: github.Auth.Token
+>>>>>>> 9676f57 (Continuing project structure)
     token_date: datetime
+    application: github.Github
 
 
 GITHUB_APPLICATIONS: dict[str, GithubObjects]
@@ -55,23 +62,25 @@ GITHUB_APPLICATIONS: dict[str, GithubObjects]
 
 def get_github_application(application_name: str) -> GithubObjects:
     """Get the Github Application by name."""
+    # TODO get from ini config file
     if application_name not in APPLICATION_CONFIGURATION["applications"]:
         raise ValueError(
             f"Application {application_name} not found, available applications: {', '.join(APPLICATION_CONFIGURATION['applications'].keys())}"
         )
-    if application_name not in GITHUB_APPLICATIONS:
+    if application_name not in GITHUB_APPLICATIONS:  # pylint: disable=undefined-variable # noqa
         app_config = APPLICATION_CONFIGURATION["applications"][application_name]
 
         objects = GithubObjects()
-        objects.auth = github.AppAuth(app_config["id"], app_config["private-key"])
+        objects.auth = github.AppAuth(app_config["id"], app_config["private-key"])  # type: ignore[attr-defined]
         objects.integration = github.GithubIntegration(auth=objects.auth)
 
-        GITHUB_APPLICATIONS[application_name] = objects
+        GITHUB_APPLICATIONS[application_name] = objects  # noqa
 
-    objects = GITHUB_APPLICATIONS[application_name]
+    objects = GITHUB_APPLICATIONS[application_name]  # noqa
     if objects.token_date is None or objects.token_date < datetime.now() - timedelta(minutes=30):
-        objects.token = objects.integration.get_access_token()
+        objects.token = objects.integration.get_access_token()  # type: ignore[call-arg,assignment]
         objects.token_date = datetime.now()
+        objects.application = github.Github(login_or_token=objects.token.token)
 
     return objects
 
@@ -84,8 +93,9 @@ def get_configuration(repository: str) -> project_configuration.GithubApplicatio
         repository: The repository name (<owner>/<name>)
     """
     github_application = get_github_application(APPLICATION_CONFIGURATION["default-application"])
-    repo = github_application.integration.get_repo(repository)
+    repo = github_application.application.get_repo(repository)
     project_configuration_content = repo.get_contents(".github/geo-configuration.yaml")
+    assert not isinstance(project_configuration_content, list)
     project_custom_configuration = yaml.load(
         project_configuration_content.decoded_content, Loader=yaml.SafeLoader
     )

@@ -8,8 +8,15 @@ import sqlalchemy
 import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 import sqlalchemy.sql.functions
+<<<<<<< HEAD
 from sqlalchemy import JSON, DateTime, Integer, Unicode, mapped_column
 from sqlalchemy.orm import Mapped, mapped_column
+||||||| parent of 9676f57 (Continuing project structure)
+from sqlalchemy import JSON, Column, DateTime, Integer, Unicode
+=======
+from sqlalchemy import JSON, DateTime, Integer, Unicode
+from sqlalchemy.orm import Mapped, mapped_column
+>>>>>>> 9676f57 (Continuing project structure)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,7 +38,7 @@ _SCHEMA = "github_app"
 Base = sqlalchemy.orm.declarative_base()
 
 
-class Queue(Base):  # ignore[misc]
+class Queue(Base):  # type: ignore[misc,valid-type]
     """SQLAlchemy model for the queue."""
 
     __tablename__ = "queue"
@@ -40,7 +47,7 @@ class Queue(Base):  # ignore[misc]
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     status: Mapped[str] = mapped_column(Unicode, nullable=False, default=STATUS_NEW, index=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True
+        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True  # type: ignore[no-untyped-call]
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     priority: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
@@ -52,7 +59,7 @@ class Queue(Base):  # ignore[misc]
         return f"Queue {self.id} [{self.status}]"
 
 
-class Output(Base):  # type: ignore[misc]
+class Output(Base):  # type: ignore[misc,valid-type]
     """SQLAlchemy model for the output entries."""
 
     __tablename__ = "output"

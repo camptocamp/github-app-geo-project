@@ -6,6 +6,10 @@ inherits:
 
 doc-warnings: true
 
-ignore-path:
+ignore-paths:
   - github_app_geo_project/project_configuration.py
   - github_app_geo_project/application_configuration.py
+
+bandit:
+  options:
+    config: .bandit.yaml
