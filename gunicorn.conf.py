@@ -1,16 +1,17 @@
-###
-# app configuration
-# https://docs.gunicorn.org/en/stable/settings.html
-###
+"""
+App configuration.
+
+https://docs.gunicorn.org/en/stable/settings.html
+"""
 
 import os
 
-import gunicorn.arbiter
-import gunicorn.workers.base
-from c2cwsgiutils import get_config_defaults, prometheus
-from prometheus_client import multiprocess
+import gunicorn.arbiter  # pylint: disable=import-error
+import gunicorn.workers.base  # pylint: disable=import-error
+from c2cwsgiutils import get_config_defaults, prometheus  # pylint: disable=import-error
+from prometheus_client import multiprocess  # pylint: disable=import-error
 
-bind = ":8080"
+bind = ":8080"  # pylint: disable=invalid-name
 
 worker_class = "gthread"  # pylint: disable=invalid-name
 workers = os.environ.get("GUNICORN_WORKERS", 2)
@@ -97,4 +98,4 @@ def child_exit(server: gunicorn.arbiter.Arbiter, worker: gunicorn.workers.base.W
     """
     del server
 
-    multiprocess.mark_process_dead(worker.pid)  # type: ignore [no-untyped-call]
+    multiprocess.mark_process_dead(worker.pid)

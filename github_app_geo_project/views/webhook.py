@@ -1,7 +1,9 @@
+"""Webhook view."""
+
 import logging
 
 import pyramid.request
-import sqlalchemy
+import sqlalchemy  # pylint: disable=import-error
 from pyramid.view import view_config
 
 from github_app_geo_project import configuration, models
@@ -18,7 +20,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
 
     config = configuration.get_configuration(data["repository"]["full_name"])
     for name, module in modules.MODULES.items():
-        module_config = config.get(name, {})
+        module_config = cast(DD, config.get(name, {}))
         if (
             module_config.get("enabled", True)
             and module_config.get(

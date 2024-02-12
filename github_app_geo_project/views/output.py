@@ -1,3 +1,5 @@
+"""Output view."""
+
 import logging
 import os
 from typing import Any
@@ -6,7 +8,7 @@ import pyramid.httpexceptions
 import pyramid.request
 import pyramid.response
 import pyramid.security
-import sqlalchemy
+import sqlalchemy  # pylint: disable=import-error
 from pyramid.view import view_config
 
 from github_app_geo_project import models
@@ -25,16 +27,16 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
     if len(outputs) != 1:
         raise pyramid.httpexceptions.HTTPInternalServerError()
 
-    output = outputs[0]
+    out = outputs[0]
     if "TEST_USER" not in os.environ:
         permission = request.has_permission(
-            output.repository,
-            {"github_repository": output.repository, "github_access_type": output.access_type},
+            out.repository,
+            {"github_repository": out.repository, "github_access_type": out.access_type},
         )
         if not isinstance(permission, pyramid.security.Allowed):
             raise pyramid.httpexceptions.HTTPForbidden()
 
     return {
-        "title": output.title,
-        "output": output.data,
+        "title": out.title,
+        "output": out.data,
     }

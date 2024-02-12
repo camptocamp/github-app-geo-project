@@ -4,15 +4,16 @@ import logging
 import os
 from typing import Optional, Union
 
-import c2cwsgiutils.auth
+import c2cwsgiutils.auth  # pylint: disable=import-error
 import pyramid.request
 from pyramid.security import Allowed, Denied
-from shared_config_manager.configuration import SourceConfig
 
 _LOGGER = logging.getLogger(__name__)
 
 
 class User:
+    """User object for the application."""
+
     auth_type: str
     login: Optional[str]
     name: Optional[str]
@@ -42,11 +43,14 @@ class User:
         self.request = request
         self.is_admin = c2cwsgiutils.auth.check_access(self.request) if token is not None else False
 
-    def has_access(self, auth_config: AuthConfig) -> bool:
+    def has_access(self, auth_config: c2cwsgiutils.auth.AuthConfig) -> bool:
+        """Check if the user has access to the given configuration."""
         return self.is_admin or c2cwsgiutils.auth.check_access_config(self.request, auth_config)
 
 
 class SecurityPolicy:
+    """Security policy for the application."""
+
     def identity(self, request: pyramid.request.Request) -> User:
         """Return app-specific user object."""
         if not hasattr(request, "user"):
@@ -115,7 +119,7 @@ body:
         return identity.login
 
     def permits(
-        self, request: pyramid.request.Request, auth_config: AuthConfig, permission: str
+        self, request: pyramid.request.Request, auth_config: c2cwsgiutils.auth.AuthConfig, permission: str
     ) -> Union[Allowed, Denied]:
         """Allow access to everything if signed in."""
         identity = self.identity(request)

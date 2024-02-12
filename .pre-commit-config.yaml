@@ -113,7 +113,7 @@ repos:
           - prospector-profile-duplicated==0.5.1 # pypi
           - prospector-profile-utils==1.7.2 # pypi
   - repo: https://github.com/camptocamp/jsonschema-gentypes
-    rev: 2.3.0
+    rev: 2.5.0
     hooks:
       - id: jsonschema-gentypes
         files: |-

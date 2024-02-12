@@ -5,12 +5,35 @@ Automatically generated file from a JSON schema.
 
 from typing import Literal, TypedDict, Union
 
-Changelog = Union[str, Union[int, float], "_ChangelogObject", None, bool, None]
-"""
-Changelog.
-
-The changelog generation configuration
-"""
+# Changelog.
+#
+# The changelog generation configuration
+Changelog = TypedDict(
+    "Changelog",
+    {
+        # Changelog create label.
+        #
+        # Automatically create the labels used in the changelog configuration
+        "create-label": bool,
+        # Changelog labels configuration.
+        #
+        # The labels configuration
+        "labels": dict[str, "ChangelogLabelConfiguration"],
+        # Changelog sections configuration.
+        #
+        # The sections configuration
+        "sections": list["ChangelogSectionConfiguration"],
+        # Changelog default section.
+        #
+        # The default section for items
+        "default-section": str,
+        # Changelog routing configuration.
+        #
+        # The routing configuration
+        "routing": list["ChangelogRoutingConfiguration"],
+    },
+    total=False,
+)
 
 
 class ChangelogLabelConfiguration(TypedDict, total=False):
@@ -55,8 +78,6 @@ class ChangelogRoutingConfiguration(TypedDict, total=False):
 
     The condition to match with the changelog items
 
-    additionalProperties: False
-
     Aggregation type: anyOf
     """
 
@@ -77,37 +98,136 @@ class ChangelogSectionConfiguration(TypedDict, total=False):
 
 
 ChangelogSectionRoutingCondition = Union[
-    Union[str, Union[int, float], "_ChangelogSectionRoutingConditionAnyof0Object", None, bool, None],
-    Union[str, Union[int, float], "_ChangelogSectionRoutingConditionAnyof1Object", None, bool, None],
-    Union[str, Union[int, float], "_ChangelogSectionRoutingConditionAnyof2Object", None, bool, None],
-    Union[str, Union[int, float], "_ChangelogSectionRoutingConditionAnyof3Object", None, bool, None],
-    Union[str, Union[int, float], "_ChangelogSectionRoutingConditionAnyof4Object", None, bool, None],
-    Union[str, Union[int, float], "_ChangelogSectionRoutingConditionAnyof5Object", None, bool, None],
-    Union[str, Union[int, float], "_ChangelogSectionRoutingConditionAnyof6Object", None, bool, None],
+    "_ChangelogSectionRoutingConditionAnyof0",
+    "_ChangelogSectionRoutingConditionAnyof1",
+    "_ChangelogSectionRoutingConditionAnyof2",
+    "_ChangelogSectionRoutingConditionAnyof3",
+    "_ChangelogSectionRoutingConditionAnyof4",
+    "_ChangelogSectionRoutingConditionAnyof5",
+    "_ChangelogSectionRoutingConditionAnyof6",
 ]
 """
 Changelog section routing condition.
 
 The condition to match with the changelog items
 
-additionalProperties: False
-
 Aggregation type: anyOf
 """
 
 
-GithubApplicationProjectConfiguration = Union["Changelog"]
+GithubApplicationProjectConfiguration = Union[
+    dict[str, "_GithubApplicationProjectConfigurationAdditionalproperties"],
+    "GithubApplicationProjectConfigurationTyped",
+]
 """
 GitHub application project configuration.
 
-Aggregation type: oneOf
+
+WARNING: Normally the types should be a mix of each other instead of Union.
+See: https://github.com/camptocamp/jsonschema-gentypes/issues/7
 """
 
 
-# The changelog generation configuration
-_ChangelogObject = TypedDict(
-    "_ChangelogObject",
+class GithubApplicationProjectConfigurationTyped(TypedDict, total=False):
+    profile: str
+    """
+    Profile.
+
+    The profile to use for the project
+    """
+
+
+class ModuleConfiguration(TypedDict, total=False):
+    """Module configuration."""
+
+    enabled: bool
+    """ Enable the module """
+
+    application: str
+    """
+    Application.
+
+    The GitHub application used by the module
+    """
+
+
+class _ChangelogSectionRoutingConditionAnyof0(TypedDict, total=False):
+    type: Literal["const"]
+    """ The type of the condition """
+
+    value: bool
+    """ The value of the condition """
+
+
+class _ChangelogSectionRoutingConditionAnyof1(TypedDict, total=False):
+    type: "_ChangelogSectionRoutingConditionAnyof1Type"
+    """ The type of the condition """
+
+    conditions: list["_ChangelogSectionRoutingConditionAnyof1"]
+    """ The value of the conditions """
+
+
+_ChangelogSectionRoutingConditionAnyof1Type = Union[Literal["and"], Literal["or"]]
+""" The type of the condition """
+_CHANGELOGSECTIONROUTINGCONDITIONANYOF1TYPE_AND: Literal["and"] = "and"
+"""The values for the 'The type of the condition' enum"""
+_CHANGELOGSECTIONROUTINGCONDITIONANYOF1TYPE_OR: Literal["or"] = "or"
+"""The values for the 'The type of the condition' enum"""
+
+
+class _ChangelogSectionRoutingConditionAnyof2(TypedDict, total=False):
+    type: Literal["label"]
+    """ The type of the condition """
+
+    value: str
+    """ The value of the label """
+
+
+class _ChangelogSectionRoutingConditionAnyof3(TypedDict, total=False):
+    type: Literal["files"]
+    """ The type of the condition """
+
+    regex: list["_ChangelogSectionRoutingConditionAnyof3RegexItem"]
+    """ The list of regex that all the files should match """
+
+
+_ChangelogSectionRoutingConditionAnyof3RegexItem = str
+""" The regex that all the files should match """
+
+
+class _ChangelogSectionRoutingConditionAnyof4(TypedDict, total=False):
+    type: Literal["author"]
+    """ The type of the condition """
+
+    value: str
+    """ The value of the author """
+
+
+class _ChangelogSectionRoutingConditionAnyof5(TypedDict, total=False):
+    type: Literal["title"]
+    """ The type of the condition """
+
+    regex: str
+    """ The regex the the title should match """
+
+
+class _ChangelogSectionRoutingConditionAnyof6(TypedDict, total=False):
+    type: Literal["branch"]
+    """ The type of the condition """
+
+    regex: str
+    """ The regex the the title should match """
+
+
+_GithubApplicationProjectConfigurationAdditionalproperties = TypedDict(
+    "_GithubApplicationProjectConfigurationAdditionalproperties",
     {
+        # Enable the module
+        "enabled": bool,
+        # Application.
+        #
+        # The GitHub application used by the module
+        "application": str,
         # Changelog create label.
         #
         # Automatically create the labels used in the changelog configuration
@@ -131,71 +251,3 @@ _ChangelogObject = TypedDict(
     },
     total=False,
 )
-
-
-class _ChangelogSectionRoutingConditionAnyof0Object(TypedDict, total=False):
-    type: Literal["const"]
-    """ The type of the condition """
-
-    value: bool
-    """ The value of the condition """
-
-
-class _ChangelogSectionRoutingConditionAnyof1Object(TypedDict, total=False):
-    type: "_ChangelogSectionRoutingConditionAnyof1ObjectType"
-    """ The type of the condition """
-
-    conditions: list["ChangelogSectionRoutingCondition"]
-    """ The value of the conditions """
-
-
-_ChangelogSectionRoutingConditionAnyof1ObjectType = Union[Literal["and"], Literal["or"]]
-""" The type of the condition """
-_CHANGELOGSECTIONROUTINGCONDITIONANYOF1OBJECTTYPE_AND: Literal["and"] = "and"
-"""The values for the 'The type of the condition' enum"""
-_CHANGELOGSECTIONROUTINGCONDITIONANYOF1OBJECTTYPE_OR: Literal["or"] = "or"
-"""The values for the 'The type of the condition' enum"""
-
-
-class _ChangelogSectionRoutingConditionAnyof2Object(TypedDict, total=False):
-    type: Literal["label"]
-    """ The type of the condition """
-
-    value: str
-    """ The value of the label """
-
-
-class _ChangelogSectionRoutingConditionAnyof3Object(TypedDict, total=False):
-    type: Literal["files"]
-    """ The type of the condition """
-
-    regex: list["_ChangelogSectionRoutingConditionAnyof3ObjectRegexItem"]
-    """ The list of regex that all the files should match """
-
-
-_ChangelogSectionRoutingConditionAnyof3ObjectRegexItem = str
-""" The regex that all the files should match """
-
-
-class _ChangelogSectionRoutingConditionAnyof4Object(TypedDict, total=False):
-    type: Literal["author"]
-    """ The type of the condition """
-
-    value: str
-    """ The value of the author """
-
-
-class _ChangelogSectionRoutingConditionAnyof5Object(TypedDict, total=False):
-    type: Literal["title"]
-    """ The type of the condition """
-
-    regex: str
-    """ The regex the the title should match """
-
-
-class _ChangelogSectionRoutingConditionAnyof6Object(TypedDict, total=False):
-    type: Literal["branch"]
-    """ The type of the condition """
-
-    regex: str
-    """ The regex the the title should match """

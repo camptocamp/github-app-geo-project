@@ -1,16 +1,18 @@
+"""Main entry point for the server."""
+
 import json
 import logging
 import os
 from typing import Any
 
-import c2cwsgiutils.pyramid
+import c2cwsgiutils.pyramid  # pylint: disable=import-error
 import pyramid.response
 import pyramid.session
-from c2cwsgiutils import health_check
+from c2cwsgiutils import health_check  # pylint: disable=import-error
 from pyramid.config import Configurator
 from pyramid.router import Router
 from pyramid_mako import add_mako_renderer
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config  # pylint: disable=import-error
 
 import github_app_geo_project.configuration
 import github_app_geo_project.security
