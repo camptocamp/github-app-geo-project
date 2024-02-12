@@ -250,8 +250,10 @@
       "title": "Profiles",
       "description": "The profiles configuration",
       "additionalProperties": {
+        "type": "object",
         "allOf": [
           {
+            "title": "Profile application specific configuration",
             "properties": {
               "inherits": {
                 "type": "string",

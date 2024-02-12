@@ -173,6 +173,17 @@ class ModuleConfiguration(TypedDict, total=False):
     """
 
 
+class ProfileApplicationSpecificConfiguration(TypedDict, total=False):
+    """Profile application specific configuration."""
+
+    inherits: str
+    """
+    Inherits.
+
+    The profile to inherit from
+    """
+
+
 class _ChangelogSectionRoutingConditionAnyof0(TypedDict, total=False):
     type: Literal["const"]
     """ The type of the condition """
@@ -248,6 +259,7 @@ _ProfilesAdditionalproperties = Union[
 
 WARNING: Normally the types should be a mix of each other instead of Union.
 See: https://github.com/camptocamp/jsonschema-gentypes/issues/7
+Subtype: "ProfileApplicationSpecificConfiguration"
 """
 
 

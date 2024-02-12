@@ -44,9 +44,10 @@ main = "github_app_geo_project.server:main"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
-c2cwsgiutils = { version = "6.0.4", optional = true, extras = ["debug", "oauth2", "sentry", "dev", "webserver"] }
+c2cwsgiutils = { version = "6.0.4",  extras = ["debug", "oauth2", "sentry", "dev", "webserver"] }
 pyramid-mako = "1.1.0"
 jsonmerge = "1.9.2"
+pygithub = "2.2.0"
 
 [tool.poetry.group.dev.dependencies]
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma"], version = "1.10.3" }
@@ -54,6 +55,7 @@ prospector-profile-duplicated = "0.5.1"
 prospector-profile-utils = "1.7.2"
 pytest = "7.4.3"
 WebTest = "3.0.0"
+types-pyyaml = "6.0.12.12"
 
 [tool.poetry.extras]
 application = ["c2cwsgiutils"]

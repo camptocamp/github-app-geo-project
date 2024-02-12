@@ -8,7 +8,7 @@ import pyramid.httpexceptions
 import pyramid.request
 import pyramid.response
 import pyramid.security
-import sqlalchemy  # pylint: disable=import-error
+import sqlalchemy
 from pyramid.view import view_config
 
 from github_app_geo_project import models
@@ -19,15 +19,12 @@ _LOGGER = logging.getLogger(__name__)
 @view_config(route_name="output", renderer="github_app_geo_project:templates/output.html")  # type: ignore
 def output(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
-    outputs = models.DBSession.execute(
+    out = models.DBSession.execute(
         sqlalchemy.select(models.Output).where(models.Output.id == request.matchdict["id"])
-    )
-    if outputs is None:
+    ).first()
+    if out is None:
         raise pyramid.httpexceptions.HTTPNotFound()
-    if len(outputs) != 1:
-        raise pyramid.httpexceptions.HTTPInternalServerError()
 
-    out = outputs[0]
     if "TEST_USER" not in os.environ:
         permission = request.has_permission(
             out.repository,

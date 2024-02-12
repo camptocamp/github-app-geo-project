@@ -5,14 +5,14 @@ import logging
 import os
 from typing import Any
 
-import c2cwsgiutils.pyramid  # pylint: disable=import-error
+import c2cwsgiutils.pyramid
 import pyramid.response
 import pyramid.session
-from c2cwsgiutils import health_check  # pylint: disable=import-error
+from c2cwsgiutils import health_check
 from pyramid.config import Configurator
 from pyramid.router import Router
 from pyramid_mako import add_mako_renderer
-from sqlalchemy import engine_from_config  # pylint: disable=import-error
+from sqlalchemy import engine_from_config
 
 import github_app_geo_project.configuration
 import github_app_geo_project.security

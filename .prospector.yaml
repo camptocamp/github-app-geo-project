@@ -5,3 +5,7 @@ inherits:
   - utils:no-design-checks
 
 doc-warnings: true
+
+ignore-path:
+  - github_app_geo_project/project_configuration.py
+  - github_app_geo_project/application_configuration.py

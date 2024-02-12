@@ -1,10 +1,15 @@
+"""Models for the GitHub App Geo Project."""
+
 import logging
+from datetime import datetime
+from typing import Any
 
 import sqlalchemy
 import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 import sqlalchemy.sql.functions
-from sqlalchemy import JSON, Column, DateTime, Integer, Unicode
+from sqlalchemy import JSON, DateTime, Integer, Unicode, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,42 +25,41 @@ STATUS_PENDING = "pending"
 STATUS_ERROR = "error"
 STATUS_DONE = "done"
 
-_schema = "github_app"
+_SCHEMA = "github_app"
 
 
-class Base(sqlalchemy.ext.declarative.DeclarativeBase):
-    """Base class for the SQLAlchemy models."""
+Base = sqlalchemy.orm.declarative_base()
 
 
-class Queue(Base):
+class Queue(Base):  # ignore[misc]
     """SQLAlchemy model for the queue."""
 
     __tablename__ = "queue"
-    __table_args__ = {"schema": _schema}
+    __table_args__ = {"schema": _SCHEMA}
 
-    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
-    status = Column(Unicode, nullable=False, default=STATUS_NEW, index=True)
-    created_at = Column(
-        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True  # type: ignore[no-untyped-call]
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    status: Mapped[str] = mapped_column(Unicode, nullable=False, default=STATUS_NEW, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True
     )
-    started_at = Column(DateTime(timezone=True))
-    priority = Column(Integer, nullable=False, default=0, index=True)
-    application = Column(Unicode, nullable=False)
-    data = Column(JSON, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    application: Mapped[str] = mapped_column(Unicode, nullable=False)
+    data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     def __repr__(self) -> str:
         """Return the representation of the job."""
         return f"Queue {self.id} [{self.status}]"
 
 
-class Output(Base):
+class Output(Base):  # type: ignore[misc]
     """SQLAlchemy model for the output entries."""
 
     __tablename__ = "output"
-    __table_args__ = {"schema": _schema}
+    __table_args__ = {"schema": _SCHEMA}
 
-    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
-    repository = Column(Unicode, nullable=False)
-    access_type = Column(Unicode, nullable=False)
-    title = Column(Unicode, nullable=False)
-    data = Column(Unicode, nullable=False)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    repository: Mapped[str] = mapped_column(Unicode, nullable=False)
+    access_type: Mapped[str] = mapped_column(Unicode, nullable=False)
+    title: Mapped[str] = mapped_column(Unicode, nullable=False)
+    data: Mapped[str] = mapped_column(Unicode, nullable=False)

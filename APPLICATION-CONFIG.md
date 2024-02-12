@@ -9,7 +9,7 @@
     - **`id`** _(string)_: The application ID.
     - **`private-key`** _(string)_: The private key used to authenticate the application.
 - **`profiles`** _(object)_: The profiles configuration. Can contain additional properties.
-  - **Additional properties**
+  - **Additional properties** _(object)_
     - **All of**
       - - **`inherits`** _(string)_: The profile to inherit from.
       - : Refer to _[#/$defs/project-configuration](#%24defs/project-configuration)_.

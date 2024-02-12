@@ -1,10 +1,12 @@
+"""Security policy for the application."""
+
 import hashlib
 import hmac
 import logging
 import os
 from typing import Optional, Union
 
-import c2cwsgiutils.auth  # pylint: disable=import-error
+import c2cwsgiutils.auth
 import pyramid.request
 from pyramid.security import Allowed, Denied
 

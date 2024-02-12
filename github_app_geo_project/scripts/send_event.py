@@ -3,16 +3,16 @@ Send an event in the database queue.
 """
 
 import argparse
-import os
 
 import c2cwsgiutils.setup_process
-from sqlalchemy.engine import create_engine
-from sqlalchemy.orm import sessionmaker
+import plaster
+import sqlalchemy.orm
 
 import github_app_geo_project.models
 
 
 def main() -> None:
+    """Add an event in the application queue."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--event",
@@ -24,10 +24,11 @@ def main() -> None:
 
     c2cwsgiutils.setup_process.init(args.config_uri)
 
-    engine = create_engine(os.environ["SQLALCHEMY_URI"])
-    SessionMaker = sessionmaker(engine)  # noqa
+    config_loader = plaster.get_loader(args.config_uri)
+    engine = sqlalchemy.engine_from_config(config_loader.get_settings("database"))
+    Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
 
-    with SessionMaker() as session:
+    with Session() as session:
         job = github_app_geo_project.models.Queue()
         job.data = {
             "type": "event",
