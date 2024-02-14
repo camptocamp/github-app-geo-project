@@ -2,19 +2,12 @@ version: '2.2'
 
 services:
   application: &app
-    ports:
-      - '9050:8080'
     command:
       - pserve
       - --reload
       - c2c:///app/development.ini
     volumes:
       - ./github_app_geo_project:/app/github_app_geo_project:ro
-
-  app_test_user:
-    <<: *app
-    ports:
-      - '9051:8080'
 
   slave:
     volumes:

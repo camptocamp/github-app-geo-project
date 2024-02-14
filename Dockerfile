@@ -38,17 +38,16 @@ RUN poetry export --output=requirements.txt \
 # Base, the biggest thing is to install the Python packages
 FROM base-all as base
 
-# hadolint ignore=SC2086
+# hadolint ignore=SC2086,DL3042,DL3008
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     --mount=type=cache,target=/root/.cache \
     --mount=type=bind,from=poetry,source=/tmp,target=/poetry \
-    DEV_PACKAGES="python3-dev build-essential libgeos-dev libmapnik-dev libpq-dev build-essential" \
+    DEV_PACKAGES="python3-dev libpq-dev build-essential" \
     && apt-get update \
     && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
     && python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements.txt \
     && python3 -m compileall /usr/local/lib/python* /usr/lib/python* \
-    && strip /usr/local/lib/python*/dist-packages/shapely/*.so \
     && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES} binutils
 
 # From c2cwsgiutils
@@ -89,7 +88,6 @@ ARG VERSION=dev
 ENV POETRY_DYNAMIC_VERSIONING_BYPASS=dev
 RUN --mount=type=cache,target=/root/.cache \
     POETRY_DYNAMIC_VERSIONING_BYPASS=${VERSION} python3 -m pip install --disable-pip-version-check --no-deps --editable=. \
-    && mv docker/run /usr/bin/ \
     && python3 -m compileall
 
 RUN mkdir -p /prometheus-metrics \
@@ -118,9 +116,6 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     && curl --silent https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --output=/etc/apt/keyrings/nodesource.gpg \
     && apt-get update \
     && apt-get install --assume-yes --no-install-recommends "nodejs=${NODE_MAJOR}.*"
-
-COPY package.json package-lock.json ./
-RUN npm install --dev
 
 RUN --mount=type=cache,target=/root/.cache \
     --mount=type=bind,from=poetry,source=/tmp,target=/poetry \

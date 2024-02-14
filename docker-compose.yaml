@@ -7,13 +7,13 @@ services:
       POSTGRES_USER: postgresql
       POSTGRES_PASSWORD: postgresql
       POSTGRES_DB: tests
-    volumes:
-      - ./docker/test-db:/docker-entrypoint-initdb.d:ro
 
   application: &app
     image: camptocamp/github-app-geo-project
-    environment: &app-env
-      # https://docs.pylonsproject.org/projects/pyramid/en/1.6-branch/narr/environment.html
+    build:
+      context: .
+    environment:
+      &app-env # https://docs.pylonsproject.org/projects/pyramid/en/1.6-branch/narr/environment.html
       PYRAMID_DEBUG_ALL: TRUE
       PYRAMID_RELOAD_ALL: TRUE
       PYRAMID_DEFAULT_LOCALE_NAME: en
@@ -23,8 +23,11 @@ services:
       C2C_AUTH_GITHUB_CLIENT_ID: '1234'
       C2C_AUTH_GITHUB_CLIENT_SECRET: '1234'
       C2C_PROMETHEUS_PORT: '9110'
+      TEST_USER: 'test'
     links:
       - db
+    ports:
+      - '9060:8080'
 
   slave:
     <<: *app
@@ -35,6 +38,9 @@ services:
 
   test:
     image: camptocamp/github-app-geo-project-tests
+    build:
+      context: .
+      target: tests
     working_dir: /app
     environment:
       LOG_LEVEL: DEBUG
