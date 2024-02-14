@@ -5,17 +5,17 @@ import logging
 import os
 from typing import Any
 
+import c2cwsgiutils.db
+import c2cwsgiutils.health_check
 import c2cwsgiutils.pyramid
 import pyramid.response
 import pyramid.session
-from c2cwsgiutils import health_check
 from pyramid.config import Configurator
 from pyramid.router import Router
 from pyramid_mako import add_mako_renderer
 from sqlalchemy import engine_from_config
 
-import github_app_geo_project.configuration
-import github_app_geo_project.security
+from github_app_geo_project import models, security
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,9 +50,17 @@ def main(global_config: Any, **settings: Any) -> Router:
     )
 
     config.include(c2cwsgiutils.pyramid.includeme)
+    dbsession = c2cwsgiutils.db.init(config, "sqlalchemy", "sqlalchemy_slave")
+
+    config.scan("github_app_geo_project.views")
+
+    health_check = c2cwsgiutils.health_check.HealthCheck(config)
+    health_check.add_db_session_check(dbsession, at_least_one_model=models.Queue)
+    health_check.add_url_check("http://localhost:8080/")
+
     health_check.HealthCheck(config)
     add_mako_renderer(config, ".html")
-    config.set_security_policy(github_app_geo_project.security.SecurityPolicy())
+    config.set_security_policy(security.SecurityPolicy())
     config.add_forbidden_view(forbidden)
 
     config.add_route(
