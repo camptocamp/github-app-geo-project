@@ -64,6 +64,21 @@ def main(global_config: Any, **settings: Any) -> Router:
     config.add_forbidden_view(forbidden)
 
     config.add_route(
+        "home",
+        "/",
+        request_method="GET",
+    )
+    config.add_route(
+        "welcome",
+        "/welcome",
+        request_method="GET",
+    )
+    config.add_route(
+        "project",
+        "/project/{repository}",
+        request_method="GET",
+    )
+    config.add_route(
         "webhook",
         "/webhook/{application}",
         request_method="POST",

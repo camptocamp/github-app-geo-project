@@ -33,6 +33,18 @@ class Module(Generic[T]):
     """The base class of the modules."""
 
     @abstractmethod
+    def title(self) -> str:
+        """Get the title of the module."""
+
+    @abstractmethod
+    def description(self) -> str:
+        """Get the description of the module."""
+
+    def configuration_url(self) -> str:
+        """Get the URL to the configuration page of the module."""
+        return ""
+
+    @abstractmethod
     def get_actions(self, event_data: JsonDict) -> list[Action]:
         """
         Get the action related to the module and the event.
