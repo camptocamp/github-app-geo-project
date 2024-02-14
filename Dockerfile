@@ -94,6 +94,10 @@ RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
 ENV PROMETHEUS_MULTIPROC_DIR=/prometheus-metrics
 
+RUN mkdir /etc/github-app-geo-project \
+    && echo {} > /etc/github-app-geo-project/config.yaml
+
+
 # Do the lint, used by the tests
 FROM base as tests
 

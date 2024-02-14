@@ -10,7 +10,7 @@ import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 import sqlalchemy.sql.functions
 from sqlalchemy import JSON, DateTime, Enum, Integer, Unicode
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,7 +20,8 @@ DBSession = sqlalchemy.orm.scoped_session(sqlalchemy.orm.sessionmaker())
 _SCHEMA = "github_app"
 
 
-Base = sqlalchemy.orm.declarative_base()
+class Base(DeclarativeBase):
+    pass
 
 
 class JobStatus(enum.Enum):
@@ -40,7 +41,7 @@ class Queue(Base):  # type: ignore[misc,valid-type]
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     status: Mapped[JobStatus] = mapped_column(
-        JobStatus, native_enum=False, nullable=False, default=JobStatus.new, index=True
+        Enum(JobStatus), native_enum=False, nullable=False, default=JobStatus.new, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True  # type: ignore[no-untyped-call]
@@ -78,8 +79,10 @@ class Output(Base):  # type: ignore[misc,valid-type]
     __table_args__ = {"schema": _SCHEMA}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
-    status: Mapped[OutputStatus] = mapped_column(OutputStatus, native_enum=False, nullable=False, index=True)
+    status: Mapped[OutputStatus] = mapped_column(
+        Enum(OutputStatus), native_enum=False, nullable=False, index=True
+    )
     repository: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
-    access_type: Mapped[AccessType] = mapped_column(AccessType, native_enum=False, nullable=False)
+    access_type: Mapped[AccessType] = mapped_column(Enum(AccessType), native_enum=False, nullable=False)
     title: Mapped[str] = mapped_column(Unicode, nullable=False)
     data: Mapped[str] = mapped_column(Unicode, nullable=False)

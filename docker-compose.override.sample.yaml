@@ -5,9 +5,9 @@ services:
     command:
       - pserve
       - --reload
-      - c2c:///app/development.ini
+      - c2c:///app/production.ini
     volumes:
-      - ./github_app_geo_project:/app/github_app_geo_project:ro
+      - ./github_app_geo_project:/app/github_app_geo_project/:ro
 
   slave:
     volumes:

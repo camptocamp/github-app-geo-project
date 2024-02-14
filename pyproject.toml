@@ -44,7 +44,7 @@ main = "github_app_geo_project.server:main"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
-c2cwsgiutils = { version = "6.0.4",  extras = ["debug", "oauth2", "sentry", "dev", "webserver"] }
+c2cwsgiutils = { version = "6.0.4",  extras = ["standard", "debug", "dev"] }
 pyramid-mako = "1.1.0"
 jsonmerge = "1.9.2"
 pygithub = "2.2.0"

@@ -10,7 +10,7 @@ import c2cwsgiutils.setup_process
 import plaster
 import sqlalchemy.orm
 
-import github_app_geo_project.models
+from github_app_geo_project import models
 
 
 def _main() -> None:
@@ -24,22 +24,25 @@ def _main() -> None:
     engine = sqlalchemy.engine_from_config(config_loader.get_settings("database"))
     Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
 
+    # Create tables if they do not exist
+    models.Base.metadata.create_all(engine)
+
     while True:
         with Session() as session:
             job = (
-                session.query(github_app_geo_project.models.Queue)
+                session.query(models.Queue)
                 .filter(
-                    github_app_geo_project.models.Queue.status == github_app_geo_project.models.STATUS_NEW
+                    models.Queue.status == models.JobStatus.new,
                 )
                 .order_by(
-                    github_app_geo_project.models.Queue.priority.desc(),
-                    github_app_geo_project.models.Queue.created_at.asc(),
+                    models.Queue.priority.desc(),
+                    models.Queue.created_at.asc(),
                 )
-                .with_for_update(of=github_app_geo_project.models.Queue, skip_locked=True)
+                .with_for_update(of=models.Queue, skip_locked=True)
                 .first()
             )
             if job is not None:
-                job.status = github_app_geo_project.models.STATUS_PENDING
+                job.status = models.JobStatus.pending
                 job.started_at = datetime.now()
                 session.commit()
 

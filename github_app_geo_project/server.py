@@ -52,16 +52,18 @@ def main(global_config: Any, **settings: Any) -> Router:
     config.include(c2cwsgiutils.pyramid.includeme)
     dbsession = c2cwsgiutils.db.init(config, "sqlalchemy", "sqlalchemy_slave")
 
-    config.scan("github_app_geo_project.views")
-
     health_check = c2cwsgiutils.health_check.HealthCheck(config)
     health_check.add_db_session_check(dbsession, at_least_one_model=models.Queue)
     health_check.add_url_check("http://localhost:8080/")
 
-    c2cwsgiutils.health_check.HealthCheck(config)
+    engine_from_config(settings, "sqlalchemy.")
     add_mako_renderer(config, ".html")
     config.set_security_policy(security.SecurityPolicy())
     config.add_forbidden_view(forbidden)
+    config.add_static_view(
+        name="/static",
+        path="/app/github_app_geo_project/static",
+    )
 
     config.add_route(
         "home",
@@ -89,12 +91,6 @@ def main(global_config: Any, **settings: Any) -> Router:
         request_method="GET",
     )
 
-    config.add_static_view(
-        name="/static",
-        path="/app/github_app_geo_project/static",
-    )
-
     config.scan("github_app_geo_project.views")
-    engine_from_config(settings, "sqlalchemy.")
 
     return config.make_wsgi_app()
