@@ -8,15 +8,8 @@ import sqlalchemy
 import sqlalchemy.ext.declarative
 import sqlalchemy.orm
 import sqlalchemy.sql.functions
-<<<<<<< HEAD
-from sqlalchemy import JSON, DateTime, Integer, Unicode, mapped_column
-from sqlalchemy.orm import Mapped, mapped_column
-||||||| parent of 9676f57 (Continuing project structure)
-from sqlalchemy import JSON, Column, DateTime, Integer, Unicode
-=======
 from sqlalchemy import JSON, DateTime, Integer, Unicode
 from sqlalchemy.orm import Mapped, mapped_column
->>>>>>> 9676f57 (Continuing project structure)
 
 _LOGGER = logging.getLogger(__name__)
 

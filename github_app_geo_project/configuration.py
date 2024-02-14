@@ -46,13 +46,7 @@ class GithubObjects:
 
     auth: github.Auth.AppAuth
     integration: github.GithubIntegration
-<<<<<<< HEAD
-    token: github.Token.Token
-||||||| parent of 9676f57 (Continuing project structure)
-    token: github.Token
-=======
     token: github.Auth.Token
->>>>>>> 9676f57 (Continuing project structure)
     token_date: datetime
     application: github.Github
 
