@@ -13,7 +13,11 @@ services:
   application: &app
     image: camptocamp/github-app-geo-project
     environment: &app-env
-      LOG_LEVEL: INFO
+      # https://docs.pylonsproject.org/projects/pyramid/en/1.6-branch/narr/environment.html
+      PYRAMID_DEBUG_ALL: TRUE
+      PYRAMID_RELOAD_ALL: TRUE
+      PYRAMID_DEFAULT_LOCALE_NAME: en
+      LOG_LEVEL: DEBUG
       C2C_AUTH_GITHUB_REPOSITORY: camptocamp/github-app-geo-project
       C2C_AUTH_GITHUB_SECRET: '1234567890123456789'
       C2C_AUTH_GITHUB_CLIENT_ID: '1234'
