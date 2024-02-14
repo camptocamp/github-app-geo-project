@@ -222,12 +222,12 @@
       "title": "Description",
       "description": "The description of the project"
     },
-    "documentation_url": {
+    "documentation-url": {
       "type": "string",
       "title": "Documentation URL",
       "description": "The URL of the documentation"
     },
-    "start_url": {
+    "start-url": {
       "type": "string",
       "title": "Start URL",
       "description": "The URL of the start page"

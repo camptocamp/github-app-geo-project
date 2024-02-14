@@ -130,11 +130,11 @@ GithubApplicationProjectConfiguration = TypedDict(
         # Documentation URL.
         #
         # The URL of the documentation
-        "documentation_url": str,
+        "documentation-url": str,
         # Start URL.
         #
         # The URL of the start page
-        "start_url": str,
+        "start-url": str,
         # Default profile.
         #
         # The profile name used by default
