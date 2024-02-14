@@ -5,25 +5,6 @@ Automatically generated file from a JSON schema.
 
 from typing import Literal, TypedDict, Union
 
-# Application.
-#
-# The application configuration
-Application = TypedDict(
-    "Application",
-    {
-        # Application ID.
-        #
-        # The application ID
-        "id": str,
-        # Application private key.
-        #
-        # The private key used to authenticate the application
-        "private-key": str,
-    },
-    total=False,
-)
-
-
 # Changelog.
 #
 # The changelog generation configuration
@@ -138,18 +119,26 @@ Aggregation type: anyOf
 GithubApplicationProjectConfiguration = TypedDict(
     "GithubApplicationProjectConfiguration",
     {
+        # Title.
+        #
+        # The title of the project
+        "title": str,
+        # Description.
+        #
+        # The description of the project
+        "description": str,
+        # Documentation URL.
+        #
+        # The URL of the documentation
+        "documentation_url": str,
+        # Start URL.
+        #
+        # The URL of the start page
+        "start_url": str,
         # Default profile.
         #
         # The profile name used by default
         "default-profile": str,
-        # Default application.
-        #
-        # The default Github Application to be used
-        "default-application": str,
-        # Applications.
-        #
-        # The applications configuration
-        "applications": dict[str, "Application"],
         # Profiles.
         #
         # The profiles configuration

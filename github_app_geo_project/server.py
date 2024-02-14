@@ -58,7 +58,7 @@ def main(global_config: Any, **settings: Any) -> Router:
     health_check.add_db_session_check(dbsession, at_least_one_model=models.Queue)
     health_check.add_url_check("http://localhost:8080/")
 
-    health_check.HealthCheck(config)
+    c2cwsgiutils.health_check.HealthCheck(config)
     add_mako_renderer(config, ".html")
     config.set_security_policy(security.SecurityPolicy())
     config.add_forbidden_view(forbidden)

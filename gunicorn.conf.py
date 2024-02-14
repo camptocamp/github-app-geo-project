@@ -8,7 +8,7 @@ import os
 
 import gunicorn.arbiter
 import gunicorn.workers.base
-from c2cwsgiutils import get_config_defaults, get_paste_config, prometheus
+from c2cwsgiutils import get_config_defaults, get_logconfig_dict, get_paste_config, prometheus
 from prometheus_client import multiprocess
 
 bind = ":8080"  # pylint: disable=invalid-name

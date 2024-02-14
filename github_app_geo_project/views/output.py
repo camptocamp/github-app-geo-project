@@ -21,7 +21,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
     out = models.DBSession.execute(
         sqlalchemy.select(models.Output).where(models.Output.id == request.matchdict["id"])
-    ).first()
+    ).one()
     if out is None:
         raise pyramid.httpexceptions.HTTPNotFound()
 

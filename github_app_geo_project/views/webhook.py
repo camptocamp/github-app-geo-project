@@ -19,15 +19,12 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     application = request.matchdict["application"]
     data = request.json
 
-    config = configuration.get_configuration(data["repository"]["full_name"])
+    config = configuration.get_configuration(request.registry.config, data["repository"]["full_name"])
     for name, module in modules.MODULES.items():
         module_config = cast(project_configuration.ModuleConfiguration, config.get(name, {}))
         if (
             module_config.get("enabled", True)
-            and module_config.get(
-                "application", configuration.APPLICATION_CONFIGURATION["default-application"]
-            )
-            == application
+            and module_config.get("application", request.matchdict["application"]) == application
         ):
             for action in module.get_actions(data):
                 models.DBSession.execute(

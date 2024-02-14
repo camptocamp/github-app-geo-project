@@ -212,38 +212,30 @@
     }
   },
   "properties": {
+    "title": {
+      "type": "string",
+      "title": "Title",
+      "description": "The title of the project"
+    },
+    "description": {
+      "type": "string",
+      "title": "Description",
+      "description": "The description of the project"
+    },
+    "documentation_url": {
+      "type": "string",
+      "title": "Documentation URL",
+      "description": "The URL of the documentation"
+    },
+    "start_url": {
+      "type": "string",
+      "title": "Start URL",
+      "description": "The URL of the start page"
+    },
     "default-profile": {
       "type": "string",
       "title": "Default profile",
       "description": "The profile name used by default"
-    },
-    "default-application": {
-      "type": "string",
-      "title": "Default application",
-      "description": "The default Github Application to be used"
-    },
-    "applications": {
-      "type": "object",
-      "title": "Applications",
-      "description": "The applications configuration",
-      "additionalProperties": {
-        "type": "object",
-        "title": "Application",
-        "description": "The application configuration",
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Application ID",
-            "description": "The application ID"
-          },
-          "private-key": {
-            "type": "string",
-            "title": "Application private key",
-            "description": "The private key used to authenticate the application"
-          }
-        }
-      }
     },
     "profiles": {
       "type": "object",

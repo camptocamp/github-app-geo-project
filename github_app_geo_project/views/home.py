@@ -7,7 +7,6 @@ import pyramid.httpexceptions
 import pyramid.request
 import pyramid.response
 import pyramid.security
-import sqlalchemy
 from pyramid.view import view_config
 
 from github_app_geo_project import configuration
@@ -32,7 +31,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
         }
         for module_name in request.registry.settings[f"application.{app}.modules"].split():
             if module_name not in modules.MODULES:
-                _LOGGER.error(f"Unknown module {module_name}")
+                _LOGGER.error("Unknown module %s", module_name)
                 continue
             module = modules.MODULES[module_name]
             application["modules"].append(
@@ -40,7 +39,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     "name": module_name,
                     "title": module.title(),
                     "description": module.description(),
-                    "configuration_url": module.configuration_url(),
+                    "documentation_url": module.documentation_url(),
                 }
             )
 
@@ -49,6 +48,6 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
     return {
         "title": configuration.APPLICATION_CONFIGURATION["title"],
         "description": configuration.APPLICATION_CONFIGURATION["description"],
-        "configuration_url": configuration.APPLICATION_CONFIGURATION["configuration_url"],
+        "documentation_url": configuration.APPLICATION_CONFIGURATION["documentation_url"],
         "applications": applications,
     }

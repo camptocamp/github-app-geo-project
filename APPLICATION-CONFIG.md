@@ -2,12 +2,11 @@
 
 ## Properties
 
+- **`title`** _(string)_: The title of the project.
+- **`description`** _(string)_: The description of the project.
+- **`documentation_url`** _(string)_: The URL of the documentation.
+- **`start_url`** _(string)_: The URL of the start page.
 - **`default-profile`** _(string)_: The profile name used by default.
-- **`default-application`** _(string)_: The default Github Application to be used.
-- **`applications`** _(object)_: The applications configuration. Can contain additional properties.
-  - **Additional properties** _(object)_: The application configuration. Cannot contain additional properties.
-    - **`id`** _(string)_: The application ID.
-    - **`private-key`** _(string)_: The private key used to authenticate the application.
 - **`profiles`** _(object)_: The profiles configuration. Can contain additional properties.
   - **Additional properties** _(object)_
     - **All of**

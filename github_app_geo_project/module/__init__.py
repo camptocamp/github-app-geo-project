@@ -40,8 +40,8 @@ class Module(Generic[T]):
     def description(self) -> str:
         """Get the description of the module."""
 
-    def configuration_url(self) -> str:
-        """Get the URL to the configuration page of the module."""
+    def documentation_url(self) -> str:
+        """Get the URL to the documentation page of the module."""
         return ""
 
     @abstractmethod

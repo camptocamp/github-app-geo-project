@@ -2,7 +2,7 @@
 
 import os
 from datetime import datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 import github
 import jsonmerge
@@ -54,18 +54,19 @@ class GithubObjects:
 GITHUB_APPLICATIONS: dict[str, GithubObjects]
 
 
-def get_github_application(application_name: str) -> GithubObjects:
+def get_github_application(config: dict[str, Any], application_name: str) -> GithubObjects:
     """Get the Github Application by name."""
-    # TODO get from ini config file
-    if application_name not in APPLICATION_CONFIGURATION["applications"]:
+    applications = config.get("applications", "").split()
+    if application_name not in applications:
         raise ValueError(
-            f"Application {application_name} not found, available applications: {', '.join(APPLICATION_CONFIGURATION['applications'].keys())}"
+            f"Application {application_name} not found, available applications: {', '.join(applications)}"
         )
     if application_name not in GITHUB_APPLICATIONS:  # pylint: disable=undefined-variable # noqa
-        app_config = APPLICATION_CONFIGURATION["applications"][application_name]
-
         objects = GithubObjects()
-        objects.auth = github.AppAuth(app_config["id"], app_config["private-key"])  # type: ignore[attr-defined]
+        objects.auth = github.AppAuth(  # type: ignore[attr-defined]
+            config[f"application.{application_name}.github_app_id"],
+            config[f"application.{application_name}.github_app_private_key"],
+        )
         objects.integration = github.GithubIntegration(auth=objects.auth)
 
         GITHUB_APPLICATIONS[application_name] = objects  # noqa
@@ -79,14 +80,16 @@ def get_github_application(application_name: str) -> GithubObjects:
     return objects
 
 
-def get_configuration(repository: str) -> project_configuration.GithubApplicationProjectConfiguration:
+def get_configuration(
+    config: dict[str, Any], repository: str
+) -> project_configuration.GithubApplicationProjectConfiguration:
     """
     Get the Configuration for the repository.
 
     Parameter:
         repository: The repository name (<owner>/<name>)
     """
-    github_application = get_github_application(APPLICATION_CONFIGURATION["default-application"])
+    github_application = get_github_application(config, config.get("default-application", "default"))
     repo = github_application.application.get_repo(repository)
     project_configuration_content = repo.get_contents(".github/geo-configuration.yaml")
     assert not isinstance(project_configuration_content, list)
