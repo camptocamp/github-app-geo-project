@@ -22,8 +22,6 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
     for app in request.registry.settings["applications"].split():
         application = {
             "name": app,
-            "github_app_id": request.registry.settings[f"application.{app}.github_app_id"],
-            "github_app_private_key": request.registry.settings[f"application.{app}.github_app_private_key"],
             "github_app_url": request.registry.settings[f"application.{app}.github_app_url"],
             "title": request.registry.settings[f"application.{app}.title"],
             "description": request.registry.settings[f"application.{app}.description"],

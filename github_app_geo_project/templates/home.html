@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>${title}</title>
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="${request.static_url('/app/tilecloud_chain/static/favicon-32x32.png')}"
+      referrerpolicy="no-referrer"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="${request.static_url('/app/tilecloud_chain/static/favicon-16x16.png')}"
+      referrerpolicy="no-referrer"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/css/bootstrap.min.css"
+      integrity="sha512-b2QcS5SsA8tZodcDtGRELiGv5SaKSk1vDHDaQRda0htPYWZ6046lr3kJ5bAAQdpV2mmA/4v0wQF9MyU6/pDIAg=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <style>
+      a {
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body class="px-5 py-4">
+    <script>
+      /* For dark mode */
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-bs-theme', 'dark');
+      }
+    </script>
+
+    <div style="position: absolute; right: 3rem; top: 2rem">
+      <div style="position: absolute; right: 3rem; top: 2rem">
+        %if not request.identity.is_auth:
+        <a
+          class="btn btn-primary"
+          href="${request.route_url('c2c_github_login', _query={'came_from': request.current_route_url()})}"
+          >Login with GitHub</a
+        >
+        %else:
+        <p>
+          Logged as: <a href="${request.identity.url}">${request.identity.name}</a>
+          <a
+            class="btn btn-outline-primary"
+            style="vertical-align: baseline; margin-left: 0.5rem"
+            href="${request.route_url('c2c_github_logout', _query={'came_from': request.current_route_url()})}"
+            >Logout</a
+          >
+        </p>
+        %endif
+      </div>
+      <h1 class="bd-title">${title}</h1>
+      ${description|n} %if documentation_url:
+      <p>
+        <a href="${documentation_url}" target="_blank" rel="noopener noreferrer">Documentation</a>
+      </p>
+    </div>
+
+    %for application in applications:
+    <div>
+      <h2>${application['title']} [${application['name']}]</h2>
+      <p>${application['description']}</p>
+      <p>
+        <a class="btn btn-primary" href="${application['github_app_url']}">Install GitHub Application</a>
+      </p>
+      %for module in application['modules']:
+      <div>
+        <h3>${module['title']} [${module['name']}]</h3>
+        <p>${module['description']}</p>
+        <p>
+          <a class="btn btn-primary" href="${module['documentation_url']}">Documentation</a>
+        </p>
+      </div>
+      %endfor
+    </div>
+    %endfor
+
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+      integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.11.8/umd/popper.min.js"
+      integrity="sha512-TPh2Oxlg1zp+kz3nFA0C5vVC6leG/6mm1z9+mA81MI5eaUVqasPLO8Cuk4gMF4gUfP5etR73rgU/8PNMsSesoQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.2/js/bootstrap.min.js"
+      integrity="sha512-WW8/jxkELe2CAiE4LvQfwm1rajOS8PHasCCx+knHG0gBHt8EXxS6T6tJRTGuDQVnluuAvMxWF4j8SNFDKceLFg=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+  </body>
+</html>
