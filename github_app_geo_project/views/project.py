@@ -19,11 +19,25 @@ _LOGGER = logging.getLogger(__name__)
 @view_config(route_name="project", renderer="github_app_geo_project:templates/output.html")  # type: ignore
 def project(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
+    repository = request.matchdict["repository"]
+    permission = request.has_permission(
+        repository,
+        {"github_repository": repository, "github_access_type": "admin"},
+    )
+    has_access = isinstance(permission, pyramid.security.Allowed)
+    if not has_access:
+        return {
+            "repository": repository,
+            "output": "Access Denied",
+            "issue_url": "",
+            "module_configuration": [],
+        }
+
     select = sqlalchemy.select(models.Output).where(
         models.Output.repository == request.matchdict["repository"]
     )
     if "only_error" in request.params:
-        select = select.where(models.Output.status == models.STATUS_ERROR)
+        select = select.where(models.Output.status == models.OutputStatus.error)
 
     out = models.DBSession.execute(select).partitions(20)
 
@@ -42,7 +56,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         )
 
     return {
-        "repository": request.matchdict["repository"],
+        "repository": repository,
         "output": out,
         "issue_url": "...",
         "module_configuration": module_config,
