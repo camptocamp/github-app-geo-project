@@ -21,6 +21,6 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
 
     return {
         "title": configuration.APPLICATION_CONFIGURATION["title"],
-        "start_url": configuration.APPLICATION_CONFIGURATION["start_url"],
+        "start_url": configuration.APPLICATION_CONFIGURATION["start-url"],
         "projects": [],
     }

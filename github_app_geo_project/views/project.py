@@ -3,6 +3,9 @@
 import logging
 from typing import Any
 
+import markdown
+import pygments.formatters
+import pygments.lexers
 import pyramid.httpexceptions
 import pyramid.request
 import pyramid.response
@@ -19,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 @view_config(route_name="project", renderer="github_app_geo_project:templates/output.html")  # type: ignore
 def project(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
-    repository = request.matchdict["repository"]
+    repository = f'{request.matchdict["owner"]}/{request.matchdict["repository"]}'
     permission = request.has_permission(
         repository,
         {"github_repository": repository, "github_access_type": "admin"},
@@ -33,15 +36,18 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "module_configuration": [],
         }
 
+    config = configuration.get_configuration(
+        request.registry.settings, request.matchdict["owner"], request.matchdict["repository"]
+    )
+    lexer = pygments.lexers.YamlLexer()
+    formatter = pygments.formatters.HtmlFormatter()
+
     select = sqlalchemy.select(models.Output).where(
         models.Output.repository == request.matchdict["repository"]
     )
     if "only_error" in request.params:
         select = select.where(models.Output.status == models.OutputStatus.error)
-
     out = models.DBSession.execute(select).partitions(20)
-
-    config = configuration.get_configuration(request.registry.config, request.matchdict["repository"])
 
     module_config = []
     for module_name, module in modules.MODULES.items():
@@ -49,13 +55,14 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             {
                 "name": module_name,
                 "title": module.title(),
-                "description": module.description(),
+                "description": markdown.markdown(module.description()),
                 "configuration_url": module.documentation_url(),
-                "configuration": config.get(module_name, {}),
+                "configuration": pygments.highlight(config.get(module_name, {}), lexer, formatter),
             }
         )
 
     return {
+        "styles": formatter.get_style_defs(),
         "repository": repository,
         "output": out,
         "issue_url": "...",

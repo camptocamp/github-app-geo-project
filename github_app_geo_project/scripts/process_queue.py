@@ -6,22 +6,23 @@ import argparse
 import time
 from datetime import datetime
 
+import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
 import plaster
+import pyramid.scripts.common
 import sqlalchemy.orm
 
 from github_app_geo_project import models
 
 
-def _main() -> None:
+def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     c2cwsgiutils.setup_process.fill_arguments(parser)
     args = parser.parse_args()
 
     c2cwsgiutils.setup_process.init(args.config_uri)
-
-    config_loader = plaster.get_loader(args.config_uri)
-    engine = sqlalchemy.engine_from_config(config_loader.get_settings("database"))
+    loader = plaster.get_loader(args.config_uri)
+    engine = sqlalchemy.engine_from_config(loader.get_settings("app:app"), "sqlalchemy.")
     Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
 
     # Create tables if they do not exist
@@ -52,4 +53,4 @@ def _main() -> None:
 
 
 if __name__ == "__main__":
-    _main()
+    main()

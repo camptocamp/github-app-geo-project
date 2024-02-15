@@ -16,38 +16,40 @@ services:
       context: .
     environment:
       &app-env # https://docs.pylonsproject.org/projects/pyramid/en/1.6-branch/narr/environment.html
-      PYRAMID_DEBUG_ALL: TRUE
-      PYRAMID_RELOAD_ALL: TRUE
-      PYRAMID_DEFAULT_LOCALE_NAME: en
-      LOG_LEVEL: DEBUG
-      C2CWSGIUTILS_LOG_LEVEL: INFO
-      SQL_LOG_LEVEL: INFO
-      GUNICORN_LOG_LEVEL: INFO
-      OTHER_LOG_LEVEL: INFO
-      C2C_AUTH_GITHUB_REPOSITORY: camptocamp/github-app-geo-project
-      C2C_AUTH_GITHUB_SECRET: '1234567890123456789'
-      C2C_AUTH_GITHUB_CLIENT_ID: '1234'
-      C2C_AUTH_GITHUB_CLIENT_SECRET: '1234'
-      C2C_PROMETHEUS_PORT: '9110'
-      TEST_USER: test
-      SQLALCHEMY_URL: postgresql://postgresql:postgresql@db/tests
-      SQLALCHEMY_POOL_RECYCLE: 3600
-      SQLALCHEMY_POOL_SIZE: 10
-      SQLALCHEMY_MAX_OVERFLOW: 20
-      SQLALCHEMY_SLAVE_URL: postgresql://postgresql:postgresql@db/tests
-      SQLALCHEMY_SLAVE_POOL_RECYCLE: 3600
-      SQLALCHEMY_SLAVE_POOL_SIZE: 10
-      SQLALCHEMY_SLAVE_MAX_OVERFLOW: 20
-      GHAGP_GENERIC_GITHUB_APP_ID: '1234'
-      GHAGP_GENERIC_GITHUB_APP_PRIVATE_KEY: '1234'
-      GHAGP_GENERIC_GITHUB_APP_URL: https://github.com/apps/geo-saas-int
-      GHAGP_PULL_REQUEST_GITHUB_APP_ID: '1234'
-      GHAGP_PULL_REQUEST_GITHUB_APP_PRIVATE_KEY: '1234'
-      GHAGP_PULL_REQUEST_GITHUB_APP_URL: https://github.com/apps/geo-saas-int
-      GITHUB_APP_GEO_PROJECT_SESSION_SECRET: '1234'
-      GITHUB_APP_GEO_PROJECT_SESSION_SALT: '1234'
-      GITHUB_APP_GEO_PROJECT_CONFIGURATION: '/etc/github-app-geo-project/config.yaml'
-      VISIBLE_ENTRY_POINT: /
+      - PYRAMID_DEBUG_ALL=TRUE
+      - PYRAMID_RELOAD_ALL=TRUE
+      - PYRAMID_DEFAULT_LOCALE_NAME=en
+      - LOG_LEVEL=DEBUG
+      - C2CWSGIUTILS_LOG_LEVEL=INFO
+      - SQL_LOG_LEVEL=INFO
+      - GUNICORN_LOG_LEVEL=INFO
+      - OTHER_LOG_LEVEL=INFO
+      - C2C_AUTH_GITHUB_REPOSITORY=camptocamp/github-app-geo-project
+      - C2C_AUTH_GITHUB_SECRET=1234567890123456789
+      - C2C_AUTH_GITHUB_CLIENT_ID=1234
+      - C2C_AUTH_GITHUB_CLIENT_SECRET=1234
+      - C2C_PROMETHEUS_PORT=9110
+      - TEST_USER=test
+      - SQLALCHEMY_URL=postgresql://postgresql:postgresql@db/tests
+      - SQLALCHEMY_POOL_RECYCLE=3600
+      - SQLALCHEMY_POOL_SIZE=10
+      - SQLALCHEMY_MAX_OVERFLOW=20
+      - SQLALCHEMY_SLAVE_URL=postgresql://postgresql:postgresql@db/tests
+      - SQLALCHEMY_SLAVE_POOL_RECYCLE=3600
+      - SQLALCHEMY_SLAVE_POOL_SIZE=10
+      - SQLALCHEMY_SLAVE_MAX_OVERFLOW=20
+      - GHCI_GENERIC_GITHUB_APP_ID
+      - GHCI_GENERIC_GITHUB_APP_PRIVATE_KEY
+      - GHCI_GENERIC_GITHUB_APP_URL=https://github.com/apps/geo-saas-int
+      - GHCI_PULL_REQUEST_GITHUB_APP_ID=1234
+      - GHCI_PULL_REQUEST_GITHUB_APP_PRIVATE_KEY=1234
+      - GHCI_PULL_REQUEST_GITHUB_APP_URL=https://github.com/apps/geo-saas-int
+      - GHCI_SESSION_SECRET=1234
+      - GHCI_SESSION_SALT=1234
+      - GHCI_CONFIGURATION=/etc/github-app-geo-project/config.yaml
+      - VISIBLE_ENTRY_POINT=/
+    volumes:
+      - ./docker/test-app/config.yaml:/etc/github-app-geo-project/config.yaml:ro
     links:
       - db
     ports:
@@ -57,8 +59,7 @@ services:
     <<: *app
     command:
       - process-queue
-    environment:
-      <<: *app-env
+    environment: *app-env
     ports: []
 
   test:

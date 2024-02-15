@@ -23,9 +23,8 @@ def main() -> None:
     args = parser.parse_args()
 
     c2cwsgiutils.setup_process.init(args.config_uri)
-
-    config_loader = plaster.get_loader(args.config_uri)
-    engine = sqlalchemy.engine_from_config(config_loader.get_settings("database"))
+    loader = plaster.get_loader(args.config_uri)
+    engine = sqlalchemy.engine_from_config(loader.get_settings("app:app"), "sqlalchemy.")
     Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
 
     with Session() as session:

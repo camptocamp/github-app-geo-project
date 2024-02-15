@@ -1,7 +1,6 @@
 """Manage configuration of the application."""
 
 import os
-from datetime import datetime, timedelta
 from typing import Any, cast
 
 import github
@@ -10,7 +9,7 @@ import yaml
 
 from github_app_geo_project import application_configuration, project_configuration
 
-with open(os.environ["GITHUB_APP_GEO_PROJECT_CONFIGURATION"], encoding="utf-8") as configuration_file:
+with open(os.environ["GHCI_CONFIGURATION"], encoding="utf-8") as configuration_file:
     APPLICATION_CONFIGURATION: application_configuration.GithubApplicationProjectConfiguration = yaml.load(
         configuration_file, Loader=yaml.SafeLoader
     )
@@ -23,7 +22,7 @@ def apply_profile_inheritance(
     Apply the inheritance of the profile.
     """
     for other_name, other_profile in APPLICATION_CONFIGURATION["profiles"].items():
-        if profile["inherits"] == profile_name:
+        if profile.get("inherits") == profile_name:
             APPLICATION_CONFIGURATION["profiles"][other_name] = jsonmerge.merge(
                 profiles[profile_name], other_profile
             )
@@ -46,15 +45,15 @@ class GithubObjects:
 
     auth: github.Auth.AppAuth
     integration: github.GithubIntegration
-    token: github.Auth.Token
-    token_date: datetime
     application: github.Github
 
 
-GITHUB_APPLICATIONS: dict[str, GithubObjects]
+GITHUB_APPLICATIONS: dict[str, GithubObjects] = {}
 
 
-def get_github_application(config: dict[str, Any], application_name: str) -> GithubObjects:
+def get_github_application(
+    config: dict[str, Any], application_name: str, owner: str, repository: str
+) -> github.Github:
     """Get the Github Application by name."""
     applications = config.get("applications", "").split()
     if application_name not in applications:
@@ -62,26 +61,31 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
             f"Application {application_name} not found, available applications: {', '.join(applications)}"
         )
     if application_name not in GITHUB_APPLICATIONS:  # pylint: disable=undefined-variable # noqa
+        private_key = "\n".join(
+            [
+                e.strip()
+                for e in config[f"application.{application_name}.github_app_private_key"].strip().split("\n")
+            ]
+        )
         objects = GithubObjects()
-        objects.auth = github.AppAuth(  # type: ignore[attr-defined]
+        objects.auth = github.Auth.AppAuth(  # type: ignore[attr-defined]
             config[f"application.{application_name}.github_app_id"],
-            config[f"application.{application_name}.github_app_private_key"],
+            private_key,
         )
         objects.integration = github.GithubIntegration(auth=objects.auth)
 
         GITHUB_APPLICATIONS[application_name] = objects  # noqa
 
     objects = GITHUB_APPLICATIONS[application_name]  # noqa
-    if objects.token_date is None or objects.token_date < datetime.now() - timedelta(minutes=30):
-        objects.token = objects.integration.get_access_token()  # type: ignore[call-arg,assignment]
-        objects.token_date = datetime.now()
-        objects.application = github.Github(login_or_token=objects.token.token)
 
-    return objects
+    token = objects.integration.get_access_token(objects.integration.get_installation(owner, repository).id).token  # type: ignore[call-arg,assignment]
+    github_application = github.Github(login_or_token=token)
+
+    return github_application
 
 
 def get_configuration(
-    config: dict[str, Any], repository: str
+    config: dict[str, Any], owner: str, repository: str
 ) -> project_configuration.GithubApplicationProjectConfiguration:
     """
     Get the Configuration for the repository.
@@ -89,13 +93,18 @@ def get_configuration(
     Parameter:
         repository: The repository name (<owner>/<name>)
     """
-    github_application = get_github_application(config, config.get("default-application", "default"))
-    repo = github_application.application.get_repo(repository)
-    project_configuration_content = repo.get_contents(".github/geo-configuration.yaml")
-    assert not isinstance(project_configuration_content, list)
-    project_custom_configuration = yaml.load(
-        project_configuration_content.decoded_content, Loader=yaml.SafeLoader
+    github_application = get_github_application(
+        config, config.get("default-application", "default"), owner, repository
     )
+    repo = github_application.get_repo(f"{owner}/{repository}")
+    try:
+        project_configuration_content = repo.get_contents(".github/ghci.yaml")
+        assert not isinstance(project_configuration_content, list)
+        project_custom_configuration = yaml.load(
+            project_configuration_content.decoded_content, Loader=yaml.SafeLoader
+        )
+    except github.GithubException:
+        project_custom_configuration = {}
 
     return jsonmerge.merge(  # type: ignore[no-any-return]
         APPLICATION_CONFIGURATION.get("profiles", {}).get(

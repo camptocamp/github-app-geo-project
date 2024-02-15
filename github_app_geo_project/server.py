@@ -42,10 +42,10 @@ def main(global_config: Any, **settings: Any) -> Router:
 
     config.set_session_factory(
         pyramid.session.BaseCookieSessionFactory(json)
-        if os.environ.get("GITHUB_APP_GEO_PROJECT_DEBUG_SESSION", "false").lower() == "true"
+        if os.environ.get("GHCI_DEBUG_SESSION", "false").lower() == "true"
         else pyramid.session.SignedCookieSessionFactory(
-            os.environ["GITHUB_APP_GEO_PROJECT_SESSION_SECRET"],
-            salt=os.environ["GITHUB_APP_GEO_PROJECT_SESSION_SALT"],
+            os.environ["GHCI_SESSION_SECRET"],
+            salt=os.environ["GHCI_SESSION_SALT"],
         )
     )
 
@@ -77,7 +77,7 @@ def main(global_config: Any, **settings: Any) -> Router:
     )
     config.add_route(
         "project",
-        "/project/{repository}",
+        "/project/{owner}/{repository}",
         request_method="GET",
     )
     config.add_route(

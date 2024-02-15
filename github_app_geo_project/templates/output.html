@@ -6,14 +6,14 @@
       rel="icon"
       type="image/png"
       sizes="32x32"
-      href="${request.static_url('/app/tilecloud_chain/static/favicon-32x32.png')}"
+      href="${request.static_url('/app/github_app_geo_project/static/favicon-32x32.png')}"
       referrerpolicy="no-referrer"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="16x16"
-      href="${request.static_url('/app/tilecloud_chain/static/favicon-16x16.png')}"
+      href="${request.static_url('/app/github_app_geo_project/static/favicon-16x16.png')}"
       referrerpolicy="no-referrer"
     />
     <link
@@ -41,28 +41,26 @@
     </script>
 
     <div style="position: absolute; right: 3rem; top: 2rem">
-      <div style="position: absolute; right: 3rem; top: 2rem">
-        %if not request.identity.is_auth:
+      %if not request.identity.is_auth:
+      <a
+        class="btn btn-primary"
+        href="${request.route_url('c2c_github_login', _query={'came_from': request.current_route_url()})}"
+        >Login with GitHub</a
+      >
+      %else:
+      <p>
+        Logged as: <a href="${request.identity.url}">${request.identity.name}</a>
         <a
-          class="btn btn-primary"
-          href="${request.route_url('c2c_github_login', _query={'came_from': request.current_route_url()})}"
-          >Login with GitHub</a
+          class="btn btn-outline-primary"
+          style="vertical-align: baseline; margin-left: 0.5rem"
+          href="${request.route_url('c2c_github_logout', _query={'came_from': request.current_route_url()})}"
+          >Logout</a
         >
-        %else:
-        <p>
-          Logged as: <a href="${request.identity.url}">${request.identity.name}</a>
-          <a
-            class="btn btn-outline-primary"
-            style="vertical-align: baseline; margin-left: 0.5rem"
-            href="${request.route_url('c2c_github_logout', _query={'came_from': request.current_route_url()})}"
-            >Logout</a
-          >
-        </p>
-        %endif
-      </div>
-      <h1 class="bd-title">${title}</h1>
-      ${content|n}
+      </p>
+      %endif
     </div>
+    <h1 class="bd-title">${title}</h1>
+    ${content|n}
 
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
