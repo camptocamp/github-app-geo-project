@@ -51,10 +51,8 @@ class GithubObjects:
 GITHUB_APPLICATIONS: dict[str, GithubObjects] = {}
 
 
-def get_github_application(
-    config: dict[str, Any], application_name: str, owner: str, repository: str
-) -> github.Github:
-    """Get the Github Application by name."""
+def get_github_objects(config: dict[str, Any], application_name: str) -> GithubObjects:
+    """Get the Github Application objects by name."""
     applications = config.get("applications", "").split()
     if application_name not in applications:
         raise ValueError(
@@ -77,6 +75,15 @@ def get_github_application(
         GITHUB_APPLICATIONS[application_name] = objects  # noqa
 
     objects = GITHUB_APPLICATIONS[application_name]  # noqa
+
+    return objects
+
+
+def get_github_application(
+    config: dict[str, Any], application_name: str, owner: str, repository: str
+) -> github.Github:
+    """Get the Github Application by name."""
+    objects = get_github_objects(config, application_name)
 
     token = objects.integration.get_access_token(objects.integration.get_installation(owner, repository).id).token  # type: ignore[call-arg,assignment]
     github_application = github.Github(login_or_token=token)

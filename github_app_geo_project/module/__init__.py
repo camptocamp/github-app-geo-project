@@ -1,7 +1,7 @@
 """The base class of the modules."""
 
 from abc import abstractmethod
-from typing import Generic, NamedTuple, TypedDict, TypeVar, Union
+from typing import Generic, NamedTuple, TypeVar, Union
 
 
 class Action(NamedTuple):
@@ -29,13 +29,11 @@ JsonDict = dict[str, Json]
 T = TypeVar("T")
 
 
-class GitHubApplicationPermissions(TypedDict):
+class GitHubApplicationPermissions(NamedTuple):
     """The permissions needed by the GitHub application."""
 
-    repository_permissions: list[str]
-    organization_permissions: list[str]
-    account_permissions: list[str]
-    subscribe_to_events: list[str]
+    permissions: dict[str, str]
+    events: set[str]
 
 
 class Module(Generic[T]):
@@ -76,9 +74,4 @@ class Module(Generic[T]):
 
     def get_github_application_permissions(self) -> GitHubApplicationPermissions:
         """Get the list of permissions needed by the GitHub application."""
-        return {
-            "repository_permissions": [],
-            "organization_permissions": [],
-            "account_permissions": [],
-            "subscribe_to_events": [],
-        }
+        return GitHubApplicationPermissions({}, set())

@@ -79,26 +79,20 @@
     %for application in applications:
     <div>
       <h3>${application['title']} [${application['name']}]</h3>
-      %if application['repository_permissions']:
-      <p>Required repository permissions: ${', '.join(application['repository_permissions'])}</p>
-      %endif
-      <!---->
-      %if application['organization_permissions']:
-      <p>Required organization permissions: ${', '.join(application['organization_permissions'])}</p>
-      %endif
-      <!---->
-      %if application['account_permissions']:
-      <p>Required account permissions: ${', '.join(application['account_permissions'])}</p>
-      %endif
-      <!---->
-      %if application['subscribe_to_events']:
-      <p>Required subscribe to events: ${', '.join(application['subscribe_to_events'])}</p>
-      %endif
-      <!---->
       ${application['description']|markdown}
       <p>
         <a class="btn btn-primary" href="${application['github_app_url']}">Install GitHub Application</a>
       </p>
+      %if application['errors']:
+      <div class="alert alert-danger" role="alert">
+        <ul>
+          %for error in application['errors']:
+          <li>${error}</li>
+          %endfor
+        </ul>
+      </div>
+      %endif
+      <!---->
       %for module in application['modules']:
       <div>
         <h3>${module['title']} [${module['name']}]</h3>

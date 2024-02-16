@@ -16,6 +16,11 @@ from github_app_geo_project.module import modules
 _LOGGER = logging.getLogger(__name__)
 
 
+def _compare_access(access_1: str, access_2: str) -> bool:
+    access_number = {"read": 1, "write": 2, "admin": 3}
+    return access_number[access_1] > access_number[access_2]
+
+
 @view_config(route_name="home", renderer="github_app_geo_project.templates:home.html")  # type: ignore
 def output(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the welcome page."""
@@ -31,7 +36,11 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             "organization_permissions": [],
             "account_permissions": [],
             "subscribe_to_events": [],
+            "errors": [],
         }
+        permissions: dict[str, str] = {}
+        events = set()
+
         for module_name in request.registry.settings[f"application.{app}.modules"].split():
             if module_name not in modules.MODULES:
                 _LOGGER.error("Unknown module %s", module_name)
@@ -45,17 +54,40 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     "documentation_url": module.documentation_url(),
                 }
             )
-            repository = os.environ["C2C_AUTH_GITHUB_REPOSITORY"]
-            permission = request.has_permission(
-                repository,
-                {"github_repository": repository, "github_access_type": "admin"},
-            )
-            if isinstance(permission, pyramid.security.Allowed):
-                permissions = module.get_github_application_permissions()
-                application["repository_permissions"].extend(permissions["repository_permissions"])
-                application["organization_permissions"].extend(permissions["organization_permissions"])
-                application["account_permissions"].extend(permissions["account_permissions"])
-                application["subscribe_to_events"].extend(permissions["subscribe_to_events"])
+            module_permissions = module.get_github_application_permissions(github)
+            events.update(module_permissions.events)
+            for name, access in module_permissions.permissions.items():
+                if name not in permissions or _compare_access(access, permissions[name]):
+                    permissions[name] = access
+
+        repository = os.environ["C2C_AUTH_GITHUB_REPOSITORY"]
+        user_permission = request.has_permission(
+            repository,
+            {"github_repository": repository, "github_access_type": "admin"},
+        )
+        admin = isinstance(user_permission, pyramid.security.Allowed)
+        if admin:
+            github = configuration.get_github_objects(request.registry.settings, app) if admin else None
+            github_events = github.integration.get_app().events
+            # test that all events are in github_events
+            if not events.issubset(github_events):
+                application["errors"].append(
+                    "Missing events (%s) in the GitHub application, please add them in the GitHub configuration interface."
+                    % ", ".join(events - github_events)
+                )
+                _LOGGER.error(application["errors"][-1])
+
+            github_permissions = github.integration.get_app().permissions
+            # test that all permissions are in github_permissions
+            for permission, access in permissions.items():
+                if permission not in github_permissions or not _compare_access(
+                    access, github_permissions[permission]
+                ):
+                    application["errors"].append(
+                        "Missing permission (%s=%s) in the GitHub application, please add it in the GitHub configuration interface."
+                        % (permission, access)
+                    )
+                    _LOGGER.error(application["errors"][-1])
 
         applications.append(application)
 
