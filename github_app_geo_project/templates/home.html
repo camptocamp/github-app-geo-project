@@ -69,9 +69,9 @@
     %endif
     <!---->
     <h2>Profiles</h2>
-    %for profile in profiles:
+    %for profile_name, profile in profiles.items():
     <div>
-      <h3>${profile['title']} [${profile['name']}]</h3>
+      <h3>${profile_name}</h3>
       ${profile['description']|markdown}
     </div>
     %endfor
@@ -85,11 +85,9 @@
       </p>
       %if application['errors']:
       <div class="alert alert-danger" role="alert">
-        <ul>
-          %for error in application['errors']:
-          <li>${error}</li>
-          %endfor
-        </ul>
+        %for error in application['errors']:
+        <p>${error}</p>
+        %endfor
       </div>
       %endif
       <!---->

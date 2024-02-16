@@ -17,4 +17,13 @@ documentation-url: https://github.com/camptocamp/github-app-geo-project/wiki/Pro
 start-url: https://github.com/camptocamp/github-app-geo-project/wiki/Project-configuration
 default-profile: full
 profiles:
-  full: {}
+  standard:
+    description: |
+      All stadard functions
+  disable:
+    inherits: standard
+    description: |
+      All stadard functions but disabled
+  clean:
+    description: |
+      Empty profile

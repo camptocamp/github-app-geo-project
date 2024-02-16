@@ -1,7 +1,7 @@
 """The mako templates to render the pages."""
 
 import html_sanitizer
-import markdown
+import markdown as markdown_lib
 
 
 def sanitizer(str) -> str:
@@ -16,4 +16,4 @@ def markdown(str) -> str:
     """
     Convert the input string to markdown.
     """
-    return sanitizer(markdown.markdown(str))
+    return sanitizer(markdown_lib.markdown(str))

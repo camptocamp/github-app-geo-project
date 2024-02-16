@@ -57,11 +57,12 @@ def main(global_config: Any, **settings: Any) -> Router:
     health_check.add_url_check("http://localhost:8080/")
 
     engine_from_config(settings, "sqlalchemy.")
-    config.settings[
-        "mako.imports"
-    ] = """
-from github_app_geo_project.template import markdown, sanitizer
+    config.registry.settings["mako.imports"] = (
+        config.registry.settings.get("mako.imports", "")
+        + """
+from github_app_geo_project.templates import markdown, sanitizer
     """
+    )
     add_mako_renderer(config, ".html")
     config.set_security_policy(security.SecurityPolicy())
     config.add_forbidden_view(forbidden)

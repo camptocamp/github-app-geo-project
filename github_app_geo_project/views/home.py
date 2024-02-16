@@ -67,27 +67,32 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
         )
         admin = isinstance(user_permission, pyramid.security.Allowed)
         if admin:
-            github = configuration.get_github_objects(request.registry.settings, app) if admin else None
-            github_events = github.integration.get_app().events
-            # test that all events are in github_events
-            if not events.issubset(github_events):
-                application["errors"].append(
-                    "Missing events (%s) in the GitHub application, please add them in the GitHub configuration interface."
-                    % ", ".join(events - github_events)
-                )
-                _LOGGER.error(application["errors"][-1])
+            try:
+                github = configuration.get_github_objects(request.registry.settings, app) if admin else None
 
-            github_permissions = github.integration.get_app().permissions
-            # test that all permissions are in github_permissions
-            for permission, access in permissions.items():
-                if permission not in github_permissions or not _compare_access(
-                    access, github_permissions[permission]
-                ):
+                github_events = github.integration.get_app().events
+                # test that all events are in github_events
+                if not events.issubset(github_events):
                     application["errors"].append(
-                        "Missing permission (%s=%s) in the GitHub application, please add it in the GitHub configuration interface."
-                        % (permission, access)
+                        "Missing events (%s) in the GitHub application, please add them in the GitHub configuration interface."
+                        % ", ".join(events - github_events)
                     )
                     _LOGGER.error(application["errors"][-1])
+
+                github_permissions = github.integration.get_app().permissions
+                # test that all permissions are in github_permissions
+                for permission, access in permissions.items():
+                    if permission not in github_permissions or not _compare_access(
+                        access, github_permissions[permission]
+                    ):
+                        application["errors"].append(
+                            "Missing permission (%s=%s) in the GitHub application, please add it in the GitHub configuration interface."
+                            % (permission, access)
+                        )
+                        _LOGGER.error(application["errors"][-1])
+            except Exception as e:
+                application["errors"].append(str(e))
+                _LOGGER.error(application["errors"][-1], e)
 
         applications.append(application)
 
