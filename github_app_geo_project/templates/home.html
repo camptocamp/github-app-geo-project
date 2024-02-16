@@ -68,9 +68,33 @@
     </p>
     %endif
     <!---->
+    <h2>Profiles</h2>
+    %for profile in profiles:
+    <div>
+      <h3>${profile['title']} [${profile['name']}]</h3>
+      ${profile['description']|markdown}
+    </div>
+    %endfor
+    <h2>Applications</h2>
     %for application in applications:
     <div>
-      <h2>${application['title']} [${application['name']}]</h2>
+      <h3>${application['title']} [${application['name']}]</h3>
+      %if application['repository_permissions']:
+      <p>Required repository permissions: ${', '.join(application['repository_permissions'])}</p>
+      %endif
+      <!---->
+      %if application['organization_permissions']:
+      <p>Required organization permissions: ${', '.join(application['organization_permissions'])}</p>
+      %endif
+      <!---->
+      %if application['account_permissions']:
+      <p>Required account permissions: ${', '.join(application['account_permissions'])}</p>
+      %endif
+      <!---->
+      %if application['subscribe_to_events']:
+      <p>Required subscribe to events: ${', '.join(application['subscribe_to_events'])}</p>
+      %endif
+      <!---->
       ${application['description']|markdown}
       <p>
         <a class="btn btn-primary" href="${application['github_app_url']}">Install GitHub Application</a>

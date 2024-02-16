@@ -1,6 +1,7 @@
 """Output view."""
 
 import logging
+import os
 from typing import Any
 
 import pyramid.httpexceptions
@@ -26,6 +27,10 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             "title": request.registry.settings[f"application.{app}.title"],
             "description": request.registry.settings[f"application.{app}.description"],
             "modules": [],
+            "repository_permissions": [],
+            "organization_permissions": [],
+            "account_permissions": [],
+            "subscribe_to_events": [],
         }
         for module_name in request.registry.settings[f"application.{app}.modules"].split():
             if module_name not in modules.MODULES:
@@ -40,6 +45,17 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     "documentation_url": module.documentation_url(),
                 }
             )
+            repository = os.environ["C2C_AUTH_GITHUB_REPOSITORY"]
+            permission = request.has_permission(
+                repository,
+                {"github_repository": repository, "github_access_type": "admin"},
+            )
+            if isinstance(permission, pyramid.security.Allowed):
+                permissions = module.get_github_application_permissions()
+                application["repository_permissions"].extend(permissions["repository_permissions"])
+                application["organization_permissions"].extend(permissions["organization_permissions"])
+                application["account_permissions"].extend(permissions["account_permissions"])
+                application["subscribe_to_events"].extend(permissions["subscribe_to_events"])
 
         applications.append(application)
 
@@ -47,5 +63,6 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
         "title": configuration.APPLICATION_CONFIGURATION["title"],
         "description": configuration.APPLICATION_CONFIGURATION["description"],
         "documentation_url": configuration.APPLICATION_CONFIGURATION["documentation-url"],
+        "profiles": configuration.APPLICATION_CONFIGURATION["profiles"],
         "applications": applications,
     }
