@@ -1,7 +1,7 @@
 """The base class of the modules."""
 
 from abc import abstractmethod
-from typing import Generic, NamedTuple, TypeVar, Union
+from typing import Generic, NamedTuple, TypedDict, TypeVar, Union
 
 
 class Action(NamedTuple):
@@ -27,6 +27,15 @@ Json = Union[int, float, str, None, dict[str, "Json"], list["Json"]]
 JsonDict = dict[str, Json]
 
 T = TypeVar("T")
+
+
+class GitHubApplicationPermissions(TypedDict):
+    """The permissions needed by the GitHub application."""
+
+    repository_permissions: list[str]
+    organization_permissions: list[str]
+    account_permissions: list[str]
+    subscribe_to_events: list[str]
 
 
 class Module(Generic[T]):
@@ -60,3 +69,16 @@ class Module(Generic[T]):
 
         Note that this method is called in the queue consuming Pod
         """
+
+    @abstractmethod
+    def get_json_schema(self) -> JsonDict:
+        """Get the JSON schema of the module configuration."""
+
+    def get_github_application_permissions(self) -> GitHubApplicationPermissions:
+        """Get the list of permissions needed by the GitHub application."""
+        return {
+            "repository_permissions": [],
+            "organization_permissions": [],
+            "account_permissions": [],
+            "subscribe_to_events": [],
+        }

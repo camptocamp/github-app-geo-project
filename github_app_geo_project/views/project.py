@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-import markdown
 import pygments.formatters
 import pygments.lexers
 import pyramid.httpexceptions
@@ -55,7 +54,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             {
                 "name": module_name,
                 "title": module.title(),
-                "description": markdown.markdown(module.description()),
+                "description": module.description(),
                 "configuration_url": module.documentation_url(),
                 "configuration": pygments.highlight(config.get(module_name, {}), lexer, formatter),
             }

@@ -60,7 +60,7 @@
       %endif
     </div>
     <h1 class="bd-title">${title}</h1>
-    ${description|n}
+    ${description|markdown}
     <!---->
     %if documentation_url:
     <p>
@@ -71,14 +71,14 @@
     %for application in applications:
     <div>
       <h2>${application['title']} [${application['name']}]</h2>
-      ${application['description']|n}
+      ${application['description']|markdown}
       <p>
         <a class="btn btn-primary" href="${application['github_app_url']}">Install GitHub Application</a>
       </p>
       %for module in application['modules']:
       <div>
         <h3>${module['title']} [${module['name']}]</h3>
-        ${module['description']|n}
+        ${module['description']|markdown}
         <p>
           <a class="btn btn-primary" href="${module['documentation_url']}">Documentation</a>
         </p>

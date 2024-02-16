@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-import markdown
 import pyramid.httpexceptions
 import pyramid.request
 import pyramid.response
@@ -25,7 +24,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             "name": app,
             "github_app_url": request.registry.settings[f"application.{app}.github_app_url"],
             "title": request.registry.settings[f"application.{app}.title"],
-            "description": markdown.markdown(request.registry.settings[f"application.{app}.description"]),
+            "description": request.registry.settings[f"application.{app}.description"],
             "modules": [],
         }
         for module_name in request.registry.settings[f"application.{app}.modules"].split():
@@ -37,7 +36,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                 {
                     "name": module_name,
                     "title": module.title(),
-                    "description": markdown.markdown(module.description()),
+                    "description": module.description(),
                     "documentation_url": module.documentation_url(),
                 }
             )
@@ -46,7 +45,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
 
     return {
         "title": configuration.APPLICATION_CONFIGURATION["title"],
-        "description": markdown.markdown(configuration.APPLICATION_CONFIGURATION["description"]),
+        "description": configuration.APPLICATION_CONFIGURATION["description"],
         "documentation_url": configuration.APPLICATION_CONFIGURATION["documentation-url"],
         "applications": applications,
     }
