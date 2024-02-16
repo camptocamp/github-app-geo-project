@@ -18,7 +18,7 @@ from github_app_geo_project.module import modules
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="project", renderer="github_app_geo_project:templates/output.html")  # type: ignore
+@view_config(route_name="project", renderer="github_app_geo_project:templates/project.html")  # type: ignore
 def project(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
     repository = f'{request.matchdict["owner"]}/{request.matchdict["repository"]}'
@@ -46,7 +46,11 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     )
     if "only_error" in request.params:
         select = select.where(models.Output.status == models.OutputStatus.error)
-    out = models.DBSession.execute(select).partitions(20)
+    session_factory = request.registry["dbsession_factory"]
+    engine = session_factory.ro_engine
+    session = engine.connect()
+
+    out = session.execute(select).partitions(20)
 
     module_config = []
     for module_name, module in modules.MODULES.items():
@@ -64,6 +68,6 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         "styles": formatter.get_style_defs(),
         "repository": repository,
         "output": out,
-        "issue_url": "...",
+        "issue_url": "",
         "module_configuration": module_config,
     }

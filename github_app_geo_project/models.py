@@ -14,9 +14,6 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 _LOGGER = logging.getLogger(__name__)
 
-DBSession = sqlalchemy.orm.scoped_session(sqlalchemy.orm.sessionmaker())
-# Base = sqlalchemy.ext.declarative.declarative_base()
-
 _SCHEMA = "github_app"
 
 

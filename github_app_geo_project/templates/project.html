@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>${title}</title>
+    <title>${repository}</title>
     <link
       rel="icon"
       type="image/png"
@@ -58,33 +58,38 @@
         >
       </p>
       %endif
+    </div>
 
-      <h1 class="bd-title">${repository}</h1>
+    <h1 class="bd-title">${repository}</h1>
 
-      %if issue_url:
-      <p><a href="${issue_url}">Dashboard (GitHub issue)</a></p>
-      %else:
+    %if issue_url:
+    <p><a href="${issue_url}">Dashboard (GitHub issue)</a></p>
+    %else:
+    <!-- warning -->
+    <div class="alert alert-warning" role="alert">
       <p>The issue looks to be missing, does the issue are activated on your project</p>
+    </div>
+    %endif
 
-      <h2>Last output</h2>
-      %for o on out:
-      <p><a href="${request.route_url('output', id=o.id)}">${o.title}</a></p>
-      %endfor
-      <!-- -->
-      %for module in module_configuration:
-      <div class="card my-3">
-        <div class="card-header">
-          <h2 class="card-title">${module['title']} [${module['name']}]</h2>
-        </div>
-        <div class="card-body">
-          <p>${module['description']|markdown}</p>
-          %if module['documentation_url']:
-          <a href="${module.configuration_url}">Configuration</a>
-          %endif
-          <code><pre>${module['configuration']}</pre></code>
-        </div>
+    <h2>Last output</h2>
+    %for o in output:
+    <p><a href="${request.route_url('output', id=o.id)}">${o.title}</a></p>
+    %endfor
+    <!-- -->
+    %for module in module_configuration:
+    <div class="card my-3">
+      <div class="card-header">
+        <h2 class="card-title">${module['title']} [${module['name']}]</h2>
+      </div>
+      <div class="card-body">
+        <p>${module['description']|markdown}</p>
+        %if module['documentation_url']:
+        <a href="${module.configuration_url}">Configuration</a>
+        %endif
+        <code><pre>${module['configuration']}</pre></code>
       </div>
     </div>
+    %endfor
 
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
