@@ -48,26 +48,25 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         select = select.where(models.Output.status == models.OutputStatus.error)
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
-    session = engine.connect()
+    with engine.connect() as session:
+        out = session.execute(select).partitions(20)
 
-    out = session.execute(select).partitions(20)
+        module_config = []
+        for module_name, module in modules.MODULES.items():
+            module_config.append(
+                {
+                    "name": module_name,
+                    "title": module.title(),
+                    "description": module.description(),
+                    "configuration_url": module.documentation_url(),
+                    "configuration": pygments.highlight(config.get(module_name, {}), lexer, formatter),
+                }
+            )
 
-    module_config = []
-    for module_name, module in modules.MODULES.items():
-        module_config.append(
-            {
-                "name": module_name,
-                "title": module.title(),
-                "description": module.description(),
-                "configuration_url": module.documentation_url(),
-                "configuration": pygments.highlight(config.get(module_name, {}), lexer, formatter),
-            }
-        )
-
-    return {
-        "styles": formatter.get_style_defs(),
-        "repository": repository,
-        "output": out,
-        "issue_url": "",
-        "module_configuration": module_config,
-    }
+        return {
+            "styles": formatter.get_style_defs(),
+            "repository": repository,
+            "output": out,
+            "issue_url": "",
+            "module_configuration": module_config,
+        }

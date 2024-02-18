@@ -20,25 +20,31 @@ _LOGGER = logging.getLogger(__name__)
 def output(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
     title = request.matchdict["id"]
-    data = "Element not found"
+    data = ["Element not found"]
     has_access = True
 
-    out = models.DBSession.execute(
-        sqlalchemy.select(models.Output).where(models.Output.id == request.matchdict["id"])
-    ).one()
-    if out is not None:
-        permission = request.has_permission(
-            out.repository,
-            {"github_repository": out.repository, "github_access_type": out.access_type},
-        )
-        has_access = isinstance(permission, pyramid.security.Allowed)
-        if has_access:
-            title = out.title
-            data = out.data
+    session_factory = request.registry["dbsession_factory"]
+    engine = session_factory.ro_engine
+    with engine.connect() as session:
+        out = session.execute(
+            sqlalchemy.select(models.Output).where(models.Output.id == request.matchdict["id"])
+        ).first()
+        if out is not None:
+            permission = request.has_permission(
+                out.repository,
+                {"github_repository": out.repository, "github_access_type": out.access_type},
+            )
+            has_access = isinstance(permission, pyramid.security.Allowed)
+            if has_access:
+                title = out.title
+                data = out.data
+            else:
+                data = ["Access Denied"]
         else:
-            data = "Access Denied"
+            request.response.status = 404
 
-    return {
-        "title": title,
-        "output": data,
-    }
+        return {
+            "title": title,
+            "output": data,
+            "enumerate": enumerate,
+        }

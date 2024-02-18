@@ -58,13 +58,13 @@
         >
       </p>
       %endif
-
-      <h1 class="bd-title">${title}</h1>
-      %if start_url:
-      <p>You will find some startup documentation <a href="start_url">here</a>.</p>
-      ${content|n}
     </div>
 
+    <h1 class="bd-title">${title}</h1>
+    %if start_url:
+    <p>You will find some startup documentation <a href="${start_url}">here</a>.</p>
+    %endif
+    <!---->
     %for project in projects:
     <div>${project|n}</div>
     %endfor
