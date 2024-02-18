@@ -7,7 +7,6 @@ from typing import Generic, NamedTuple, TypeVar, Union
 class Action(NamedTuple):
     """The action to be done by the module."""
 
-    repository: str
     # The action priority usually
     # 10 for updating pull request status
     # 20 for standard action
