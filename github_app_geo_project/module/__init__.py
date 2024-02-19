@@ -3,6 +3,8 @@
 from abc import abstractmethod
 from typing import Generic, NamedTuple, TypeVar, Union
 
+from sqlalchemy.orm import Session
+
 
 class Action(NamedTuple):
     """The action to be done by the module."""
@@ -60,7 +62,7 @@ class Module(Generic[T]):
         """
 
     @abstractmethod
-    def process(self, module_config: T, action: Action, event_data: JsonDict) -> None:
+    def process(self, session: Session, module_config: T, event_data: JsonDict) -> None:
         """
         Process the action.
 
