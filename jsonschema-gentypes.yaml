@@ -15,3 +15,5 @@ generate:
     destination: github_app_geo_project/project_configuration.py
   - source: github_app_geo_project/application-schema.json
     destination: github_app_geo_project/application_configuration.py
+  - source: github_app_geo_project/module/standard/changelog-schema.json
+    destination: github_app_geo_project/module/standard/changelog_configuration.py

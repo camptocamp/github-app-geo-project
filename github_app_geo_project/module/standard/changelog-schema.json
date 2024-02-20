@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/project-schema.json",
+  "type": "object",
+  "title": "GitHub application project configuration",
+  "additionalProperties": false,
+  "properties": {
+    "changelog": {
+      "title": "Changelog",
+      "description": "The changelog generation configuration",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "create-label": {
+          "type": "boolean",
+          "title": "Changelog create label",
+          "description": "Automatically create the labels used in the changelog configuration"
+        },
+        "labels": {
+          "type": "object",
+          "title": "Changelog labels configuration",
+          "description": "The labels configuration",
+          "additionalProperties": {
+            "type": "object",
+            "title": "Changelog label configuration",
+            "description": "The label configuration",
+            "properties": {
+              "description": {
+                "type": "string",
+                "title": "Changelog label description",
+                "description": "The description of the label"
+              },
+              "color": {
+                "type": "string",
+                "title": "Changelog label color",
+                "description": "The color of the label"
+              }
+            }
+          }
+        },
+        "sections": {
+          "type": "array",
+          "title": "Changelog sections configuration",
+          "description": "The sections configuration",
+          "items": {
+            "type": "object",
+            "title": "Changelog section configuration",
+            "description": "The section configuration",
+            "properties": {
+              "description": {
+                "type": "string",
+                "title": "Changelog section description",
+                "description": "The description of the section"
+              }
+            }
+          }
+        },
+        "default-section": {
+          "type": "string",
+          "title": "Changelog default section",
+          "description": "The default section for items"
+        },
+        "routing": {
+          "type": "array",
+          "title": "Routing",
+          "description": "The routing configuration",
+          "items": {
+            "type": "object",
+            "title": "Changelog routing configuration",
+            "description": "The routing configuration",
+            "properties": {
+              "section": {
+                "type": "string",
+                "description": "The section section affected to changelog items that match with the conditions"
+              },
+              "condition": {
+                "type": "object",
+                "title": "Condition",
+                "description": "The condition to match with the changelog items",
+                "$dynamicAnchor": "changelog-condition",
+                "additionalProperties": false,
+                "anyOf": [
+                  {
+                    "title": "Condition const",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The type of the condition",
+                        "const": "const"
+                      },
+                      "value": {
+                        "type": "boolean",
+                        "description": "The value of the condition"
+                      }
+                    }
+                  },
+                  {
+                    "title": "Condition and/or",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The type of the condition",
+                        "enum": ["and", "or"]
+                      },
+                      "conditions": {
+                        "type": "array",
+                        "description": "The value of the conditions",
+                        "items": { "$dynamicRef": "#changelog-condition" }
+                      }
+                    }
+                  },
+                  {
+                    "title": "Condition label",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The type of the condition",
+                        "const": "label"
+                      },
+                      "value": {
+                        "type": "string",
+                        "description": "The value of the label"
+                      }
+                    }
+                  },
+                  {
+                    "title": "Condition files",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The type of the condition",
+                        "const": "files"
+                      },
+                      "regex": {
+                        "type": "array",
+                        "description": "The list of regex that all the files should match",
+                        "items": {
+                          "type": "string",
+                          "description": "The regex that all the files should match"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "title": "Condition author",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The type of the condition",
+                        "const": "author"
+                      },
+                      "value": {
+                        "type": "string",
+                        "description": "The value of the author"
+                      }
+                    }
+                  },
+                  {
+                    "title": "Condition title",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The type of the condition",
+                        "const": "title"
+                      },
+                      "regex": {
+                        "type": "string",
+                        "description": "The regex the the title should match"
+                      }
+                    }
+                  },
+                  {
+                    "title": "Condition branch",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The type of the condition",
+                        "const": "branch"
+                      },
+                      "regex": {
+                        "type": "string",
+                        "description": "The regex the the title should match"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

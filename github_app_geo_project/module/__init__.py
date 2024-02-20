@@ -3,6 +3,7 @@
 from abc import abstractmethod
 from typing import Generic, NamedTuple, TypeVar, Union
 
+import github
 from sqlalchemy.orm import Session
 
 
@@ -28,6 +29,19 @@ Json = Union[int, float, str, None, dict[str, "Json"], list["Json"]]
 JsonDict = dict[str, Json]
 
 T = TypeVar("T")
+
+
+class ProcessContext(NamedTuple, Generic[T]):
+    """The context of the process."""
+
+    # The session to be used
+    session: Session
+    # The github application
+    github_application: github.Github
+    # The event data
+    event_data: dict[str, "Json"]
+    # The module configuration
+    module_config: "T"
 
 
 class GitHubApplicationPermissions(NamedTuple):
@@ -62,7 +76,7 @@ class Module(Generic[T]):
         """
 
     @abstractmethod
-    def process(self, session: Session, module_config: T, event_data: JsonDict) -> None:
+    def process(self, context: ProcessContext[T]) -> None:
         """
         Process the action.
 

@@ -1,13 +1,11 @@
 from typing import Any
 
-from sqlalchemy.orm import Session
-
-from github_app_geo_project import models, modules
+from github_app_geo_project import models, module
 
 ConfigType = dict[str, Any]
 
 
-class TestModuel(modules.Module[ConfigType]):
+class TestModule(module.Module[ConfigType]):
     def title(self) -> str:
         """Get the title of the module."""
         return "Test Module"
@@ -20,7 +18,7 @@ class TestModuel(modules.Module[ConfigType]):
         """Get the URL to the documentation page of the module."""
         return ""
 
-    def get_actions(self, event_data: modules.JsonDict) -> list[modules.Action]:
+    def get_actions(self, event_data: module.JsonDict) -> list[module.Action]:
         """
         Get the action related to the module and the event.
 
@@ -28,18 +26,15 @@ class TestModuel(modules.Module[ConfigType]):
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
         del event_data
-        return [modules.Action(priority=modules.PRIORITY_STATUS)]
+        return [module.Action(priority=module.PRIORITY_STATUS)]
 
-    def process(self, session: Session, module_config: ConfigType, event_data: modules.JsonDict) -> None:
+    def process(self, context: module.ProcessContext[ConfigType]) -> None:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
         """
-        del module_config
-        del event_data
-
-        session.add(
+        context.session.add(
             models.Output(
                 title="Test",
                 status=models.OutputStatus.SUCCESS,
@@ -48,7 +43,7 @@ class TestModuel(modules.Module[ConfigType]):
                 data=["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}],
             )
         )
-        session.add(
+        context.session.add(
             models.Output(
                 title="Test error",
                 status=models.OutputStatus.ERROR,
@@ -58,7 +53,7 @@ class TestModuel(modules.Module[ConfigType]):
             )
         )
 
-    def get_json_schema(self) -> modules.JsonDict:
+    def get_json_schema(self) -> module.JsonDict:
         """Get the JSON schema of the module configuration."""
         return {
             "type": "object",
