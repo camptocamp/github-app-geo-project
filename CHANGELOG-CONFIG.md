@@ -10,6 +10,8 @@
       - **`color`** _(string)_: The color of the label.
   - **`sections`** _(array)_: The sections configuration.
     - **Items** _(object)_: The section configuration.
+      - **`name`** _(string)_: The name of the section.
+      - **`title`** _(string)_: The title of the section.
       - **`description`** _(string)_: The description of the section.
   - **`default-section`** _(string)_: The default section for items.
   - **`routing`** _(array)_: The routing configuration.
@@ -22,6 +24,8 @@
           - - **`type`** _(string)_: The type of the condition. Must be one of: `["and", "or"]`.
             - **`conditions`** _(array)_: The value of the conditions.
               - **Items**
+          - - **`type`** _(string)_: The type of the condition. Must be one of: `["not"]`.
+            - **`condition`**
           - - **`type`** _(string)_: The type of the condition.
             - **`value`** _(string)_: The value of the label.
           - - **`type`** _(string)_: The type of the condition.

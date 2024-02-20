@@ -44,12 +44,19 @@
           "description": "The sections configuration",
           "items": {
             "type": "object",
-            "title": "Changelog section configuration",
+            "title": "section",
             "description": "The section configuration",
             "properties": {
+              "name": {
+                "type": "string",
+                "description": "The name of the section"
+              },
+              "title": {
+                "type": "string",
+                "description": "The title of the section"
+              },
               "description": {
                 "type": "string",
-                "title": "Changelog section description",
                 "description": "The description of the section"
               }
             }
@@ -106,6 +113,19 @@
                         "type": "array",
                         "description": "The value of the conditions",
                         "items": { "$dynamicRef": "#changelog-condition" }
+                      }
+                    }
+                  },
+                  {
+                    "title": "Condition not",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "The type of the condition",
+                        "enum": ["not"]
+                      },
+                      "condition": {
+                        "$dynamicRef": "#changelog-condition"
                       }
                     }
                   },

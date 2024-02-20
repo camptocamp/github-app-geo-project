@@ -3,7 +3,7 @@ Automatically generated file from a JSON schema.
 """
 
 
-from typing import TypedDict
+from typing import TypedDict, Union
 
 # GitHub application project configuration.
 GithubApplicationProjectConfiguration = TypedDict(
@@ -38,6 +38,13 @@ GithubApplicationProjectConfiguration = TypedDict(
 )
 
 
+class ModuleConfiguration(TypedDict, total=False):
+    """Module configuration."""
+
+    enabled: bool
+    """ Enable the module """
+
+
 class ProfileApplicationSpecificConfiguration(TypedDict, total=False):
     """Profile application specific configuration."""
 
@@ -49,7 +56,16 @@ class ProfileApplicationSpecificConfiguration(TypedDict, total=False):
     """
 
 
-class _ProfilesAdditionalproperties(TypedDict, total=False):
+_ProfilesAdditionalproperties = Union[dict[str, "ModuleConfiguration"], "_ProfilesAdditionalpropertiesTyped"]
+"""
+
+WARNING: Normally the types should be a mix of each other instead of Union.
+See: https://github.com/camptocamp/jsonschema-gentypes/issues/7
+Subtype: "ProfileApplicationSpecificConfiguration"
+"""
+
+
+class _ProfilesAdditionalpropertiesTyped(TypedDict, total=False):
     inherits: str
     """
     Inherits.

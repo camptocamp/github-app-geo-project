@@ -7,7 +7,7 @@
   "$defs": {
     "project-configuration": {
       "type": "object",
-      "properties": {}
+      "additionalProperties": { "$ref": "#/$defs/module_configuration" }
     },
     "module_configuration": {
       "type": "object",

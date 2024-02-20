@@ -96,6 +96,8 @@ groups-conditions:
 
 
 class ChangelogItem(NamedTuple):
+    """Changelog item (pull request or commit."""
+
     object: Union[github.PullRequest.PullRequest, github.Commit.Commit]
     ref: str
     title: str
@@ -127,16 +129,16 @@ def match(pr: ChangelogItem, condition: changelog_configuration.Condition) -> bo
     return match_functions[condition["type"]](pr, condition)
 
 
-def match_and(pr: ChangelogItem, condition: changelog_configuration.ConditionAndOr) -> bool:
+def match_and(pull_request: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
     for c in condition["conditions"]:
-        if not match(pr, c):
+        if not match(pull_request, c):
             return False
     return True
 
 
-def match_or(pr: ChangelogItem, condition: changelog_configuration.ConditionAndOr) -> bool:
-    for c in condition["conditions"]:
-        if match(pr, c):
+def match_or(pull_request: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
+    for condition in condition["conditions"]:
+        if match(pull_request, condition):
             return True
     return False
 
@@ -166,6 +168,8 @@ def match_label(pr: ChangelogItem, condition: changelog_configuration.ConditionL
 
 
 def match_branch(pr: ChangelogItem, condition: changelog_configuration.ConditionBranch) -> bool:
+    if not pr.branch:
+        return False
     return re.match(condition["regex"], pr.branch) is not None
 
 
@@ -173,11 +177,11 @@ def match_author(pr: ChangelogItem, condition: changelog_configuration.Condition
     return condition["value"] == pr.author
 
 
-def get_group(pr: ChangelogItem, config: changelog_configuration.Changelog) -> str:
-    group = config["default-group"]
+def get_section(pr: ChangelogItem, config: changelog_configuration.Changelog) -> str:
+    group = config["default-section"]
     for group_condition in config["routing"]:
         if match(pr, group_condition["condition"]):
-            group = group_condition["group-name"]
+            group = group_condition["section"]
             if not group_condition.get("continue", False):
                 return group
     return group
@@ -190,6 +194,8 @@ class Tag:
     def __init__(self, tag_str: Optional[str] = None, tag: Optional[github.Tag.Tag] = None):
         """Create a tag."""
         if tag_str is None:
+            assert tag is not None
+            assert tag.name is not None
             tag_str = tag.name
         self.tag_str = tag_str
         self.tag = tag
@@ -204,7 +210,7 @@ class Tag:
         else:
             self.major, self.minor, self.patch = (int(e) for e in tag_match.groups())
 
-    def __eq__(self, other: "Tag") -> bool:
+    def __eq__(self, other: "Tag") -> bool:  # type: ignore[override]
         """Compare two tags."""
         return self.major == other.major and self.minor == other.minor and self.patch == other.patch
 
@@ -264,10 +270,10 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Optional[Tag]:
     return None
 
 
-def get_labels(config: changelog_configuration.Changelog) -> set[str]:
+def get_labels(config: changelog_configuration.Condition) -> set[str]:
     if config["type"] in ("and", "or"):
         labels = set()
-        for c in config["conditions"]:
+        for c in config["conditions"]:  # type: ignore[typeddict-item]
             labels.update(get_labels(c))
         return labels
     if config["type"] == "not":
@@ -275,16 +281,6 @@ def get_labels(config: changelog_configuration.Changelog) -> set[str]:
     if config["type"] == "label":
         return {config["value"]}
     return set()
-
-
-def get_sections(config: dict) -> list[str]:
-    sections = [config["default-group"]]
-
-    for c in config["groups-conditions"]:
-        group_name = c["group-name"]
-        if group_name not in sections:
-            sections.append(group_name)
-    return sections
 
 
 def get_release(tag: github.Tag.Tag) -> Optional[github.GitRelease.GitRelease]:
@@ -337,7 +333,7 @@ def generate_changelog(
     tag_str: str,
 ) -> str:
     labels = set()
-    for c in configuration["groups-conditions"]:
+    for c in configuration["routing"]:
         labels.update(get_labels(c["condition"]))
 
     repo = github_application.get_repo(repository)
@@ -363,14 +359,16 @@ def generate_changelog(
 
     changelog_items: set[ChangelogItem] = set()
 
-    # get the commits between oldTag and tag
+    # Get the commits between oldTag and tag
+    assert old_tag.tag is not None
+    assert tag.tag is not None
     for commit in repo.compare(old_tag.tag.name, tag.tag.name).commits:
         has_pr = False
         for pr in commit.get_pulls():
             has_pr = True
             authors = {pr.user.login}
             for c in pr.get_commits():
-                authors.add(c.author.login)
+                authors.add(c.author.login)  # type: ignore[attr-defined]
             changelog_items.add(
                 ChangelogItem(
                     object=pr,
@@ -397,22 +395,25 @@ def generate_changelog(
                 )
             )
 
-    groups = {}
+    sections: dict[str, list[ChangelogItem]] = {}
     for item in changelog_items:
-        group = get_group(item, configuration)
-        groups.setdefault(group, []).append(item)
+        section = get_section(item, configuration)
+        sections.setdefault(section, []).append(item)
 
     created = tag.tag.commit.commit.author.date
     result = [f"#{tag.major}.{tag.minor}.{tag.patch} ({created:%Y-%m-%d})", ""]
-    for group in get_sections(configuration):
-        if group not in groups:
+    for section_config in configuration["sections"]:
+        if section_config["name"] not in sections:
             continue
-        result.append(f"## {group}")
-        for item in groups[group]:
-            authors = [item.author]
-            authors.extend(a for a in item.authors if a != item.author)
-            authors = [f"@{a}" for a in authors]
-            result.append(f"- {item.ref} **{item.title}** ({', '.join(authors)})")
+        result.append(f"## {section_config['title']}")
+        result.append("")
+        result.append(section_config.get("description", ""))
+        result.append("")
+        for item in sections[section_config["name"]]:
+            item_authors = [item.author]
+            item_authors.extend(a for a in item.authors if a != item.author)
+            authors_str = [f"@{a}" for a in item_authors]
+            result.append(f"- {item.ref} **{item.title}** ({', '.join(authors_str)})")
         result.append("")
     return "\n".join(result)
 
@@ -466,11 +467,11 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         assert isinstance(repository, str)
         tag_str = ""
         if context.event_data.get("type") == "tag":
-            tag_str = context.event_data["ref"]  # type: ignore[union-attr,index,assignment]
+            tag_str = context.event_data["ref"]  # type: ignore[index,assignment]
         elif context.event_data.get("type") == "release":
-            tag_str = context.event_data["release"]["tag_name"]  # type: ignore[union-attr,index,assignment]
+            tag_str = context.event_data["release"]["tag_name"]  # type: ignore[union-attr,index,assignment,call-overload]
         elif context.event_data.get("type") == "pull_request":
-            # get the milestone
+            # Get the milestone
             pr = context.github_application.get_repo(repository).get_pull(context.event_data.get("pull_request", {}).get("number"))  # type: ignore[union-attr,index,call-overload]
             if pr.milestone:
                 tag_str = pr.milestone.title
@@ -485,5 +486,5 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
     def get_json_schema(self) -> module.JsonDict:
         """Get the JSON schema of the module configuration."""
         # Get changelog-schema.json related to this file
-        with open(os.path.join(os.path.dirname(__path__), "changelog-schema.json")) as f:
+        with open(os.path.join(os.path.dirname(__file__), "changelog-schema.json")) as f:
             return json.loads(f.read()).get("properties", {}).get("changelog")  # type: ignore[no-any-return]
