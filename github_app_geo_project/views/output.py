@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-import c2cwsgiutils.auth
 import pyramid.httpexceptions
 import pyramid.request
 import pyramid.response

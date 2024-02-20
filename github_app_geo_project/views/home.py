@@ -54,7 +54,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     "documentation_url": module.documentation_url(),
                 }
             )
-            module_permissions = module.get_github_application_permissions(github)
+            module_permissions = module.get_github_application_permissions()
             events.update(module_permissions.events)
             for name, access in module_permissions.permissions.items():
                 if name not in permissions or _compare_access(access, permissions[name]):
@@ -70,7 +70,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             try:
                 github = configuration.get_github_objects(request.registry.settings, app) if admin else None
 
-                github_events = github.integration.get_app().events
+                github_events = set(github.integration.get_app().events)
                 # test that all events are in github_events
                 if not events.issubset(github_events):
                     application["errors"].append(
@@ -90,9 +90,9 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                             % (permission, access)
                         )
                         _LOGGER.error(application["errors"][-1])
-            except Exception as e:
-                application["errors"].append(str(e))
-                _LOGGER.error(application["errors"][-1], e)
+            except Exception as exception:  # pylint: disable=broad-exception-caught
+                application["errors"].append(str(exception))
+                _LOGGER.error(application["errors"][-1], exception)
 
         applications.append(application)
 

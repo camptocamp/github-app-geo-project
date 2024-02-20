@@ -66,7 +66,7 @@ def get_github_objects(config: dict[str, Any], application_name: str) -> GithubO
             ]
         )
         objects = GithubObjects()
-        objects.auth = github.Auth.AppAuth(  # type: ignore[attr-defined]
+        objects.auth = github.Auth.AppAuth(
             config[f"application.{application_name}.github_app_id"],
             private_key,
         )
@@ -85,7 +85,9 @@ def get_github_application(
     """Get the Github Application by name."""
     objects = get_github_objects(config, application_name)
 
-    token = objects.integration.get_access_token(objects.integration.get_installation(owner, repository).id).token  # type: ignore[call-arg,assignment]
+    token = objects.integration.get_access_token(
+        objects.integration.get_installation(owner, repository).id
+    ).token
     github_application = github.Github(login_or_token=token)
 
     return github_application

@@ -3,13 +3,14 @@ Module registry.
 """
 
 import logging
+from typing import Any
 
 import pkg_resources
 
 from github_app_geo_project import module
 
 # Available modules by name
-MODULES: dict[str, module.Module[module.Module]] = {}
+MODULES: dict[str, module.Module[Any]] = {}
 _LOGGER = logging.getLogger(__name__)
 
 

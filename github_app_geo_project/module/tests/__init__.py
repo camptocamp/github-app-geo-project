@@ -41,7 +41,20 @@ class TestModuel(modules.Module[ConfigType]):
 
         session.add(
             models.Output(
-                title="Test", data=["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}]
+                title="Test",
+                status=models.OutputStatus.SUCCESS,
+                repository="camptocamp/github-app-geo-project",
+                access_type=models.AccessType.PUBLIC,
+                data=["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}],
+            )
+        )
+        session.add(
+            models.Output(
+                title="Test error",
+                status=models.OutputStatus.ERROR,
+                repository="camptocamp/github-app-geo-project",
+                access_type=models.AccessType.PUBLIC,
+                data=["Test error"],
             )
         )
 

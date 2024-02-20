@@ -60,6 +60,8 @@ prospector-profile-utils = "1.7.2"
 pytest = "7.4.3"
 WebTest = "3.0.0"
 types-pyyaml = "6.0.12.12"
+types-setuptools = "69.1.0.20240217"
+types-markdown = "3.5.0.20240129"
 
 [tool.poetry.extras]
 application = ["c2cwsgiutils"]

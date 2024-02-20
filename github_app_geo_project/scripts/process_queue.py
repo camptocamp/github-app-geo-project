@@ -9,13 +9,13 @@ from datetime import datetime
 import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
 import plaster
-import pyramid.scripts.common
 import sqlalchemy.orm
 
 from github_app_geo_project import models
 
 
 def main() -> None:
+    """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
     c2cwsgiutils.setup_process.fill_arguments(parser)
     args = parser.parse_args()
@@ -33,7 +33,7 @@ def main() -> None:
             job = (
                 session.query(models.Queue)
                 .filter(
-                    models.Queue.status == models.JobStatus.new,
+                    models.Queue.status == models.JobStatus.NEW,
                 )
                 .order_by(
                     models.Queue.priority.desc(),
@@ -43,7 +43,7 @@ def main() -> None:
                 .first()
             )
             if job is not None:
-                job.status = models.JobStatus.pending
+                job.status = models.JobStatus.PENDING
                 job.started_at = datetime.now()
                 session.commit()
 

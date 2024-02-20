@@ -2517,6 +2517,17 @@ files = [
 ]
 
 [[package]]
+name = "types-markdown"
+version = "3.5.0.20240129"
+description = "Typing stubs for Markdown"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "types-Markdown-3.5.0.20240129.tar.gz", hash = "sha256:9acd36fef264d9ed5a96345c45f7d80f0d967059e92213998b3046fbb64f67fc"},
+    {file = "types_Markdown-3.5.0.20240129-py3-none-any.whl", hash = "sha256:d6861d9d68e8268a5346d8a43d14727e6c636ebc6d49f2b8fc034c25996d35dd"},
+]
+
+[[package]]
 name = "types-pyyaml"
 version = "6.0.12.12"
 description = "Typing stubs for PyYAML"
@@ -2525,6 +2536,17 @@ python-versions = "*"
 files = [
     {file = "types-PyYAML-6.0.12.12.tar.gz", hash = "sha256:334373d392fde0fdf95af5c3f1661885fa10c52167b14593eb856289e1855062"},
     {file = "types_PyYAML-6.0.12.12-py3-none-any.whl", hash = "sha256:c05bc6c158facb0676674b7f11fe3960db4f389718e19e62bd2b84d6205cfd24"},
+]
+
+[[package]]
+name = "types-setuptools"
+version = "69.1.0.20240217"
+description = "Typing stubs for setuptools"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "types-setuptools-69.1.0.20240217.tar.gz", hash = "sha256:243fecc8850b6f7fbfa84bab18ec93407046a4e91130056fd5a7caef971aaff9"},
+    {file = "types_setuptools-69.1.0.20240217-py3-none-any.whl", hash = "sha256:8b60e14a652b48bda292801c5a0c1251c190ad587c295f7839e901634913bb96"},
 ]
 
 [[package]]
@@ -2881,4 +2903,4 @@ application = ["c2cwsgiutils"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "3f63934250384394247c0ee5be7d38232e673ddf63cfce84008467de18000e88"
+content-hash = "78ff76dccbc4a1b1e9b5c5c0fa0f0aa6d0d88006c58066c991050365725dcfbc"

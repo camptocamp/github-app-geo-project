@@ -1,19 +1,19 @@
 """The mako templates to render the pages."""
 
 import html_sanitizer
-import markdown as markdown_lib
+import markdown as markdown_lib  # mypy: ignore[import-untyped]
 
 
-def sanitizer(str) -> str:
+def sanitizer(text: str) -> str:
     """
     Sanitize the input string.
     """
-    sanitizer = html_sanitizer.Sanitizer()
-    return sanitizer.sanitize(str)
+    sanitizer_instance = html_sanitizer.Sanitizer()
+    return sanitizer_instance.sanitize(text)  # type: ignore[no-any-return]
 
 
-def markdown(str) -> str:
+def markdown(text: str) -> str:
     """
     Convert the input string to markdown.
     """
-    return sanitizer(markdown_lib.markdown(str))
+    return sanitizer(markdown_lib.markdown(text))

@@ -18,19 +18,19 @@ _SCHEMA = "github_app"
 
 
 class Base(DeclarativeBase):
-    pass
+    """Base class for the models."""
 
 
 class JobStatus(enum.Enum):
     """Enum for the status of the job."""
 
-    new = "new"
-    pending = "pending"
-    error = "error"
-    done = "done"
+    NEW = "new"
+    PENDING = "pending"
+    ERROR = "error"
+    DONE = "done"
 
 
-class Queue(Base):  # type: ignore[misc,valid-type]
+class Queue(Base):
     """SQLAlchemy model for the queue."""
 
     __tablename__ = "queue"
@@ -38,7 +38,7 @@ class Queue(Base):  # type: ignore[misc,valid-type]
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     status: Mapped[JobStatus] = mapped_column(
-        Enum(JobStatus), native_enum=False, nullable=False, default=JobStatus.new, index=True
+        Enum(JobStatus), native_enum=False, nullable=False, default=JobStatus.NEW, index=True
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True  # type: ignore[no-untyped-call]
@@ -56,17 +56,17 @@ class Queue(Base):  # type: ignore[misc,valid-type]
 class OutputStatus(enum.Enum):
     """Enum for the status of the output."""
 
-    error = "error"
-    success = "success"
+    ERROR = "error"
+    SUCCESS = "success"
 
 
 class AccessType(enum.Enum):
     """Enum for the access type of the output."""
 
-    public = "public"
-    pull = "pull"
-    push = "push"
-    admin = "admin"
+    PUBLIC = "public"
+    PULL = "pull"
+    PUSH = "push"
+    ADMIN = "admin"
 
 
 class OutputData(TypedDict):
@@ -77,7 +77,7 @@ class OutputData(TypedDict):
     children: list[Union[str, "OutputData"]]
 
 
-class Output(Base):  # type: ignore[misc,valid-type]
+class Output(Base):
     """SQLAlchemy model for the output entries."""
 
     __tablename__ = "output"

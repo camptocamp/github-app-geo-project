@@ -45,7 +45,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         models.Output.repository == request.matchdict["repository"]
     )
     if "only_error" in request.params:
-        select = select.where(models.Output.status == models.OutputStatus.error)
+        select = select.where(models.Output.status == models.OutputStatus.ERROR)
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
     with engine.connect() as session:
