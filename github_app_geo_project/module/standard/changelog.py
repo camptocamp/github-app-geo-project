@@ -1,10 +1,12 @@
+"""Module to generate the changelog on a release of a version."""
+
 import json
 import logging
 import os
 import re
-import subprocess
+import subprocess  # nosec
 import tempfile
-from typing import NamedTuple, Optional, Union
+from typing import Callable, NamedTuple, Optional, Union
 
 import github
 import yaml
@@ -13,86 +15,6 @@ from github_app_geo_project import module
 from github_app_geo_project.module.standard import changelog_configuration
 
 _LOGGER = logging.getLogger(__name__)
-_CONFIG = yaml.safe_load(
-    r"""
-enabled: true
-default-group: New feature
-create-labels: true
-groups-conditions:
-# Label
-  - group-name: Breaking changes
-    condition:
-        type: label
-        value: Breaking changes
-  - group-name: New feature
-    condition:
-        type: label
-        value: New feature
-  - group-name: Fixed bugs
-    condition:
-        type: label
-        value: Fixed bugs
-  - group-name: Documentation
-    condition:
-        type: label
-        value: Documentation
-  - group-name: Tests
-    condition:
-        type: label
-        value: Tests
-  - group-name: Chore
-    condition:
-        type: label
-        value: Chore
-  - group-name: Security fixes
-    condition:
-        type: label
-        value: Security fixes
-  - group-name: Dependency update
-    condition:
-        type: label
-        value: Dependency update
-  # Other
-  - group-name: Documentation
-    condition:
-        type: files
-        regex:
-            - .*\.rst$
-            - .*\.md$
-            - .*\.rst\.[a-z0-9]{2,6}$
-            - .*\.md\.[a-z0-9]{2,6}$
-            - ^docs?/.*
-  - group-name: Chore
-    condition:
-        type: files
-        regex:
-            - ^\.github/.*
-            - ^ci/.*
-  - group-name: Chore
-    condition:
-        type: title
-        regex: ^CI updates$
-  - group-name: Security fixes
-    condition:
-        type: branch
-        regex: ^audit-.*
-  - group-name: Security fixes
-    condition:
-        type: and
-        conditions:
-            - type: branch
-              regex: ^dpkg-update/.*
-            - type: author
-              value: c2c-gid-bot-ci
-  - group-name: Security fixes
-    condition:
-        type: branch
-        regex: ^snyk-fix/.*
-  - group-name: Dependency update
-    condition:
-        type: author
-        value: renovate[bot]"""
-)
 
 
 class ChangelogItem(NamedTuple):
@@ -112,75 +34,88 @@ class ChangelogItem(NamedTuple):
         return hash(self.ref)
 
 
-def match(pr: ChangelogItem, condition: changelog_configuration.Condition) -> bool:
-    match_functions = {
-        "and": match_and,
-        "or": match_or,
-        "not": match_not,
-        "const": match_const,
-        "title": match_title,
-        "files": match_files,
-        "label": match_label,
-        "branch": match_branch,
-        "author": match_author,
+def match(item: ChangelogItem, condition: changelog_configuration.Condition) -> bool:
+    """Changelog item match with the condition."""
+    match_functions: dict[str, Callable[[ChangelogItem, changelog_configuration.Condition], bool]] = {
+        "and": match_and,  # type: ignore[dict-item]
+        "or": match_or,  # type: ignore[dict-item]
+        "not": match_not,  # type: ignore[dict-item]
+        "const": match_const,  # type: ignore[dict-item]
+        "title": match_title,  # type: ignore[dict-item]
+        "files": match_files,  # type: ignore[dict-item]
+        "label": match_label,  # type: ignore[dict-item]
+        "branch": match_branch,  # type: ignore[dict-item]
+        "author": match_author,  # type: ignore[dict-item]
     }
     if condition["type"] not in match_functions:
+        _LOGGER.warning("Unknown condition type: %s", condition["type"])
         return False
-    return match_functions[condition["type"]](pr, condition)
+    return match_functions[condition["type"]](item, condition)
 
 
-def match_and(pull_request: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
-    for c in condition["conditions"]:
-        if not match(pull_request, c):
+def match_and(item: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
+    """Match all the conditions."""
+    for cond in condition["conditions"]:
+        if not match(item, cond):
             return False
     return True
 
 
-def match_or(pull_request: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
-    for condition in condition["conditions"]:
-        if match(pull_request, condition):
+def match_or(item: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
+    """Match any of the conditions."""
+    for cond in condition["conditions"]:
+        if match(item, cond):
             return True
     return False
 
 
-def match_not(pr: ChangelogItem, condition: changelog_configuration.ConditionNot) -> bool:
-    return not match(pr, condition["condition"])
+def match_not(item: ChangelogItem, condition: changelog_configuration.ConditionNot) -> bool:
+    """Get the opposite of the condition."""
+    return not match(item, condition["condition"])
 
 
-def match_const(pr: ChangelogItem, condition: changelog_configuration.ConditionConst) -> bool:
+def match_const(item: ChangelogItem, condition: changelog_configuration.ConditionConst) -> bool:
+    """Get a constant value."""
+    del item
     return condition["value"]
 
 
-def match_title(pr: ChangelogItem, condition: changelog_configuration.ConditionTitle) -> bool:
-    return re.match(condition["regex"], pr.title) is not None
+def match_title(item: ChangelogItem, condition: changelog_configuration.ConditionTitle) -> bool:
+    """Match the title of the pull request."""
+    return re.match(condition["regex"], item.title) is not None
 
 
-def match_files(pr: ChangelogItem, condition: changelog_configuration.ConditionFiles) -> bool:
+def match_files(item: ChangelogItem, condition: changelog_configuration.ConditionFiles) -> bool:
+    """Match all the files of the pull request."""
     file_re = re.compile("|".join(condition["regex"]))
-    for f in pr.files:
-        if file_re.match(f) is None:
+    for file_name in item.files:
+        if file_re.match(file_name) is None:
             return False
     return True
 
 
-def match_label(pr: ChangelogItem, condition: changelog_configuration.ConditionLabel) -> bool:
-    return condition["value"] in pr.labels
+def match_label(item: ChangelogItem, condition: changelog_configuration.ConditionLabel) -> bool:
+    """Match a label of the pull request."""
+    return condition["value"] in item.labels
 
 
-def match_branch(pr: ChangelogItem, condition: changelog_configuration.ConditionBranch) -> bool:
-    if not pr.branch:
+def match_branch(item: ChangelogItem, condition: changelog_configuration.ConditionBranch) -> bool:
+    """Match the branch of the pull request."""
+    if not item.branch:
         return False
-    return re.match(condition["regex"], pr.branch) is not None
+    return re.match(condition["regex"], item.branch) is not None
 
 
-def match_author(pr: ChangelogItem, condition: changelog_configuration.ConditionAuthor) -> bool:
-    return condition["value"] == pr.author
+def match_author(item: ChangelogItem, condition: changelog_configuration.ConditionAuthor) -> bool:
+    """Match the author of the pull request."""
+    return condition["value"] == item.author
 
 
-def get_section(pr: ChangelogItem, config: changelog_configuration.Changelog) -> str:
+def get_section(item: ChangelogItem, config: changelog_configuration.Changelog) -> str:
+    """Get the section of the changelog item."""
     group = config["default-section"]
     for group_condition in config["routing"]:
-        if match(pr, group_condition["condition"]):
+        if match(item, group_condition["condition"]):
             group = group_condition["section"]
             if not group_condition.get("continue", False):
                 return group
@@ -188,6 +123,8 @@ def get_section(pr: ChangelogItem, config: changelog_configuration.Changelog) ->
 
 
 class Tag:
+    """A tag parsed as a semver version."""
+
     TAG_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
     TAG2_RE = re.compile(r"release_?(\d+)")
 
@@ -204,7 +141,7 @@ class Tag:
             tag_match = self.TAG2_RE.match(tag_str)
             if tag_match is None:
                 raise ValueError(f"Invalid tag: {tag_str}")
-            self.major = tag_match.group(1)
+            self.major = int(tag_match.group(1))
             self.minor = 0
             self.patch = 0
         else:
@@ -270,23 +207,11 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Optional[Tag]:
     return None
 
 
-def get_labels(config: changelog_configuration.Condition) -> set[str]:
-    if config["type"] in ("and", "or"):
-        labels = set()
-        for c in config["conditions"]:  # type: ignore[typeddict-item]
-            labels.update(get_labels(c))
-        return labels
-    if config["type"] == "not":
-        return get_labels(config["condition"])
-    if config["type"] == "label":
-        return {config["value"]}
-    return set()
-
-
 def get_release(tag: github.Tag.Tag) -> Optional[github.GitRelease.GitRelease]:
-    for release in tag.get_repo().get_releases():
+    """Get the release from the tag."""
+    for release in tag.get_repo().get_releases():  # type: ignore[attr-defined]
         if release.tag_name == tag.name:
-            return release
+            return release  # type: ignore[no-any-return]
     return None
 
 
@@ -296,15 +221,18 @@ def get_pull_request_tags(
     """
     Get the tags that contains the merge commit of the pull request.
     """
-    pr = repo.get_pull(pull_request_number)
-    # created temporary directory
+    pull_request = repo.get_pull(pull_request_number)
+    # TODO: use milestone
+    # Created temporary directory
     with tempfile.TemporaryDirectory() as tmp_directory_name:
         os.chdir(tmp_directory_name)
-        subprocess.run(["git", "clone", repo.clone_url], check=True)
+        subprocess.run(["git", "clone", repo.clone_url], check=True)  # nosec
         os.chdir(os.path.join(tmp_directory_name, repo.name))
         tags_str = (
-            subprocess.run(
-                ["git", "tag", "--contains", pr.merge_commit_sha], stdout=subprocess.PIPE, check=True
+            subprocess.run(  # nosec
+                ["git", "tag", "--contains", pull_request.merge_commit_sha],
+                stdout=subprocess.PIPE,
+                check=True,
             )
             .stdout.decode()
             .split("\n")
@@ -332,10 +260,7 @@ def generate_changelog(
     repository: str,
     tag_str: str,
 ) -> str:
-    labels = set()
-    for c in configuration["routing"]:
-        labels.update(get_labels(c["condition"]))
-
+    """Generate the changelog for a tag."""
     repo = github_application.get_repo(repository)
 
     tags: dict[Tag, Tag] = {}
@@ -344,17 +269,17 @@ def generate_changelog(
             tag = Tag(tag=tag_s)
             tags[tag] = tag
         except ValueError:
-            _LOGGER.warning(f"Invalid tag: %s on repository %s", tag_s, repository)
+            _LOGGER.warning("Invalid tag: %s on repository %s", tag_s, repository)
             continue
 
     tag = Tag(tag_str)
     if tag not in tags:
-        _LOGGER.warning(f"Tag %s not found on repository %s", tag_str, repository)
+        _LOGGER.warning("Tag %s not found on repository %s", tag_str, repository)
         return ""
     tag = tags[tag]
     old_tag = _previous_tag(tag, tags)
     if old_tag is None:
-        _LOGGER.warning(f"No previous tag found for tag %s on repository %s", tag_str, repository)
+        _LOGGER.warning("No previous tag found for tag %s on repository %s", tag_str, repository)
         return ""
 
     changelog_items: set[ChangelogItem] = set()
@@ -364,21 +289,21 @@ def generate_changelog(
     assert tag.tag is not None
     for commit in repo.compare(old_tag.tag.name, tag.tag.name).commits:
         has_pr = False
-        for pr in commit.get_pulls():
+        for pull_request in commit.get_pulls():
             has_pr = True
-            authors = {pr.user.login}
-            for c in pr.get_commits():
-                authors.add(c.author.login)  # type: ignore[attr-defined]
+            authors = {pull_request.user.login}
+            for commit_ in pull_request.get_commits():
+                authors.add(commit_.author.login)
             changelog_items.add(
                 ChangelogItem(
-                    object=pr,
-                    ref=f"#{pr.number}",
-                    title=pr.title,
-                    author=pr.user.login,
+                    object=pull_request,
+                    ref=f"#{pull_request.number}",
+                    title=pull_request.title,
+                    author=pull_request.user.login,
                     authors=authors,
-                    branch=pr.base.ref,
-                    files={f.filename for f in pr.get_files()},
-                    labels={l.name for l in pr.get_labels()},
+                    branch=pull_request.base.ref,
+                    files={github_file.filename for github_file in pull_request.get_files()},
+                    labels={label.name for label in pull_request.get_labels()},
                 )
             )
         if not has_pr:
@@ -419,6 +344,8 @@ def generate_changelog(
 
 
 class Changelog(module.Module[changelog_configuration.Changelog]):
+    """The changelog module."""
+
     def title(self) -> str:
         """Get the title of the module."""
         return "Generate Changelog in Release"
@@ -467,17 +394,19 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         assert isinstance(repository, str)
         tag_str = ""
         if context.event_data.get("type") == "tag":
-            tag_str = context.event_data["ref"]  # type: ignore[index,assignment]
+            tag_str = context.event_data["ref"]  # type: ignore[assignment]
         elif context.event_data.get("type") == "release":
-            tag_str = context.event_data["release"]["tag_name"]  # type: ignore[union-attr,index,assignment,call-overload]
+            tag_str = context.event_data.get("release", {}).get("tag_name")  # type: ignore[assignment,union-attr]
         elif context.event_data.get("type") == "pull_request":
             # Get the milestone
-            pr = context.github_application.get_repo(repository).get_pull(context.event_data.get("pull_request", {}).get("number"))  # type: ignore[union-attr,index,call-overload]
-            if pr.milestone:
-                tag_str = pr.milestone.title
+            pull_request_number = context.event_data.get("pull_request", {}).get("number")  # type: ignore[union-attr]
+            assert isinstance(pull_request_number, int)
+            pull_request = context.github_application.get_repo(repository).get_pull(pull_request_number)
+            if pull_request.milestone:
+                tag_str = pull_request.milestone.title
             else:
                 _LOGGER.warning(
-                    "No milestone found for pull request %s on repository %s", pr.number, repository
+                    "No milestone found for pull request %s on repository %s", pull_request.number, repository
                 )
                 return
 
@@ -486,5 +415,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
     def get_json_schema(self) -> module.JsonDict:
         """Get the JSON schema of the module configuration."""
         # Get changelog-schema.json related to this file
-        with open(os.path.join(os.path.dirname(__file__), "changelog-schema.json")) as f:
-            return json.loads(f.read()).get("properties", {}).get("changelog")  # type: ignore[no-any-return]
+        with open(
+            os.path.join(os.path.dirname(__file__), "changelog-schema.json"), encoding="utf-8"
+        ) as schema_file:
+            return json.loads(schema_file.read()).get("properties", {}).get("changelog")  # type: ignore[no-any-return]

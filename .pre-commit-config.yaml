@@ -149,4 +149,6 @@ repos:
               ci/config\.yaml
               |github_app_geo_project/project-schema\.json
               |github_app_geo_project/application-schema\.json
+              |github_app_geo_project/module/.*/.*-schema\.json
+              |example/*.yaml
           )$

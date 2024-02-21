@@ -42,6 +42,10 @@ send-event = "github_app_geo_project.scripts.send_event:main"
 [tool.poetry.plugins."paste.app_factory"]
 main = "github_app_geo_project.server:main"
 
+[tool.poetry.plugins."ghci.module"]
+test = "github_app_geo_project.module.test:TestModule"
+changelog = "github_app_geo_project.module.standard.changelog:Changelog"
+
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
 c2cwsgiutils = { version = "6.0.4",  extras = ["standard", "debug", "dev"] }
