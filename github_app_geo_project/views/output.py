@@ -29,9 +29,10 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             sqlalchemy.select(models.Output).where(models.Output.id == request.matchdict["id"])
         ).first()
         if out is not None:
+            full_repository = f"{out.owner}/{out.repository}"
             permission = request.has_permission(
-                out.repository,
-                {"github_repository": out.repository, "github_access_type": out.access_type},
+                full_repository,
+                {"github_repository": full_repository, "github_access_type": out.access_type},
             )
             has_access = isinstance(permission, pyramid.security.Allowed)
             if has_access:

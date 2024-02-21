@@ -46,7 +46,10 @@ class Queue(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     priority: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     application: Mapped[str] = mapped_column(Unicode, nullable=False)
-    data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    owner: Mapped[str] = mapped_column(Unicode, nullable=False)
+    repository: Mapped[str] = mapped_column(Unicode, nullable=False)
+    event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    module_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     def __repr__(self) -> str:
         """Return the representation of the job."""
@@ -87,6 +90,7 @@ class Output(Base):
     status: Mapped[OutputStatus] = mapped_column(
         Enum(OutputStatus), native_enum=False, nullable=False, index=True
     )
+    owner: Mapped[str] = mapped_column(Unicode, nullable=False)
     repository: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
     access_type: Mapped[AccessType] = mapped_column(Enum(AccessType), native_enum=False, nullable=False)
     title: Mapped[str] = mapped_column(Unicode, nullable=False)

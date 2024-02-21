@@ -41,7 +41,10 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                             {
                                 "priority": action.priority,
                                 "application": application,
-                                "data": data,
+                                "owner": owner,
+                                "repository": repo,
+                                "event_data": data,
+                                "module_data": action.data,
                             }
                         )
                     )

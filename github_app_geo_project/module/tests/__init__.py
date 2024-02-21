@@ -34,24 +34,8 @@ class TestModule(module.Module[ConfigType]):
 
         Note that this method is called in the queue consuming Pod
         """
-        context.session.add(
-            models.Output(
-                title="Test",
-                status=models.OutputStatus.SUCCESS,
-                repository="camptocamp/github-app-geo-project",
-                access_type=models.AccessType.PUBLIC,
-                data=["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}],
-            )
-        )
-        context.session.add(
-            models.Output(
-                title="Test error",
-                status=models.OutputStatus.ERROR,
-                repository="camptocamp/github-app-geo-project",
-                access_type=models.AccessType.PUBLIC,
-                data=["Test error"],
-            )
-        )
+        self.add_output(context, "Test", ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}])
+        self.add_output(context, "Test", ["Test error"], status=models.OutputStatus.ERROR)
 
     def get_json_schema(self) -> module.JsonDict:
         """Get the JSON schema of the module configuration."""
