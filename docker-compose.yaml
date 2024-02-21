@@ -46,10 +46,10 @@ services:
       - GHCI_PULL_REQUEST_GITHUB_APP_URL=https://github.com/apps/geo-saas-int
       - GHCI_SESSION_SECRET=1234
       - GHCI_SESSION_SALT=1234
-      - GHCI_CONFIGURATION=/etc/github-app-geo-project/config.yaml
+      - GHCI_CONFIGURATION=/etc/ghci/config.yaml
       - VISIBLE_ENTRY_POINT=/
     volumes:
-      - ./docker/test-app/config.yaml:/etc/github-app-geo-project/config.yaml:ro
+      - ./docker/test-app/config.yaml:/etc/ghci/config.yaml:ro
     links:
       - db
     ports:

@@ -15,6 +15,11 @@ def main() -> None:
     """Add an event in the application queue."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
+        "--application",
+        required=True,
+        help="The application concerned by the event",
+    )
+    parser.add_argument(
         "--event",
         required=True,
         help="The event name to send",
@@ -29,7 +34,7 @@ def main() -> None:
 
     with Session() as session:
         job = github_app_geo_project.models.Queue()
-        job.data = {
+        job.event_data = {
             "type": "event",
             "name": args.event,
         }

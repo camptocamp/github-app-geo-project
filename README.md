@@ -13,6 +13,8 @@ This application will manage:
 
 [project configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/github_app_geo_project/PROJECT-CONFIG.md).
 
+[application configuration wiki](https://github.com/camptocamp/github-app-geo-project/wiki/Application-configuration).
+
 [application configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/github_app_geo_project/APPLICATION-CONFIG.md).
 
 ## Contributing

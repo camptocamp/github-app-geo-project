@@ -14,6 +14,7 @@ import sqlalchemy.orm
 
 from github_app_geo_project import configuration, models, module
 from github_app_geo_project.module import modules
+from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,10 +48,14 @@ def main() -> None:
                 .with_for_update(of=models.Queue, skip_locked=True)
                 .first()
             )
-            if job is not None:
-                job.status = models.JobStatus.PENDING
-                job.started_at = datetime.now()
-                session.commit()
+            if job is None:
+                time.sleep(1)
+                continue
+
+            job.status = models.JobStatus.PENDING
+            job.started_at = datetime.now()
+            session.commit()
+
             job_id = job.id
             job_application = job.application
             job_module = job.module
@@ -58,8 +63,18 @@ def main() -> None:
             repository = job.repository
             event_data = job.event_data
             module_data = job.module_data
+            with Session() as session:
+                session.commit()
         try:
             with Session() as session:
+                if event_data["type"] == "event":
+                    github_objects = configuration.get_github_objects(config, job_application)
+                    for installation in github_objects.integration.get_installations():
+                        for repo in installation.get_repos():
+                            webhook.process_event(
+                                config, session, job_application, event_data, repo.owner.login, repo.name
+                            )
+                    continue
                 context = module.ProcessContext(
                     session=session,
                     github_application=configuration.get_github_application(
@@ -74,17 +89,15 @@ def main() -> None:
                 modules.MODULES[job_module].process(context)
                 session.execute(sqlalchemy.delete(models.Queue).where(models.Queue.id == job_id))
                 session.commit()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             _LOGGER.exception("Failed to process job id=%s on module %s.", job_id, job_module)
             with Session() as session:
-                job = session.execute(
-                    sqlalchemy.update(models.Queue).get(job_id).values(status=models.JobStatus.ERROR)
+                session.execute(
+                    sqlalchemy.update(models.Queue)
+                    .where(models.Queue.id == job_id)
+                    .values(status=models.JobStatus.ERROR)
                 )
                 session.commit()
-
-        if job is None:
-            time.sleep(1)
-            break
 
 
 if __name__ == "__main__":

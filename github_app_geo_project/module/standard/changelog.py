@@ -365,15 +365,15 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
         if event_data.get("type") == "release" and event_data.get("action") == "created":
-            return [module.Action(priority=module.PRIORITY_STATUS)]
+            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "release"})]
         if event_data.get("type") == "tag" and event_data.get("action") == "created":
-            return [module.Action(priority=module.PRIORITY_STATUS)]
+            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "tag"})]
         if (
             event_data.get("type") == "pull_request"
             and event_data.get("action") == "edited"
             and event_data.get("pull_request", {}).get("state") == "closed"  # type: ignore[union-attr]
         ):
-            return [module.Action(priority=module.PRIORITY_STATUS)]
+            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "pull_request"})]
 
         return []
 

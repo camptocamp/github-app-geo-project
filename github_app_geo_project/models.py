@@ -49,6 +49,7 @@ class Queue(Base):
     owner: Mapped[str] = mapped_column(Unicode, nullable=False)
     repository: Mapped[str] = mapped_column(Unicode, nullable=False)
     event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    module: Mapped[str] = mapped_column(Unicode, nullable=False)
     module_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
     def __repr__(self) -> str:
