@@ -38,6 +38,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             "subscribe_to_events": [],
             "errors": [],
         }
+
         permissions: dict[str, str] = {}
         events = set()
 
@@ -54,6 +55,8 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     "documentation_url": module.documentation_url(),
                 }
             )
+            if module.required_issue_dashboard():
+                permissions["issues"] = "write"
             module_permissions = module.get_github_application_permissions()
             events.update(module_permissions.events)
             for name, access in module_permissions.permissions.items():

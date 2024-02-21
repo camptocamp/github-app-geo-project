@@ -52,6 +52,8 @@ class ProcessContext(NamedTuple, Generic[T]):
     module_config: "T"
     # The data given by the get_actions method
     module_data: dict[str, "Json"]
+    # The data from the issue dashboard
+    issue_data: str
 
 
 class GitHubApplicationPermissions(NamedTuple):
@@ -116,6 +118,10 @@ class Module(Generic[T]):
     @abstractmethod
     def get_json_schema(self) -> JsonDict:
         """Get the JSON schema of the module configuration."""
+
+    def required_issue_dashboard(self) -> bool:
+        """Return True if the module requires the issue dashboard."""
+        return False
 
     def get_github_application_permissions(self) -> GitHubApplicationPermissions:
         """Get the list of permissions needed by the GitHub application."""

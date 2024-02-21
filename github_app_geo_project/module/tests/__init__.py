@@ -28,11 +28,13 @@ class TestModule(module.Module[ConfigType]):
         del event_data
         return [module.Action(priority=module.PRIORITY_STATUS)]
 
-    def process(self, context: module.ProcessContext[ConfigType]) -> None:
+    def process(self, context: module.ProcessContext[ConfigType]) -> str:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
+
+        :return: The status of the process to be stored in the dashboard issue
         """
         self.add_output(context, "Test", ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}])
         self.add_output(context, "Test", ["Test error"], status=models.OutputStatus.ERROR)

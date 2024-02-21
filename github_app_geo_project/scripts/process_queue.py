@@ -18,6 +18,9 @@ from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
 
+_ISSUE_START = "<!-- START {} -->"
+_ISSUE_END = "<!-- END {} -->"
+
 
 def main() -> None:
     """Process the jobs present in the database queue."""
@@ -75,20 +78,76 @@ def main() -> None:
                                 config, session, job_application, event_data, repo.owner.login, repo.name
                             )
                     continue
+
+                current_module = modules.MODULES.get(job_module)
+                if current_module is None:
+                    _LOGGER.error("Unknown module %s", job_module)
+                    continue
+
+                issue_data = ""
+                if current_module.required_issue_dashboard():
+                    github_objects = configuration.get_github_objects(config, job_application)
+                    github_application = configuration.get_github_application(
+                        config, job_application, owner, repository
+                    )
+                    repository_full = f"{owner}/{repository}"
+                    repo = github_application.get_repo(repository_full)
+                    open_issues = repo.get_issues(
+                        state="open", creator=github_objects.integration.get_app().slug
+                    )
+                    if open_issues.totalCount > 0:
+                        issue_full_data = open_issues[0].body
+                        start_tag = _ISSUE_START.format(job_module)
+                        end_tag = _ISSUE_END.format(job_module)
+                        if start_tag in issue_full_data and end_tag in issue_full_data:
+                            start = issue_full_data.index(start_tag) + len(start_tag)
+                            end = issue_full_data.index(end_tag)
+                            issue_data = issue_full_data[start:end]
+                            issue_data = issue_data.strip()
+                            if issue_data.startswith("## "):
+                                issue_data = "\n".join(issue_data.split("\n")[1:]).strip()
+
                 context = module.ProcessContext(
                     session=session,
-                    github_application=configuration.get_github_application(
-                        config, job_application, owner, repository
-                    ),
+                    github_application=github_application,
                     owner=owner,
                     repository=repository,
                     event_data=event_data,
                     module_config=configuration.get_configuration(config, owner, repository),
                     module_data=module_data,
+                    issue_data=issue_data,
                 )
-                modules.MODULES[job_module].process(context)
+                issue_data = current_module.process(context)
                 session.execute(sqlalchemy.delete(models.Queue).where(models.Queue.id == job_id))
                 session.commit()
+
+            if current_module.required_issue_dashboard():
+                issue_data = "\n".join(
+                    [
+                        start_tag,
+                        f"## {current_module.title()}",
+                        "",
+                        issue_data,
+                        end_tag,
+                    ]
+                )
+                open_issues = repo.get_issues(state="open", creator=github_objects.integration.get_app().slug)
+                if open_issues.totalCount > 0:
+                    issue_full_data = open_issues[0].body
+                    start_tag = _ISSUE_START.format(job_module)
+                    end_tag = _ISSUE_END.format(job_module)
+                    if start_tag in issue_full_data and end_tag in issue_full_data:
+                        start = issue_full_data.index(start_tag)
+                        end = issue_full_data.index(end_tag) + len(end_tag)
+                        issue_full_data = issue_full_data[:start] + issue_data + issue_full_data[end:]
+                        open_issues[0].edit(body=issue_full_data)
+                    else:
+                        open_issues[0].edit(body=issue_full_data + "\n\n" + issue_data)
+                else:
+                    repo.create_issue(
+                        "GHCI Dashboard", "This issue is the dashboard used by GHCI modules.\n\n" + issue_data
+                    )
+
         except Exception:  # pylint: disable=broad-exception-caught
             _LOGGER.exception("Failed to process job id=%s on module %s.", job_id, job_module)
             with Session() as session:

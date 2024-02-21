@@ -418,3 +418,14 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             os.path.join(os.path.dirname(__file__), "changelog-schema.json"), encoding="utf-8"
         ) as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("changelog")  # type: ignore[no-any-return]
+
+    def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
+        return module.GitHubApplicationPermissions(
+            {
+                "contents": "read",
+                "pull_requests": "write",
+                "release": "write",
+                "milestones": "write",
+            },
+            ["create", "pull_request", "release"],
+        )
