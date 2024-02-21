@@ -9,7 +9,6 @@ import tempfile
 from typing import Callable, NamedTuple, Optional, Union
 
 import github
-import yaml
 
 from github_app_geo_project import module
 from github_app_geo_project.module.standard import changelog_configuration
