@@ -93,7 +93,7 @@ def main() -> None:
                     repository_full = f"{owner}/{repository}"
                     repo = github_application.get_repo(repository_full)
                     open_issues = repo.get_issues(
-                        state="open", creator=github_objects.integration.get_app().slug
+                        state="open", creator=github_objects.integration.get_app().owner
                     )
                     if open_issues.totalCount > 0:
                         issue_full_data = open_issues[0].body
@@ -117,21 +117,27 @@ def main() -> None:
                     module_data=module_data,
                     issue_data=issue_data,
                 )
-                issue_data = current_module.process(context)
+                issue_data = current_module.process(context) or ""
                 session.execute(sqlalchemy.delete(models.Queue).where(models.Queue.id == job_id))
                 session.commit()
 
             if current_module.required_issue_dashboard():
-                issue_data = "\n".join(
-                    [
-                        start_tag,
-                        f"## {current_module.title()}",
-                        "",
-                        issue_data,
-                        end_tag,
-                    ]
+                issue_data = (
+                    "\n".join(
+                        [
+                            start_tag,
+                            f"## {current_module.title()}",
+                            "",
+                            issue_data,
+                            end_tag,
+                        ]
+                    )
+                    if issue_data
+                    else ""
                 )
-                open_issues = repo.get_issues(state="open", creator=github_objects.integration.get_app().slug)
+                open_issues = repo.get_issues(
+                    state="open", creator=github_objects.integration.get_app().owner
+                )
                 if open_issues.totalCount > 0:
                     issue_full_data = open_issues[0].body
                     start_tag = _ISSUE_START.format(job_module)
@@ -143,7 +149,8 @@ def main() -> None:
                         open_issues[0].edit(body=issue_full_data)
                     else:
                         open_issues[0].edit(body=issue_full_data + "\n\n" + issue_data)
-                else:
+                elif issue_data:
+                    # TODO add service URL to the project
                     repo.create_issue(
                         "GHCI Dashboard", "This issue is the dashboard used by GHCI modules.\n\n" + issue_data
                     )

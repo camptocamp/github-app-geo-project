@@ -1,7 +1,7 @@
 """The base class of the modules."""
 
 from abc import abstractmethod
-from typing import Generic, NamedTuple, TypeVar, Union
+from typing import Generic, NamedTuple, Optional, TypeVar, Union
 
 import github
 from sqlalchemy.orm import Session
@@ -108,11 +108,13 @@ class Module(Generic[T]):
         )
 
     @abstractmethod
-    def process(self, context: ProcessContext[T]) -> None:
+    def process(self, context: ProcessContext[T]) -> Optional[str]:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
+
+        :return: The message to be displayed in the issue dashboard
         """
 
     @abstractmethod

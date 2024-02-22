@@ -420,6 +420,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             return json.loads(schema_file.read()).get("properties", {}).get("changelog")  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
+        """Get the permissions and events required by the module."""
         return module.GitHubApplicationPermissions(
             {
                 "contents": "read",
@@ -427,5 +428,5 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                 "release": "write",
                 "milestones": "write",
             },
-            ["create", "pull_request", "release"],
+            {"create", "pull_request", "release"},
         )

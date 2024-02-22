@@ -26,6 +26,8 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
 
     owner, repo = data["repository"]["full_name"].split("/")
 
+    # TODO manage modification on dashboard issue
+
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.rw_engine
     with engine.connect() as session:
