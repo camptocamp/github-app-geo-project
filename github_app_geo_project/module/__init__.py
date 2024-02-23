@@ -23,16 +23,44 @@ class Action(NamedTuple):
 
 # Priority used to update the pull request status
 PRIORITY_STATUS = 10
+# Priority used for actions triggered by dashborad issue
+PRIORITY_DASHBOARD = 20
 # Standard priority
-PRIORITY_STANDARD = 20
+PRIORITY_STANDARD = 30
 # Priority for an action triggered by a cron
-PRIORITY_CRON = 30
+PRIORITY_CRON = 40
 
 # Json Type
 Json = Union[int, float, str, None, dict[str, "Json"], list["Json"]]
 JsonDict = dict[str, Json]
 
 T = TypeVar("T")
+
+
+class GetActionContext(NamedTuple):
+    """The context of the get_actions method."""
+
+    # The owner and repository of the event
+    owner: str
+    # The repository name of the event
+    repository: str
+    # The event data
+    event_data: dict[str, "Json"]
+
+
+class CleanupContext(NamedTuple):
+    """The context of the cleanup method."""
+
+    # The github application
+    github_application: github.Github
+    # The owner and repository of the event
+    owner: str
+    # The repository name of the event
+    repository: str
+    # The event data
+    event_data: dict[str, "Json"]
+    # The data given by the get_actions method
+    module_data: dict[str, "Json"]
 
 
 class ProcessContext(NamedTuple, Generic[T]):
@@ -79,33 +107,13 @@ class Module(Generic[T]):
         return ""
 
     @abstractmethod
-    def get_actions(self, event_data: JsonDict) -> list[Action]:
+    def get_actions(self, context: GetActionContext) -> list[Action]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-
-    def add_output(
-        self,
-        context: ProcessContext[T],
-        title: str,
-        data: list[Union[str, models.OutputData]],
-        status: models.OutputStatus = models.OutputStatus.SUCCESS,
-        access_type: models.AccessType = models.AccessType.PULL,
-    ) -> None:
-        """Add an output to the database."""
-        context.session.add(
-            models.Output(
-                title=title,
-                status=status,
-                owner=context.owner,
-                repository=context.repository,
-                access_type=access_type,
-                data=data,
-            )
-        )
 
     @abstractmethod
     def process(self, context: ProcessContext[T]) -> Optional[str]:
@@ -114,8 +122,19 @@ class Module(Generic[T]):
 
         Note that this method is called in the queue consuming Pod
 
-        :return: The message to be displayed in the issue dashboard
+        :return: The message to be displayed in the issue dashboard, None for not changes, '' for no message
+                 This is taken in account only if the method required_issue_dashboard return True.
         """
+
+    def cleanup(self, context: CleanupContext) -> None:
+        """
+        Cleanup the event.
+
+        The get_actions method is called event if the module is not enabled.
+        It the module is not enabled, the cleanup method is called in place of process to
+        be able to cleanup eventual action done by get_actions.
+        """
+        del context
 
     @abstractmethod
     def get_json_schema(self) -> JsonDict:

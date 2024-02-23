@@ -2,14 +2,14 @@
 
 import json
 import logging
-from typing import Any, Union, cast
+from typing import Any, NamedTuple
 
 import pyramid.request
 import sqlalchemy.engine
 import sqlalchemy.orm
 from pyramid.view import view_config
 
-from github_app_geo_project import application_configuration, configuration, models
+from github_app_geo_project import configuration, models, module, utils
 from github_app_geo_project.module import modules
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,46 +24,137 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     data = request.json
     _LOGGER.debug("Webhook received for %s, with:\n%s", application, json.dumps(data, indent=2))
 
-    owner, repo = data["repository"]["full_name"].split("/")
+    owner, repository = data["repository"]["full_name"].split("/")
 
     # TODO manage modification on dashboard issue
+
+    if data["action"] == "edited" and "issue" in data:
+        github_objects = configuration.get_github_objects(request.registry.settings, application)
+        if data["issue"]["user"]["login"] == github_objects.integration.get_app().slug + "[bot]":
+            github_application = configuration.get_github_application(
+                request.registry.settings, application, owner, repository
+            )
+            repository_full = f"{owner}/{repository}"
+            repository = github_application.get_repo(repository_full)
+            open_issues = repository.get_issues(
+                state="open", creator=github_objects.integration.get_app().owner
+            )
+
+            if open_issues.totalCount > 0 and open_issues[0].number == data["issue"]["number"]:
+                _LOGGER.debug("Dashboard issue edited")
+                old_content = data.get("changes", {}).get("body", {}).get("from", "")
+                new_content = data["issue"]["body"]
+                session_factory = request.registry["dbsession_factory"]
+                engine = session_factory.rw_engine
+                with engine.connect() as session:
+                    process_dashboard_issue(
+                        ProcessContext(
+                            application, request.registry.settings, owner, repository, data, session
+                        ),
+                        old_content,
+                        new_content,
+                    )
+
+                return {}
 
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.rw_engine
     with engine.connect() as session:
-        process_event(request.registry.settings, session, application, data, owner, repo)
+        process_event(
+            ProcessContext(application, request.registry.settings, owner, repository, data, session)
+        )
     return {}
 
 
-def process_event(
-    application_config: dict[str, Any],
-    session: Union[sqlalchemy.orm.Session, sqlalchemy.engine.Connection],
-    application: str,
-    data: dict[str, Any],
-    owner: str,
-    repo: str,
-) -> None:
-    """Process the event."""
-    config = configuration.get_configuration(application_config, owner, repo)
+class ProcessContext(NamedTuple):
+    """The context of the process."""
 
-    for name in application_config.get(f"application.{application}.modules", "").split():
-        module = modules.MODULES.get(name)
-        if module is None:
+    # The github application name
+    application: str
+    # The application configuration
+    application_config: dict[str, Any]
+
+    # The owner and repository of the event
+    owner: str
+    # The repository name of the event
+    repository: str
+    # The event data
+    event_data: dict[str, module.Json]
+
+    # The session to be used
+    session: sqlalchemy.orm.Session
+
+
+def process_dashboard_issue(
+    context: ProcessContext,
+    old_data: str,
+    new_data: str,
+) -> None:
+    """Process changes on the dashboard issue."""
+    for name in context.application_config.get(f"application.{context.application}.modules", "").split():
+        current_module = modules.MODULES.get(name)
+        if current_module is None:
             _LOGGER.error("Unknown module %s", name)
             continue
-        module_config = cast(application_configuration.ModuleConfiguration, config.get(name, {}))
-        if module_config.get("enabled", True):
-            for action in module.get_actions(data):
-                session.execute(
-                    sqlalchemy.insert(models.Queue).values(
-                        {
-                            "priority": action.priority,
-                            "application": application,
-                            "owner": owner,
-                            "repository": repo,
-                            "event_data": data,
-                            "module": name,
-                            "module_data": action.data,
-                        }
+        module_old = utils.get_dashboard_issue_module(old_data, name)
+        module_new = utils.get_dashboard_issue_module(new_data, name)
+        if module_old != module_new:
+            _LOGGER.debug("Dashboard issue edited for module %s: %s", name, current_module.title())
+            if current_module.required_issue_dashboard():
+                for action in current_module.get_actions(
+                    module.GetActionContext(
+                        owner=context.owner,
+                        repository=context.repository,
+                        event_data={
+                            "type": "dashboard",
+                            "old_data": module_old,
+                            "new_data": module_new,
+                        },
                     )
+                ):
+                    context.session.execute(
+                        sqlalchemy.insert(models.Queue).values(
+                            {
+                                "priority": action.priority,
+                                "application": context.application,
+                                "owner": context.owner,
+                                "repository": context.repository,
+                                "event_data": {
+                                    "type": "dashboard",
+                                    "old_data": module_old,
+                                    "new_data": module_new,
+                                },
+                                "module": name,
+                                "module_data": action.data,
+                            }
+                        )
+                    )
+
+
+def process_event(context: ProcessContext) -> None:
+    """Process the event."""
+    for name in context.application_config.get(f"application.{context.application}.modules", "").split():
+        current_module = modules.MODULES.get(name)
+        if current_module is None:
+            _LOGGER.error("Unknown module %s", name)
+            continue
+        for action in current_module.get_actions(
+            module.GetActionContext(
+                owner=context.owner,
+                repository=context.repository,
+                event_data=context.event_data,
+            )
+        ):
+            context.session.execute(
+                sqlalchemy.insert(models.Queue).values(
+                    {
+                        "priority": action.priority,
+                        "application": context.application,
+                        "owner": context.owner,
+                        "repository": context.repository,
+                        "event_data": context.event_data,
+                        "module": name,
+                        "module_data": action.data,
+                    }
                 )
+            )

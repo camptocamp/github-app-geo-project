@@ -12,14 +12,11 @@ import c2cwsgiutils.setup_process
 import plaster
 import sqlalchemy.orm
 
-from github_app_geo_project import configuration, models, module
+from github_app_geo_project import configuration, models, module, utils
 from github_app_geo_project.module import modules
 from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
-
-_ISSUE_START = "<!-- START {} -->"
-_ISSUE_END = "<!-- END {} -->"
 
 
 def main() -> None:
@@ -75,7 +72,9 @@ def main() -> None:
                     for installation in github_objects.integration.get_installations():
                         for repo in installation.get_repos():
                             webhook.process_event(
-                                config, session, job_application, event_data, repo.owner.login, repo.name
+                                webhook.ProcessContext(
+                                    job_application, config, repo.owner.login, repo.name, event_data, session
+                                )
                             )
                     continue
 
@@ -97,15 +96,7 @@ def main() -> None:
                     )
                     if open_issues.totalCount > 0:
                         issue_full_data = open_issues[0].body
-                        start_tag = _ISSUE_START.format(job_module)
-                        end_tag = _ISSUE_END.format(job_module)
-                        if start_tag in issue_full_data and end_tag in issue_full_data:
-                            start = issue_full_data.index(start_tag) + len(start_tag)
-                            end = issue_full_data.index(end_tag)
-                            issue_data = issue_full_data[start:end]
-                            issue_data = issue_data.strip()
-                            if issue_data.startswith("## "):
-                                issue_data = "\n".join(issue_data.split("\n")[1:]).strip()
+                        issue_data = utils.get_dashboard_issue_module(issue_full_data, job_module)
 
                 context = module.ProcessContext(
                     session=session,
@@ -117,42 +108,24 @@ def main() -> None:
                     module_data=module_data,
                     issue_data=issue_data,
                 )
-                issue_data = current_module.process(context) or ""
+                new_issue_data = current_module.process(context)
                 session.execute(sqlalchemy.delete(models.Queue).where(models.Queue.id == job_id))
                 session.commit()
 
-            if current_module.required_issue_dashboard():
-                issue_data = (
-                    "\n".join(
-                        [
-                            start_tag,
-                            f"## {current_module.title()}",
-                            "",
-                            issue_data,
-                            end_tag,
-                        ]
-                    )
-                    if issue_data
-                    else ""
-                )
+            if current_module.required_issue_dashboard() and new_issue_data is not None:
                 open_issues = repo.get_issues(
                     state="open", creator=github_objects.integration.get_app().owner
                 )
                 if open_issues.totalCount > 0:
-                    issue_full_data = open_issues[0].body
-                    start_tag = _ISSUE_START.format(job_module)
-                    end_tag = _ISSUE_END.format(job_module)
-                    if start_tag in issue_full_data and end_tag in issue_full_data:
-                        start = issue_full_data.index(start_tag)
-                        end = issue_full_data.index(end_tag) + len(end_tag)
-                        issue_full_data = issue_full_data[:start] + issue_data + issue_full_data[end:]
-                        open_issues[0].edit(body=issue_full_data)
-                    else:
-                        open_issues[0].edit(body=issue_full_data + "\n\n" + issue_data)
-                elif issue_data:
-                    # TODO add service URL to the project
+                    issue_full_data = utils.update_dashboard_issue_module(
+                        open_issues[0].body, job_module, current_module, new_issue_data
+                    )
+                    open_issues[0].edit(body=issue_full_data)
+                elif new_issue_data:
                     repo.create_issue(
-                        "GHCI Dashboard", "This issue is the dashboard used by GHCI modules.\n\n" + issue_data
+                        "GHCI Dashboard",
+                        f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{owner}/{repository})\n\n"
+                        + new_issue_data,
                     )
 
         except Exception:  # pylint: disable=broad-exception-caught

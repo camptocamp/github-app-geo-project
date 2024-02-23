@@ -357,13 +357,14 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         """Get the URL to the documentation page of the module."""
         return ""
 
-    def get_actions(self, event_data: module.JsonDict) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
+        event_data = context.event_data
         if event_data.get("type") == "release" and event_data.get("action") == "created":
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "release"})]
         if event_data.get("type") == "tag" and event_data.get("action") == "created":

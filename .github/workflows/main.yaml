@@ -46,6 +46,11 @@ jobs:
       - run: git diff && false
         if: failure()
 
+      # Use Python 3.11
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.11
+
       - name: Environment
         run: c2cciutils-env
 
