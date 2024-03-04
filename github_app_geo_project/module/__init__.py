@@ -63,7 +63,7 @@ class CleanupContext(NamedTuple):
     module_data: dict[str, "Json"]
 
 
-class ProcessContext(NamedTuple, Generic[T]):
+class ProcessContext(NamedTuple):
     """The context of the process."""
 
     # The session to be used
