@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/project-schema.json",
   "type": "object",
-  "title": "GitHub application project configuration",
+  "title": "Changelog configuration Base",
   "additionalProperties": false,
   "properties": {
     "changelog": {

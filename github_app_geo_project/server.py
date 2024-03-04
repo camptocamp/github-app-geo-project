@@ -46,6 +46,8 @@ def main(global_config: Any, **settings: Any) -> Router:
         else pyramid.session.SignedCookieSessionFactory(
             os.environ["GHCI_SESSION_SECRET"],
             salt=os.environ["GHCI_SESSION_SALT"],
+            httponly=True,
+            secure=True,
         )
     )
 

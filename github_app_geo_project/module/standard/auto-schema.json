@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/project-schema.json",
+  "type": "object",
+  "title": "Auto pull request modules configuration base",
+  "additionalProperties": false,
+  "definitions": {
+    "auto": {
+      "title": "Auto pull request",
+      "description": "auto pull request configuration",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conditions": {
+          "type": "array",
+          "title": "Conditions",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "author": {
+                "type": "string",
+                "title": "Author regex",
+                "description": "The author of the pull request"
+              },
+              "branch": {
+                "type": "string",
+                "title": "Branch regex",
+                "description": "Regex to match the branch of the pull request"
+              },
+              "title": {
+                "type": "string",
+                "title": "Title regex",
+                "description": "Regex to match the title of the pull request"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "properties": {
+    "auto-review": {
+      "$ref": "#/definitions/auto"
+    },
+    "auto-merge": {
+      "$ref": "#/definitions/auto"
+    },
+    "auto-close": {
+      "$ref": "#/definitions/auto"
+    }
+  }
+}

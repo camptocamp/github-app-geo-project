@@ -34,18 +34,18 @@ class ChangelogItem(NamedTuple):
         return hash(self.ref)
 
 
-def match(item: ChangelogItem, condition: changelog_configuration.Condition) -> bool:
+def match(item: ChangelogItem, condition: changelog_configuration.Condition) -> bool:  # type: ignore[name-defined]
     """Changelog item match with the condition."""
-    match_functions: dict[str, Callable[[ChangelogItem, changelog_configuration.Condition], bool]] = {
-        "and": match_and,  # type: ignore[dict-item]
-        "or": match_or,  # type: ignore[dict-item]
-        "not": match_not,  # type: ignore[dict-item]
-        "const": match_const,  # type: ignore[dict-item]
-        "title": match_title,  # type: ignore[dict-item]
-        "files": match_files,  # type: ignore[dict-item]
-        "label": match_label,  # type: ignore[dict-item]
-        "branch": match_branch,  # type: ignore[dict-item]
-        "author": match_author,  # type: ignore[dict-item]
+    match_functions: dict[str, Callable[[ChangelogItem, changelog_configuration.Condition], bool]] = {  # type: ignore[name-defined]
+        "and": match_and,
+        "or": match_or,
+        "not": match_not,
+        "const": match_const,
+        "title": match_title,
+        "files": match_files,
+        "label": match_label,
+        "branch": match_branch,
+        "author": match_author,
     }
     if condition["type"] not in match_functions:
         _LOGGER.warning("Unknown condition type: %s", condition["type"])

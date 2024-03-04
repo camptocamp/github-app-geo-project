@@ -1,4 +1,4 @@
-# GitHub application project configuration
+# Changelog configuration Base
 
 ## Properties
 

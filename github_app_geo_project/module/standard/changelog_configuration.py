@@ -36,6 +36,17 @@ Changelog = TypedDict(
 )
 
 
+class ChangelogConfigurationBase(TypedDict, total=False):
+    """Changelog configuration Base."""
+
+    changelog: "Changelog"
+    """
+    Changelog.
+
+    The changelog generation configuration
+    """
+
+
 class ChangelogLabelConfiguration(TypedDict, total=False):
     """
     Changelog label configuration.
@@ -177,17 +188,6 @@ class ConditionTitle(TypedDict, total=False):
 
     regex: str
     """ The regex the the title should match """
-
-
-class GithubApplicationProjectConfiguration(TypedDict, total=False):
-    """GitHub application project configuration."""
-
-    changelog: "Changelog"
-    """
-    Changelog.
-
-    The changelog generation configuration
-    """
 
 
 class Section(TypedDict, total=False):
