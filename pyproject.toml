@@ -1,6 +1,6 @@
 [tool.black]
 line-length = 110
-target-version = ["py39"]
+target-version = ["py310"]
 
 [tool.isort]
 profile = "black"
@@ -8,7 +8,7 @@ line_length = 110
 known_first_party = "github_app_geo_project"
 
 [tool.mypy]
-python_version = 3.9
+python_version = 3.10
 warn_redundant_casts = true
 warn_unused_ignores = true
 ignore_missing_imports = true
@@ -47,7 +47,7 @@ test = "github_app_geo_project.module.test:TestModule"
 changelog = "github_app_geo_project.module.standard.changelog:Changelog"
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.12"
+python = ">=3.10,<3.11"
 c2cwsgiutils = { version = "6.0.4",  extras = ["standard", "debug", "dev"] }
 pyramid-mako = "1.1.0"
 jsonmerge = "1.9.2"
