@@ -19,6 +19,8 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
         postgresql-client net-tools iputils-ping \
         python3-pip
 
+RUN rm -rf /usr/lib/python3.11/EXTERNALLY-MANAGED
+
 # Used to convert the locked packages by poetry to pip requirements format
 # We don't directly use `poetry install` because it force to use a virtual environment.
 FROM base-all as poetry
