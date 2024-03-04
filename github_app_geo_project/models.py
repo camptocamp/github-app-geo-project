@@ -95,4 +95,4 @@ class Output(Base):
     repository: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
     access_type: Mapped[AccessType] = mapped_column(Enum(AccessType), native_enum=False, nullable=False)
     title: Mapped[str] = mapped_column(Unicode, nullable=False)
-    data: Mapped[list[Union[str, OutputData]]] = mapped_column(JSON, nullable=False)
+    data: Mapped[list[str | OutputData]] = mapped_column(JSON, nullable=False)

@@ -1,7 +1,7 @@
 """Module utility functions for the modules."""
 
 import re
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from github_app_geo_project import models, module
 
@@ -9,7 +9,7 @@ from github_app_geo_project import models, module
 def add_output(
     context: module.ProcessContext[Any],
     title: str,
-    data: list[Union[str, models.OutputData]],
+    data: list[str | models.OutputData],
     status: models.OutputStatus = models.OutputStatus.SUCCESS,
     access_type: models.AccessType = models.AccessType.PULL,
 ) -> None:
@@ -31,9 +31,9 @@ class DashboardIssueItem:
 
     title: str
     comment: str = ""
-    checked: Optional[bool] = None
+    checked: bool | None = None
 
-    def __init__(self, title: str, comment: str = "", checked: Optional[bool] = None) -> None:
+    def __init__(self, title: str, comment: str = "", checked: bool | None = None) -> None:
         """Initialize the dashboard issue item."""
         self.title = title
         self.comment = comment
@@ -100,21 +100,21 @@ class DashboardIssue:
         """Initialize the dashboard issue."""
         self.issue = parse_dashboard_issue(data)
 
-    def is_checked(self, name: str) -> Optional[bool]:
+    def is_checked(self, name: str) -> bool | None:
         """Check if the check is checked."""
         for item in self.issue:
             if isinstance(item, DashboardIssueItem) and item.comment == name:
                 return item.checked
         return None
 
-    def get_title(self, name: str) -> Optional[str]:
+    def get_title(self, name: str) -> str | None:
         """Get the title."""
         for item in self.issue:
             if isinstance(item, DashboardIssueItem) and item.comment == name:
                 return item.title
         return None
 
-    def set_check(self, name: str, checked: bool, title: Optional[str] = None) -> bool:
+    def set_check(self, name: str, checked: bool, title: str | None = None) -> bool:
         """Set the check."""
         for item in self.issue:
             if isinstance(item, DashboardIssueItem) and item.comment == name:

@@ -1,7 +1,7 @@
 """The base class of the modules."""
 
 from abc import abstractmethod
-from typing import Generic, NamedTuple, Optional, TypeVar, Union
+from typing import Generic, NamedTuple, TypeVar, Union
 
 import github
 from sqlalchemy.orm import Session
@@ -116,7 +116,7 @@ class Module(Generic[T]):
         """
 
     @abstractmethod
-    def process(self, context: ProcessContext[T]) -> Optional[str]:
+    def process(self, context: ProcessContext[T]) -> str | None:
         """
         Process the action.
 

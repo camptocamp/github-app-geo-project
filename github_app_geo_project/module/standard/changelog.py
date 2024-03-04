@@ -6,7 +6,8 @@ import os
 import re
 import subprocess  # nosec
 import tempfile
-from typing import Callable, NamedTuple, Optional, Union
+from collections.abc import Callable
+from typing import NamedTuple
 
 import github
 
@@ -19,12 +20,12 @@ _LOGGER = logging.getLogger(__name__)
 class ChangelogItem(NamedTuple):
     """Changelog item (pull request or commit."""
 
-    object: Union[github.PullRequest.PullRequest, github.Commit.Commit]
+    object: github.PullRequest.PullRequest | github.Commit.Commit
     ref: str
     title: str
     author: str
     authors: set[str]
-    branch: Optional[str]
+    branch: str | None
     files: set[str]
     labels: set[str]
 
@@ -127,7 +128,7 @@ class Tag:
     TAG_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
     TAG2_RE = re.compile(r"release_?(\d+)")
 
-    def __init__(self, tag_str: Optional[str] = None, tag: Optional[github.Tag.Tag] = None):
+    def __init__(self, tag_str: str | None = None, tag: github.Tag.Tag | None = None):
         """Create a tag."""
         if tag_str is None:
             assert tag is not None
@@ -187,7 +188,7 @@ class Tag:
         return 0
 
 
-def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Optional[Tag]:
+def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Tag | None:
     if tag.patch != 0:
         test_tag = Tag(".".join(str(e) for e in (tag.major, tag.minor, tag.patch - 1)))
         if test_tag in tags:
@@ -206,7 +207,7 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Optional[Tag]:
     return None
 
 
-def get_release(tag: github.Tag.Tag) -> Optional[github.GitRelease.GitRelease]:
+def get_release(tag: github.Tag.Tag) -> github.GitRelease.GitRelease | None:
     """Get the release from the tag."""
     for release in tag.get_repo().get_releases():  # type: ignore[attr-defined]
         if release.tag_name == tag.name:
@@ -215,8 +216,8 @@ def get_release(tag: github.Tag.Tag) -> Optional[github.GitRelease.GitRelease]:
 
 
 def get_pull_request_tags(
-    repo: github.Repository.Repository, pull_request_number: int, tags: Optional[dict[Tag, Tag]] = None
-) -> Optional[Tag]:
+    repo: github.Repository.Repository, pull_request_number: int, tags: dict[Tag, Tag] | None = None
+) -> Tag | None:
     """
     Get the tags that contains the merge commit of the pull request.
     """
