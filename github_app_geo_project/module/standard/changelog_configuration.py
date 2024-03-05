@@ -68,35 +68,24 @@ class ChangelogRoutingConfiguration(TypedDict, total=False):
     section: str
     """ The section section affected to changelog items that match with the conditions """
 
-    condition: "Condition"
+    condition: Union[
+        "ConditionConst",
+        "ConditionAndSolidusOr",
+        "ConditionNot",
+        "ConditionLabel",
+        "ConditionFiles",
+        "ConditionAuthor",
+        "ConditionTitle",
+        "ConditionBranch",
+    ]
     """
     Condition.
 
     The condition to match with the changelog items
 
-    Aggregation type: anyOf
+    Aggregation type: oneOf
     Subtype: "ConditionConst", "ConditionAndSolidusOr", "ConditionNot", "ConditionLabel", "ConditionFiles", "ConditionAuthor", "ConditionTitle", "ConditionBranch"
     """
-
-
-Condition = Union[
-    "ConditionConst",
-    "ConditionAndSolidusOr",
-    "ConditionNot",
-    "ConditionLabel",
-    "ConditionFiles",
-    "ConditionAuthor",
-    "ConditionTitle",
-    "ConditionBranch",
-]
-"""
-Condition.
-
-The condition to match with the changelog items
-
-Aggregation type: anyOf
-Subtype: "ConditionConst", "ConditionAndSolidusOr", "ConditionNot", "ConditionLabel", "ConditionFiles", "ConditionAuthor", "ConditionTitle", "ConditionBranch"
-"""
 
 
 class ConditionAndSolidusOr(TypedDict, total=False):

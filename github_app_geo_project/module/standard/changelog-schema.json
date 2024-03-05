@@ -86,7 +86,7 @@
                 "description": "The condition to match with the changelog items",
                 "$dynamicAnchor": "changelog-condition",
                 "additionalProperties": false,
-                "anyOf": [
+                "oneOf": [
                   {
                     "title": "Condition const",
                     "properties": {

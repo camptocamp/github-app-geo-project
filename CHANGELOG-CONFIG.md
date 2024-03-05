@@ -18,7 +18,7 @@
     - **Items** _(object)_: The routing configuration.
       - **`section`** _(string)_: The section section affected to changelog items that match with the conditions.
       - **`condition`** _(object)_: The condition to match with the changelog items. Cannot contain additional properties.
-        - **Any of**
+        - **One of**
           - - **`type`** _(string)_: The type of the condition.
             - **`value`** _(boolean)_: The value of the condition.
           - - **`type`** _(string)_: The type of the condition. Must be one of: `["and", "or"]`.
