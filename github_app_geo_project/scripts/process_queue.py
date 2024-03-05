@@ -108,7 +108,17 @@ def main() -> None:
                     module_data=module_data,
                     issue_data=issue_data,
                 )
-                new_issue_data = current_module.process(context)
+                try:
+                    new_issue_data = current_module.process(context)
+                except Exception:
+                    _LOGGER.exception(
+                        "Failed to process job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
+                        job_id,
+                        job_module,
+                        module_data,
+                        event_data,
+                    )
+                    raise
                 session.execute(sqlalchemy.delete(models.Queue).where(models.Queue.id == job_id))
                 session.commit()
 
@@ -129,7 +139,7 @@ def main() -> None:
                     )
 
         except Exception:  # pylint: disable=broad-exception-caught
-            _LOGGER.exception("Failed to process job id=%s on module %s.", job_id, job_module)
+            _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module)
             with Session() as session:
                 session.execute(
                     sqlalchemy.update(models.Queue)

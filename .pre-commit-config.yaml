@@ -113,7 +113,7 @@ repos:
               |github_app_geo_project/application-schema\.json
               |github_app_geo_project/module/.*/.*-schema\.json
           )$
-  - repo: https://github.com/sbrunner/jsonschema2md2
+  - repo: https://github.com/sbrunner/jsonschema2md
     rev: 1.1.0
     hooks:
       - id: jsonschema2md
@@ -122,7 +122,7 @@ repos:
           - --pre-commit
           - github_app_geo_project/project-schema.json
           - PROJECT-CONFIG.md
-  - repo: https://github.com/sbrunner/jsonschema2md2
+  - repo: https://github.com/sbrunner/jsonschema2md
     rev: 1.1.0
     hooks:
       - id: jsonschema2md
@@ -131,7 +131,7 @@ repos:
           - --pre-commit
           - github_app_geo_project/application-schema.json
           - APPLICATION-CONFIG.md
-  - repo: https://github.com/sbrunner/jsonschema2md2
+  - repo: https://github.com/sbrunner/jsonschema2md
     rev: 1.1.0
     hooks:
       - id: jsonschema2md
@@ -140,6 +140,15 @@ repos:
           - --pre-commit
           - github_app_geo_project/module/standard/changelog-schema.json
           - CHANGELOG-CONFIG.md
+  - repo: https://github.com/sbrunner/jsonschema2md
+    rev: 1.1.0
+    hooks:
+      - id: jsonschema2md
+        files: ^github_app_geo_project/module/standard/auto-schema\.json$
+        args:
+          - --pre-commit
+          - github_app_geo_project/module/standard/auto-schema.json
+          - AUTO-CONFIG.md
   - repo: https://github.com/sbrunner/jsonschema-validator
     rev: 0.1.0
     hooks:
@@ -150,5 +159,6 @@ repos:
               |github_app_geo_project/project-schema\.json
               |github_app_geo_project/application-schema\.json
               |github_app_geo_project/module/.*/.*-schema\.json
-              |example/*.yaml
           )$
+
+#              |example/.*.yaml

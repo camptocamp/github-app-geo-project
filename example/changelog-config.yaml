@@ -1,89 +1,90 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/module/standard/changelog-schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/camptocamp/github-app-geo-project/master/github_app_geo_project/module/standard/changelog-schema.json
 
-default-section: New feature
-create-labels: true
+changelog:
+  default-section: New feature
+  create-label: true
 
-sections:
-  - name: Breaking changes
-  - name: New feature
-  - name: Fixed bugs
-  - name: Documentation
-  - name: Tests
-  - name: Chore
-  - name: Security fixes
-  - name: Dependency update
+  sections:
+    - name: Breaking changes
+    - name: New feature
+    - name: Fixed bugs
+    - name: Documentation
+    - name: Tests
+    - name: Chore
+    - name: Security fixes
+    - name: Dependency update
 
-routing:
-  # Label
-  - section-name: Breaking changes
-    condition:
-      type: label
-      value: Breaking changes
-  - section-name: New feature
-    condition:
-      type: label
-      value: New feature
-  - section-name: Fixed bugs
-    condition:
-      type: label
-      value: Fixed bugs
-  - section-name: Documentation
-    condition:
-      type: label
-      value: Documentation
-  - section-name: Tests
-    condition:
-      type: label
-      value: Tests
-  - section-name: Chore
-    condition:
-      type: label
-      value: Chore
-  - section-name: Security fixes
-    condition:
-      type: label
-      value: Security fixes
-  - section-name: Dependency update
-    condition:
-      type: label
-      value: Dependency update
-  # Other
-  - section-name: Documentation
-    condition:
-      type: files
-      regex:
-        - .*\.rst$
-        - .*\.md$
-        - .*\.rst\.[a-z0-9]{2,6}$
-        - .*\.md\.[a-z0-9]{2,6}$
-        - ^docs?/.*
-  - section-name: Chore
-    condition:
-      type: files
-      regex:
-        - ^\.github/.*
-        - ^ci/.*
-  - section-name: Chore
-    condition:
-      type: title
-      regex: ^CI updates$
-  - section-name: Security fixes
-    condition:
-      type: branch
-      regex: ^audit-.*
-  - section-name: Security fixes
-    condition:
-      type: and
-      conditions:
-        - type: branch
-          regex: ^dpkg-update/.*
-        - type: author
-          value: c2c-gid-bot-ci
-  - section-name: Security fixes
-    condition:
-      type: branch
-      regex: ^snyk-fix/.*
-  - section-name: Dependency update
-    condition:
-      type: author
-      value: renovate[bot]
+  routing:
+    # Label
+    - section-name: Breaking changes
+      condition:
+        type: label
+        value: Breaking changes
+    - section-name: New feature
+      condition:
+        type: label
+        value: New feature
+    - section-name: Fixed bugs
+      condition:
+        type: label
+        value: Fixed bugs
+    - section-name: Documentation
+      condition:
+        type: label
+        value: Documentation
+    - section-name: Tests
+      condition:
+        type: label
+        value: Tests
+    - section-name: Chore
+      condition:
+        type: label
+        value: Chore
+    - section-name: Security fixes
+      condition:
+        type: label
+        value: Security fixes
+    - section-name: Dependency update
+      condition:
+        type: label
+        value: Dependency update
+    # Other
+    - section-name: Documentation
+      condition:
+        type: files
+        regex:
+          - .*\.rst$
+          - .*\.md$
+          - .*\.rst\.[a-z0-9]{2,6}$
+          - .*\.md\.[a-z0-9]{2,6}$
+          - ^docs?/.*
+    - section-name: Chore
+      condition:
+        type: files
+        regex:
+          - ^\.github/.*
+          - ^ci/.*
+    - section-name: Chore
+      condition:
+        type: title
+        regex: ^CI updates$
+    - section-name: Security fixes
+      condition:
+        type: branch
+        regex: ^audit-.*
+    - section-name: Security fixes
+      condition:
+        type: and
+        conditions:
+          - type: branch
+            regex: ^dpkg-update/.*
+          - type: author
+            value: c2c-gid-bot-ci
+    - section-name: Security fixes
+      condition:
+        type: branch
+        regex: ^snyk-fix/.*
+    - section-name: Dependency update
+      condition:
+        type: author
+        value: renovate[bot]
