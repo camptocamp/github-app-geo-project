@@ -43,7 +43,7 @@ send-event = "github_app_geo_project.scripts.send_event:main"
 main = "github_app_geo_project.server:main"
 
 [tool.poetry.plugins."ghci.module"]
-test = "github_app_geo_project.module.test:TestModule"
+test = "github_app_geo_project.module.tests:TestModule"
 changelog = "github_app_geo_project.module.standard.changelog:Changelog"
 auto-review = "github_app_geo_project.module.standard.auto_review:AutoReview"
 auto-merge = "github_app_geo_project.module.standard.auto_merge:AutoMerge"
