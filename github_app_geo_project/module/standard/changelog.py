@@ -7,7 +7,7 @@ import re
 import subprocess  # nosec
 import tempfile
 from collections.abc import Callable
-from typing import NamedTuple
+from typing import NamedTuple, Union
 
 import github
 
@@ -34,18 +34,30 @@ class ChangelogItem(NamedTuple):
         return hash(self.ref)
 
 
-def match(item: ChangelogItem, condition: changelog_configuration.Condition) -> bool:  # type: ignore[name-defined]
+Condition = Union[
+    changelog_configuration.ConditionConst,
+    changelog_configuration.ConditionAndSolidusOr,
+    changelog_configuration.ConditionNot,
+    changelog_configuration.ConditionLabel,
+    changelog_configuration.ConditionFiles,
+    changelog_configuration.ConditionAuthor,
+    changelog_configuration.ConditionTitle,
+    changelog_configuration.ConditionBranch,
+]
+
+
+def match(item: ChangelogItem, condition: Condition) -> bool:
     """Changelog item match with the condition."""
-    match_functions: dict[str, Callable[[ChangelogItem, changelog_configuration.Condition], bool]] = {  # type: ignore[name-defined]
-        "and": match_and,
-        "or": match_or,
-        "not": match_not,
-        "const": match_const,
-        "title": match_title,
-        "files": match_files,
-        "label": match_label,
-        "branch": match_branch,
-        "author": match_author,
+    match_functions: dict[str, Callable[[ChangelogItem, Condition], bool]] = {
+        "and": match_and,  # type: ignore[dict-item]
+        "or": match_or,  # type: ignore[dict-item]
+        "not": match_not,  # type: ignore[dict-item]
+        "const": match_const,  # type: ignore[dict-item]
+        "title": match_title,  # type: ignore[dict-item]
+        "files": match_files,  # type: ignore[dict-item]
+        "label": match_label,  # type: ignore[dict-item]
+        "branch": match_branch,  # type: ignore[dict-item]
+        "author": match_author,  # type: ignore[dict-item]
     }
     if condition["type"] not in match_functions:
         _LOGGER.warning("Unknown condition type: %s", condition["type"])
