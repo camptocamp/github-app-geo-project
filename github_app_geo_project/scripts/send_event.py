@@ -9,6 +9,7 @@ import plaster
 import sqlalchemy.orm
 
 import github_app_geo_project.models
+import github_app_geo_project.module
 
 
 def main() -> None:
@@ -34,10 +35,12 @@ def main() -> None:
 
     with Session() as session:
         job = github_app_geo_project.models.Queue()
+        job.application = args.application
         job.event_data = {
             "type": "event",
             "name": args.event,
         }
+        job.priority = github_app_geo_project.module.PRIORITY_CRON
         session.add(job)
         session.commit()
 

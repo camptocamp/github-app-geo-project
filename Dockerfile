@@ -11,15 +11,9 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     apt-get update \
     && apt-get upgrade --assume-yes \
-    && apt-get install --assume-yes --no-install-recommends \
-        libmapnik3.1 mapnik-utils \
-        libdb5.3 \
-        fonts-dejavu \
-        optipng jpegoptim \
-        postgresql-client net-tools iputils-ping \
-        python3-pip
+    && apt-get install --assume-yes --no-install-recommends python3-pip
 
-RUN rm -rf /usr/lib/python3.11/EXTERNALLY-MANAGED
+RUN rm -rf /usr/lib/python3.*/EXTERNALLY-MANAGED
 
 # Used to convert the locked packages by poetry to pip requirements format
 # We don't directly use `poetry install` because it force to use a virtual environment.
@@ -47,7 +41,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=bind,from=poetry,source=/tmp,target=/poetry \
     DEV_PACKAGES="python3-dev libpq-dev build-essential" \
     && apt-get update \
-    && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
+    && apt-get install --assume-yes --no-install-recommends libpq5 ${DEV_PACKAGES} \
     && python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements.txt \
     && python3 -m compileall /usr/local/lib/python* /usr/lib/python* \
     && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES} binutils
@@ -85,15 +79,35 @@ WORKDIR /app/
 # The final part
 FROM base as runner
 
+ENV PATH=/pyenv/shims:/pyenv/bin:${PATH} \
+    PYENV_ROOT=/pyenv
+
+# Install different Python version with pyenv
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache,sharing=locked \
+    DEV_PACKAGES="build-essential libffi-dev libssl-dev liblzma-dev libsqlite3-dev libcurses-ocaml-dev libreadline-dev libbz2-dev zlib1g-dev" \
+    && apt-get update && apt-get install --assume-yes --no-install-recommends git curl zlib1g ${DEV_PACKAGES} \
+    && git clone --depth=1 https://github.com/pyenv/pyenv.git /pyenv \
+    && pyenv install 3.11 \
+    && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES}
+    # TODO:
+    # move 3.11.8 to 3.11
+    # create a symlink to 3.11.8
+VOLUME \
+    /pyenv/versions/3.11/lib/python3.11/site-packages \
+    /pyenv/versions/3.10/lib/python3.10/site-packages \
+    /pyenv/versions/3.9/lib/python3.9/site-packages \
+    /pyenv/versions/3.8/lib/python3.8/site-packages
+
 COPY . /app/
 ARG VERSION=dev
-ENV POETRY_DYNAMIC_VERSIONING_BYPASS=dev
 RUN --mount=type=cache,target=/root/.cache \
     POETRY_DYNAMIC_VERSIONING_BYPASS=${VERSION} python3 -m pip install --disable-pip-version-check --no-deps --editable=. \
     && python3 -m compileall
 
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
+
 ENV PROMETHEUS_MULTIPROC_DIR=/prometheus-metrics
 
 # Do the lint, used by the tests
@@ -106,7 +120,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-cux"]
 
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
-    apt-get install --assume-yes --no-install-recommends git curl gnupg \
+    apt-get install --assume-yes --no-install-recommends postgresql-client \
+    git curl gnupg \
     libglib2.0-0 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 libxcomposite1 \
     libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
 
@@ -128,7 +143,7 @@ RUN --mount=type=cache,target=/root/.cache \
     POETRY_DYNAMIC_VERSIONING_BYPASS=0.0.0 python3 -m pip install --disable-pip-version-check --no-deps --editable=. \
     && python3 -m pip freeze >/requirements.txt
 
-ENV TILEGENERATION_MAIN_CONFIGFILE=
+COPY scripts/* /usr/bin/
 
 # Set runner as final
 FROM runner

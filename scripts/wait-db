@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+
+import sys
+import time
+
+import psycopg2
+
+if __name__ == "__main__":
+    sleep_time = 1
+    max_sleep = 60
+
+    # Wait for the db to be UP
+    for db in ("db",):
+        while sleep_time < max_sleep:
+            print(f"Waiting for the DataBase server '{db}' to be reachable")
+            try:
+                connection = psycopg2.connect(  # nosec
+                    host=db, password="postgresql", user="postgresql", database="tests"
+                )
+                cursor = connection.cursor()
+                cursor.execute("SELECT 1")
+                break
+            except Exception as e:
+                print(str(e))
+                time.sleep(sleep_time)
+                sleep_time *= 2
+    sys.exit(0 if sleep_time < max_sleep else 1)

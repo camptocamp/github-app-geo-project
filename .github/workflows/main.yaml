@@ -58,12 +58,13 @@ jobs:
       - run: poetry install
       - run: poetry run prospector --output-format=pylint
 
-      - run: docker compose build
       - run: |
-          echo GHCI_GENERIC_GITHUB_APP_ID=1234 > .env
-          echo GHCI_GENERIC_GITHUB_APP_PRIVATE_KEY=5678 >> .env
+          echo GHCI_TEST_GITHUB_APP_ID=1234 > .env
+          echo GHCI_TEST_GITHUB_APP_PRIVATE_KEY=5678 >> .env
+      - run: make build
       - run: make tests
       - run: make acceptance-tests
+
       - uses: actions/upload-artifact@v4
         with:
           name: Acceptance tests
