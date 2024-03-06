@@ -20,21 +20,6 @@ typing-extensions = ">=4"
 tz = ["backports.zoneinfo"]
 
 [[package]]
-name = "ansi2html"
-version = "1.9.1"
-description = "Convert text with ANSI color codes to HTML or to LaTeX"
-optional = true
-python-versions = ">=3.7"
-files = [
-    {file = "ansi2html-1.9.1-py3-none-any.whl", hash = "sha256:29ccdb1e83520d648ebdc9c9544059ea4d424ecc33d3ef723657f7f5a9ae5225"},
-    {file = "ansi2html-1.9.1.tar.gz", hash = "sha256:5c6837a13ecc1903aab7a545353312049dfedfe5105362ad3a8d9d207871ec71"},
-]
-
-[package.extras]
-docs = ["mkdocs", "mkdocs-material", "mkdocs-material-extensions", "mkdocstrings", "mkdocstrings-python", "pymdown-extensions"]
-test = ["pytest", "pytest-cov"]
-
-[[package]]
 name = "astroid"
 version = "2.15.8"
 description = "An abstract syntax tree for Python with inference support."
@@ -2864,4 +2849,4 @@ application = ["c2cwsgiutils"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "1f6ac726befac47eafd82fc93599986a2e472a97ced40acc08f4bc6e1e7f6d2f"
+content-hash = "a9ee050d03cb030a23d76e609308ad6b028b052f386baad2b96d5b5b9d3b4edb"
