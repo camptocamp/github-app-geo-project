@@ -1,0 +1,10 @@
+*
+!/requirements.txt
+!/pyproject.toml
+!/poetry.lock
+!/github_app_geo_project
+!/README.md
+!/scripts
+!/.nvmrc
+!/production.ini
+!/gunicorn.conf.py

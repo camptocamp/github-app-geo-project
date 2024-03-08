@@ -18,17 +18,17 @@ class TestModule(module.Module[ConfigType]):
         """Get the URL to the documentation page of the module."""
         return ""
 
-    def get_actions(self, event_data: module.JsonDict) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        del event_data
-        return [module.Action(priority=module.PRIORITY_STATUS)]
+        del context
+        return [module.Action(priority=module.PRIORITY_STATUS, data={})]
 
-    def process(self, context: module.ProcessContext[ConfigType]) -> str:
+    def process(self, context: module.ProcessContext[ConfigType]) -> str | None:
         """
         Process the action.
 
@@ -38,6 +38,7 @@ class TestModule(module.Module[ConfigType]):
         """
         self.add_output(context, "Test", ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}])
         self.add_output(context, "Test", ["Test error"], status=models.OutputStatus.ERROR)
+        return None
 
     def get_json_schema(self) -> module.JsonDict:
         """Get the JSON schema of the module configuration."""

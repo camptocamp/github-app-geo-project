@@ -9,7 +9,7 @@ services:
     volumes:
       - ./github_app_geo_project:/app/github_app_geo_project/:ro
 
-  slave:
+  worker:
     volumes:
       - ./github_app_geo_project:/app/github_app_geo_project:ro
 

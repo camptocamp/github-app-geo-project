@@ -1,4 +1,9 @@
 camptocamp/github-app-geo-project:latest:
+  ubuntu_23_10/curl: 8.2.1-1ubuntu3.2
+  ubuntu_23_10/git: 1:2.40.1-1ubuntu1
+  ubuntu_23_10/git-man: 1:2.40.1-1ubuntu1
+  ubuntu_23_10/liberror-perl: 0.17029-2
+  ubuntu_23_10/patch: 2.7.6-7build2
   ubuntu_23_10/apt: 2.7.3
   ubuntu_23_10/base-passwd: 3.6.1
   ubuntu_23_10/bash: 5.2.15-2ubuntu1

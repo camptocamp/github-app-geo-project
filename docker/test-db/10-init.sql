@@ -1,1 +1,1 @@
-CREATE SCHEMA github_app;
+CREATE SCHEMA ghci;

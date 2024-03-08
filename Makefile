@@ -15,16 +15,21 @@ build: ## Build the acceptences test application Docker image
 .PHONY: run
 run: ## Run the acceptences application Docker image
 run: build
+	docker compose up -d db
+	docker compose run --rm tests wait-db
+	docker compose up -d worker
 	docker compose up -d
+	docker compose exec worker send-event --application=test --event=test
+
 
 .PHONY: tests
 tests: ## Run the unit tests
 tests:
 	poetry install
-	poetry run pytest -v tests
+	poetry run pytest -vv tests
 
 
 .PHONY: acceptance-tests
 acceptance-tests: ## Run the acceptance tests
 acceptance-tests: run
-	echo docker compose exec -T application pytest -vv
+	docker compose exec -T tests pytest -vv /acceptance_tests

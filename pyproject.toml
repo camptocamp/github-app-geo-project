@@ -69,6 +69,7 @@ WebTest = "3.0.0"
 types-pyyaml = "6.0.12.12"
 types-setuptools = "69.1.0.20240217"
 types-markdown = "3.5.0.20240129"
+types-requests = "2.31.0.20240218"
 
 [tool.poetry.extras]
 application = ["c2cwsgiutils"]

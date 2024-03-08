@@ -2,6 +2,7 @@
 
 import enum
 import logging
+import os
 from datetime import datetime
 from typing import Any, TypedDict, Union
 
@@ -14,7 +15,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 _LOGGER = logging.getLogger(__name__)
 
-_SCHEMA = "github_app"
+_SCHEMA = os.environ.get("GHCI_SCHEMA", "ghci")
 
 
 class Base(DeclarativeBase):
@@ -38,19 +39,23 @@ class Queue(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     status: Mapped[JobStatus] = mapped_column(
-        Enum(JobStatus), native_enum=False, nullable=False, default=JobStatus.NEW, index=True
+        Enum(JobStatus, create_type=False),
+        native_enum=False,
+        nullable=False,
+        default=JobStatus.NEW,
+        index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True  # type: ignore[no-untyped-call]
     )
-    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     application: Mapped[str] = mapped_column(Unicode, nullable=False)
-    owner: Mapped[str] = mapped_column(Unicode, nullable=False)
-    repository: Mapped[str] = mapped_column(Unicode, nullable=False)
+    owner: Mapped[str] = mapped_column(Unicode, nullable=True)
+    repository: Mapped[str] = mapped_column(Unicode, nullable=True)
     event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    module: Mapped[str] = mapped_column(Unicode, nullable=False)
-    module_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    module: Mapped[str] = mapped_column(Unicode, nullable=True)
+    module_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)
 
     def __repr__(self) -> str:
         """Return the representation of the job."""
@@ -89,10 +94,12 @@ class Output(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     status: Mapped[OutputStatus] = mapped_column(
-        Enum(OutputStatus), native_enum=False, nullable=False, index=True
+        Enum(OutputStatus, create_type=False, native_enum=False), nullable=False, index=True
     )
     owner: Mapped[str] = mapped_column(Unicode, nullable=False)
     repository: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
-    access_type: Mapped[AccessType] = mapped_column(Enum(AccessType), native_enum=False, nullable=False)
+    access_type: Mapped[AccessType] = mapped_column(
+        Enum(AccessType, create_type=False, native_enum=False), nullable=False
+    )
     title: Mapped[str] = mapped_column(Unicode, nullable=False)
     data: Mapped[list[str | OutputData]] = mapped_column(JSON, nullable=False)

@@ -18,4 +18,4 @@ for ep in pkg_resources.iter_entry_points(group="ghci.module"):
     if ep.name in MODULES:
         _LOGGER.warning("Duplicate module name: %s", ep.name)
     _LOGGER.info("Loading module: %s, from: %s", ep.name, ep.module_name)
-    MODULES[ep.name] = ep.load()
+    MODULES[ep.name] = ep.load()()

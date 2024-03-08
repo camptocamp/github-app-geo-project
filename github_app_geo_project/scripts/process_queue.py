@@ -4,6 +4,7 @@ Process the jobs present in the database queue.
 
 import argparse
 import logging
+import os
 import time
 from datetime import datetime
 
@@ -69,13 +70,30 @@ def main() -> None:
             with Session() as session:
                 if event_data["type"] == "event":
                     github_objects = configuration.get_github_objects(config, job_application)
-                    for installation in github_objects.integration.get_installations():
-                        for repo in installation.get_repos():
-                            webhook.process_event(
-                                webhook.ProcessContext(
-                                    job_application, config, repo.owner.login, repo.name, event_data, session
-                                )
+                    if "TEST_APPLICATION" in os.environ:
+                        webhook.process_event(
+                            webhook.ProcessContext(
+                                job_application,
+                                config,
+                                os.environ.get("TEST_OWNER", "camptocamp"),
+                                os.environ.get("TEST_REPO", "test"),
+                                event_data,
+                                session,
                             )
+                        )
+                    else:
+                        for installation in github_objects.integration.get_installations():
+                            for repo in installation.get_repos():
+                                webhook.process_event(
+                                    webhook.ProcessContext(
+                                        job_application,
+                                        config,
+                                        repo.owner.login,
+                                        repo.name,
+                                        event_data,
+                                        session,
+                                    )
+                                )
                     continue
 
                 current_module = modules.MODULES.get(job_module)
