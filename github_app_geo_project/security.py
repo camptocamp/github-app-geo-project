@@ -105,6 +105,8 @@ body:
                         c2cuser.get("token"),
                         request,
                     )
+                else:
+                    user = User("anonymous", None, None, None, False, None, request)
 
             setattr(request, "user", user)
 
