@@ -10,6 +10,7 @@ import pyramid.request
 import pyramid.response
 import pyramid.security
 import sqlalchemy
+import yaml
 from pyramid.view import view_config
 
 from github_app_geo_project import configuration, models
@@ -59,7 +60,9 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                     "title": module.title(),
                     "description": module.description(),
                     "configuration_url": module.documentation_url(),
-                    "configuration": pygments.highlight(config.get(module_name, {}), lexer, formatter),
+                    "configuration": pygments.highlight(
+                        yaml.dump(config.get(module_name, {}), default_flow_style=False), lexer, formatter
+                    ),
                 }
             )
 
