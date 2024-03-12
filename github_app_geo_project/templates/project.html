@@ -75,13 +75,12 @@
     <!---->
     %if error is not None:
     <div class="alert alert-danger" role="alert">${error}</div>
-    %else
+    %endif
+
     <h2>Last output</h2>
     %for o in output:
     <p><a href="${request.route_url('output', id=o.id)}">${o.title}</a></p>
     %endfor
-    <!---->
-    %endif
     <!---->
     <h2>Modules</h2>
     %for module in module_configuration:
