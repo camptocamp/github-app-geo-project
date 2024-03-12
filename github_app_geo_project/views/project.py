@@ -52,7 +52,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "module_configuration": [],
         }
     lexer = pygments.lexers.YamlLexer()
-    formatter = pygments.formatters.HtmlFormatter()
+    formatter = pygments.formatters.HtmlFormatter(style="github-dark")
 
     select = sqlalchemy.select(models.Output).where(
         models.Output.repository == request.matchdict["repository"]

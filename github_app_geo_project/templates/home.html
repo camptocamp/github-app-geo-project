@@ -30,6 +30,9 @@
       a:hover {
         text-decoration: underline;
       }
+      .app-buttons-group {
+        margin-bottom: 1.5rem;
+      }
     </style>
   </head>
   <body class="px-5 py-4">
@@ -84,7 +87,7 @@
       ${application['description']|markdown}
       <!---->
       %if application['github_app_url']:
-      <div class="btn-group">
+      <div class="btn-group app-buttons-group">
         <a class="btn btn-primary" href="${application['github_app_url']}">Install</a>
         %if application['github_app_admin_url']:
         <a class="btn btn-info" href="${application['github_app_admin_url']}">Admin</a>
