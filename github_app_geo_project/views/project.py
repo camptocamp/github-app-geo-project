@@ -31,7 +31,8 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     if not has_access:
         return {
             "repository": repository,
-            "output": "Access Denied",
+            "output": [],
+            "error": "Access Denied",
             "issue_url": "",
             "module_configuration": [],
         }
@@ -43,7 +44,8 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         _LOGGER.exception("Cannot get the configuration: %s")
         return {
             "repository": repository,
-            "output": "You need to install the main GitHub App, see logs for details",
+            "output": [],
+            "error": "You need to install the main GitHub App, see logs for details",
             "issue_url": "",
             "module_configuration": [],
         }
@@ -79,6 +81,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "styles": formatter.get_style_defs(),
             "repository": repository,
             "output": out,
+            "error": None,
             "issue_url": "",
             "module_configuration": module_config,
         }

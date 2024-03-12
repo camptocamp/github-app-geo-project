@@ -72,12 +72,17 @@
       <p>The issue looks to be missing, does the issue are activated on your project</p>
     </div>
     %endif
-
+    <!---->
+    %if error is not None:
+    <div class="alert alert-danger" role="alert">${error}</div>
+    %else
     <h2>Last output</h2>
     %for o in output:
     <p><a href="${request.route_url('output', id=o.id)}">${o.title}</a></p>
     %endfor
-    <!-- -->
+    <!---->
+    %endif
+    <!---->
     %for module in module_configuration:
     <div class="card my-3">
       <div class="card-header">
