@@ -67,7 +67,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                     "name": module_name,
                     "title": module.title(),
                     "description": module.description(),
-                    "configuration_url": module.documentation_url(),
+                    "documentation_url": module.documentation_url(),
                     "configuration": pygments.highlight(
                         yaml.dump(config.get(module_name, {}), default_flow_style=False), lexer, formatter
                     ),
