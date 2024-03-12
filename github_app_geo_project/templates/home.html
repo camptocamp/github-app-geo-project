@@ -70,9 +70,11 @@
     <!---->
     <h2>Profiles</h2>
     %for profile_name, profile in profiles.items():
-    <div>
-      <h3>${profile_name}</h3>
-      ${profile['description']|markdown}
+    <div class="card my-3">
+      <div class="card-header">
+        <h3>${profile_name}</h3>
+      </div>
+      <div class="card-body">${profile['description']|markdown}</div>
     </div>
     %endfor
     <h2>Applications</h2>
@@ -103,12 +105,18 @@
       <!---->
       <h4>Modules</h4>
       %for module in application['modules']:
-      <div>
-        <h5>${module['title']} [${module['name']}]</h5>
-        ${module['description']|markdown}
-        <p>
-          <a href="${module['documentation_url']}" target="_blank" rel="noopener noreferrer">Documentation</a>
-        </p>
+      <div class="card my-3">
+        <div class="card-header">
+          <h5>${module['title']} [${module['name']}]</h5>
+        </div>
+        <div class="card-body">
+          ${module['description']|markdown}
+          <p>
+            <a href="${module['documentation_url']}" target="_blank" rel="noopener noreferrer"
+              >Documentation</a
+            >
+          </p>
+        </div>
       </div>
       %endfor
     </div>
