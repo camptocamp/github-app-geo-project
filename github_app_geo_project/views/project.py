@@ -35,10 +35,18 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "issue_url": "",
             "module_configuration": [],
         }
-
-    config = configuration.get_configuration(
-        request.registry.settings, request.matchdict["owner"], request.matchdict["repository"]
-    )
+    try:
+        config = configuration.get_configuration(
+            request.registry.settings, request.matchdict["owner"], request.matchdict["repository"]
+        )
+    except Exception:
+        _LOGGER.exception("Cannot get the configuration: %s")
+        return {
+            "repository": repository,
+            "output": "You need to install the main GitHub App, see logs for details",
+            "issue_url": "",
+            "module_configuration": [],
+        }
     lexer = pygments.lexers.YamlLexer()
     formatter = pygments.formatters.HtmlFormatter()
 
