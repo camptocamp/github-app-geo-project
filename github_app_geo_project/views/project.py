@@ -39,7 +39,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         config = configuration.get_configuration(
             request.registry.settings, request.matchdict["owner"], request.matchdict["repository"]
         )
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         _LOGGER.exception("Cannot get the configuration: %s")
         return {
             "repository": repository,
