@@ -57,25 +57,32 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     )
     if "only_error" in request.params:
         select = select.where(models.Output.status == models.OutputStatus.ERROR)
+
+    module_names = set()
+    for app in request.registry.settings["applications"].split():
+        module_names.update(request.registry.settings[f"application.{app}.modules"].split())
+    module_config = []
+    for module_name in module_names:
+        if module_name not in modules.MODULES:
+            _LOGGER.error("Unknown module %s", module_name)
+            continue
+        module = modules.MODULES[module_name]
+        module_config.append(
+            {
+                "name": module_name,
+                "title": module.title(),
+                "description": module.description(),
+                "css": formatter.get_style_defs(),
+                "documentation_url": module.documentation_url(),
+                "configuration": pygments.highlight(
+                    yaml.dump(config.get(module_name, {}), default_flow_style=False), lexer, formatter
+                ),
+            }
+        )
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
     with engine.connect() as session:
         out = session.execute(select).partitions(20)
-
-        module_config = []
-        for module_name, module in modules.MODULES.items():
-            module_config.append(
-                {
-                    "name": module_name,
-                    "title": module.title(),
-                    "description": module.description(),
-                    "css": formatter.get_style_defs(),
-                    "documentation_url": module.documentation_url(),
-                    "configuration": pygments.highlight(
-                        yaml.dump(config.get(module_name, {}), default_flow_style=False), lexer, formatter
-                    ),
-                }
-            )
 
         return {
             "styles": formatter.get_style_defs(),
