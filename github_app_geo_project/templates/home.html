@@ -85,11 +85,12 @@
       <!---->
       %if application['github_app_url']:
       <div class="btn-group">
-        <a class="btn btn-primary" href="${application['github_app_url']}">Install GitHub Application</a>
+        <a class="btn btn-primary" href="${application['github_app_url']}">Install</a>
         %if application['github_app_admin_url']:
-        <a class="btn btn-info" href="${application['github_app_admin_url']}">GitHub Application Admin</a>
+        <a class="btn btn-info" href="${application['github_app_admin_url']}">Admin</a>
         %endif
       </div>
+      <br />
       %endif
       <!---->
       %if application['errors']:
