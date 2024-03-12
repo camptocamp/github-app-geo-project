@@ -30,6 +30,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     has_access = isinstance(permission, pyramid.security.Allowed)
     if not has_access:
         return {
+            "styles": "",
             "repository": repository,
             "output": [],
             "error": "Access Denied",
@@ -43,6 +44,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     except Exception:  # pylint: disable=broad-exception-caught
         _LOGGER.exception("Cannot get the configuration: %s")
         return {
+            "styles": "",
             "repository": repository,
             "output": [],
             "error": "You need to install the main GitHub App, see logs for details",
@@ -72,7 +74,6 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                 "name": module_name,
                 "title": module.title(),
                 "description": module.description(),
-                "css": formatter.get_style_defs(),
                 "documentation_url": module.documentation_url(),
                 "configuration": pygments.highlight(
                     yaml.dump(config.get(module_name, {}), default_flow_style=False), lexer, formatter
