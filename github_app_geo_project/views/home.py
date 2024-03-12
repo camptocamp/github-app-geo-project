@@ -82,6 +82,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                             % ", ".join(events - github_events)
                         )
                         _LOGGER.error(application["errors"][-1])
+                        _LOGGER.info("Current events:\n%s", "\n".join(github_events))
 
                     github_permissions = github.integration.get_app().permissions
                     # test that all permissions are in github_permissions
@@ -94,6 +95,10 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                                 % (permission, access)
                             )
                             _LOGGER.error(application["errors"][-1])
+                            _LOGGER.info(
+                                "Current permissions:\n%s",
+                                "\n".join([f"{k}={v}" for k, v in github_permissions.items()]),
+                            )
                 else:
                     application["errors"].append("TEST_APPLICATION is set, no GitHub API call is made.")
                     _LOGGER.error(application["errors"][-1])
