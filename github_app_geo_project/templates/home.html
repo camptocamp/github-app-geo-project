@@ -101,9 +101,10 @@
       </div>
       %endif
       <!---->
+      <h4>Modules</h4>
       %for module in application['modules']:
       <div>
-        <h3>${module['title']} [${module['name']}]</h3>
+        <h5>${module['title']} [${module['name']}]</h5>
         ${module['description']|markdown}
         <p>
           <a href="${module['documentation_url']}" target="_blank" rel="noopener noreferrer">Documentation</a>
