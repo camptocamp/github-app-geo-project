@@ -18,7 +18,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def _compare_access(access_1: str, access_2: str) -> bool:
     access_number = {"read": 1, "write": 2, "admin": 3}
-    return access_number[access_1] > access_number[access_2]
+    return access_number[access_1] >= access_number[access_2]
 
 
 @view_config(route_name="home", renderer="github_app_geo_project.templates:home.html")  # type: ignore
