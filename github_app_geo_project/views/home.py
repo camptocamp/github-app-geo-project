@@ -24,13 +24,23 @@ def _compare_access(access_1: str, access_2: str) -> bool:
 @view_config(route_name="home", renderer="github_app_geo_project.templates:home.html")  # type: ignore
 def output(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the welcome page."""
+    repository = os.environ["C2C_AUTH_GITHUB_REPOSITORY"]
+    user_permission = request.has_permission(
+        repository,
+        {"github_repository": repository, "github_access_type": "admin"},
+    )
+    admin = isinstance(user_permission, pyramid.security.Allowed)
+
     applications = []
     for app in request.registry.settings["applications"].split():
         application = {
             "name": app,
-            "github_app_url": request.registry.settings[f"application.{app}.github_app_url"],
-            "title": request.registry.settings[f"application.{app}.title"],
-            "description": request.registry.settings[f"application.{app}.description"],
+            "github_app_url": request.registry.settings.get(f"application.{app}.github_app_url"),
+            "github_app_admin_url": request.registry.settings.get(f"application.{app}.github_app_admin_url")
+            if admin
+            else None,
+            "title": request.registry.settings.get(f"application.{app}.title"),
+            "description": request.registry.settings.get(f"application.{app}.description"),
             "modules": [],
             "repository_permissions": [],
             "organization_permissions": [],
@@ -63,12 +73,6 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                 if name not in permissions or _compare_access(access, permissions[name]):
                     permissions[name] = access
 
-        repository = os.environ["C2C_AUTH_GITHUB_REPOSITORY"]
-        user_permission = request.has_permission(
-            repository,
-            {"github_repository": repository, "github_access_type": "admin"},
-        )
-        admin = isinstance(user_permission, pyramid.security.Allowed)
         if admin:
             try:
                 github = configuration.get_github_objects(request.registry.settings, app) if admin else None

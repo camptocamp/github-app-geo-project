@@ -80,9 +80,19 @@
     <div>
       <h3>${application['title']} [${application['name']}]</h3>
       ${application['description']|markdown}
+      <!---->
+      %if application['github_app_url']:
       <p>
         <a class="btn btn-primary" href="${application['github_app_url']}">Install GitHub Application</a>
       </p>
+      %endif
+      <!---->
+      %if application['github_app_admin_url']:
+      <p>
+        <a class="btn btn-primary" href="${application['github_app_admin_url']}">GitHub Application Admin</a>
+      </p>
+      %endif
+      <!---->
       %if application['errors']:
       <div class="alert alert-danger" role="alert">
         %for error in application['errors']:
