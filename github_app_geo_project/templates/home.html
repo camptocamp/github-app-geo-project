@@ -84,12 +84,12 @@
       ${application['description']|markdown}
       <!---->
       %if application['github_app_url']:
-      <p>
+      <div class="btn-group">
         <a class="btn btn-primary" href="${application['github_app_url']}">Install GitHub Application</a>
         %if application['github_app_admin_url']:
         <a class="btn btn-info" href="${application['github_app_admin_url']}">GitHub Application Admin</a>
         %endif
-      </p>
+      </div>
       %endif
       <!---->
       %if application['errors']:

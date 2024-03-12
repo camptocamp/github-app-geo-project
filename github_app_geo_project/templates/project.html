@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>GitHub Application: {repository}</title>
+    <title>GitHub Application: ${repository}</title>
     <link
       rel="icon"
       type="image/png"
@@ -62,7 +62,7 @@
       %endif
     </div>
 
-    <h1 class="bd-title">${repository}</h1>
+    <h1 class="bd-title">Repository: ${repository}</h1>
 
     %if issue_url:
     <p><a href="${issue_url}">Dashboard (GitHub issue)</a></p>
