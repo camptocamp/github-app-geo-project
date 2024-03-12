@@ -86,7 +86,8 @@
         %if module['documentation_url']:
         <a href="${module.configuration_url}">Configuration</a>
         %endif
-        <code><pre>${module['configuration']}</pre></code>
+        <!-- -->
+        ${module['configuration']|n}
       </div>
     </div>
     %endfor
