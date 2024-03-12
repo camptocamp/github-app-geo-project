@@ -24,6 +24,13 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     data = request.json
     _LOGGER.debug("Webhook received for %s, with:\n%s", application, json.dumps(data, indent=2))
 
+    if "installation" in data:
+        _LOGGER.info(
+            "Installation event on '%s' with repositories:\n%s",
+            data["installation"]["account"]["login"],
+            "\n".join([repo["name"] for repo in data["repositories"]]),
+        )
+        return {}
     owner, repository = data["repository"]["full_name"].split("/")
 
     # TODO manage modification on dashboard issue
