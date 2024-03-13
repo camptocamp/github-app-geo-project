@@ -94,7 +94,7 @@ def get_github_application(
 
 
 def get_configuration(
-    config: dict[str, Any], owner: str, repository: str, github_application: str
+    config: dict[str, Any], owner: str, repository: str, application: str
 ) -> project_configuration.GithubApplicationProjectConfiguration:
     """
     Get the Configuration for the repository.
@@ -102,6 +102,7 @@ def get_configuration(
     Parameter:
         repository: The repository name (<owner>/<name>)
     """
+    github_application = get_github_application(config, application, owner, repository)
     repo = github_application.get_repo(f"{owner}/{repository}")
     try:
         project_configuration_content = repo.get_contents(".github/ghci.yaml")

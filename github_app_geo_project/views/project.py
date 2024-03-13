@@ -48,7 +48,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                     app,
                 )
                 break
-            except:
+            except:  # pylint: disable=bare-except
                 _LOGGER.exception("Cannot get the configuration for %s", app)
     except Exception:  # pylint: disable=broad-exception-caught
         _LOGGER.exception("Cannot get the configuration: %s")
