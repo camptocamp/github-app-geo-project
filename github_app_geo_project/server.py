@@ -5,6 +5,7 @@ import logging
 import os
 from typing import Any
 
+import c2cwsgiutils.broadcast
 import c2cwsgiutils.db
 import c2cwsgiutils.health_check
 import c2cwsgiutils.pyramid
@@ -52,6 +53,7 @@ def main(global_config: Any, **settings: Any) -> Router:
     )
 
     config.include(c2cwsgiutils.pyramid.includeme)
+    config.include(c2cwsgiutils.broadcast.includeme)
     # dbsession = c2cwsgiutils.db.init(config, "sqlalchemy", "sqlalchemy-slave")
     dbsession = c2cwsgiutils.db.init(config, "sqlalchemy")
 
