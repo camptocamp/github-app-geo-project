@@ -38,9 +38,17 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "module_configuration": [],
         }
     try:
-        config = configuration.get_configuration(
-            request.registry.settings, request.matchdict["owner"], request.matchdict["repository"]
-        )
+        for app in request.registry.settings["applications"].split():
+            try:
+                config = configuration.get_configuration(
+                    request.registry.settings,
+                    request.matchdict["owner"],
+                    request.matchdict["repository"],
+                    app,
+                )
+                break
+            except:
+                _LOGGER.exception("Cannot get the configuration for %s", app)
     except Exception:  # pylint: disable=broad-exception-caught
         _LOGGER.exception("Cannot get the configuration: %s")
         return {

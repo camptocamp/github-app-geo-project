@@ -133,7 +133,7 @@ def main() -> None:
                     owner=owner,
                     repository=repository,
                     event_data=event_data,
-                    module_config=configuration.get_configuration(config, owner, repository),
+                    module_config=configuration.get_configuration(config, owner, repository, job_application),
                     module_data=module_data,
                     issue_data=issue_data,
                 )
