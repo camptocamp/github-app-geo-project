@@ -6,7 +6,7 @@ import argparse
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
@@ -50,6 +50,17 @@ def main() -> None:
                 .first()
             )
             if job is None:
+                # Get too old pending jobs
+                session.execute(
+                    sqlalchemy.update(models.Queue)
+                    .where(
+                        models.Queue.status == models.JobStatus.PENDING,
+                        models.Queue.started_at
+                        < datetime.now() - timedelta(secoud=int(os.environ.get("JOB_TIMEOUT", 3600))),
+                    )
+                    .values(status=models.JobStatus.NEW)
+                )
+
                 time.sleep(1)
                 continue
 
@@ -137,7 +148,12 @@ def main() -> None:
                         event_data,
                     )
                     raise
-                session.execute(sqlalchemy.delete(models.Queue).where(models.Queue.id == job_id))
+
+                session.execute(
+                    sqlalchemy.update(models.Queue)
+                    .where(models.Queue.id == job_id)
+                    .values(status=models.JobStatus.DONE)
+                )
                 session.commit()
 
             if current_module.required_issue_dashboard() and new_issue_data is not None:
