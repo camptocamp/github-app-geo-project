@@ -46,7 +46,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
 
     # TODO manage modification on dashboard issue
 
-    if data["action"] == "edited" and "issue" in data:
+    if data.get("action") == "edited" and "issue" in data:
         if data["issue"]["user"]["login"] == github_objects.integration.get_app().slug + "[bot]":
             github_application = configuration.get_github_application(
                 request.registry.settings, application, owner, repository
