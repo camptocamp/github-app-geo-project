@@ -11,6 +11,8 @@
   - **Additional properties** _(object)_
     - **All of**
       - - **`inherits`** _(string)_: The profile to inherit from.
+        - **`title`** _(string)_: The profile to inherit from.
+        - **`description`** _(string)_: The profile to inherit from.
       - : Refer to _[#/$defs/project-configuration](#%24defs/project-configuration)_.
 
 ## Definitions

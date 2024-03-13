@@ -60,6 +60,16 @@
                 "type": "string",
                 "title": "Inherits",
                 "description": "The profile to inherit from"
+              },
+              "title": {
+                "type": "string",
+                "title": "Inherits",
+                "description": "The profile to inherit from"
+              },
+              "description": {
+                "type": "string",
+                "title": "Inherits",
+                "description": "The profile to inherit from"
               }
             }
           },

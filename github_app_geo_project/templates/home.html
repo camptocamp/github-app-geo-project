@@ -75,7 +75,11 @@
     %for profile_name, profile in profiles.items():
     <div class="card my-3">
       <div class="card-header">
+        %if 'title' in profile:
+        <h3>${profile['title']} [${profile_name}]</h3>
+        %else:
         <h3>${profile_name}</h3>
+        %endif
       </div>
       <div class="card-body">${profile['description']|markdown}</div>
     </div>

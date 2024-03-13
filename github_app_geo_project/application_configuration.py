@@ -55,6 +55,20 @@ class ProfileApplicationSpecificConfiguration(TypedDict, total=False):
     The profile to inherit from
     """
 
+    title: str
+    """
+    Inherits.
+
+    The profile to inherit from
+    """
+
+    description: str
+    """
+    Inherits.
+
+    The profile to inherit from
+    """
+
 
 _ProfilesAdditionalproperties = Union[dict[str, "ModuleConfiguration"], "_ProfilesAdditionalpropertiesTyped"]
 """
@@ -67,6 +81,20 @@ Subtype: "ProfileApplicationSpecificConfiguration"
 
 class _ProfilesAdditionalpropertiesTyped(TypedDict, total=False):
     inherits: str
+    """
+    Inherits.
+
+    The profile to inherit from
+    """
+
+    title: str
+    """
+    Inherits.
+
+    The profile to inherit from
+    """
+
+    description: str
     """
     Inherits.
 
