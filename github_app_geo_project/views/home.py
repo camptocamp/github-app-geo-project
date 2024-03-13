@@ -49,7 +49,9 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             "errors": [],
         }
 
-        permissions: dict[str, str] = {}
+        permissions: dict[str, str] = {
+            "content": "read",
+        }
         events = set()
 
         for module_name in request.registry.settings[f"application.{app}.modules"].split():

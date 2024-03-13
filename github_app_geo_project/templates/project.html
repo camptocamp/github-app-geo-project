@@ -66,7 +66,7 @@
 
     %if issue_url:
     <p><a href="${issue_url}">Dashboard (GitHub issue)</a></p>
-    %else:
+    %else if issue_required:
     <!-- warning -->
     <div class="alert alert-warning" role="alert">
       The issue looks to be missing, does the issue are activated on your project

@@ -35,6 +35,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "output": [],
             "error": "Access Denied",
             "issue_url": "",
+            "issue_required": False,
             "module_configuration": [],
         }
     try:
@@ -57,6 +58,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "output": [],
             "error": "You need to install the main GitHub App, see logs for details",
             "issue_url": "",
+            "issue_required": False,
             "module_configuration": [],
         }
     lexer = pygments.lexers.YamlLexer()
@@ -82,6 +84,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         .order_by(models.Queue.created_at.desc())
     )
 
+    issue_required = False
     module_names = set()
     for app in request.registry.settings["applications"].split():
         module_names.update(request.registry.settings[f"application.{app}.modules"].split())
@@ -91,6 +94,8 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             _LOGGER.error("Unknown module %s", module_name)
             continue
         module = modules.MODULES[module_name]
+        if module.required_issue_dashboard():
+            issue_required = True
         module_config.append(
             {
                 "name": module_name,
@@ -112,5 +117,6 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "jobs": session.execute(select_job).partitions(20),
             "error": None,
             "issue_url": "",
+            "issue_required": issue_required,
             "module_configuration": module_config,
         }
