@@ -50,7 +50,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
         }
 
         permissions: dict[str, str] = {
-            "content": "read",
+            "contents": "read",
         }
         events = set()
 

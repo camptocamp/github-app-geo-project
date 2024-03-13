@@ -66,11 +66,15 @@
 
     %if issue_url:
     <p><a href="${issue_url}">Dashboard (GitHub issue)</a></p>
-    %else if issue_required:
+    %else:
+    <!---->
+    %if issue_required:
     <!-- warning -->
     <div class="alert alert-warning" role="alert">
       The issue looks to be missing, does the issue are activated on your project
     </div>
+    %endif
+    <!---->
     %endif
     <!---->
     %if error is not None:
