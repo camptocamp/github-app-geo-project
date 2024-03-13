@@ -22,9 +22,20 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     """Receive GitHub application webhook URL."""
     application = request.matchdict["application"]
     data = request.json
+    github_objects = configuration.get_github_objects(request.registry.settings, application)
+
     _LOGGER.debug("Webhook received for %s, with:\n%s", application, json.dumps(data, indent=2))
 
-    if "installation" in data:
+    if not github_objects.integration.get_app().id != int(data.get("installation", {}).get("id", 0)):
+        _LOGGER.error(
+            "Invalid installation id %i != %i on %s",
+            github_objects.integration.get_app().id,
+            data.get("installation", {}).get("id", 0),
+            request.url,
+        )
+        return {}
+
+    if "account" in data.get("installation", {}):
         _LOGGER.info(
             "Installation event on '%s' with repositories:\n%s",
             data["installation"]["account"]["login"],
@@ -36,7 +47,6 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     # TODO manage modification on dashboard issue
 
     if data["action"] == "edited" and "issue" in data:
-        github_objects = configuration.get_github_objects(request.registry.settings, application)
         if data["issue"]["user"]["login"] == github_objects.integration.get_app().slug + "[bot]":
             github_application = configuration.get_github_application(
                 request.registry.settings, application, owner, repository
