@@ -75,6 +75,11 @@ from github_app_geo_project.templates import markdown, sanitizer, pprint_date
     )
 
     config.add_route(
+        "schema",
+        "/schema.json",
+        request_method="GET",
+    )
+    config.add_route(
         "home",
         "/",
         request_method="GET",
