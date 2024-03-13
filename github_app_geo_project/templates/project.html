@@ -81,6 +81,12 @@
     %for o in output:
     <p><a href="${request.route_url('output', id=o.id)}">${o.title}</a></p>
     %endfor
+
+    <h2>Last thread event</h2>
+    %for job in jobs:
+    <p>${job.id} [${job.status}] ${application}:${module} - created: ${created_at}, started: ${started_at}</p>
+    %endfor
+
     <!---->
     <h2>Modules</h2>
     %for module in module_configuration:

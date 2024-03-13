@@ -93,6 +93,9 @@ class Output(Base):
     __table_args__ = {"schema": _SCHEMA}
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True  # type: ignore[no-untyped-call]
+    )
     status: Mapped[OutputStatus] = mapped_column(
         Enum(OutputStatus, create_type=False, native_enum=False), nullable=False, index=True
     )

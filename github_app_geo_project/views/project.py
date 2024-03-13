@@ -54,11 +54,25 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     lexer = pygments.lexers.YamlLexer()
     formatter = pygments.formatters.HtmlFormatter(style="github-dark")
 
-    select = sqlalchemy.select(models.Output).where(
-        models.Output.repository == request.matchdict["repository"]
+    select_output = (
+        sqlalchemy.select(models.Output)
+        .where(
+            models.Output.owner == request.matchdict["owner"],
+            models.Output.repository == request.matchdict["repository"],
+        )
+        .order_by(models.Output.created_at.desc())
     )
     if "only_error" in request.params:
-        select = select.where(models.Output.status == models.OutputStatus.ERROR)
+        select_output = select_output.where(models.Output.status == models.OutputStatus.ERROR)
+
+    select_job = (
+        sqlalchemy.select(models.Queue)
+        .where(
+            models.Queue.owner == request.matchdict["owner"],
+            models.Queue.repository == request.matchdict["repository"],
+        )
+        .order_by(models.Queue.created_at.desc())
+    )
 
     module_names = set()
     for app in request.registry.settings["applications"].split():
@@ -83,12 +97,13 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
     with engine.connect() as session:
-        out = session.execute(select).partitions(20)
+        out = session.execute(select_output).partitions(20)
 
         return {
             "styles": formatter.get_style_defs(),
             "repository": repository,
             "output": out,
+            "jobs": select_job.partitions(20),
             "error": None,
             "issue_url": "",
             "module_configuration": module_config,
