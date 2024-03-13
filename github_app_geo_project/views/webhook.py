@@ -57,8 +57,6 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
         return {}
     owner, repository = data["repository"]["full_name"].split("/")
 
-    # TODO manage modification on dashboard issue
-
     if data.get("action") == "edited" and "issue" in data:
         if data["issue"]["user"]["login"] == github_objects.integration.get_app().slug + "[bot]":
             github_application = configuration.get_github_application(
@@ -163,7 +161,9 @@ def process_dashboard_issue(
 
 def process_event(context: ProcessContext) -> None:
     """Process the event."""
+    _LOGGER.debug("Processing event for application %s", context.application)
     for name in context.application_config.get(f"application.{context.application}.modules", "").split():
+        _LOGGER.debug("Processing module %s", name)
         current_module = modules.MODULES.get(name)
         if current_module is None:
             _LOGGER.error("Unknown module %s", name)
