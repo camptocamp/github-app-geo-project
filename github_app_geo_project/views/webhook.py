@@ -36,11 +36,24 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
         return {}
 
     if "account" in data.get("installation", {}):
-        _LOGGER.info(
-            "Installation event on '%s' with repositories:\n%s",
-            data["installation"]["account"]["login"],
-            "\n".join([repo["name"] for repo in data["repositories"]]),
-        )
+        if "repositories" in data:
+            _LOGGER.info(
+                "Installation event on '%s' with repositories:\n%s",
+                data["installation"]["account"]["login"],
+                "\n".join([repo["name"] for repo in data["repositories"]]),
+            )
+        if data.get("repositories_added", []):
+            _LOGGER.info(
+                "Installation event on '%s' with added repositories:\n%s",
+                data["installation"]["account"]["login"],
+                "\n".join([repo["full_name"] for repo in data["repositories_added"]]),
+            )
+        if data.get("repositories_removed", []):
+            _LOGGER.info(
+                "Installation event on '%s' with removed repositories:\n%s",
+                data["installation"]["account"]["login"],
+                "\n".join([repo["full_name"] for repo in data["repositories_removed"]]),
+            )
         return {}
     owner, repository = data["repository"]["full_name"].split("/")
 
