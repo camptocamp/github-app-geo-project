@@ -56,7 +56,7 @@ def main() -> None:
                     .where(
                         models.Queue.status == models.JobStatus.PENDING,
                         models.Queue.started_at
-                        < datetime.now() - timedelta(secoud=int(os.environ.get("JOB_TIMEOUT", 3600))),
+                        < datetime.now() - timedelta(seconds=int(os.environ.get("JOB_TIMEOUT", 3600))),
                     )
                     .values(status=models.JobStatus.NEW)
                 )

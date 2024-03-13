@@ -97,13 +97,11 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
     with engine.connect() as session:
-        out = session.execute(select_output).partitions(20)
-
         return {
             "styles": formatter.get_style_defs(),
             "repository": repository,
-            "output": out,
-            "jobs": select_job.partitions(20),
+            "output": session.execute(select_output).partitions(20),
+            "jobs": session.execute(select_job).partitions(20),
             "error": None,
             "issue_url": "",
             "module_configuration": module_config,
