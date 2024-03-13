@@ -35,6 +35,6 @@ def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
         if module_name not in modules.MODULES:
             _LOGGER.error("Unknown module %s", module_name)
             continue
-        project_configuration[module_name] = modules.MODULES[module_name].schema()
+        project_configuration[module_name] = modules.MODULES[module_name].get_json_schema()
 
     return schema
