@@ -51,8 +51,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
         """
         event_data = context.event_data
         if (
-            event_data.get("type") == "pull_request"
-            and event_data.get("action") in ("opened", "reopened")
+            event_data.get("action") in ("opened", "reopened")
             and event_data.get("pull_request", {}).get("state") == "open"  # type: ignore[union-attr]
         ):
             return [module.Action(priority=module.PRIORITY_STANDARD, data={})]
