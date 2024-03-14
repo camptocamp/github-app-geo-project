@@ -131,7 +131,7 @@ def main() -> None:
                 module_config = configuration.get_configuration(
                     config, owner, repository, job_application
                 ).get(job_module, {})
-                if module_config.get("enabled", application_configuration.MODULE_ENABLED_DEFAULT):
+                if module_config.get("enabled", application_configuration.MODULE_ENABLED_DEFAULT):  # type: ignore[attr-defined]
                     context = module.ProcessContext(
                         session=session,
                         github_application=github_application,
