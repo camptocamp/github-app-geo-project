@@ -89,7 +89,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
                 )
             ):
                 repository = context.github_application.get_repo(context.event_data["repository"]["full_name"])  # type: ignore[index,call-overload,arg-type]
-                pull_request = repository.get_pull(context.event_data["pull_request"]["node_id"])  # type: ignore[index,call-overload,arg-type]
+                pull_request = repository.get_pull(context.event_data["pull_request"]["number"])  # type: ignore[index,call-overload,arg-type]
                 self.do_action(context, pull_request)
                 return
 
