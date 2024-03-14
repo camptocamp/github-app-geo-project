@@ -16,9 +16,9 @@ from github_app_geo_project.module import modules
 _LOGGER = logging.getLogger(__name__)
 
 
-def _compare_access(access_1: str, access_2: str) -> bool:
+def _gt_access(access_1: str, access_2: str) -> bool:
     access_number = {"read": 1, "write": 2, "admin": 3}
-    return access_number[access_1] >= access_number[access_2]
+    return access_number[access_1] > access_number[access_2]
 
 
 @view_config(route_name="home", renderer="github_app_geo_project.templates:home.html")  # type: ignore
@@ -72,7 +72,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             module_permissions = module.get_github_application_permissions()
             events.update(module_permissions.events)
             for name, access in module_permissions.permissions.items():
-                if name not in permissions or _compare_access(access, permissions[name]):
+                if name not in permissions or _gt_access(access, permissions[name]):
                     permissions[name] = access
 
         if admin:
@@ -93,7 +93,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     github_permissions = github.integration.get_app().permissions
                     # test that all permissions are in github_permissions
                     for permission, access in permissions.items():
-                        if permission not in github_permissions or not _compare_access(
+                        if permission not in github_permissions or _gt_access(
                             access, github_permissions[permission]
                         ):
                             application["errors"].append(
