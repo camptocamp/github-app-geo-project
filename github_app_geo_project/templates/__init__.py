@@ -29,7 +29,7 @@ def pprint_date(date_str: markupsafe.Markup) -> str:
     """
     Pretty print the date.
     """
-    if date_str is None:
+    if date_str == "None":
         return "-"
 
     date = datetime.fromisoformat(date_str)
