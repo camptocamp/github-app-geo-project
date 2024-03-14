@@ -79,7 +79,7 @@ def main() -> None:
                 session.commit()
         try:
             with Session() as session:
-                if event_data["type"] == "event":
+                if event_data.get("type") == "event":
                     github_objects = configuration.get_github_objects(config, job_application)
                     if "TEST_APPLICATION" in os.environ:
                         webhook.process_event(
