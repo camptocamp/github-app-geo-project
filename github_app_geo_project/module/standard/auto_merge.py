@@ -31,4 +31,4 @@ class AutoMerge(auto.Auto):
 
         Note that this method is called in the queue consuming Pod
         """
-        pull_request.enable_automerge(merge_method="squash")
+        pull_request.enable_automerge(merge_method="SQUASH")
