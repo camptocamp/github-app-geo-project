@@ -46,6 +46,11 @@ services:
       - GHCI_SESSION_SALT=1234
       - GHCI_CONFIGURATION=/etc/ghci/config.yaml
       - VISIBLE_ENTRY_POINT=/
+      - PGHOST=db
+      - PGUSER=postgresql
+      - PGPASSWORD=postgresql
+      - PGDATABASE=tests
+      - PGPORT=5432
     volumes:
       - ./docker/test-app/config.yaml:/etc/ghci/config.yaml:ro
     links:

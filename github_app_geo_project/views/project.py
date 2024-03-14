@@ -65,7 +65,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     formatter = pygments.formatters.HtmlFormatter(style="github-dark")
 
     select_output = (
-        sqlalchemy.select(models.Output)
+        sqlalchemy.select(models.Output.id, models.Output.title)
         .where(
             models.Output.owner == request.matchdict["owner"],
             models.Output.repository == request.matchdict["repository"],
@@ -76,7 +76,14 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         select_output = select_output.where(models.Output.status == models.OutputStatus.ERROR)
 
     select_job = (
-        sqlalchemy.select(models.Queue)
+        sqlalchemy.select(
+            models.Queue.id,
+            models.Queue.status,
+            models.Queue.application,
+            models.Queue.module,
+            models.Queue.created_at,
+            models.Queue.started_at,
+        )
         .where(
             models.Queue.owner == request.matchdict["owner"],
             models.Queue.repository == request.matchdict["repository"],
@@ -113,8 +120,8 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         return {
             "styles": formatter.get_style_defs(),
             "repository": repository,
-            "output": session.execute(select_output).partitions(20),
-            "jobs": session.execute(select_job).partitions(20),
+            "output": session.execute(select_output.limit(20)).all(),
+            "jobs": session.execute(select_job.limit(20)).all(),
             "error": None,
             "issue_url": "",
             "issue_required": issue_required,

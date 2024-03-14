@@ -81,20 +81,17 @@
     <div class="alert alert-danger" role="alert">${error}</div>
     %endif
 
-    <h2>Last output</h2>
+    <h2>Last outputs</h2>
     %for o in output:
-    <p><a href="${request.route_url('output', id=o.id)}">${o.title}</a></p>
+    <p><a href="${request.route_url('output', id=o[0])}">${o[1]}</a></p>
     %endfor
 
-    <h2>Last thread event</h2>
-    %for js in jobs:
-    <!---->
-    %for job in js:
+    <h2>Last thread events</h2>
+    %for job in jobs:
     <p>
-      ${job.id} [${job.status}] ${application}:${module} - created:&nbsp;${created_at|pprint_date},
-      started:&nbsp;${started_at|pprint_date}
+      ${job[2]}:${job[3]} ${job[0]} [${job[1].value}] - created:&nbsp;${job[4]|pprint_date},
+      started:&nbsp;${job[5]|pprint_date}
     </p>
-    %endfor
     <!---->
     %endfor
 

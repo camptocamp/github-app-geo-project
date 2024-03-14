@@ -1,12 +1,16 @@
 """The mako templates to render the pages."""
 
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 
 import html_sanitizer
 import markdown as markdown_lib  # mypy: ignore[import-untyped]
+import markupsafe
+
+_LOGGER = logging.getLogger(__name__)
 
 
-def sanitizer(text: str) -> str:
+def sanitizer(text: markupsafe.Markup) -> str:
     """
     Sanitize the input string.
     """
@@ -14,20 +18,21 @@ def sanitizer(text: str) -> str:
     return sanitizer_instance.sanitize(text)  # type: ignore[no-any-return]
 
 
-def markdown(text: str) -> str:
+def markdown(text: markupsafe.Markup) -> str:
     """
     Convert the input string to markdown.
     """
     return sanitizer(markdown_lib.markdown(text))
 
 
-def pprint_date(date: datetime) -> str:
+def pprint_date(date_str: markupsafe.Markup) -> str:
     """
     Pretty print the date.
     """
-    full_date = date.strftime("%Y-%m-%d %H:%M:%S")
+    date = datetime.fromisoformat(date_str)
+    full_date = datetime.strftime(date, "%Y-%m-%d %H:%M:%S")
 
-    delta = datetime.now() - date
+    delta = datetime.now(timezone.utc) - date
     if delta.seconds < 1:
         short_date = "now"
     elif delta.seconds < 60:
