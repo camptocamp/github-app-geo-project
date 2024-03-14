@@ -82,6 +82,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                         old_content,
                         new_content,
                     )
+                    session.commit()
 
                 return {}
 
@@ -91,6 +92,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
         process_event(
             ProcessContext(application, request.registry.settings, owner, repository, data, session)
         )
+        session.commit()
     return {}
 
 
