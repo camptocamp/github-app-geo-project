@@ -22,7 +22,7 @@ def markdown(text: markupsafe.Markup) -> str:
     """
     Convert the input string to markdown.
     """
-    return sanitizer(markdown_lib.markdown(text))
+    return sanitizer(markdown_lib.markdown(str(text)))
 
 
 def pprint_date(date_str: markupsafe.Markup) -> str:
