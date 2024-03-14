@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
+import github.GithubException
 import plaster
 import sqlalchemy.orm
 
@@ -144,6 +145,19 @@ def main() -> None:
                     )
                     try:
                         new_issue_data = current_module.process(context)
+                    except github.GithubException.GithubException as exception:
+                        _LOGGER.exception(
+                            "Failed to process job id: %s on module: %s, module data:\n%s\nevent data:\n%s\nreturn data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                            job_id,
+                            job_module,
+                            module_data,
+                            event_data,
+                            exception.data,
+                            "\n".join(f"{k}: {v}" for k, v in exception.headers.items()),
+                            exception.message,
+                            exception.status,
+                        )
+                        raise
                     except Exception:
                         _LOGGER.exception(
                             "Failed to process job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
