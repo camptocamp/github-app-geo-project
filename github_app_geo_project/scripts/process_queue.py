@@ -112,12 +112,13 @@ def main() -> None:
                     _LOGGER.error("Unknown module %s", job_module)
                     continue
 
+                github_application = configuration.get_github_application(
+                    config, job_application, owner, repository
+                )
+
                 issue_data = ""
                 if current_module.required_issue_dashboard():
                     github_objects = configuration.get_github_objects(config, job_application)
-                    github_application = configuration.get_github_application(
-                        config, job_application, owner, repository
-                    )
                     repository_full = f"{owner}/{repository}"
                     repo = github_application.get_repo(repository_full)
                     open_issues = repo.get_issues(
