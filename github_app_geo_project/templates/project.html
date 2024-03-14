@@ -30,6 +30,10 @@
       a:hover {
         text-decoration: underline;
       }
+      div.event.alert {
+        padding: 0 .5rem;
+        margin: .3rem 0;
+      }
       /* pygments*/
       ${styles|n}
     </style>
@@ -87,11 +91,24 @@
     %endfor
 
     <h2>Last thread events</h2>
-    %for job in jobs:
-    <p>
-      ${job[2]}:${job[3]} ${job[0]} [${job[1].value}] - created:&nbsp;${job[4]|pprint_date},
-      started:&nbsp;${job[5]|pprint_date}
-    </p>
+    %for job in jobs: %if job[1].value == 'error':
+    <div class="alert alert-danger event" role="alert">
+      %else:
+      <!---->
+      %if job[1].value == 'done':
+      <div class="alert alert-secondary event" role="alert">
+        %else:
+        <div class="alert alert-primary event" role="alert">
+          %endif
+          <!---->
+          %endif [${job[1].value}] ${job[2]}:<b>${job[3]}</b> (${job[0]}) -
+          created:&nbsp;${job[4]|pprint_date}, started:&nbsp;${job[5]|pprint_date}
+        </div>
+        <!-- for Prettier -->
+        %if False:
+      </div>
+    </div>
+    %endif
     <!---->
     %endfor
 
