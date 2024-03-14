@@ -91,7 +91,9 @@
     %endfor
 
     <h2>Last thread events</h2>
-    %for job in jobs: %if job[1].value == 'error':
+    %for job in jobs:
+    <!---->
+    %if job[1].value == 'error':
     <div class="alert alert-danger event" role="alert">
       %else:
       <!---->
@@ -101,8 +103,10 @@
         <div class="alert alert-primary event" role="alert">
           %endif
           <!---->
-          %endif [${job[1].value}] ${job[2]}:<b>${job[3]}</b> (${job[0]}) -
-          created:&nbsp;${job[4]|pprint_date}, started:&nbsp;${job[5]|pprint_date}
+          %endif
+          <!---->
+          [${job[1].value}] ${job[2]}:<b>${job[3]}</b> (${job[0]}) - created:&nbsp;${job[4]|pprint_date},
+          started:&nbsp;${job[5]|pprint_date}
         </div>
         <!-- for Prettier -->
         %if False:
