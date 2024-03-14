@@ -13,7 +13,7 @@ import c2cwsgiutils.setup_process
 import plaster
 import sqlalchemy.orm
 
-from github_app_geo_project import configuration, models, module, utils
+from github_app_geo_project import application_configuration, configuration, models, module, utils
 from github_app_geo_project.module import modules
 from github_app_geo_project.views import webhook
 
@@ -128,27 +128,31 @@ def main() -> None:
                         issue_full_data = open_issues[0].body
                         issue_data = utils.get_dashboard_issue_module(issue_full_data, job_module)
 
-                context = module.ProcessContext(
-                    session=session,
-                    github_application=github_application,
-                    owner=owner,
-                    repository=repository,
-                    event_data=event_data,
-                    module_config=configuration.get_configuration(config, owner, repository, job_application),
-                    module_data=module_data,
-                    issue_data=issue_data,
-                )
-                try:
-                    new_issue_data = current_module.process(context)
-                except Exception:
-                    _LOGGER.exception(
-                        "Failed to process job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
-                        job_id,
-                        job_module,
-                        module_data,
-                        event_data,
+                module_config = configuration.get_configuration(
+                    config, owner, repository, job_application
+                ).get(job_module, {})
+                if module_config.get("enabled", application_configuration.MODULE_ENABLED_DEFAULT):
+                    context = module.ProcessContext(
+                        session=session,
+                        github_application=github_application,
+                        owner=owner,
+                        repository=repository,
+                        event_data=event_data,
+                        module_config=module_config,
+                        module_data=module_data,
+                        issue_data=issue_data,
                     )
-                    raise
+                    try:
+                        new_issue_data = current_module.process(context)
+                    except Exception:
+                        _LOGGER.exception(
+                            "Failed to process job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
+                            job_id,
+                            job_module,
+                            module_data,
+                            event_data,
+                        )
+                        raise
 
                 session.execute(
                     sqlalchemy.update(models.Queue)

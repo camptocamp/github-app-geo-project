@@ -15,7 +15,9 @@
       "properties": {
         "enabled": {
           "type": "boolean",
-          "description": "Enable the module"
+          "title": "Module enabled",
+          "description": "Enable the module",
+          "default": true
         }
       }
     }

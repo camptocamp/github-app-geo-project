@@ -38,11 +38,21 @@ GithubApplicationProjectConfiguration = TypedDict(
 )
 
 
+MODULE_ENABLED_DEFAULT = True
+""" Default value of the field path 'Module configuration enabled' """
+
+
 class ModuleConfiguration(TypedDict, total=False):
     """Module configuration."""
 
     enabled: bool
-    """ Enable the module """
+    """
+    Module enabled.
+
+    Enable the module
+
+    default: True
+    """
 
 
 class ProfileApplicationSpecificConfiguration(TypedDict, total=False):
