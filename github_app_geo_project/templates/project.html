@@ -87,11 +87,15 @@
     %endfor
 
     <h2>Last thread event</h2>
-    %for job in jobs:
+    %for js in jobs:
+    <!---->
+    %for job in js:
     <p>
       ${job.id} [${job.status}] ${application}:${module} - created:&nbsp;${created_at|pprint_date},
       started:&nbsp;${started_at|pprint_date}
     </p>
+    %endfor
+    <!---->
     %endfor
 
     <!---->
