@@ -18,11 +18,11 @@ def sanitizer(text: markupsafe.Markup) -> str:
     return sanitizer_instance.sanitize(text)  # type: ignore[no-any-return]
 
 
-def markdown(text: markupsafe.Markup) -> str:
+def markdown(text: str) -> str:
     """
     Convert the input string to markdown.
     """
-    return sanitizer(markdown_lib.markdown(str(text)))
+    return sanitizer(markdown_lib.markdown(text))
 
 
 def pprint_date(date_str: markupsafe.Markup) -> str:
