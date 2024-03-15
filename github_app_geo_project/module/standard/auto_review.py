@@ -11,7 +11,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class AutoReview(auto.Auto):
-    """The auto review pull request module."""
+    """
+    The auto review pull request module.
+
+    This is not working as expected because it's not possible to be consider as approver
+    """
 
     def title(self) -> str:
         """Get the title of the module."""
