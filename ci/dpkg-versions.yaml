@@ -1,4 +1,20 @@
 camptocamp/github-app-geo-project:latest:
+  ubuntu_23_10/libmagic-mgc: 1:5.44-3
+  ubuntu_23_10/libmagic1: 1:5.44-3
+  ubuntu_23_10/adduser: 3.137ubuntu1
+  ubuntu_23_10/containerd: 1.7.2-0ubuntu2
+  ubuntu_23_10/docker.io: 24.0.5-0ubuntu1
+  ubuntu_23_10/iptables: 1.8.9-2ubuntu2
+  ubuntu_23_10/libdevmapper1.02.1: 2:1.02.185-2ubuntu1
+  ubuntu_23_10/libip4tc2: 1.8.9-2ubuntu2
+  ubuntu_23_10/libip6tc2: 1.8.9-2ubuntu2
+  ubuntu_23_10/libmnl0: 1.0.4-3ubuntu1
+  ubuntu_23_10/libnetfilter-conntrack3: 1.0.9-5
+  ubuntu_23_10/libnfnetlink0: 1.0.2-2
+  ubuntu_23_10/libnftnl11: 1.2.6-2
+  ubuntu_23_10/libxtables12: 1.8.9-2ubuntu2
+  ubuntu_23_10/runc: 1.1.7-0ubuntu2.2
+  ubuntu_23_10/xz-utils: 5.4.1-0.2
   ubuntu_23_10/curl: 8.2.1-1ubuntu3.2
   ubuntu_23_10/git: 1:2.40.1-1ubuntu1
   ubuntu_23_10/git-man: 1:2.40.1-1ubuntu1

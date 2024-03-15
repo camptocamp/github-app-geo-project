@@ -1,6 +1,7 @@
 """The base class of the modules."""
 
 from abc import abstractmethod
+from collections.abc import Mapping
 from typing import Generic, NamedTuple, TypeVar, Union
 
 import github
@@ -18,7 +19,7 @@ class Action(NamedTuple):
     # 30 for actions triggered by a cron event
     priority: int
     # Some data to be used by the process method
-    data: dict[str, "Json"]
+    data: Mapping[str, "Json"]
 
 
 # Priority used to update the pull request status
@@ -46,6 +47,8 @@ class GetActionContext(NamedTuple):
     repository: str
     # The event data
     event_data: dict[str, "Json"]
+    # The github application
+    github_application: github.Github
 
 
 class CleanupContext(NamedTuple):

@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     apt-get update \
     && apt-get upgrade --assume-yes \
-    && apt-get install --assume-yes --no-install-recommends python3-pip postgresql-client
+    && apt-get install --assume-yes --no-install-recommends python3-pip postgresql-client docker.io libmagic1 git curl zlib1g libpq5
 
 RUN rm -rf /usr/lib/python3.*/EXTERNALLY-MANAGED
 
@@ -41,7 +41,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=bind,from=poetry,source=/tmp,target=/poetry \
     DEV_PACKAGES="python3-dev libpq-dev build-essential" \
     && apt-get update \
-    && apt-get install --assume-yes --no-install-recommends libpq5 ${DEV_PACKAGES} \
+    && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
     && python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements.txt \
     && python3 -m compileall /usr/local/lib/python* /usr/lib/python* \
     && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES} binutils
@@ -86,18 +86,10 @@ ENV PATH=/pyenv/shims:/pyenv/bin:${PATH} \
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     DEV_PACKAGES="build-essential libffi-dev libssl-dev liblzma-dev libsqlite3-dev libcurses-ocaml-dev libreadline-dev libbz2-dev zlib1g-dev" \
-    && apt-get update && apt-get install --assume-yes --no-install-recommends git curl zlib1g ${DEV_PACKAGES} \
+    && apt-get update && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
     && git clone --depth=1 https://github.com/pyenv/pyenv.git /pyenv \
-    && pyenv install 3.11 \
+    && pyenv install 3.8 3.9 3.10 3.11 \
     && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES}
-    # TODO:
-    # move 3.11.8 to 3.11
-    # create a symlink to 3.11.8
-VOLUME \
-    /pyenv/versions/3.11/lib/python3.11/site-packages \
-    /pyenv/versions/3.10/lib/python3.10/site-packages \
-    /pyenv/versions/3.9/lib/python3.9/site-packages \
-    /pyenv/versions/3.8/lib/python3.8/site-packages
 
 COPY . /app/
 ARG VERSION=dev
@@ -133,6 +125,10 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     && curl --silent https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor --output=/etc/apt/keyrings/nodesource.gpg \
     && apt-get update \
     && apt-get install --assume-yes --no-install-recommends "nodejs=${NODE_MAJOR}.*"
+
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.cache \
+    npm install --global
 
 RUN --mount=type=cache,target=/root/.cache \
     --mount=type=bind,from=poetry,source=/tmp,target=/poetry \

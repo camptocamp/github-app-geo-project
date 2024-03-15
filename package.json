@@ -1,0 +1,9 @@
+{
+  "name": "ghci",
+  "version": "0.0.0",
+  "description": "",
+  "author": "",
+  "dependencies": {
+    "snyk": "1.1283.0"
+  }
+}

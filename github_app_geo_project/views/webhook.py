@@ -121,6 +121,9 @@ def process_dashboard_issue(
     new_data: str,
 ) -> None:
     """Process changes on the dashboard issue."""
+    github_application = configuration.get_github_application(
+        context.application_config, context.application, context.owner, context.repository
+    )
     for name in context.application_config.get(f"application.{context.application}.modules", "").split():
         current_module = modules.MODULES.get(name)
         if current_module is None:
@@ -135,6 +138,7 @@ def process_dashboard_issue(
                     module.GetActionContext(
                         owner=context.owner,
                         repository=context.repository,
+                        github_application=github_application,
                         event_data={
                             "type": "dashboard",
                             "old_data": module_old,
@@ -164,6 +168,9 @@ def process_dashboard_issue(
 def process_event(context: ProcessContext) -> None:
     """Process the event."""
     _LOGGER.debug("Processing event for application %s", context.application)
+    github_application = configuration.get_github_application(
+        context.application_config, context.application, context.owner, context.repository
+    )
     for name in context.application_config.get(f"application.{context.application}.modules", "").split():
         _LOGGER.debug("Processing module %s", name)
         current_module = modules.MODULES.get(name)
@@ -175,6 +182,7 @@ def process_event(context: ProcessContext) -> None:
                 owner=context.owner,
                 repository=context.repository,
                 event_data=context.event_data,
+                github_application=github_application,
             )
         ):
             context.session.execute(

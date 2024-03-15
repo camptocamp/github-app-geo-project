@@ -1,7 +1,13 @@
 """Module utility functions for the modules."""
 
+import datetime
 import re
+import shlex
+import subprocess  # nosec
 from typing import Any, Union
+
+import github
+from ansi2html import Ansi2HTMLConverter
 
 from github_app_geo_project import models, module
 
@@ -149,3 +155,91 @@ class DashboardIssue:
     def __str__(self) -> str:
         """Get the string representation."""
         return self.to_string()
+
+
+def ansi_proc_dashboard(title: str, proc: subprocess.CompletedProcess[str]) -> str:
+    """
+    Process the output of a subprocess for the dashboard.
+
+    Arguments:
+    ---------
+    title: The title of the section
+    proc: The subprocess result
+    """
+    ansi_converter = Ansi2HTMLConverter()
+    result = ["<details>", f"<summary>{title}</summary>", "<blockquote>"]
+    result.append(f"Command: {shlex.join(proc.args)}")
+    result.append(f"Return code: {proc.returncode}")
+    if proc.stdout:
+        result.append("")
+        result.append("Output:")
+        result.append(ansi_converter.convert(proc.stdout))
+    if proc.stderr:
+        result.append("")
+        result.append("Error:")
+        result.append(ansi_converter.convert(proc.stderr))
+    result.append("</blockquote>")
+    return "\n".join(result)
+
+
+def create_commit(message: str) -> str | None:
+    """Do a commit."""
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["git", "add", "--all"], capture_output=True, encoding="utf-8"
+    )
+    if proc.returncode != 0:
+        return ansi_proc_dashboard("Error while adding the changes", proc)
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8"
+    )
+    if proc.returncode != 0:
+        return ansi_proc_dashboard("Error while committing the changes", proc)
+
+    return None
+
+
+def create_pull_request(
+    branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
+) -> tuple[str | None, github.PullRequest.PullRequest | None]:
+    """Create a pull request."""
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["git", "push", "--force", "origin", new_branch],
+        capture_output=True,
+        encoding="utf-8",
+    )
+    if proc.returncode != 0:
+        return ansi_proc_dashboard("Error while pushing the changes", proc), None
+
+    pulls = repo.get_pulls(state="open", head=new_branch)
+    if pulls.totalCount > 0:
+        pull_request = pulls[0]
+        # Create an issue it the pull request is open for 5 days
+        if pull_request.created_at < datetime.datetime.now() - datetime.timedelta(days=5):
+            issue = repo.create_issue(
+                title=f"Pull request {message} is open for 5 days",
+                body=f"See: #{pull_request.number}",
+            )
+            return (
+                f"Pull request #{pull_request.number} is open for 5 days: #{issue.number}",
+                pull_request,
+            )
+    else:
+        pull_request = repo.create_pull(
+            title=message,
+            body=body,
+            head=new_branch,
+            base=branch,
+        )
+        pull_request.enable_automerge(merge_method="SQUASH")
+        return None, pull_request
+    return None, None
+
+
+def create_commit_pull_request(
+    branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
+) -> tuple[str | None, github.PullRequest.PullRequest | None]:
+    """Do a commit, then create a pull request."""
+    error = create_commit(message)
+    if error:
+        return error, None
+    return create_pull_request(branch, new_branch, message, body, repo)
