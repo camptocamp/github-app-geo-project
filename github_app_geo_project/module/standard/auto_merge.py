@@ -21,6 +21,18 @@ class AutoMerge(auto.Auto):
         """Get the description of the module."""
         return "If a pull request match one of the conditions, the auto merge will be activated"
 
+    def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
+        """Get the permissions and events required by the module."""
+        return module.GitHubApplicationPermissions(
+            {
+                "pull_requests": "read",
+                "workflow": "write",
+            },
+            {
+                "pull_request",
+            },
+        )
+
     def do_action(
         self,
         context: module.ProcessContext[auto_configuration.AutoPullRequest],
