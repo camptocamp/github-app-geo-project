@@ -7,7 +7,7 @@ import re
 import subprocess  # nosec
 import tempfile
 from collections.abc import Callable
-from typing import NamedTuple, Union
+from typing import NamedTuple, Union, cast
 
 import github
 
@@ -234,7 +234,6 @@ def get_pull_request_tags(
     Get the tags that contains the merge commit of the pull request.
     """
     pull_request = repo.get_pull(pull_request_number)
-    # TODO: use milestone
     # Created temporary directory
     with tempfile.TemporaryDirectory() as tmp_directory_name:
         os.chdir(tmp_directory_name)
@@ -271,6 +270,7 @@ def generate_changelog(
     configuration: changelog_configuration.Changelog,
     repository: str,
     tag_str: str,
+    milestone: github.Milestone.Milestone,
 ) -> str:
     """Generate the changelog for a tag."""
     repo = github_application.get_repo(repository)
@@ -306,6 +306,7 @@ def generate_changelog(
             authors = {pull_request.user.login}
             for commit_ in pull_request.get_commits():
                 authors.add(commit_.author.login)
+            pull_request.as_issue().edit(milestone=milestone)
             changelog_items.add(
                 ChangelogItem(
                     object=pull_request,
@@ -386,6 +387,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             event_data.get("type") == "pull_request"
             and event_data.get("action") == "edited"
             and event_data.get("pull_request", {}).get("state") == "closed"  # type: ignore[union-attr]
+            and event_data.get("pull_request", {}).get("milestone")  # type: ignore[union-attr]
         ):
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "pull_request"})]
 
@@ -397,33 +399,66 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
 
         Note that this method is called in the queue consuming Pod
         """
-        # TODO
-        # - get the tag from tag event
-        # - get the tag from release event
-        # - get the tag from pull request event (throe milestone)
-        # - fill (create) the release
-        # - fill (create) the milestone
-        repository = context.event_data.get("repository", {}).get("full_name")  # type: ignore[union-attr]
+        repository = cast(str, context.event_data.get("repository", {}).get("full_name"))  # type: ignore[union-attr]
+        repo = context.github_application.get_repo(repository)
+
+        if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
+            for label, config in context.module_config.get("labels", {}).items():
+                repo.create_label(
+                    name=label,
+                    color=config["color"],
+                    description=config.get("description", ""),
+                )
+
         assert isinstance(repository, str)
         tag_str = ""
+        milestone = None
+        release = None
         if context.event_data.get("type") == "tag":
-            tag_str = context.event_data["ref"]  # type: ignore[assignment]
+            if not context.module_config.get(
+                "create-release", changelog_configuration.CREATE_RELEASE_DEFAULT
+            ):
+                return
+            tag_str = cast(str, context.event_data["ref"])
+            release = repo.create_git_release(tag_str, tag_str, "")
         elif context.event_data.get("type") == "release":
+            if context.module_config.get("create-release", changelog_configuration.CREATE_RELEASE_DEFAULT):
+                return
             tag_str = context.event_data.get("release", {}).get("tag_name")  # type: ignore[assignment,union-attr]
+            release = repo.get_release(tag_str)
         elif context.event_data.get("type") == "pull_request":
             # Get the milestone
             pull_request_number = context.event_data.get("pull_request", {}).get("number")  # type: ignore[union-attr]
             assert isinstance(pull_request_number, int)
-            pull_request = context.github_application.get_repo(repository).get_pull(pull_request_number)
+            pull_request = repo.get_pull(pull_request_number)
             if pull_request.milestone:
+                milestone = pull_request.milestone
                 tag_str = pull_request.milestone.title
+                release = repo.get_release(tag_str)
+                tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
+                if tag is not None:
+                    return
             else:
-                _LOGGER.warning(
+                _LOGGER.info(
                     "No milestone found for pull request %s on repository %s", pull_request.number, repository
                 )
                 return
 
-        generate_changelog(context.github_application, context.module_config, repository, tag_str)
+        if milestone is None:
+            milestones = [m for m in repo.get_milestones() if m.title == tag_str]
+            if milestones:
+                milestone = milestones[0]
+            else:
+                milestone = repo.create_milestone(tag_str)
+
+        assert release is not None
+        release.update_release(
+            tag_str,
+            tag_name=tag_str,
+            message=generate_changelog(
+                context.github_application, context.module_config, repository, tag_str, milestone
+            ),
+        )
 
     def get_json_schema(self) -> module.JsonDict:
         """Get the JSON schema of the module configuration."""

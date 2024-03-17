@@ -11,10 +11,17 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "create-label": {
+        "create-labels": {
           "type": "boolean",
-          "title": "Changelog create label",
-          "description": "Automatically create the labels used in the changelog configuration"
+          "title": "Create labels",
+          "description": "Automatically create the labels used in the changelog configuration",
+          "default": false
+        },
+        "create-release": {
+          "type": "boolean",
+          "title": "Create release",
+          "description": "Create a release based on the tag",
+          "default": true
         },
         "labels": {
           "type": "object",

@@ -3,7 +3,8 @@
 ## Properties
 
 - **`changelog`** _(object)_: The changelog generation configuration. Cannot contain additional properties.
-  - **`create-label`** _(boolean)_: Automatically create the labels used in the changelog configuration.
+  - **`create-labels`** _(boolean)_: Automatically create the labels used in the changelog configuration. Default: `false`.
+  - **`create-release`** _(boolean)_: Create a release based on the tag. Default: `true`.
   - **`labels`** _(object)_: The labels configuration. Can contain additional properties.
     - **Additional properties** _(object)_: The label configuration.
       - **`description`** _(string)_: The description of the label.
