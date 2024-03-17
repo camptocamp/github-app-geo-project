@@ -13,7 +13,7 @@ import sqlalchemy
 import yaml
 from pyramid.view import view_config
 
-from github_app_geo_project import configuration, models
+from github_app_geo_project import configuration, models, project_configuration
 from github_app_geo_project.module import modules
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,6 +38,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "issue_required": False,
             "module_configuration": [],
         }
+    config: project_configuration.GithubApplicationProjectConfiguration = {}
     try:
         for app in request.registry.settings["applications"].split():
             try:

@@ -63,6 +63,7 @@ ansi2html = "1.9.1"
 c2cciutils = "1.6.17"
 
 [tool.poetry.group.dev.dependencies]
+c2cwsgiutils = { version = "6.0.4",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma"], version = "1.10.3" }
 prospector-profile-duplicated = "1.0.1"
 prospector-profile-utils = "1.7.2"
@@ -72,9 +73,6 @@ types-pyyaml = "6.0.12.12"
 types-setuptools = "69.1.0.20240217"
 types-markdown = "3.5.0.20240129"
 types-requests = "2.31.0.20240218"
-
-[tool.poetry.extras]
-application = ["c2cwsgiutils"]
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning", "poetry-plugin-tweak-dependencies-version", "poetry-plugin-drop-python-upper-constraint"]

@@ -4,24 +4,6 @@
   "type": "object",
   "title": "GitHub application project configuration",
   "additionalProperties": false,
-  "$defs": {
-    "project-configuration": {
-      "type": "object",
-      "additionalProperties": { "$ref": "#/$defs/module_configuration" }
-    },
-    "module_configuration": {
-      "type": "object",
-      "title": "Module configuration",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "title": "Module enabled",
-          "description": "Enable the module",
-          "default": true
-        }
-      }
-    }
-  },
   "properties": {
     "title": {
       "type": "string",
@@ -53,32 +35,7 @@
       "title": "Profiles",
       "description": "The profiles configuration",
       "additionalProperties": {
-        "type": "object",
-        "allOf": [
-          {
-            "title": "Profile application specific configuration",
-            "properties": {
-              "inherits": {
-                "type": "string",
-                "title": "Inherits",
-                "description": "The profile to inherit from"
-              },
-              "title": {
-                "type": "string",
-                "title": "Inherits",
-                "description": "The profile to inherit from"
-              },
-              "description": {
-                "type": "string",
-                "title": "Inherits",
-                "description": "The profile to inherit from"
-              }
-            }
-          },
-          {
-            "$ref": "#/$defs/project-configuration"
-          }
-        ]
+        "type": "object"
       }
     }
   }

@@ -77,4 +77,5 @@ services:
     links:
       - db
     volumes:
-      - ./acceptance_tests:/acceptance_tests
+      - ./acceptance_tests:/acceptance_tests:ro
+      - ./results:/results:rw

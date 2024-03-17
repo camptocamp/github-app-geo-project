@@ -3,7 +3,7 @@ Automatically generated file from a JSON schema.
 """
 
 
-from typing import TypedDict, Union
+from typing import Any, TypedDict
 
 # GitHub application project configuration.
 GithubApplicationProjectConfiguration = TypedDict(
@@ -32,81 +32,7 @@ GithubApplicationProjectConfiguration = TypedDict(
         # Profiles.
         #
         # The profiles configuration
-        "profiles": dict[str, "_ProfilesAdditionalproperties"],
+        "profiles": dict[str, dict[str, Any]],
     },
     total=False,
 )
-
-
-MODULE_ENABLED_DEFAULT = True
-""" Default value of the field path 'Module configuration enabled' """
-
-
-class ModuleConfiguration(TypedDict, total=False):
-    """Module configuration."""
-
-    enabled: bool
-    """
-    Module enabled.
-
-    Enable the module
-
-    default: True
-    """
-
-
-class ProfileApplicationSpecificConfiguration(TypedDict, total=False):
-    """Profile application specific configuration."""
-
-    inherits: str
-    """
-    Inherits.
-
-    The profile to inherit from
-    """
-
-    title: str
-    """
-    Inherits.
-
-    The profile to inherit from
-    """
-
-    description: str
-    """
-    Inherits.
-
-    The profile to inherit from
-    """
-
-
-_ProfilesAdditionalproperties = Union[dict[str, "ModuleConfiguration"], "_ProfilesAdditionalpropertiesTyped"]
-"""
-
-WARNING: Normally the types should be a mix of each other instead of Union.
-See: https://github.com/camptocamp/jsonschema-gentypes/issues/7
-Subtype: "ProfileApplicationSpecificConfiguration"
-"""
-
-
-class _ProfilesAdditionalpropertiesTyped(TypedDict, total=False):
-    inherits: str
-    """
-    Inherits.
-
-    The profile to inherit from
-    """
-
-    title: str
-    """
-    Inherits.
-
-    The profile to inherit from
-    """
-
-    description: str
-    """
-    Inherits.
-
-    The profile to inherit from
-    """

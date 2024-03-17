@@ -3,26 +3,43 @@ Automatically generated file from a JSON schema.
 """
 
 
-from typing import TypedDict, Union
+from typing import TypedDict
 
-GithubApplicationProjectConfiguration = Union[
-    dict[str, "ModuleConfiguration"], "GithubApplicationProjectConfigurationTyped"
-]
-"""
-GitHub application project configuration.
+# Example.
+#
+# An example of a module properties
+Example = TypedDict(
+    "Example",
+    {
+        # Enable the module
+        #
+        # default: True
+        "enabled": bool,
+        # Example property.
+        #
+        # An example property
+        "example-property": str,
+    },
+    total=False,
+)
 
 
-WARNING: Normally the types should be a mix of each other instead of Union.
-See: https://github.com/camptocamp/jsonschema-gentypes/issues/7
-"""
+class GithubApplicationProjectConfiguration(TypedDict, total=False):
+    """GitHub application project configuration."""
 
-
-class GithubApplicationProjectConfigurationTyped(TypedDict, total=False):
     profile: str
     """
     Profile.
 
     The profile to use for the project
+    """
+
+    example: "Example"
+    """
+    Example.
+
+    An example of a module properties
+    Subtype: "ModuleConfiguration"
     """
 
 
@@ -35,6 +52,10 @@ class ModuleConfiguration(TypedDict, total=False):
 
     default: True
     """
+
+
+_EXAMPLE_ENABLED_DEFAULT = True
+""" Default value of the field path 'Example enabled' """
 
 
 _MODULE_CONFIGURATION_ENABLED_DEFAULT = True
