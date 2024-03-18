@@ -72,6 +72,10 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         """Get the URL to the documentation page of the module."""
         return ""
 
+    def required_issue_dashboard(self) -> bool:
+        """Check if the module requires an issue dashboard."""
+        return True
+
     def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
         """
         Get the action related to the module and the event.
