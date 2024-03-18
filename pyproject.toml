@@ -45,6 +45,7 @@ main = "github_app_geo_project.server:main"
 [tool.poetry.plugins."ghci.module"]
 test = "github_app_geo_project.module.tests:TestModule"
 changelog = "github_app_geo_project.module.standard.changelog:Changelog"
+audit = "github_app_geo_project.module.audit:Audit"
 auto-review = "github_app_geo_project.module.standard.auto_review:AutoReview"
 auto-merge = "github_app_geo_project.module.standard.auto_merge:AutoMerge"
 auto-close = "github_app_geo_project.module.standard.auto_close:AutoClose"
@@ -58,7 +59,8 @@ pygithub = "2.2.0"
 markdown = "3.5.2"
 pygments = "2.17.2"
 html-sanitizer = "2.3.0"
-# ansi2html = { version = "1.9.1", optional = true }
+ansi2html = "1.9.1"
+c2cciutils = "1.6.17"
 
 [tool.poetry.group.dev.dependencies]
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma"], version = "1.10.3" }

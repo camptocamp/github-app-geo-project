@@ -8,3 +8,5 @@
 !/.nvmrc
 !/production.ini
 !/gunicorn.conf.py
+!/package.json
+!/package-lock.json
