@@ -5,16 +5,32 @@ Automatically generated file from a JSON schema.
 
 from typing import Literal, TypedDict, Union
 
+CREATE_LABELS_DEFAULT = False
+""" Default value of the field path 'Changelog create-labels' """
+
+
+CREATE_RELEASE_DEFAULT = True
+""" Default value of the field path 'Changelog create-release' """
+
+
 # Changelog.
 #
 # The changelog generation configuration
 Changelog = TypedDict(
     "Changelog",
     {
-        # Changelog create label.
+        # Create labels.
         #
         # Automatically create the labels used in the changelog configuration
-        "create-label": bool,
+        #
+        # default: False
+        "create-labels": bool,
+        # Create release.
+        #
+        # Create a release based on the tag
+        #
+        # default: True
+        "create-release": bool,
         # Changelog labels configuration.
         #
         # The labels configuration
