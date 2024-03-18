@@ -4,10 +4,6 @@
   "type": "object",
   "title": "GitHub application project configuration",
   "$defs": {
-    "project-configuration": {
-      "type": "object",
-      "properties": {}
-    },
     "module-configuration": {
       "type": "object",
       "title": "Module configuration",
@@ -25,18 +21,25 @@
       "type": "string",
       "title": "Profile",
       "description": "The profile to use for the project"
+    },
+    "example": {
+      "type": "object",
+      "title": "Example",
+      "description": "An example of a module properties",
+      "allOf": [
+        {
+          "$ref": "#/$defs/module-configuration"
+        },
+        {
+          "properties": {
+            "example-property": {
+              "type": "string",
+              "title": "Example property",
+              "description": "An example property"
+            }
+          }
+        }
+      ]
     }
-  },
-  "additionalProperties": {
-    "type": "object",
-    "title": "Module configuration",
-    "allOf": [
-      {
-        "$ref": "#/$defs/module-configuration"
-      },
-      {
-        "$ref": "#/$defs/project-configuration"
-      }
-    ]
   }
 }

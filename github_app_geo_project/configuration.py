@@ -15,9 +15,7 @@ with open(os.environ["GHCI_CONFIGURATION"], encoding="utf-8") as configuration_f
     )
 
 
-def apply_profile_inheritance(
-    profile_name: str, profiles: dict[str, application_configuration.ProfileApplicationSpecificConfiguration]
-) -> None:
+def apply_profile_inheritance(profile_name: str, profiles: dict[str, Any]) -> None:
     """
     Apply the inheritance of the profile.
     """
@@ -34,7 +32,7 @@ for name, profile in APPLICATION_CONFIGURATION.get("profiles", {}).items():
         apply_profile_inheritance(
             name,
             cast(
-                dict[str, application_configuration.ProfileApplicationSpecificConfiguration],
+                dict[str, Any],
                 APPLICATION_CONFIGURATION["profiles"],
             ),
         )
