@@ -10,6 +10,7 @@
       "properties": {
         "enabled": {
           "type": "boolean",
+          "title": "Module enabled",
           "description": "Enable the module",
           "default": true
         }
