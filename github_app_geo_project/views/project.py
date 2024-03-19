@@ -1,6 +1,7 @@
 """Output view."""
 
 import logging
+import os
 from typing import Any
 
 import pygments.formatters
@@ -95,7 +96,18 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     issue_required = False
     module_names = set()
     for app in request.registry.settings["applications"].split():
-        module_names.update(request.registry.settings[f"application.{app}.modules"].split())
+        try:
+            if "TEST_APPLICATION" not in os.environ:
+                configuration.get_github_application(
+                    request.registry.settings,
+                    app,
+                    request.matchdict["owner"],
+                    request.matchdict["repository"],
+                )
+            module_names.update(request.registry.settings[f"application.{app}.modules"].split())
+        except:  # nosec, pylint: disable=bare-except
+            # The repository in not installed in the application
+            pass
     module_config = []
     for module_name in module_names:
         if module_name not in modules.MODULES:
