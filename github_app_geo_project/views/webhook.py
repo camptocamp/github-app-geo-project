@@ -172,11 +172,17 @@ def process_event(context: ProcessContext) -> None:
         context.application_config, context.application, context.owner, context.repository
     )
     for name in context.application_config.get(f"application.{context.application}.modules", "").split():
-        _LOGGER.debug("Processing module %s", name)
         current_module = modules.MODULES.get(name)
         if current_module is None:
             _LOGGER.error("Unknown module %s", name)
             continue
+        _LOGGER.info(
+            "Getting actions for the application: %s, repository: %s/%s, module: %s",
+            context.application,
+            context.owner,
+            context.repository,
+            name,
+        )
         for action in current_module.get_actions(
             module.GetActionContext(
                 owner=context.owner,

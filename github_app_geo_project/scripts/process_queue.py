@@ -82,6 +82,7 @@ def main() -> None:
         try:
             with Session() as session:
                 if event_data.get("type") == "event":
+                    _LOGGER.info("Process the event: %s", event_data.get("name"))
                     github_objects = configuration.get_github_objects(config, job_application)
                     if "TEST_APPLICATION" in os.environ:
                         webhook.process_event(
@@ -97,18 +98,6 @@ def main() -> None:
                     else:
                         for installation in github_objects.integration.get_installations():
                             for repo in installation.get_repos():
-                                _LOGGER.info(
-                                    "Getting actions for the event: %s, application: %s, repository: %s",
-                                    event_data.get("name"),
-                                    "/".join(
-                                        [
-                                            str(installation.id),
-                                            str(installation.app_id),
-                                            str(installation.target_id),
-                                        ]
-                                    ),
-                                    repo.full_name,
-                                )
                                 webhook.process_event(
                                     webhook.ProcessContext(
                                         job_application,
