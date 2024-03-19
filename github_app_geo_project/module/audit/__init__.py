@@ -68,6 +68,14 @@ def _get_versions(security: c2cciutils.security.Security) -> list[str]:
 class Audit(module.Module[configuration.AuditConfiguration]):
     """The auto module."""
 
+    def title(self) -> str:
+        """Get the title of the module."""
+        return "Audit (Snyk/DPKG)"
+
+    def description(self) -> str:
+        """Get the description of the module."""
+        return "Audit the project with Snyk (for CVE in dependency) and update DPKG package version to trigger a rebuild"
+
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
         return ""
