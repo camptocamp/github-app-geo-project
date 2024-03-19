@@ -82,32 +82,36 @@ def main() -> None:
         try:
             with Session() as session:
                 if event_data.get("type") == "event":
-                    _LOGGER.info("Process the event: %s", event_data.get("name"))
-                    github_objects = configuration.get_github_objects(config, job_application)
-                    if "TEST_APPLICATION" in os.environ:
-                        webhook.process_event(
-                            webhook.ProcessContext(
-                                job_application,
-                                config,
-                                os.environ.get("TEST_OWNER", "camptocamp"),
-                                os.environ.get("TEST_REPO", "test"),
-                                event_data,
-                                session,
-                            )
+                    for application in config["applications"].split():
+                        _LOGGER.info(
+                            "Process the event: %s, application: %s", event_data.get("name"), application
                         )
-                    else:
-                        for installation in github_objects.integration.get_installations():
-                            for repo in installation.get_repos():
-                                webhook.process_event(
-                                    webhook.ProcessContext(
-                                        job_application,
-                                        config,
-                                        repo.owner.login,
-                                        repo.name,
-                                        event_data,
-                                        session,
-                                    )
+
+                        github_objects = configuration.get_github_objects(config, application)
+                        if "TEST_APPLICATION" in os.environ:
+                            webhook.process_event(
+                                webhook.ProcessContext(
+                                    application,
+                                    config,
+                                    os.environ.get("TEST_OWNER", "camptocamp"),
+                                    os.environ.get("TEST_REPO", "test"),
+                                    event_data,
+                                    session,
                                 )
+                            )
+                        else:
+                            for installation in github_objects.integration.get_installations():
+                                for repo in installation.get_repos():
+                                    webhook.process_event(
+                                        webhook.ProcessContext(
+                                            application,
+                                            config,
+                                            repo.owner.login,
+                                            repo.name,
+                                            event_data,
+                                            session,
+                                        )
+                                    )
 
                     session.execute(
                         sqlalchemy.update(models.Queue)
