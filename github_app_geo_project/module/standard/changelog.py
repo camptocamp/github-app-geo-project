@@ -474,8 +474,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             {
                 "contents": "read",
                 "pull_requests": "write",
-                "release": "write",
-                "milestones": "write",
+                "issue": "write",
             },
             {"create", "pull_request", "release"},
         )

@@ -44,7 +44,7 @@ class Patch(module.Module[dict[str, Any]]):
 
         Note that this method is called in the queue consuming Pod
         """
-        repo = context.github_application.get_repo(context.repository)
+        repo = context.github_application.get_repo(f"{context.owner}/{context.repository}")
         workflow_run = repo.get_workflow_run(
             cast(int, context.event_data["workflow_run"]["id"])  # type: ignore[index,call-overload]
         )

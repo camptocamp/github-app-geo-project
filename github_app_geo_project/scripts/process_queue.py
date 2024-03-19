@@ -97,6 +97,18 @@ def main() -> None:
                     else:
                         for installation in github_objects.integration.get_installations():
                             for repo in installation.get_repos():
+                                _LOGGER.info(
+                                    "Getting actions for the event: %s, application: %s, repository: %s",
+                                    event_data.get("name"),
+                                    "/".join(
+                                        [
+                                            str(installation.id),
+                                            str(installation.app_id),
+                                            str(installation.target_id),
+                                        ]
+                                    ),
+                                    repo.full_name,
+                                )
                                 webhook.process_event(
                                     webhook.ProcessContext(
                                         job_application,
@@ -107,6 +119,13 @@ def main() -> None:
                                         session,
                                     )
                                 )
+
+                    session.execute(
+                        sqlalchemy.update(models.Queue)
+                        .where(models.Queue.id == job_id)
+                        .values(status=models.JobStatus.DONE)
+                    )
+                    session.commit()
                     continue
 
                 current_module = modules.MODULES.get(job_module)
@@ -155,9 +174,11 @@ def main() -> None:
                             job_id,
                             job_module,
                             exception.data,
-                            "\n".join(f"{k}: {v}" for k, v in exception.headers.items())
-                            if exception.headers
-                            else "",
+                            (
+                                "\n".join(f"{k}: {v}" for k, v in exception.headers.items())
+                                if exception.headers
+                                else ""
+                            ),
                             exception.message,
                             exception.status,
                         )

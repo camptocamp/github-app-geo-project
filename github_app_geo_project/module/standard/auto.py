@@ -50,11 +50,6 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
         event_data = context.event_data
-        _LOGGER.info(
-            "Getting actions for auto module %s-%s",
-            event_data.get("action"),
-            event_data.get("pull_request", {}).get("state"),  # type: ignore[union-attr]
-        )
         if (
             event_data.get("action") in ("opened", "reopened")
             and event_data.get("pull_request", {}).get("state") == "open"  # type: ignore[union-attr]
