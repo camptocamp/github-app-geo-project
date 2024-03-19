@@ -158,7 +158,7 @@ repos:
         args:
           - --pre-commit
           - github_app_geo_project/module/audit/schema.json
-          - AUDIT.md
+          - AUDIT-CONFIG.md
   - repo: https://github.com/sbrunner/jsonschema-validator
     rev: 0.1.0
     hooks:
