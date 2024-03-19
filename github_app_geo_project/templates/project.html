@@ -126,7 +126,7 @@
       <div class="card-body">
         <p>${module['description']|markdown}</p>
         %if module['documentation_url']:
-        <a href="${module.configuration_url}">Configuration</a>
+        <a href="${module['documentation_url']}">Configuration</a>
         %endif
         <!-- -->
         ${module['configuration']|n}
