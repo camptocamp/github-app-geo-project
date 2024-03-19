@@ -26,7 +26,12 @@ def test_schema() -> None:
                 "type": "object",
                 "title": "Module configuration",
                 "properties": {
-                    "enabled": {"type": "boolean", "description": "Enable the module", "default": True}
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Enable the module",
+                        "title": "Module enabled",
+                        "default": True,
+                    }
                 },
             }
         },

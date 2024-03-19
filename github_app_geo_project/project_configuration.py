@@ -11,6 +11,8 @@ from typing import TypedDict
 Example = TypedDict(
     "Example",
     {
+        # Module enabled.
+        #
         # Enable the module
         #
         # default: True
@@ -43,20 +45,18 @@ class GithubApplicationProjectConfiguration(TypedDict, total=False):
     """
 
 
+MODULE_ENABLED_DEFAULT = True
+""" Default value of the field path 'Example enabled' """
+
+
 class ModuleConfiguration(TypedDict, total=False):
     """Module configuration."""
 
     enabled: bool
     """
+    Module enabled.
+
     Enable the module
 
     default: True
     """
-
-
-_EXAMPLE_ENABLED_DEFAULT = True
-""" Default value of the field path 'Example enabled' """
-
-
-_MODULE_CONFIGURATION_ENABLED_DEFAULT = True
-""" Default value of the field path 'Module configuration enabled' """

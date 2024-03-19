@@ -7,6 +7,7 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta
+from typing import cast
 
 import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
@@ -14,7 +15,7 @@ import github
 import plaster
 import sqlalchemy.orm
 
-from github_app_geo_project import application_configuration, configuration, models, module, utils
+from github_app_geo_project import configuration, models, module, project_configuration, utils
 from github_app_geo_project.module import modules
 from github_app_geo_project.views import webhook
 
@@ -129,10 +130,13 @@ def main() -> None:
                         issue_full_data = open_issues[0].body
                         issue_data = utils.get_dashboard_issue_module(issue_full_data, job_module)
 
-                module_config = configuration.get_configuration(
-                    config, owner, repository, job_application
-                ).get(job_module, {})
-                if module_config.get("enabled", application_configuration.MODULE_ENABLED_DEFAULT):  # type: ignore[attr-defined]
+                module_config = cast(
+                    project_configuration.ModuleConfiguration,
+                    configuration.get_configuration(config, owner, repository, job_application).get(
+                        job_module, {}
+                    ),
+                )
+                if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
                     context = module.ProcessContext(
                         session=session,
                         github_application=github_application,
