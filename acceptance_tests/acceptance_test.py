@@ -80,3 +80,17 @@ def test_project() -> None:
         result_folder="/results",
         expected_filename=os.path.join(os.path.dirname(__file__), "project.expected.png"),
     )
+
+
+def test_welcome() -> None:
+    """Tests that the home page can be loaded."""
+    c2cwsgiutils.acceptance.image.check_screenshot(
+        "http://application:8080/welcome?installation_id=1234&setup_action=install",
+        media=[
+            {"name": "prefers-color-scheme", "value": "dark"},
+        ],
+        width=900,
+        height=500,
+        result_folder="/results",
+        expected_filename=os.path.join(os.path.dirname(__file__), "welcome.expected.png"),
+    )
