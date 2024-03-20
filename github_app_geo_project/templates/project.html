@@ -30,6 +30,10 @@
       a:hover {
         text-decoration: underline;
       }
+      h1 {
+        /** Leave some space for the GitHub login button */
+        margin-right: 20rem;
+      }
       div.event.alert {
         padding: .13rem .4rem .2rem;
         margin: .3rem 0;
@@ -126,9 +130,9 @@
       <div class="card-body">
         <p>${module['description']|markdown}</p>
         %if module['documentation_url']:
-        <a href="${module['documentation_url']}">Configuration</a>
+        <p><a href="${module['documentation_url']}">Documentation</a></p>
         %endif
-        <!-- -->
+        <h3>Configuration</h3>
         ${module['configuration']|n}
       </div>
     </div>

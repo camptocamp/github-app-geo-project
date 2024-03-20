@@ -102,14 +102,11 @@ def get_configuration(
     """
     github_application = get_github_application(config, application, owner, repository)
     repo = github_application.get_repo(f"{owner}/{repository}")
-    try:
-        project_configuration_content = repo.get_contents(".github/ghci.yaml")
-        assert not isinstance(project_configuration_content, list)
-        project_custom_configuration = yaml.load(
-            project_configuration_content.decoded_content, Loader=yaml.SafeLoader
-        )
-    except github.GithubException:
-        project_custom_configuration = {}
+    project_configuration_content = repo.get_contents(".github/ghci.yaml")
+    assert not isinstance(project_configuration_content, list)
+    project_custom_configuration = yaml.load(
+        project_configuration_content.decoded_content, Loader=yaml.SafeLoader
+    )
 
     return jsonmerge.merge(  # type: ignore[no-any-return]
         APPLICATION_CONFIGURATION.get("profiles", {}).get(

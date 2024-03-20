@@ -2,7 +2,7 @@
 
 from abc import abstractmethod
 from collections.abc import Mapping
-from typing import Generic, NamedTuple, TypeVar, Union
+from typing import Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar, Union
 
 import github
 from sqlalchemy.orm import Session
@@ -87,11 +87,149 @@ class ProcessContext(NamedTuple, Generic[T]):
     issue_data: str
 
 
+class Permissions(TypedDict):
+    """The permissions needed by the GitHub application."""
+
+    # Organization or repository permissions
+    administration: NotRequired[Literal["read", "write"]]
+    custom_properties: NotRequired[Literal["read", "write"]]
+    projects: NotRequired[Literal["read", "write"]]
+    secrets: NotRequired[Literal["read", "write"]]
+    variables: NotRequired[Literal["read", "write"]]
+    webhooks: NotRequired[Literal["read", "write"]]
+    # Organization permissions
+    blocking_users: NotRequired[Literal["read", "write"]]
+    custom_organization_roles: NotRequired[Literal["read", "write"]]
+    events: NotRequired[Literal["read", "write"]]
+    github_copilot_business: NotRequired[Literal["read", "write"]]
+    members: NotRequired[Literal["read", "write"]]
+    organization_codespaces_secrets: NotRequired[Literal["read", "write"]]
+    organization_codespaces_settings: NotRequired[Literal["read", "write"]]
+    organization_codespaces: NotRequired[Literal["read", "write"]]
+    organization_dependabot_secrets: NotRequired[Literal["read", "write"]]
+    personal_access_token_requests: NotRequired[Literal["read", "write"]]
+    personal_access_tokens: NotRequired[Literal["read", "write"]]
+    self_hosted_runners: NotRequired[Literal["read", "write"]]
+    team_discussions: NotRequired[Literal["read", "write"]]
+    # Repository permissions
+    actions: NotRequired[Literal["read", "write"]]
+    checks: NotRequired[Literal["read", "write"]]
+    code_scanning_alerts: NotRequired[Literal["read", "write"]]
+    codespaces_lifecycle_admin: NotRequired[Literal["read", "write"]]
+    codespaces_metadata: NotRequired[Literal["read", "write"]]
+    codespaces_secrets: NotRequired[Literal["read", "write"]]
+    codespaces: NotRequired[Literal["read", "write"]]
+    commit_statuses: NotRequired[Literal["read", "write"]]
+    contents: NotRequired[Literal["read", "write"]]
+    dependabot_alerts: NotRequired[Literal["read", "write"]]
+    dependabot_secrets: NotRequired[Literal["read", "write"]]
+    deployments: NotRequired[Literal["read", "write"]]
+    environments: NotRequired[Literal["read", "write"]]
+    issues: NotRequired[Literal["read", "write"]]
+    metadata: NotRequired[Literal["read", "write"]]
+    pages: NotRequired[Literal["read", "write"]]
+    pull_requests: NotRequired[Literal["read", "write"]]
+    repository_security_advisories: NotRequired[Literal["read", "write"]]
+    secret_scanning_alerts: NotRequired[Literal["read", "write"]]
+    workflows: NotRequired[Literal["read", "write"]]
+    # User permissions
+    block_another_user: NotRequired[Literal["read", "write"]]
+    codespaces_user_secrets: NotRequired[Literal["read", "write"]]
+    email_addresses: NotRequired[Literal["read", "write"]]
+    followers: NotRequired[Literal["read", "write"]]
+    gpg_keys: NotRequired[Literal["read", "write"]]
+    gists: NotRequired[Literal["read", "write"]]
+    git_ssh_keys: NotRequired[Literal["read", "write"]]
+    interaction_limits: NotRequired[Literal["read", "write"]]
+    notifications: NotRequired[Literal["read", "write"]]
+    plan: NotRequired[Literal["read", "write"]]
+    profile: NotRequired[Literal["read", "write"]]
+    ssh_signing_keys: NotRequired[Literal["read", "write"]]
+    starring: NotRequired[Literal["read", "write"]]
+    watching: NotRequired[Literal["read", "write"]]
+
+
 class GitHubApplicationPermissions(NamedTuple):
     """The permissions needed by the GitHub application."""
 
-    permissions: dict[str, str]
-    events: set[str]
+    # https://docs.github.com/fr/rest/authentication/permissions-required-for-github-apps?apiVersion=2022-11-28
+    permissions: Permissions
+    # https://docs.github.com/fr/webhooks/webhook-events-and-payloads
+    events: set[
+        Literal[
+            "branch_protection_configuration",
+            "branch_protection_rule",
+            "check_run",
+            "check_suite",
+            "code_scanning_alert",
+            "commit_comment",
+            "create",
+            "custom_property",
+            "custom_property_values",
+            "delete",
+            "dependabot_alert",
+            "deploy_key",
+            "deployment",
+            "deployment_protection_rule",
+            "deployment_review",
+            "deployment_status",
+            "discussion",
+            "discussion_comment",
+            "fork",
+            "github_app_authorization",
+            "gollum",
+            "installation",
+            "installation_repositories",
+            "installation_target",
+            "issue_comment",
+            "issues",
+            "label",
+            "marketplace_purchase",
+            "member",
+            "membership",
+            "merge_group",
+            "meta",
+            "milestone",
+            "org_block",
+            "organization",
+            "package",
+            "page_build",
+            "personal_access_token_request",
+            "ping",
+            "project_card",
+            "project",
+            "project_column",
+            "projects_v2",
+            "projects_v2_item",
+            "public",
+            "pull_request",
+            "pull_request_review_comment",
+            "pull_request_review",
+            "pull_request_review_thread",
+            "push",
+            "registry_package",
+            "release",
+            "repository_advisory",
+            "repository",
+            "repository_dispatch",
+            "repository_import",
+            "repository_ruleset",
+            "repository_vulnerability_alert",
+            "secret_scanning_alert",
+            "secret_scanning_alert_location",
+            "security_advisory",
+            "security_and_analysis",
+            "sponsorship",
+            "star",
+            "status",
+            "team_add",
+            "team",
+            "watch",
+            "workflow_dispatch",
+            "workflow_job",
+            "workflow_run",
+        ]
+    ]
 
 
 class Module(Generic[T]):

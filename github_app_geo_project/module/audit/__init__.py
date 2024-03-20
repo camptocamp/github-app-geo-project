@@ -78,7 +78,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
-        return ""
+        return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Audit"
 
     def required_issue_dashboard(self) -> bool:
         """Check if the module requires an issue dashboard."""

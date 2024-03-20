@@ -26,7 +26,7 @@ class AutoMerge(auto.Auto):
         return module.GitHubApplicationPermissions(
             {
                 "pull_requests": "read",
-                "workflow": "write",
+                "workflows": "write",
             },
             {
                 "pull_request",

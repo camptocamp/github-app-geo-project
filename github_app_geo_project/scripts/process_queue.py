@@ -81,7 +81,7 @@ def main() -> None:
                 session.commit()
         try:
             with Session() as session:
-                if event_data.get("type") == "event":
+                if not job.module and event_data.get("type") == "event":
                     for application in config["applications"].split():
                         _LOGGER.info(
                             "Process the event: %s, application: %s", event_data.get("name"), application
