@@ -40,7 +40,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
-        return ""
+        return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Auto-review-merge-close"
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
         """
