@@ -39,20 +39,22 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "issue_url": "",
             "issue_required": False,
             "module_configuration": [],
+            "jobs": [],
         }
     config: project_configuration.GithubApplicationProjectConfiguration = {}
     try:
-        for app in request.registry.settings["applications"].split():
-            try:
-                config = configuration.get_configuration(
-                    request.registry.settings,
-                    request.matchdict["owner"],
-                    request.matchdict["repository"],
-                    app,
-                )
-                break
-            except github.GithubException:
-                _LOGGER.exception("Cannot get the configuration for %s", app)
+        if "TEST_APPLICATION" not in os.environ:
+            for app in request.registry.settings["applications"].split():
+                try:
+                    config = configuration.get_configuration(
+                        request.registry.settings,
+                        request.matchdict["owner"],
+                        request.matchdict["repository"],
+                        app,
+                    )
+                    break
+                except github.GithubException:
+                    _LOGGER.exception("Cannot get the configuration for %s", app)
     except Exception:  # pylint: disable=broad-exception-caught
         _LOGGER.exception("Cannot get the configuration: %s")
         return {
@@ -63,6 +65,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "issue_url": "",
             "issue_required": False,
             "module_configuration": [],
+            "jobs": [],
         }
     lexer = pygments.lexers.YamlLexer()
     formatter = pygments.formatters.HtmlFormatter(style="github-dark")
