@@ -7,7 +7,7 @@ import re
 import subprocess  # nosec
 import tempfile
 from collections.abc import Callable
-from typing import NamedTuple, Union, cast
+from typing import Any, NamedTuple, Union, cast
 
 import github
 
@@ -386,8 +386,8 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         if (
             event_data.get("type") == "pull_request"
             and event_data.get("action") == "edited"
-            and event_data.get("pull_request", {}).get("state") == "closed"  # type: ignore[union-attr]
-            and event_data.get("pull_request", {}).get("milestone")  # type: ignore[union-attr]
+            and event_data.get("pull_request", {}).get("state") == "closed"
+            and event_data.get("pull_request", {}).get("milestone")
         ):
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "pull_request"})]
 
@@ -399,7 +399,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
 
         Note that this method is called in the queue consuming Pod
         """
-        repository = cast(str, context.event_data.get("repository", {}).get("full_name"))  # type: ignore[union-attr]
+        repository = cast(str, context.event_data.get("repository", {}).get("full_name"))
         repo = context.github_application.get_repo(repository)
 
         if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
@@ -424,11 +424,11 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         elif context.event_data.get("type") == "release":
             if context.module_config.get("create-release", changelog_configuration.CREATE_RELEASE_DEFAULT):
                 return
-            tag_str = context.event_data.get("release", {}).get("tag_name")  # type: ignore[assignment,union-attr]
+            tag_str = context.event_data.get("release", {}).get("tag_name")
             release = repo.get_release(tag_str)
         elif context.event_data.get("type") == "pull_request":
             # Get the milestone
-            pull_request_number = context.event_data.get("pull_request", {}).get("number")  # type: ignore[union-attr]
+            pull_request_number = context.event_data.get("pull_request", {}).get("number")
             assert isinstance(pull_request_number, int)
             pull_request = repo.get_pull(pull_request_number)
             if pull_request.milestone:
@@ -460,7 +460,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             ),
         )
 
-    def get_json_schema(self) -> module.JsonDict:
+    def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         # Get changelog-schema.json related to this file
         with open(

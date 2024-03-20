@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from abc import abstractmethod
-from typing import cast
+from typing import Any, cast
 
 import github
 
@@ -52,7 +52,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
         event_data = context.event_data
         if (
             event_data.get("action") in ("opened", "reopened")
-            and event_data.get("pull_request", {}).get("state") == "open"  # type: ignore[union-attr]
+            and event_data.get("pull_request", {}).get("state") == "open"
         ):
             return [module.Action(priority=module.PRIORITY_STANDARD, data={})]
 
@@ -76,19 +76,19 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
             if (
                 equals_if_defined(
                     condition.get("author"),
-                    cast(str, context.event_data["pull_request"]["user"]["login"]),  # type: ignore[index,call-overload]
+                    cast(str, context.event_data["pull_request"]["user"]["login"]),
                 )
-                and get_re(condition.get("title")).match(context.event_data["pull_request"]["title"])  # type: ignore[index,call-overload,arg-type]
-                and get_re(condition.get("branch")).match(
-                    context.event_data["pull_request"]["head"]["ref"]  # type: ignore[index,call-overload,arg-type]
-                )
+                and get_re(condition.get("title")).match(context.event_data["pull_request"]["title"])
+                and get_re(condition.get("branch")).match(context.event_data["pull_request"]["head"]["ref"])
             ):
-                repository = context.github_application.get_repo(context.event_data["repository"]["full_name"])  # type: ignore[index,call-overload,arg-type]
-                pull_request = repository.get_pull(context.event_data["pull_request"]["number"])  # type: ignore[index,call-overload,arg-type]
+                repository = context.github_application.get_repo(
+                    context.event_data["repository"]["full_name"]
+                )
+                pull_request = repository.get_pull(context.event_data["pull_request"]["number"])
                 self.do_action(context, pull_request)
                 return
 
-    def get_json_schema(self) -> module.JsonDict:
+    def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         with open(
             os.path.join(os.path.dirname(__file__), "auto-schema.json"), encoding="utf-8"

@@ -2,7 +2,7 @@
 
 from abc import abstractmethod
 from collections.abc import Mapping
-from typing import Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar, Union
+from typing import Any, Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar
 
 import github
 from sqlalchemy.orm import Session
@@ -19,7 +19,7 @@ class Action(NamedTuple):
     # 30 for actions triggered by a cron event
     priority: int
     # Some data to be used by the process method
-    data: Mapping[str, "Json"]
+    data: Mapping[str, Any]
 
 
 # Priority used to update the pull request status
@@ -30,10 +30,6 @@ PRIORITY_DASHBOARD = 20
 PRIORITY_STANDARD = 30
 # Priority for an action triggered by a cron
 PRIORITY_CRON = 40
-
-# Json Type
-Json = Union[int, float, str, None, dict[str, "Json"], list["Json"]]
-JsonDict = dict[str, Json]
 
 T = TypeVar("T")
 
@@ -46,7 +42,7 @@ class GetActionContext(NamedTuple):
     # The repository name of the event
     repository: str
     # The event data
-    event_data: dict[str, "Json"]
+    event_data: dict[str, Any]
     # The github application
     github_application: github.Github
 
@@ -61,9 +57,9 @@ class CleanupContext(NamedTuple):
     # The repository name of the event
     repository: str
     # The event data
-    event_data: dict[str, "Json"]
+    event_data: dict[str, Any]
     # The data given by the get_actions method
-    module_data: dict[str, "Json"]
+    module_data: dict[str, Any]
 
 
 class ProcessContext(NamedTuple, Generic[T]):
@@ -78,13 +74,15 @@ class ProcessContext(NamedTuple, Generic[T]):
     # The repository name of the event
     repository: str
     # The event data
-    event_data: dict[str, "Json"]
+    event_data: dict[str, Any]
     # The module configuration
     module_config: "T"
     # The data given by the get_actions method
-    module_data: dict[str, "Json"]
+    module_data: dict[str, Any]
     # The data from the issue dashboard
     issue_data: str
+    # The module status
+    transversal_status: dict[str, Any]
 
 
 class Permissions(TypedDict):
@@ -232,6 +230,33 @@ class GitHubApplicationPermissions(NamedTuple):
     ]
 
 
+class ProcessOutput:
+    """The output of the process method."""
+
+    def __init__(
+        self, dashboard: str | None = None, transversal_status: dict[str, Any] | None = None
+    ) -> None:
+        """Create the output of the process method."""
+        self.dashboard = dashboard
+        """The dashboard issue content."""
+        self.transversal_status = transversal_status
+        """The transversal status of the module."""
+
+
+class TransversalDashboardContext(NamedTuple):
+    """The context of the global dashboard."""
+
+    status: dict[str, Any]
+    params: dict[str, str]
+
+
+class TransversalDashboardOutput(NamedTuple):
+    """The output of the module query on the transversal dashboard."""
+
+    renderer: str
+    data: dict[str, Any]
+
+
 class Module(Generic[T]):
     """The base class of the modules."""
 
@@ -257,7 +282,7 @@ class Module(Generic[T]):
         """
 
     @abstractmethod
-    def process(self, context: ProcessContext[T]) -> str | None:
+    def process(self, context: ProcessContext[T]) -> ProcessOutput | None:
         """
         Process the action.
 
@@ -278,7 +303,7 @@ class Module(Generic[T]):
         del context
 
     @abstractmethod
-    def get_json_schema(self) -> JsonDict:
+    def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
 
     def required_issue_dashboard(self) -> bool:
@@ -288,3 +313,13 @@ class Module(Generic[T]):
     def get_github_application_permissions(self) -> GitHubApplicationPermissions:
         """Get the list of permissions needed by the GitHub application."""
         return GitHubApplicationPermissions({}, set())
+
+    def has_transversal_dashboard(self) -> bool:
+        """Return True if the module has a transversal dashboard."""
+        return False
+
+    def get_transversal_dashboard(self, context: TransversalDashboardContext) -> TransversalDashboardOutput:
+        """Get the transversal dashboard content."""
+        del context
+        # Basic implementation to avoid to implement the method in the module
+        return TransversalDashboardOutput(renderer="", data={})

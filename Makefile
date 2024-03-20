@@ -18,6 +18,8 @@ run: build
 	docker compose up -d db
 	docker compose run --rm tests wait-db
 	docker compose up -d worker
+	echo Wait that the worker creates the database structure
+	sleep 1
 	docker compose up -d
 	docker compose exec worker send-event --application=test --event=test
 
