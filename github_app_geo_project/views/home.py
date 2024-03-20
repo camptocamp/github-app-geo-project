@@ -2,7 +2,7 @@
 
 import logging
 import os
-from typing import Any
+from typing import Any, Literal, cast
 
 import pyramid.httpexceptions
 import pyramid.request
@@ -10,13 +10,15 @@ import pyramid.response
 import pyramid.security
 from pyramid.view import view_config
 
-from github_app_geo_project import configuration
+from github_app_geo_project import configuration, module
 from github_app_geo_project.module import modules
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _gt_access(access_1: str, access_2: str) -> bool:
+def _gt_access(
+    access_1: Literal["read", "write", "admin"], access_2: Literal["read", "write", "admin"]
+) -> bool:
     access_number = {"read": 1, "write": 2, "admin": 3}
     return access_number[access_1] > access_number[access_2]
 
@@ -49,7 +51,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             "errors": [],
         }
 
-        permissions: dict[str, str] = {
+        permissions: module.Permissions = {
             "contents": "read",
         }
         events = set()
@@ -58,22 +60,22 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             if module_name not in modules.MODULES:
                 _LOGGER.error("Unknown module %s", module_name)
                 continue
-            module = modules.MODULES[module_name]
+            module_instance = modules.MODULES[module_name]
             application["modules"].append(
                 {
                     "name": module_name,
-                    "title": module.title(),
-                    "description": module.description(),
-                    "documentation_url": module.documentation_url(),
+                    "title": module_instance.title(),
+                    "description": module_instance.description(),
+                    "documentation_url": module_instance.documentation_url(),
                 }
             )
-            if module.required_issue_dashboard():
+            if module_instance.required_issue_dashboard():
                 permissions["issues"] = "write"
-            module_permissions = module.get_github_application_permissions()
+            module_permissions = module_instance.get_github_application_permissions()
             events.update(module_permissions.events)
             for name, access in module_permissions.permissions.items():
-                if name not in permissions or _gt_access(access, permissions[name]):
-                    permissions[name] = access
+                if name not in permissions or _gt_access(access, permissions[name]):  # type: ignore[arg-type,literal-required]
+                    permissions[name] = access  # type: ignore[literal-required]
 
         if admin:
             try:
@@ -85,16 +87,21 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     if not events.issubset(github_events):
                         application["errors"].append(
                             "Missing events (%s) in the GitHub application, please add them in the GitHub configuration interface."
-                            % ", ".join(events - github_events)
+                            % ", ".join(events - github_events)  # type: ignore[operator]
                         )
                         _LOGGER.error(application["errors"][-1])
                         _LOGGER.info("Current events:\n%s", "\n".join(github_events))
+                    if github_events.issubset(events):
+                        _LOGGER.error(
+                            "The GitHub application has more events (%s) than required, please remove them in the GitHub configuration interface.",
+                            ", ".join(github_events - events),
+                        )
 
-                    github_permissions = github.integration.get_app().permissions
+                    github_permissions = cast(module.Permissions, github.integration.get_app().permissions)
                     # test that all permissions are in github_permissions
                     for permission, access in permissions.items():
                         if permission not in github_permissions or _gt_access(
-                            access, github_permissions[permission]
+                            access, github_permissions[permission]  # type: ignore[arg-type,literal-required]
                         ):
                             application["errors"].append(
                                 "Missing permission (%s=%s) in the GitHub application, please add it in the GitHub configuration interface."
