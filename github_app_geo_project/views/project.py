@@ -4,6 +4,7 @@ import logging
 import os
 from typing import Any
 
+import github
 import pygments.formatters
 import pygments.lexers
 import pyramid.httpexceptions
@@ -50,7 +51,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                     app,
                 )
                 break
-            except:  # pylint: disable=bare-except
+            except github.GithubException:
                 _LOGGER.exception("Cannot get the configuration for %s", app)
     except Exception:  # pylint: disable=broad-exception-caught
         _LOGGER.exception("Cannot get the configuration: %s")
