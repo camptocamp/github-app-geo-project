@@ -92,7 +92,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                         )
                         _LOGGER.error(application["errors"][-1])
                         _LOGGER.info("Current events:\n%s", "\n".join(github_events))
-                    if github_events.issubset(events):
+                    if not github_events.issubset(events):
                         _LOGGER.error(
                             "The GitHub application has more events (%s) than required, please remove them in the GitHub configuration interface.",
                             ", ".join(github_events - events),

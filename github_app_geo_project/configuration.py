@@ -1,7 +1,7 @@
 """Manage configuration of the application."""
 
 import os
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 import github
 import jsonmerge
@@ -9,10 +9,10 @@ import yaml
 
 from github_app_geo_project import application_configuration, project_configuration
 
-with open(os.environ["GHCI_CONFIGURATION"], encoding="utf-8") as configuration_file:
-    APPLICATION_CONFIGURATION: application_configuration.GithubApplicationProjectConfiguration = yaml.load(
-        configuration_file, Loader=yaml.SafeLoader
-    )
+APPLICATION_CONFIGURATION: application_configuration.GithubApplicationProjectConfiguration = {}
+if "GHCI_CONFIGURATION" in os.environ:
+    with open(os.environ["GHCI_CONFIGURATION"], encoding="utf-8") as configuration_file:
+        APPLICATION_CONFIGURATION = yaml.load(configuration_file, Loader=yaml.SafeLoader)
 
 
 def apply_profile_inheritance(profile_name: str, profiles: dict[str, Any]) -> None:
@@ -38,11 +38,18 @@ for name, profile in APPLICATION_CONFIGURATION.get("profiles", {}).items():
         )
 
 
-class GithubObjects:
+class GithubObjects(NamedTuple):
     """The Github authentication objects."""
 
     auth: github.Auth.AppAuth
     integration: github.GithubIntegration
+
+
+class GithubApplication(NamedTuple):
+    """The Github Application objects."""
+
+    objects: GithubObjects
+    token: str
     application: github.Github
 
 
@@ -63,12 +70,11 @@ def get_github_objects(config: dict[str, Any], application_name: str) -> GithubO
                 for e in config[f"application.{application_name}.github_app_private_key"].strip().split("\n")
             ]
         )
-        objects = GithubObjects()
-        objects.auth = github.Auth.AppAuth(
+        auth = github.Auth.AppAuth(
             config[f"application.{application_name}.github_app_id"],
             private_key,
         )
-        objects.integration = github.GithubIntegration(auth=objects.auth)
+        objects = GithubObjects(auth, github.GithubIntegration(auth=auth))
 
         GITHUB_APPLICATIONS[application_name] = objects  # noqa
 
@@ -79,7 +85,7 @@ def get_github_objects(config: dict[str, Any], application_name: str) -> GithubO
 
 def get_github_application(
     config: dict[str, Any], application_name: str, owner: str, repository: str
-) -> github.Github:
+) -> GithubApplication:
     """Get the Github Application by name."""
     objects = get_github_objects(config, application_name)
 
@@ -88,7 +94,7 @@ def get_github_application(
     ).token
     github_application = github.Github(login_or_token=token)
 
-    return github_application
+    return GithubApplication(objects, token, github_application)
 
 
 def get_configuration(
@@ -100,8 +106,8 @@ def get_configuration(
     Parameter:
         repository: The repository name (<owner>/<name>)
     """
-    github_application = get_github_application(config, application, owner, repository)
-    repo = github_application.get_repo(f"{owner}/{repository}")
+    github_app = get_github_application(config, application, owner, repository)
+    repo = github_app.application.get_repo(f"{owner}/{repository}")
     project_custom_configuration = {}
     try:
         project_configuration_content = repo.get_contents(".github/ghci.yaml")

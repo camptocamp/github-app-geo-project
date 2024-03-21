@@ -126,15 +126,13 @@ def main() -> None:
                     _LOGGER.error("Unknown module %s", job_module)
                     continue
 
-                github_application = configuration.get_github_application(
-                    config, job_application, owner, repository
-                )
+                github_app = configuration.get_github_application(config, job_application, owner, repository)
 
                 issue_data = ""
                 if current_module.required_issue_dashboard():
                     github_objects = configuration.get_github_objects(config, job_application)
                     repository_full = f"{owner}/{repository}"
-                    repo = github_application.get_repo(repository_full)
+                    repo = github_app.application.get_repo(repository_full)
                     open_issues = repo.get_issues(
                         state="open", creator=github_objects.integration.get_app().owner
                     )
@@ -160,7 +158,7 @@ def main() -> None:
                         session.add(module_status)
                     context = module.ProcessContext(
                         session=session,
-                        github_application=github_application,
+                        github=github_app,
                         owner=owner,
                         repository=repository,
                         event_data=event_data,
