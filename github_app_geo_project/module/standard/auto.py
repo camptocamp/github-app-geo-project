@@ -72,7 +72,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
 
         Note that this method is called in the queue consuming Pod
         """
-        for condition in context.module_config["conditions"]:
+        for condition in context.module_config.get("conditions", []):
             if (
                 equals_if_defined(
                     condition.get("author"),
