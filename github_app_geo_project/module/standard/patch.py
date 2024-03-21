@@ -48,11 +48,10 @@ class Patch(module.Module[dict[str, Any]]):
 
         Note that this method is called in the queue consuming Pod
         """
-        repo = context.github_application.get_repo(f"{context.owner}/{context.repository}")
+        repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
         workflow_run = repo.get_workflow_run(cast(int, context.event_data["workflow_run"]["id"]))
 
-        assert context.github_application.__requester.__auth is not None  # pylint: disable=protected-access
-        token = context.github_application.__requester.__auth.token  # pylint: disable=protected-access
+        token = context.github.token
         should_push = False
         for artifact in workflow_run.get_artifacts():
             if not artifact.name.endswith(".patch"):

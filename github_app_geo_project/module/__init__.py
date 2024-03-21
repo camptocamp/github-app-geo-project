@@ -7,7 +7,7 @@ from typing import Any, Generic, Literal, NamedTuple, NotRequired, TypedDict, Ty
 import github
 from sqlalchemy.orm import Session
 
-from github_app_geo_project import models
+from github_app_geo_project import configuration, models
 
 
 class Action(NamedTuple):
@@ -44,14 +44,14 @@ class GetActionContext(NamedTuple):
     # The event data
     event_data: dict[str, Any]
     # The github application
-    github_application: github.Github
+    github: configuration.GithubApplication
 
 
 class CleanupContext(NamedTuple):
     """The context of the cleanup method."""
 
     # The github application
-    github_application: github.Github
+    github: configuration.GithubApplication
     # The owner and repository of the event
     owner: str
     # The repository name of the event
@@ -68,7 +68,7 @@ class ProcessContext(NamedTuple, Generic[T]):
     # The session to be used
     session: Session
     # The github application
-    github_application: github.Github
+    github: configuration.GithubApplication
     # The owner and repository of the event
     owner: str
     # The repository name of the event

@@ -59,11 +59,11 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
 
     if data.get("action") == "edited" and "issue" in data:
         if data["issue"]["user"]["login"] == github_objects.integration.get_app().slug + "[bot]":
-            github_application = configuration.get_github_application(
+            github = configuration.get_github_application(
                 request.registry.settings, application, owner, repository
             )
             repository_full = f"{owner}/{repository}"
-            repository = github_application.get_repo(repository_full)
+            repository = github.application.get_repo(repository_full)
             open_issues = repository.get_issues(
                 state="open", creator=github_objects.integration.get_app().owner
             )
@@ -138,7 +138,7 @@ def process_dashboard_issue(
                     module.GetActionContext(
                         owner=context.owner,
                         repository=context.repository,
-                        github_application=github_application,
+                        github=github_application,
                         event_data={
                             "type": "dashboard",
                             "old_data": module_old,
@@ -188,7 +188,7 @@ def process_event(context: ProcessContext) -> None:
                 owner=context.owner,
                 repository=context.repository,
                 event_data=context.event_data,
-                github_application=github_application,
+                github=github_application,
             )
         ):
             context.session.execute(
