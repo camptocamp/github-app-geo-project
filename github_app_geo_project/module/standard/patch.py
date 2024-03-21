@@ -48,7 +48,7 @@ class Patch(module.Module[dict[str, Any]]):
 
         Note that this method is called in the queue consuming Pod
         """
-        repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
+        repo = context.github.application.get_repo(f"{context.github.owner}/{context.github.repository}")
         workflow_run = repo.get_workflow_run(cast(int, context.event_data["workflow_run"]["id"]))
 
         token = context.github.token
@@ -69,7 +69,7 @@ class Patch(module.Module[dict[str, Any]]):
                         "clone",
                         "--depth=1",
                         f"--branch={workflow_run.head_branch}",
-                        f"https://x-access-token:{token}@github.com/{context.repository}.git",
+                        f"https://x-access-token:{token}@github.com/{context.github.repository}.git",
                     ],
                     capture_output=True,
                     encoding="utf-8",
@@ -77,7 +77,7 @@ class Patch(module.Module[dict[str, Any]]):
                 if proc.returncode != 0:
                     _LOGGER.error("Failed to clone the repository\n%s\n%s", proc.stdout, proc.stderr)
                     return None
-                os.chdir(context.repository.split("/")[-1])
+                os.chdir(context.github.repository.split("/")[-1])
                 # unzip
                 with zipfile.ZipFile(io.BytesIO(response.content)) as diff:
                     if len(diff.namelist()) != 1:

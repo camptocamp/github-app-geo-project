@@ -37,10 +37,6 @@ T = TypeVar("T")
 class GetActionContext(NamedTuple):
     """The context of the get_actions method."""
 
-    # The owner and repository of the event
-    owner: str
-    # The repository name of the event
-    repository: str
     # The event data
     event_data: dict[str, Any]
     # The github application
@@ -52,10 +48,6 @@ class CleanupContext(NamedTuple):
 
     # The github application
     github: configuration.GithubApplication
-    # The owner and repository of the event
-    owner: str
-    # The repository name of the event
-    repository: str
     # The event data
     event_data: dict[str, Any]
     # The data given by the get_actions method
@@ -69,10 +61,6 @@ class ProcessContext(NamedTuple, Generic[T]):
     session: Session
     # The github application
     github: configuration.GithubApplication
-    # The owner and repository of the event
-    owner: str
-    # The repository name of the event
-    repository: str
     # The event data
     event_data: dict[str, Any]
     # The module configuration

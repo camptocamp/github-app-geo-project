@@ -43,6 +43,8 @@ class GithubObjects(NamedTuple):
 
     auth: github.Auth.AppAuth
     integration: github.GithubIntegration
+    # The application name
+    name: str
 
 
 class GithubApplication(NamedTuple):
@@ -51,6 +53,10 @@ class GithubApplication(NamedTuple):
     objects: GithubObjects
     token: str
     application: github.Github
+    # The owner and repository
+    owner: str
+    # The repository name
+    repository: str
 
 
 GITHUB_APPLICATIONS: dict[str, GithubObjects] = {}
@@ -74,7 +80,7 @@ def get_github_objects(config: dict[str, Any], application_name: str) -> GithubO
             config[f"application.{application_name}.github_app_id"],
             private_key,
         )
-        objects = GithubObjects(auth, github.GithubIntegration(auth=auth))
+        objects = GithubObjects(auth, github.GithubIntegration(auth=auth), application_name)
 
         GITHUB_APPLICATIONS[application_name] = objects  # noqa
 
@@ -84,17 +90,17 @@ def get_github_objects(config: dict[str, Any], application_name: str) -> GithubO
 
 
 def get_github_application(
-    config: dict[str, Any], application_name: str, owner: str, repository: str
+    config: dict[str, Any], application: GithubObjects | str, owner: str, repository: str
 ) -> GithubApplication:
     """Get the Github Application by name."""
-    objects = get_github_objects(config, application_name)
+    objects = get_github_objects(config, application) if isinstance(application, str) else application
 
     token = objects.integration.get_access_token(
         objects.integration.get_installation(owner, repository).id
     ).token
     github_application = github.Github(login_or_token=token)
 
-    return GithubApplication(objects, token, github_application)
+    return GithubApplication(objects, token, github_application, owner, repository)
 
 
 def get_configuration(
