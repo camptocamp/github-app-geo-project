@@ -294,6 +294,10 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             {"push"},
         )
 
+    def has_transversal_dashboard(self) -> bool:
+        """Say that the module has a transversal dashboard."""
+        return True
+
     def get_transversal_dashboard(
         self, context: module.TransversalDashboardContext
     ) -> module.TransversalDashboardOutput:
