@@ -44,6 +44,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     config: project_configuration.GithubApplicationProjectConfiguration = {}
     if "TEST_APPLICATION" not in os.environ:
         for app in request.registry.settings["applications"].split():
+            _LOGGER.debug("Try to get the configuration with %s", app)
             try:
                 config = configuration.get_configuration(
                     request.registry.settings,
@@ -54,6 +55,8 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                 break
             except github.GithubException:
                 _LOGGER.exception("Cannot get the configuration for %s", app)
+
+    _LOGGER.debug("Configuration: %s", config)
 
     lexer = pygments.lexers.YamlLexer()
     formatter = pygments.formatters.HtmlFormatter(style="github-dark")
