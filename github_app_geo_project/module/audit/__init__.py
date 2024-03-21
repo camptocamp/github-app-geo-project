@@ -98,7 +98,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
             security_file = repo.get_contents("SECURITY.md")
             assert isinstance(security_file, github.ContentFile.ContentFile)
-            security = c2cciutils.security.Security(security_file.decoded_content)
+            security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
             versions = _get_versions(security)
             _LOGGER.debug("Versions: %s", versions)
@@ -128,7 +128,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
             security_file = repo.get_contents("SECURITY.md")
             assert isinstance(security_file, github.ContentFile.ContentFile)
-            security = c2cciutils.security.Security(security_file.decoded_content)
+            security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
             issue_data[_OUTDATED] = audit_utils.outdated_versions(security)
 
