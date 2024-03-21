@@ -76,9 +76,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 engine = session_factory.rw_engine
                 with engine.connect() as session:
                     process_dashboard_issue(
-                        ProcessContext(
-                            application, request.registry.settings, owner, repository, data, session
-                        ),
+                        ProcessContext(github, request.registry.settings, data, session),
                         old_content,
                         new_content,
                     )
@@ -89,9 +87,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.rw_engine
     with engine.connect() as session:
-        process_event(
-            ProcessContext(application, request.registry.settings, owner, repository, data, session)
-        )
+        process_event(ProcessContext(github, request.registry.settings, data, session))
         session.commit()
     return {}
 
@@ -100,17 +96,11 @@ class ProcessContext(NamedTuple):
     """The context of the process."""
 
     # The github application name
-    application: str
+    github: configuration.GithubApplication
     # The application configuration
     application_config: dict[str, Any]
-
-    # The owner and repository of the event
-    owner: str
-    # The repository name of the event
-    repository: str
     # The event data
     event_data: dict[str, Any]
-
     # The session to be used
     session: sqlalchemy.orm.Session
 
@@ -121,10 +111,9 @@ def process_dashboard_issue(
     new_data: str,
 ) -> None:
     """Process changes on the dashboard issue."""
-    github_application = configuration.get_github_application(
-        context.application_config, context.application, context.owner, context.repository
-    )
-    for name in context.application_config.get(f"application.{context.application}.modules", "").split():
+    for name in context.application_config.get(
+        f"application.{context.github.objects.name}.modules", ""
+    ).split():
         current_module = modules.MODULES.get(name)
         if current_module is None:
             _LOGGER.error("Unknown module %s", name)
@@ -136,9 +125,7 @@ def process_dashboard_issue(
             if current_module.required_issue_dashboard():
                 for action in current_module.get_actions(
                     module.GetActionContext(
-                        owner=context.owner,
-                        repository=context.repository,
-                        github=github_application,
+                        github=context.github,
                         event_data={
                             "type": "dashboard",
                             "old_data": module_old,
@@ -150,9 +137,9 @@ def process_dashboard_issue(
                         sqlalchemy.insert(models.Queue).values(
                             {
                                 "priority": action.priority,
-                                "application": context.application,
-                                "owner": context.owner,
-                                "repository": context.repository,
+                                "application": context.github.objects.name,
+                                "owner": context.github.owner,
+                                "repository": context.github.repository,
                                 "event_data": {
                                     "type": "dashboard",
                                     "old_data": module_old,
@@ -167,37 +154,34 @@ def process_dashboard_issue(
 
 def process_event(context: ProcessContext) -> None:
     """Process the event."""
-    _LOGGER.debug("Processing event for application %s", context.application)
-    github_application = configuration.get_github_application(
-        context.application_config, context.application, context.owner, context.repository
-    )
-    for name in context.application_config.get(f"application.{context.application}.modules", "").split():
+    _LOGGER.debug("Processing event for application %s", context.github.objects.name)
+    for name in context.application_config.get(
+        f"application.{context.github.objects.name}.modules", ""
+    ).split():
         current_module = modules.MODULES.get(name)
         if current_module is None:
             _LOGGER.error("Unknown module %s", name)
             continue
         _LOGGER.info(
             "Getting actions for the application: %s, repository: %s/%s, module: %s",
-            context.application,
-            context.owner,
-            context.repository,
+            context.github.objects.name,
+            context.github.owner,
+            context.github.repository,
             name,
         )
         for action in current_module.get_actions(
             module.GetActionContext(
-                owner=context.owner,
-                repository=context.repository,
                 event_data=context.event_data,
-                github=github_application,
+                github=context.github,
             )
         ):
             context.session.execute(
                 sqlalchemy.insert(models.Queue).values(
                     {
                         "priority": action.priority,
-                        "application": context.application,
-                        "owner": context.owner,
-                        "repository": context.repository,
+                        "application": context.github.objects.name,
+                        "owner": context.github.owner,
+                        "repository": context.github.repository,
                         "event_data": context.event_data,
                         "module": name,
                         "module_data": action.data,

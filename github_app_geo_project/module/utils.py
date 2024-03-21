@@ -24,8 +24,8 @@ def add_output(
         models.Output(
             title=title,
             status=status,
-            owner=context.owner,
-            repository=context.repository,
+            owner=context.github.owner,
+            repository=context.github.repository,
             access_type=access_type,
             data=data,
         )

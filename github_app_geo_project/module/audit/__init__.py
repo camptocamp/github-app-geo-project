@@ -95,7 +95,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             return [module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"})]
         _LOGGER.debug("Event data: %s", context.event_data)
         if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
-            repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
+            repo = context.github.application.get_repo(f"{context.github.owner}/{context.github.repository}")
             security_file = repo.get_contents("SECURITY.md")
             assert isinstance(security_file, github.ContentFile.ContentFile)
             security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
@@ -125,7 +125,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         """
         issue_data = _parse_issue_data(context.issue_data)
         if context.module_data["type"] == "outdated":
-            repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
+            repo = context.github.application.get_repo(f"{context.github.owner}/{context.github.repository}")
             security_file = repo.get_contents("SECURITY.md")
             assert isinstance(security_file, github.ContentFile.ContentFile)
             security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
@@ -160,7 +160,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 if "branch_to_version_re" in ci_config.get("version", {}):
                     branch_to_version_re = c2cciutils.compile_re(ci_config["version"]["branch-to-version-re"])
 
-                    repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
+                    repo = context.github.application.get_repo(
+                        f"{context.github.owner}/{context.github.repository}"
+                    )
                     for github_branch in repo.get_branches():
                         matched, conf, value = c2cciutils.match(github_branch.name, branch_to_version_re)
                         version = c2cciutils.substitute(matched, conf, value)
@@ -213,7 +215,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
                 result, body, create_issue = audit_utils.snyk(branch, context.module_config, local_config)
                 if create_issue or result:
-                    repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
+                    repo = context.github.application.get_repo(
+                        f"{context.github.owner}/{context.github.repository}"
+                    )
                     issue = repo.create_issue(
                         title=f"Error on running Snyk on {branch}",
                         body=body or "\n".join(result),
@@ -225,7 +229,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 body = "Update dpkg packages"
                 issue_data[key] += audit_utils.dpkg()
                 if issue_data[key]:
-                    repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
+                    repo = context.github.application.get_repo(
+                        f"{context.github.owner}/{context.github.repository}"
+                    )
                     issue = repo.create_issue(
                         title=f"Error on running DPKG on {branch}",
                         body="\n".join(issue_data[key]),
@@ -249,7 +255,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     )
                     return self._get_process_output(context, issue_data)
 
-                repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
+                repo = context.github.application.get_repo(
+                    f"{context.github.owner}/{context.github.repository}"
+                )
                 error, pull_request = utils.create_commit_pull_request(
                     branch, new_branch, f"Audit {key}", body, repo
                 )
@@ -271,9 +279,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
     ) -> module.ProcessOutput:
         module_status = context.transversal_status
         if issue_data:
-            module_status[f"{context.owner}/{context.repository}"] = issue_data
+            module_status[f"{context.github.owner}/{context.github.repository}"] = issue_data
         else:
-            del module_status[f"{context.owner}/{context.repository}"]
+            del module_status[f"{context.github.owner}/{context.github.repository}"]
 
         return module.ProcessOutput(
             dashboard=_format_issue_data(issue_data), transversal_status=module_status

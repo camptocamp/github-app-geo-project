@@ -91,10 +91,8 @@ def main() -> None:
                         if "TEST_APPLICATION" in os.environ:
                             webhook.process_event(
                                 webhook.ProcessContext(
-                                    application,
+                                    None,  # type: ignore[arg-type]
                                     config,
-                                    os.environ.get("TEST_OWNER", "camptocamp"),
-                                    os.environ.get("TEST_REPO", "test"),
                                     event_data,
                                     session,
                                 )
@@ -104,10 +102,10 @@ def main() -> None:
                                 for repo in installation.get_repos():
                                     webhook.process_event(
                                         webhook.ProcessContext(
-                                            application,
+                                            config.get_github_application(
+                                                config, github_objects, repo.owner.login, repo.name
+                                            ),
                                             config,
-                                            repo.owner.login,
-                                            repo.name,
                                             event_data,
                                             session,
                                         )
@@ -159,8 +157,6 @@ def main() -> None:
                     context = module.ProcessContext(
                         session=session,
                         github=github_app,
-                        owner=owner,
-                        repository=repository,
                         event_data=event_data,
                         module_config=module_config,
                         module_data=module_data,
