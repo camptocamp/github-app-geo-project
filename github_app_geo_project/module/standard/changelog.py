@@ -404,11 +404,12 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
 
         if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
             for label, config in context.module_config.get("labels", {}).items():
-                repo.create_label(
-                    name=label,
-                    color=config["color"],
-                    description=config.get("description", ""),
-                )
+                if repo.get_label(label) is None:
+                    repo.create_label(
+                        name=label,
+                        color=config["color"],
+                        description=config.get("description", ""),
+                    )
 
         assert isinstance(repository, str)
         tag_str = ""
