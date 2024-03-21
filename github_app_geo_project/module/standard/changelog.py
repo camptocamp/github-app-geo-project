@@ -381,7 +381,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         event_data = context.event_data
         if event_data.get("type") == "release" and event_data.get("action") == "created":
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "release"})]
-        if event_data.get("type") == "tag" and event_data.get("action") == "created":
+        if event_data.get("ref_type") == "tag":
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "tag"})]
         if (
             event_data.get("type") == "pull_request"
@@ -414,7 +414,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         tag_str = ""
         milestone = None
         release = None
-        if context.event_data.get("type") == "tag":
+        if context.event_data.get("ref_type") == "tag":
             if not context.module_config.get(
                 "create-release", changelog_configuration.CREATE_RELEASE_DEFAULT
             ):
