@@ -93,6 +93,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         """
         if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):
             return [module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"})]
+        _LOGGER.debug("Event data: %s", context.event_data)
         if context.event_data.get("event") == "daily":
             repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
             security_file = repo.get_contents("SECURITY.md")
@@ -100,6 +101,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             security = c2cciutils.security.Security(security_file.decoded_content)
 
             versions = _get_versions(security)
+            _LOGGER.debug("Versions: %s", versions)
 
             results = [
                 {"type": "outdated"},
@@ -293,6 +295,10 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             },
             {"push"},
         )
+
+    def has_transversal_dashboard(self) -> bool:
+        """Say that the module has a transversal dashboard."""
+        return True
 
     def get_transversal_dashboard(
         self, context: module.TransversalDashboardContext

@@ -38,9 +38,9 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
         application = {
             "name": app,
             "github_app_url": request.registry.settings.get(f"application.{app}.github_app_url"),
-            "github_app_admin_url": request.registry.settings.get(f"application.{app}.github_app_admin_url")
-            if admin
-            else None,
+            "github_app_admin_url": (
+                request.registry.settings.get(f"application.{app}.github_app_admin_url") if admin else None
+            ),
             "title": request.registry.settings.get(f"application.{app}.title"),
             "description": request.registry.settings.get(f"application.{app}.description"),
             "modules": [],
@@ -87,31 +87,63 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     # test that all events are in github_events
                     if not events.issubset(github_events):
                         application["errors"].append(
-                            "Missing events (%s) in the GitHub application, please add them in the GitHub configuration interface."
-                            % ", ".join(events - github_events)  # type: ignore[operator]
+                            f"Missing events ({', '.join(events - github_events)}) "  # type: ignore[operator]
+                            f"in the GitHub application, please add them in the "
+                            "GitHub configuration interface."
                         )
-                        _LOGGER.error(application["errors"][-1])
+                        _LOGGER.error(
+                            "Missing events (%s) in the GitHub application '%s', please add them in the "
+                            "GitHub configuration interface.",
+                            ", ".join(events - github_events),  # type: ignore[operator]
+                            app,
+                        )
                         _LOGGER.info("Current events:\n%s", "\n".join(github_events))
                     if not github_events.issubset(events):
                         _LOGGER.error(
-                            "The GitHub application has more events (%s) than required, please remove them in the GitHub configuration interface.",
+                            "The GitHub application '%s' has more events (%s) than required, please remove "
+                            "them in the GitHub configuration interface.",
+                            app,
                             ", ".join(github_events - events),
                         )
 
                     github_permissions = cast(module.Permissions, github.integration.get_app().permissions)
-                    # test that all permissions are in github_permissions
+                    # Test that all permissions are in github_permissions
                     for permission, access in permissions.items():
                         if permission not in github_permissions or _gt_access(
                             access, github_permissions[permission]  # type: ignore[arg-type,literal-required]
                         ):
                             application["errors"].append(
-                                "Missing permission (%s=%s) in the GitHub application, please add it in the GitHub configuration interface."
-                                % (permission, access)
+                                f"Missing permission ({permission}={access}) in the GitHub application, "
+                                "please add it in the GitHub configuration interface."
                             )
-                            _LOGGER.error(application["errors"][-1])
+                            _LOGGER.error(
+                                "Missing permission (%s=%s) in the GitHub application (%s) "
+                                "please add it in the GitHub configuration interface.",
+                                permission,
+                                access,
+                                app,
+                            )
                             _LOGGER.info(
                                 "Current permissions:\n%s",
                                 "\n".join([f"{k}={v}" for k, v in github_permissions.items()]),
+                            )
+                        elif _gt_access(
+                            github_permissions[permission], access  # type: ignore[arg-type,literal-required]
+                        ):
+                            _LOGGER.error(
+                                "The GitHub application '%s' has more permission (%s=%s) than required, "
+                                "please remove it in the GitHub configuration interface.",
+                                app,
+                                permission,
+                                github_permissions[permission],  # type: ignore[literal-required]
+                            )
+                    for permission in github_permissions:
+                        if permission not in permissions:
+                            _LOGGER.error(
+                                "Unnecessary permission (%s) in the GitHub application '%s', please remove it in the "
+                                "GitHub configuration interface.",
+                                permission,
+                                app,
                             )
                 else:
                     application["errors"].append("TEST_APPLICATION is set, no GitHub API call is made.")

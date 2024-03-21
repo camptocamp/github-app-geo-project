@@ -42,31 +42,22 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "jobs": [],
         }
     config: project_configuration.GithubApplicationProjectConfiguration = {}
-    try:
-        if "TEST_APPLICATION" not in os.environ:
-            for app in request.registry.settings["applications"].split():
-                try:
-                    config = configuration.get_configuration(
-                        request.registry.settings,
-                        request.matchdict["owner"],
-                        request.matchdict["repository"],
-                        app,
-                    )
-                    break
-                except github.GithubException:
-                    _LOGGER.exception("Cannot get the configuration for %s", app)
-    except Exception:  # pylint: disable=broad-exception-caught
-        _LOGGER.exception("Cannot get the configuration: %s")
-        return {
-            "styles": "",
-            "repository": repository,
-            "output": [],
-            "error": "You need to install the main GitHub App, see logs for details",
-            "issue_url": "",
-            "issue_required": False,
-            "module_configuration": [],
-            "jobs": [],
-        }
+    if "TEST_APPLICATION" not in os.environ:
+        for app in request.registry.settings["applications"].split():
+            _LOGGER.debug("Try to get the configuration with %s", app)
+            try:
+                config = configuration.get_configuration(
+                    request.registry.settings,
+                    request.matchdict["owner"],
+                    request.matchdict["repository"],
+                    app,
+                )
+                break
+            except github.GithubException:
+                _LOGGER.exception("Cannot get the configuration for %s", app)
+
+    _LOGGER.debug("Configuration: %s", config)
+
     lexer = pygments.lexers.YamlLexer()
     formatter = pygments.formatters.HtmlFormatter(style="github-dark")
 
