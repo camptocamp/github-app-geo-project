@@ -5,7 +5,7 @@ import logging
 import os
 import subprocess  # nosec
 import tempfile
-from typing import cast
+from typing import Any, cast
 
 import c2cciutils.security
 import github
@@ -91,7 +91,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):  # type: ignore[union-attr,operator]
+        if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):
             return [module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"})]
         if context.event_data.get("event") == "daily":
             repo = context.github_application.get_repo(f"{context.owner}/{context.repository}")
@@ -113,7 +113,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
 
         return []
 
-    def process(self, context: module.ProcessContext[configuration.AuditConfiguration]) -> str | None:
+    def process(
+        self, context: module.ProcessContext[configuration.AuditConfiguration]
+    ) -> module.ProcessOutput | None:
         """
         Process the action.
 
@@ -139,7 +141,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         break
                 if to_delete:
                     del issue_data[key]
-            return _format_issue_data(issue_data)
+            return self._get_process_output(context, issue_data)
 
         key = f"Undefined {context.module_data['version']}"
         new_branch = f"ghci/audit/{context.module_data['type']}/{context.module_data['version']}"
@@ -243,7 +245,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     issue_data[key].append(
                         utils.ansi_proc_dashboard("Error while creating the new branch", proc)
                     )
-                    return _format_issue_data(issue_data)
+                    return self._get_process_output(context, issue_data)
 
                 repo = context.github_application.get_repo(f"{context.owner}/{context.repository}")
                 error, pull_request = utils.create_commit_pull_request(
@@ -251,15 +253,31 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 )
                 if error is not None:
                     issue_data[key].append(error)
-                    return _format_issue_data(issue_data)
+                    return self._get_process_output(context, issue_data)
                 if pull_request is not None:
                     issue_data[key] = [f"Pull request created: {pull_request.html_url}", "", *issue_data[key]]
         except Exception as exception:  # pylint: disable=broad-except
             _LOGGER.exception("Audit %s error", key)
             issue_data[key].append(f"Error: {exception}")
-        return _format_issue_data(issue_data)
 
-    def get_json_schema(self) -> module.JsonDict:
+        return self._get_process_output(context, issue_data)
+
+    def _get_process_output(
+        self,
+        context: module.ProcessContext[configuration.AuditConfiguration],
+        issue_data: dict[str, list[str]],
+    ) -> module.ProcessOutput:
+        module_status = context.transversal_status
+        if issue_data:
+            module_status[f"{context.owner}/{context.repository}"] = issue_data
+        else:
+            del module_status[f"{context.owner}/{context.repository}"]
+
+        return module.ProcessOutput(
+            dashboard=_format_issue_data(issue_data), transversal_status=module_status
+        )
+
+    def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
             return json.loads(schema_file.read()).get("definitions", {}).get("auto")  # type: ignore[no-any-return]
@@ -274,4 +292,34 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 "workflows": "write",
             },
             {"push"},
+        )
+
+    def get_transversal_dashboard(
+        self, context: module.TransversalDashboardContext
+    ) -> module.TransversalDashboardOutput:
+        """Get the transversal dashboard content."""
+        if "repository" in context.params:
+            return module.TransversalDashboardOutput(
+                renderer="github_app_geo_project:module/audit/repository.html",
+                # template="repository.html",
+                data={
+                    "title": self.title() + " - " + context.params["repository"],
+                    "audit": context.status.get(context.params["repository"], {}),
+                },
+            )
+
+        result = []
+        for repository, data in context.status.items():
+            if data:
+                result.append(
+                    {
+                        "repository": repository,
+                        "data": data.keys(),
+                    }
+                )
+
+        return module.TransversalDashboardOutput(
+            # template="dashboard.html",
+            renderer="github_app_geo_project:module/audit/dashboard.html",
+            data={"repositories": result},
         )

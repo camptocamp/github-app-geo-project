@@ -67,6 +67,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     "title": module_instance.title(),
                     "description": module_instance.description(),
                     "documentation_url": module_instance.documentation_url(),
+                    "has_transversal_dashboard": module_instance.has_transversal_dashboard() and admin,
                 }
             )
             if module_instance.required_issue_dashboard():

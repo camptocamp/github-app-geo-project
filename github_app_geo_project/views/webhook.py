@@ -109,7 +109,7 @@ class ProcessContext(NamedTuple):
     # The repository name of the event
     repository: str
     # The event data
-    event_data: dict[str, module.Json]
+    event_data: dict[str, Any]
 
     # The session to be used
     session: sqlalchemy.orm.Session

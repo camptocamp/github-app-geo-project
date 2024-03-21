@@ -1,6 +1,7 @@
 from typing import Any
 
 from github_app_geo_project import models, module
+from github_app_geo_project.module import utils
 
 ConfigType = dict[str, Any]
 
@@ -28,7 +29,7 @@ class TestModule(module.Module[ConfigType]):
         del context
         return [module.Action(priority=module.PRIORITY_STATUS, data={})]
 
-    def process(self, context: module.ProcessContext[ConfigType]) -> str | None:
+    def process(self, context: module.ProcessContext[ConfigType]) -> module.ProcessOutput | None:
         """
         Process the action.
 
@@ -36,11 +37,11 @@ class TestModule(module.Module[ConfigType]):
 
         :return: The status of the process to be stored in the dashboard issue
         """
-        self.add_output(context, "Test", ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}])
-        self.add_output(context, "Test", ["Test error"], status=models.OutputStatus.ERROR)
+        utils.add_output(context, "Test", ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}])
+        utils.add_output(context, "Test", ["Test error"], status=models.OutputStatus.ERROR)
         return None
 
-    def get_json_schema(self) -> module.JsonDict:
+    def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         return {
             "type": "object",
@@ -50,3 +51,18 @@ class TestModule(module.Module[ConfigType]):
                 }
             },
         }
+
+    def has_transversal_dashboard(self) -> bool:
+        return True
+
+    def get_transversal_dashboard(
+        self, context: module.TransversalDashboardContext
+    ) -> module.TransversalDashboardOutput:
+        del context
+        return module.TransversalDashboardOutput(
+            renderer="github_app_geo_project:module/tests/dashboard.html",
+            data={
+                # Content with HTML tag to see if they are escaped
+                "content": "<b>Some content</b>",
+            },
+        )

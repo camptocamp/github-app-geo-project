@@ -23,6 +23,13 @@
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.3/font/bootstrap-icons.min.css"
+      integrity="sha512-dPXYcDub/aeb08c63jRq/k6GaKccl256JQy/AnOq7CAnEZ9FzSL9wSbcZkMp4R26vBsMLFYH4kQ67/bbV8XaCQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
     <style>
       a {
         text-decoration: none;
@@ -31,12 +38,11 @@
         text-decoration: underline;
       }
       h1 {
-        /* Leave some space for the GitHub login button */
+        /** Leave some space for the GitHub login button */
         margin-right: 20rem;
       }
-      .app-buttons-group {
-        margin-bottom: 1.5rem;
-      }
+      /* pygments */
+      ${styles|n}
     </style>
   </head>
   <body class="px-5 py-4">
@@ -67,73 +73,8 @@
       %endif
     </div>
     <h1 class="bd-title">${title}</h1>
-    ${description|markdown}
-    <!---->
-    %if documentation_url:
-    <p>
-      <a href="${documentation_url}" target="_blank" rel="noopener noreferrer">Documentation</a>
-    </p>
-    %endif
-    <!---->
-    <h2>Profiles</h2>
-    %for profile_name, profile in profiles.items():
-    <div class="card my-3">
-      <div class="card-header">
-        %if 'title' in profile:
-        <h3>${profile['title']} [${profile_name}]</h3>
-        %else:
-        <h3>${profile_name}</h3>
-        %endif
-      </div>
-      <div class="card-body">${profile['description']|markdown}</div>
-    </div>
-    %endfor
-    <h2>Applications</h2>
-    %for application in applications:
-    <div>
-      <h3>${application['title']} [${application['name']}]</h3>
-      ${application['description']|markdown}
-      <!---->
-      %if application['github_app_url']:
-      <div class="btn-group app-buttons-group">
-        <a class="btn btn-primary" href="${application['github_app_url']}">Install</a>
-        %if application['github_app_admin_url']:
-        <a class="btn btn-info" href="${application['github_app_admin_url']}">Admin</a>
-        %endif
-      </div>
-      <br />
-      %endif
-      <!---->
-      %if application['errors']:
-      <div class="alert alert-danger" role="alert">
-        %for error in application['errors']:
-        <p>${error}</p>
-        %endfor
-      </div>
-      %endif
-      <!---->
-      <h4>Modules</h4>
-      %for module in application['modules']:
-      <div class="card my-3">
-        <div class="card-header">
-          <h5>${module['title']} [${module['name']}]</h5>
-        </div>
-        <div class="card-body">
-          ${module['description']|markdown}
-          <p>
-            <a href="${module['documentation_url']}" target="_blank" rel="noopener noreferrer"
-              >Documentation</a
-            >${',' if module['has_transversal_dashboard'] else ''}
-            <!---->
-            %if module['has_transversal_dashboard']:
-            <a href="${request.route_url('dashboard', module=module['name'])}">Transversal dashboard</a>
-            %endif
-          </p>
-        </div>
-      </div>
-      %endfor
-    </div>
-    %endfor
+
+    ${html|n}
 
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"

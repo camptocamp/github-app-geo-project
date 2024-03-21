@@ -106,3 +106,14 @@ class Output(Base):
     )
     title: Mapped[str] = mapped_column(Unicode, nullable=False)
     data: Mapped[list[str | OutputData]] = mapped_column(JSON, nullable=False)
+
+
+class ModuleStatus(Base):
+    """SQLAlchemy model for the output entries."""
+
+    __tablename__ = "module_status"
+    __table_args__ = {"schema": _SCHEMA}
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    module: Mapped[str] = mapped_column(Unicode, nullable=False, unique=True, index=True)
+    data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

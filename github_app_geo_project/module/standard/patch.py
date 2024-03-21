@@ -36,26 +36,20 @@ class Patch(module.Module[dict[str, Any]]):
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if (
-            "workflow_run" in context.event_data
-            and context.event_data.get("action") == "completed"
-            and context.event_data.get("workflow_run", {}).get("pull_requests")  # type: ignore[union-attr]
+        if context.event_data.get("action") == "failure" and context.event_data.get("workflow_run", {}).get(
+            "pull_requests"
         ):
             return [module.Action(priority=module.PRIORITY_CRON, data={})]
         return []
 
-    def process(self, context: module.ProcessContext[dict[str, Any]]) -> str | None:
+    def process(self, context: module.ProcessContext[dict[str, Any]]) -> module.ProcessOutput | None:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
         """
         repo = context.github_application.get_repo(f"{context.owner}/{context.repository}")
-        workflow_run = repo.get_workflow_run(
-            cast(int, context.event_data["workflow_run"]["id"])  # type: ignore[index,call-overload]
-        )
-        if workflow_run.status != "completed" or workflow_run.conclusion != "failure":
-            return None
+        workflow_run = repo.get_workflow_run(cast(int, context.event_data["workflow_run"]["id"]))
 
         assert context.github_application.__requester.__auth is not None  # pylint: disable=protected-access
         token = context.github_application.__requester.__auth.token  # pylint: disable=protected-access
@@ -116,7 +110,7 @@ class Patch(module.Module[dict[str, Any]]):
                 _LOGGER.error("Failed to push the changes\n%s\n%s", proc.stdout, proc.stderr)
         return None
 
-    def get_json_schema(self) -> module.JsonDict:
+    def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         return {}
 

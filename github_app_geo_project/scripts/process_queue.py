@@ -149,6 +149,15 @@ def main() -> None:
                     ),
                 )
                 if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
+                    module_status = (
+                        session.query(models.ModuleStatus)
+                        .filter(models.Queue.module == job_module)
+                        .with_for_update(of=models.ModuleStatus)
+                        .one_or_none()
+                    )
+                    if module_status is None:
+                        module_status = models.ModuleStatus(module=job_module, data={})
+                        session.add(module_status)
                     context = module.ProcessContext(
                         session=session,
                         github_application=github_application,
@@ -158,9 +167,14 @@ def main() -> None:
                         module_config=module_config,
                         module_data=module_data,
                         issue_data=issue_data,
+                        transversal_status=module_status.data or {},
                     )
                     try:
-                        new_issue_data = current_module.process(context)
+                        result = current_module.process(context)
+                        if result is not None and result.transversal_status is not None:
+                            module_status.data = result.transversal_status
+                            session.commit()
+                        new_issue_data = result.dashboard if result is not None else None
                     except github.GithubException as exception:
                         _LOGGER.exception(
                             "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",

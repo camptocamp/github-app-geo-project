@@ -107,6 +107,12 @@ from github_app_geo_project.templates import markdown, sanitizer, pprint_date
         request_method="GET",
     )
 
+    config.add_route(
+        "dashboard",
+        "dashboard/{module}",
+        request_method="GET",
+    )
+
     config.scan("github_app_geo_project.views")
 
     return config.make_wsgi_app()
