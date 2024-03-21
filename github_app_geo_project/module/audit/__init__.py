@@ -94,7 +94,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):
             return [module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"})]
         _LOGGER.debug("Event data: %s", context.event_data)
-        if context.event_data.get("event") == "daily":
+        if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
             repo = context.github.application.get_repo(f"{context.owner}/{context.repository}")
             security_file = repo.get_contents("SECURITY.md")
             assert isinstance(security_file, github.ContentFile.ContentFile)
