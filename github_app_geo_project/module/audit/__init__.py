@@ -12,7 +12,7 @@ import github
 import yaml
 
 from github_app_geo_project import module
-from github_app_geo_project.module import utils
+from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
 from github_app_geo_project.module.audit import utils as audit_utils
 
@@ -214,7 +214,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     encoding="utf-8",
                 )
                 if proc.returncode != 0:
-                    issue_data[key].append(utils.ansi_proc_dashboard("Error while cloning the project", proc))
+                    issue_data[key].append(
+                        module_utils.ansi_proc_dashboard("Error while cloning the project", proc)
+                    )
 
             if context.module_data["type"] == "snyk":
                 python_version = ""
@@ -230,7 +232,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     )
                     if proc.returncode != 0:
                         issue_data[key].append(
-                            utils.ansi_proc_dashboard("Error while setting the python version", proc)
+                            module_utils.ansi_proc_dashboard("Error while setting the python version", proc)
                         )
 
             if context.module_data["type"] == "snyk":
@@ -276,14 +278,14 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 )
                 if proc.returncode != 0:
                     issue_data[key].append(
-                        utils.ansi_proc_dashboard("Error while creating the new branch", proc)
+                        module_utils.ansi_proc_dashboard("Error while creating the new branch", proc)
                     )
                     return self._get_process_output(context, issue_data)
 
                 repo = context.github.application.get_repo(
                     f"{context.github.owner}/{context.github.repository}"
                 )
-                error, pull_request = utils.create_commit_pull_request(
+                error, pull_request = module_utils.create_commit_pull_request(
                     branch, new_branch, f"Audit {key}", body, repo
                 )
                 if error is not None:
