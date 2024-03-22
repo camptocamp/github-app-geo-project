@@ -384,8 +384,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         if event_data.get("ref_type") == "tag":
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "tag"})]
         if (
-            event_data.get("type") == "pull_request"
-            and event_data.get("action") == "edited"
+            event_data.get("action") == "edited"
             and event_data.get("pull_request", {}).get("state") == "closed"
             and event_data.get("pull_request", {}).get("milestone")
         ):
@@ -416,33 +415,30 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         tag_str = ""
         milestone = None
         release = None
-        if context.event_data.get("ref_type") == "tag":
+        if context.module_data.get("type") == "tag":
             if not context.module_config.get(
                 "create-release", changelog_configuration.CREATE_RELEASE_DEFAULT
             ):
                 return
             tag_str = cast(str, context.event_data["ref"])
             release = repo.create_git_release(tag_str, tag_str, "")
-        elif context.event_data.get("type") == "release":
+        elif context.module_data.get("type") == "release":
             if context.module_config.get("create-release", changelog_configuration.CREATE_RELEASE_DEFAULT):
                 return
             tag_str = context.event_data.get("release", {}).get("tag_name")
             release = repo.get_release(tag_str)
-        elif context.event_data.get("type") == "pull_request":
+        elif context.module_data.get("type") == "pull_request":
             # Get the milestone
-            pull_request_number = context.event_data.get("pull_request", {}).get("number")
-            assert isinstance(pull_request_number, int)
-            pull_request = repo.get_pull(pull_request_number)
-            if pull_request.milestone:
-                milestone = pull_request.milestone
-                tag_str = pull_request.milestone.title
-                release = repo.get_release(tag_str)
-                tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
-                if tag is not None:
-                    return
+            tag_str = context.event_data.get("pull_request", {}).get("milestone", {}).get("title")
+            release = repo.get_release(tag_str)
+            tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
+            if tag is not None:
+                return
             else:
                 _LOGGER.info(
-                    "No milestone found for pull request %s on repository %s", pull_request.number, repository
+                    "No tag found via the milestone for pull request %s on repository %s",
+                    context.event_data.get("pull_request", {}).get("number"),
+                    repository,
                 )
                 return
 
