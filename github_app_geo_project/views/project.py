@@ -24,16 +24,17 @@ _LOGGER = logging.getLogger(__name__)
 @view_config(route_name="project", renderer="github_app_geo_project:templates/project.html")  # type: ignore
 def project(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
-    repository = f'{request.matchdict["owner"]}/{request.matchdict["repository"]}'
+    owner = request.matchdict["owner"]
+    repository = request.matchdict["repository"]
     permission = request.has_permission(
-        repository,
-        {"github_repository": repository, "github_access_type": "admin"},
+        f"{owner}/{repository}",
+        {"github_repository": f"{owner}/{repository}", "github_access_type": "admin"},
     )
     has_access = isinstance(permission, pyramid.security.Allowed)
     if not has_access:
         return {
             "styles": "",
-            "repository": repository,
+            "repository": f"{owner}/{repository}",
             "output": [],
             "error": "Access Denied",
             "issue_url": "",
@@ -44,17 +45,18 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     config: project_configuration.GithubApplicationProjectConfiguration = {}
     if "TEST_APPLICATION" not in os.environ:
         for app in request.registry.settings["applications"].split():
-            _LOGGER.debug("Try to get the configuration with %s", app)
             try:
                 config = configuration.get_configuration(
                     request.registry.settings,
-                    request.matchdict["owner"],
-                    request.matchdict["repository"],
+                    owner,
+                    repository,
                     app,
                 )
                 break
             except github.GithubException:
-                _LOGGER.exception("Cannot get the configuration for %s", app)
+                _LOGGER.debug(
+                    "Cannot get the configuration for %s for repository %s/%s", app, owner, repository
+                )
 
     _LOGGER.debug("Configuration: %s", config)
 
@@ -64,8 +66,8 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     select_output = (
         sqlalchemy.select(models.Output.id, models.Output.title)
         .where(
-            models.Output.owner == request.matchdict["owner"],
-            models.Output.repository == request.matchdict["repository"],
+            models.Output.owner == owner,
+            models.Output.repository == repository,
         )
         .order_by(models.Output.created_at.desc())
     )
@@ -82,8 +84,8 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             models.Queue.started_at,
         )
         .where(
-            models.Queue.owner == request.matchdict["owner"],
-            models.Queue.repository == request.matchdict["repository"],
+            models.Queue.owner == owner,
+            models.Queue.repository == repository,
         )
         .order_by(models.Queue.created_at.desc())
     )
@@ -96,13 +98,14 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                 configuration.get_github_application(
                     request.registry.settings,
                     app,
-                    request.matchdict["owner"],
-                    request.matchdict["repository"],
+                    owner,
+                    repository,
                 )
             module_names.update(request.registry.settings[f"application.{app}.modules"].split())
         except:  # nosec, pylint: disable=bare-except
-            # The repository in not installed in the application
-            pass
+            _LOGGER.debug(
+                "The repository %s/%s is not installed in the application %s", owner, repository, app
+            )
     module_config = []
     for module_name in module_names:
         if module_name not in modules.MODULES:
@@ -127,7 +130,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     with engine.connect() as session:
         return {
             "styles": formatter.get_style_defs(),
-            "repository": repository,
+            "repository": f"{owner}/{repository}",
             "output": session.execute(select_output.limit(20)).all(),
             "jobs": session.execute(select_job.limit(20)).all(),
             "error": None,

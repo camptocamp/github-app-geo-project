@@ -45,9 +45,9 @@ def _format_issue_data(issue_data: dict[str, list[str]]) -> str:
 
 
 def _get_versions(security: c2cciutils.security.Security) -> list[str]:
-    alternate_index = security.header("Alternate Tag")
-    version_index = security.header("Version")
-    support_until_index = security.header("Support Until")
+    alternate_index = security.headers.index("Alternate Tag")
+    version_index = security.headers.index("Version")
+    support_until_index = security.headers.index("Support Until")
     alternate = []
     if alternate_index >= 0:
         for row in security.data:
