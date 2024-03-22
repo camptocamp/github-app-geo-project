@@ -102,7 +102,7 @@ def main() -> None:
                                 for repo in installation.get_repos():
                                     webhook.process_event(
                                         webhook.ProcessContext(
-                                            config.get_github_application(
+                                            configuration.get_github_application(
                                                 config, github_objects, repo.owner.login, repo.name
                                             ),
                                             config,
