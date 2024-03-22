@@ -58,7 +58,25 @@ class Patch(module.Module[dict[str, Any]]):
         for artifact in workflow_run.get_artifacts():
             if not artifact.name.endswith(".patch"):
                 continue
-            response = requests.get(artifact.archive_download_url, timeout=120)
+
+            (
+                status,
+                headers,
+                response_redirect,
+            ) = workflow_run._requester.requestJson(  # pylint: disable=protected-access
+                "GET", artifact.archive_download_url
+            )
+            if status != 302:
+                _LOGGER.error(
+                    "Failed to download artifact %s, status: %s, data:\n%s",
+                    artifact.name,
+                    status,
+                    response_redirect,
+                )
+                continue
+
+            # Follow redirect.
+            response = requests.get(headers["location"], timeout=120)
             if not response.ok:
                 _LOGGER.error("Failed to download artifact %s", artifact.name)
                 continue
