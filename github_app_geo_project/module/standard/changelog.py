@@ -339,7 +339,7 @@ def generate_changelog(
         sections.setdefault(section, []).append(item)
 
     created = tag.tag.commit.commit.author.date
-    result = [f"#{tag.major}.{tag.minor}.{tag.patch} ({created:%Y-%m-%d})", ""]
+    result = [f"# {tag.major}.{tag.minor}.{tag.patch} ({created:%Y-%m-%d})", ""]
     for section_config in configuration["sections"]:
         if section_config["name"] not in sections:
             continue
@@ -351,7 +351,7 @@ def generate_changelog(
             item_authors = [item.author]
             item_authors.extend(a for a in item.authors if a != item.author)
             authors_str = [f"@{a}" for a in item_authors]
-            result.append(f"- {item.ref} **{item.title}** ({', '.join(authors_str)})")
+            result.append(f"- {item.ref} {item.title} ({', '.join(authors_str)})")
         result.append("")
     return "\n".join(result)
 
