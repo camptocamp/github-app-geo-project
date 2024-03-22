@@ -89,7 +89,7 @@ class Patch(module.Module[dict[str, Any]]):
                         "clone",
                         "--depth=1",
                         f"--branch={workflow_run.head_branch}",
-                        f"https://x-access-token:{token}@github.com/{context.github.repository}.git",
+                        f"https://x-access-token:{token}@github.com/{context.github.owner}/{context.github.repository}.git",
                     ],
                     capture_output=True,
                     encoding="utf-8",
