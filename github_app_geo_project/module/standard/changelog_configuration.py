@@ -211,6 +211,13 @@ class Section(TypedDict, total=False):
     description: str
     """ The description of the section """
 
+    closed: bool
+    """
+    The section is closed and openable
+
+    default: False
+    """
+
 
 _ConditionAndSolidusOrType = Union[Literal["and"], Literal["or"]]
 """ The type of the condition """
@@ -228,3 +235,7 @@ _ConditionNotType = Union[Literal["not"]]
 """ The type of the condition """
 _CONDITIONNOTTYPE_NOT: Literal["not"] = "not"
 """The values for the 'The type of the condition' enum"""
+
+
+_SECTION_CLOSED_DEFAULT = False
+""" Default value of the field path 'section closed' """

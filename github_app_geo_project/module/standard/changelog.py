@@ -351,6 +351,10 @@ def generate_changelog(
         if section_config["name"] not in sections:
             continue
         result.append(f"## {section_config['title']}")
+        if section_config.get("closed", False):
+            result.append("<details><summary>{section_config['title']}</summary>")
+        else:
+            result.append(f"## {section_config['title']}")
         result.append("")
         result.append(section_config.get("description", ""))
         result.append("")
@@ -360,6 +364,9 @@ def generate_changelog(
             authors_str = [f"[@{a.name}]({a.url})" for a in item_authors]
             result.append(f"- {item.ref} {item.title} ({', '.join(authors_str)})")
         result.append("")
+        if section_config.get("closed", False):
+            result.append("</details>")
+
     return "\n".join(result)
 
 
