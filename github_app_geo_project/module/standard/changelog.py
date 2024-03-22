@@ -432,9 +432,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             tag_str = context.event_data.get("pull_request", {}).get("milestone", {}).get("title")
             release = repo.get_release(tag_str)
             tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
-            if tag is not None:
-                return
-            else:
+            if tag is None:
                 _LOGGER.info(
                     "No tag found via the milestone for pull request %s on repository %s",
                     context.event_data.get("pull_request", {}).get("number"),
