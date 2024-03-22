@@ -46,8 +46,18 @@ def _format_issue_data(issue_data: dict[str, list[str]]) -> str:
 
 def _get_versions(security: c2cciutils.security.Security) -> list[str]:
     alternate_index = security.headers.index("Alternate Tag") if "Alternate Tag" in security.headers else -1
-    version_index = security.headers.index("Version")
-    support_until_index = security.headers.index("Support Until")
+    version_index = security.headers.index("Version") if "Version" in security.headers else -1
+    support_until_index = (
+        security.headers.index("Support Until") if "Support Until" in security.headers else -1
+    )
+
+    if version_index < 0:
+        _LOGGER.error("No Version column in the SECURITY.md")
+        return []
+    if support_until_index < 0:
+        _LOGGER.error("No Support Until column in the SECURITY.md")
+        return []
+
     alternate = []
     if alternate_index >= 0:
         for row in security.data:
@@ -96,11 +106,18 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         _LOGGER.debug("Event data: %s", context.event_data)
         if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
             repo = context.github.application.get_repo(f"{context.github.owner}/{context.github.repository}")
-            security_file = repo.get_contents("SECURITY.md")
-            assert isinstance(security_file, github.ContentFile.ContentFile)
-            security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
+            versions = []
+            try:
+                security_file = repo.get_contents("SECURITY.md")
+                assert isinstance(security_file, github.ContentFile.ContentFile)
+                security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
-            versions = _get_versions(security)
+                versions = _get_versions(security)
+            except github.GithubException as exception:
+                if exception.status == 404:
+                    _LOGGER.debug("No SECURITY.md file in the repository")
+                else:
+                    raise
             _LOGGER.debug("Versions: %s", versions)
 
             results = [
