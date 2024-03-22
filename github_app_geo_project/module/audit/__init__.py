@@ -45,7 +45,7 @@ def _format_issue_data(issue_data: dict[str, list[str]]) -> str:
 
 
 def _get_versions(security: c2cciutils.security.Security) -> list[str]:
-    alternate_index = security.headers.index("Alternate Tag")
+    alternate_index = security.headers.index("Alternate Tag") if "Alternate Tag" in security.headers else -1
     version_index = security.headers.index("Version")
     support_until_index = security.headers.index("Support Until")
     alternate = []

@@ -379,7 +379,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
         event_data = context.event_data
-        if event_data.get("type") == "release" and event_data.get("action") == "created":
+        if "release" in event_data and event_data.get("action") == "created":
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "release"})]
         if event_data.get("ref_type") == "tag":
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "tag"})]
