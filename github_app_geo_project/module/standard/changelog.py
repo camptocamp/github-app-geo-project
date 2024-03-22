@@ -17,14 +17,21 @@ from github_app_geo_project.module.standard import changelog_configuration
 _LOGGER = logging.getLogger(__name__)
 
 
+class Author(NamedTuple):
+    """Author of a pull request or commit."""
+
+    name: str
+    url: str
+
+
 class ChangelogItem(NamedTuple):
     """Changelog item (pull request or commit."""
 
     object: github.PullRequest.PullRequest | github.Commit.Commit
     ref: str
     title: str
-    author: str
-    authors: set[str]
+    author: Author
+    authors: set[Author]
     branch: str | None
     files: set[str]
     labels: set[str]
@@ -120,7 +127,7 @@ def match_branch(item: ChangelogItem, condition: changelog_configuration.Conditi
 
 def match_author(item: ChangelogItem, condition: changelog_configuration.ConditionAuthor) -> bool:
     """Match the author of the pull request."""
-    return condition["value"] == item.author
+    return condition["value"] == item.author.name
 
 
 def get_section(item: ChangelogItem, config: changelog_configuration.Changelog) -> str:
@@ -303,16 +310,16 @@ def generate_changelog(
         has_pr = False
         for pull_request in commit.get_pulls():
             has_pr = True
-            authors = {pull_request.user.login}
+            authors = {Author(pull_request.user.login, pull_request.user.html_url)}
             for commit_ in pull_request.get_commits():
-                authors.add(commit_.author.login)
+                authors.add(Author(commit_.author.login, commit_.author.html_url))
             pull_request.as_issue().edit(milestone=milestone)
             changelog_items.add(
                 ChangelogItem(
                     object=pull_request,
                     ref=f"#{pull_request.number}",
                     title=pull_request.title,
-                    author=pull_request.user.login,
+                    author=Author(pull_request.user.login, pull_request.user.html_url),
                     authors=authors,
                     branch=pull_request.base.ref,
                     files={github_file.filename for github_file in pull_request.get_files()},
@@ -325,8 +332,8 @@ def generate_changelog(
                     object=commit,
                     ref=commit.sha,
                     title=commit.commit.message.split("\n")[0],
-                    author=commit.author.login,
-                    authors={commit.author.login},
+                    author=Author(commit.author.login, commit.author.html_url),
+                    authors={Author(commit.author.login, commit.author.html_url)},
                     branch=commit.committer.login,
                     files={f.filename for f in commit.files},
                     labels=set(),
@@ -350,7 +357,7 @@ def generate_changelog(
         for item in sections[section_config["name"]]:
             item_authors = [item.author]
             item_authors.extend(a for a in item.authors if a != item.author)
-            authors_str = [f"@{a}" for a in item_authors]
+            authors_str = [f"[@{a.name}]({a.url})" for a in item_authors]
             result.append(f"- {item.ref} {item.title} ({', '.join(authors_str)})")
         result.append("")
     return "\n".join(result)
