@@ -36,6 +36,7 @@ def main() -> None:
     with Session() as session:
         job = github_app_geo_project.models.Queue()
         job.application = args.application
+        job.event_name = "event"
         job.event_data = {
             "type": "event",
             "name": args.event,

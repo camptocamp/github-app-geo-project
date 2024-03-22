@@ -74,7 +74,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 engine = session_factory.rw_engine
                 with engine.connect() as session:
                     process_dashboard_issue(
-                        ProcessContext(github, request.registry.settings, data, session),
+                        ProcessContext(github, request.registry.settings, "dashboard", data, session),
                         old_content,
                         new_content,
                     )
@@ -85,7 +85,15 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.rw_engine
     with engine.connect() as session:
-        process_event(ProcessContext(github, request.registry.settings, data, session))
+        process_event(
+            ProcessContext(
+                github,
+                request.registry.settings,
+                request.headers.get("X-GitHub-Event", "undefined"),
+                data,
+                session,
+            )
+        )
         session.commit()
     return {}
 
@@ -97,6 +105,8 @@ class ProcessContext(NamedTuple):
     github: configuration.GithubApplication
     # The application configuration
     application_config: dict[str, Any]
+    # The event name present in the X-GitHub-Event header
+    event_name: str
     # The event data
     event_data: dict[str, Any]
     # The session to be used
@@ -124,6 +134,7 @@ def process_dashboard_issue(
                 for action in current_module.get_actions(
                     module.GetActionContext(
                         github=context.github,
+                        event_name="dashboard",
                         event_data={
                             "type": "dashboard",
                             "old_data": module_old,
@@ -138,6 +149,7 @@ def process_dashboard_issue(
                                 "application": context.github.objects.name,
                                 "owner": context.github.owner,
                                 "repository": context.github.repository,
+                                "event_name": "dashboard",
                                 "event_data": {
                                     "type": "dashboard",
                                     "old_data": module_old,
@@ -169,6 +181,7 @@ def process_event(context: ProcessContext) -> None:
         )
         for action in current_module.get_actions(
             module.GetActionContext(
+                event_name=context.event_name,
                 event_data=context.event_data,
                 github=context.github,
             )
@@ -180,6 +193,7 @@ def process_event(context: ProcessContext) -> None:
                         "application": context.github.objects.name,
                         "owner": context.github.owner,
                         "repository": context.github.repository,
+                        "event_name": context.event_name,
                         "event_data": context.event_data,
                         "module": name,
                         "module_data": action.data,

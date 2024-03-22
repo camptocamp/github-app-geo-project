@@ -53,6 +53,7 @@ class Queue(Base):
     application: Mapped[str] = mapped_column(Unicode, nullable=False)
     owner: Mapped[str] = mapped_column(Unicode, nullable=True)
     repository: Mapped[str] = mapped_column(Unicode, nullable=True)
+    event_name: Mapped[str] = mapped_column(Unicode, nullable=False)
     event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     module: Mapped[str] = mapped_column(Unicode, nullable=True)
     module_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)

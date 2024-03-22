@@ -93,6 +93,7 @@ def main() -> None:
                                 webhook.ProcessContext(
                                     None,  # type: ignore[arg-type]
                                     config,
+                                    "event",
                                     event_data,
                                     session,
                                 )
@@ -106,6 +107,7 @@ def main() -> None:
                                                 config, github_objects, repo.owner.login, repo.name
                                             ),
                                             config,
+                                            "event",
                                             event_data,
                                             session,
                                         )
@@ -157,6 +159,7 @@ def main() -> None:
                     context = module.ProcessContext(
                         session=session,
                         github=github_app,
+                        event_name="event",
                         event_data=event_data,
                         module_config=module_config,
                         module_data=module_data,
