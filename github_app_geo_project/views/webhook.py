@@ -179,24 +179,27 @@ def process_event(context: ProcessContext) -> None:
             context.github.repository,
             name,
         )
-        for action in current_module.get_actions(
-            module.GetActionContext(
-                event_name=context.event_name,
-                event_data=context.event_data,
-                github=context.github,
-            )
-        ):
-            context.session.execute(
-                sqlalchemy.insert(models.Queue).values(
-                    {
-                        "priority": action.priority,
-                        "application": context.github.objects.name,
-                        "owner": context.github.owner,
-                        "repository": context.github.repository,
-                        "event_name": context.event_name,
-                        "event_data": context.event_data,
-                        "module": name,
-                        "module_data": action.data,
-                    }
+        try:
+            for action in current_module.get_actions(
+                module.GetActionContext(
+                    event_name=context.event_name,
+                    event_data=context.event_data,
+                    github=context.github,
                 )
-            )
+            ):
+                context.session.execute(
+                    sqlalchemy.insert(models.Queue).values(
+                        {
+                            "priority": action.priority,
+                            "application": context.github.objects.name,
+                            "owner": context.github.owner,
+                            "repository": context.github.repository,
+                            "event_name": context.event_name,
+                            "event_data": context.event_data,
+                            "module": name,
+                            "module_data": action.data,
+                        }
+                    )
+                )
+        except Exception as exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Error while getting actions for %s: %s", name, exception)
