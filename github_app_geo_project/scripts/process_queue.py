@@ -156,18 +156,19 @@ def main() -> None:
                     if module_status is None:
                         module_status = models.ModuleStatus(module=job_module, data={})
                         session.add(module_status)
-                    context = module.ProcessContext(
-                        session=session,
-                        github=github_app,
-                        event_name="event",
-                        event_data=event_data,
-                        module_config=module_config,
-                        module_data=module_data,
-                        issue_data=issue_data,
-                        transversal_status=module_status.data or {},
-                    )
                     try:
-                        result = current_module.process(context)
+                        result = current_module.process(
+                            module.ProcessContext(
+                                session=session,
+                                github=github_app,
+                                event_name="event",
+                                event_data=event_data,
+                                module_config=module_config,
+                                module_data=module_data,
+                                issue_data=issue_data,
+                                transversal_status=module_status.data or {},
+                            )
+                        )
                         if result is not None and result.transversal_status is not None:
                             module_status.data = result.transversal_status
                             session.commit()
@@ -198,14 +199,15 @@ def main() -> None:
                         raise
                 else:
                     _LOGGER.info("Module %s is disabled", job_module)
-                    context = module.CleanupContext(
-                        github=github_app,
-                        event_name="event",
-                        event_data=event_data,
-                        module_config=module_config,
-                    )
                     try:
-                        result = current_module.cleanup(context)
+                        current_module.cleanup(
+                            module.CleanupContext(
+                                github=github_app,
+                                event_name="event",
+                                event_data=event_data,
+                                module_data=module_data,
+                            )
+                        )
                     except Exception:
                         _LOGGER.exception(
                             "Failed to cleanup job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
