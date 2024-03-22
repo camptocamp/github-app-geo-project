@@ -56,12 +56,10 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             )
         return {}
     owner, repository = data["repository"]["full_name"].split("/")
+    github = configuration.get_github_application(request.registry.settings, application, owner, repository)
 
     if data.get("action") == "edited" and "issue" in data:
         if data["issue"]["user"]["login"] == github_objects.integration.get_app().slug + "[bot]":
-            github = configuration.get_github_application(
-                request.registry.settings, application, owner, repository
-            )
             repository_full = f"{owner}/{repository}"
             repository = github.application.get_repo(repository_full)
             open_issues = repository.get_issues(

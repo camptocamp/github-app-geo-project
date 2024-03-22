@@ -53,6 +53,8 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
 
         permissions: module.Permissions = {
             "contents": "read",
+            # Impossible to remove this permission on GitHub, so we don't check it
+            "metadata": "read",
         }
         events = set()
 

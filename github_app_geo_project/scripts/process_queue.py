@@ -102,7 +102,7 @@ def main() -> None:
                                 for repo in installation.get_repos():
                                     webhook.process_event(
                                         webhook.ProcessContext(
-                                            config.get_github_application(
+                                            configuration.get_github_application(
                                                 config, github_objects, repo.owner.login, repo.name
                                             ),
                                             config,
@@ -124,11 +124,11 @@ def main() -> None:
                     _LOGGER.error("Unknown module %s", job_module)
                     continue
 
-                github_app = configuration.get_github_application(config, job_application, owner, repository)
+                github_objects = configuration.get_github_objects(config, job_application)
+                github_app = configuration.get_github_application(config, github_objects, owner, repository)
 
                 issue_data = ""
                 if current_module.required_issue_dashboard():
-                    github_objects = configuration.get_github_objects(config, job_application)
                     repository_full = f"{owner}/{repository}"
                     repo = github_app.application.get_repo(repository_full)
                     open_issues = repo.get_issues(
