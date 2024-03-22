@@ -16,6 +16,10 @@ from github_app_geo_project.module import utils
 _LOGGER = logging.getLogger(__name__)
 
 
+class PatchException(Exception):
+    """Error while applying the patch."""
+
+
 class Patch(module.Module[dict[str, Any]]):
     """Module that apply the patch present in the artifact on the branch of the pull request."""
 
@@ -44,7 +48,9 @@ class Patch(module.Module[dict[str, Any]]):
             return [module.Action(priority=module.PRIORITY_CRON, data={})]
         return []
 
-    def process(self, context: module.ProcessContext[dict[str, Any]]) -> module.ProcessOutput | None:
+    def process(  # pylint: disable=useless-return
+        self, context: module.ProcessContext[dict[str, Any]]
+    ) -> module.ProcessOutput | None:
         """
         Process the action.
 
@@ -95,9 +101,32 @@ class Patch(module.Module[dict[str, Any]]):
                     encoding="utf-8",
                 )
                 if proc.returncode != 0:
-                    _LOGGER.error("Failed to clone the repository\n%s\n%s", proc.stdout, proc.stderr)
-                    return None
+                    raise PatchException(
+                        f"Failed to clone the repository\n{proc.stdout}\nError:\n{proc.stderr}"
+                    )
                 os.chdir(context.github.repository.split("/")[-1])
+                app = context.github.application.get_app()
+                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                    [
+                        "git",
+                        "config",
+                        "--global",
+                        "user.email",
+                        f"{app.id}+{app.slug}[bot]@users.noreply.github.com",
+                    ],
+                    capture_output=True,
+                    encoding="utf-8",
+                )
+                if proc.returncode != 0:
+                    raise PatchException(f"Failed to set the email\n{proc.stdout}\nError:\n{proc.stderr}")
+                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                    ["git", "config", "--global", "user.name", app.name],
+                    capture_output=True,
+                    encoding="utf-8",
+                )
+                if proc.returncode != 0:
+                    raise PatchException(f"Failed to set the name\n{proc.stdout}\nError:\n{proc.stderr}")
+
                 # unzip
                 with zipfile.ZipFile(io.BytesIO(response.content)) as diff:
                     if len(diff.namelist()) != 1:
@@ -112,12 +141,12 @@ class Patch(module.Module[dict[str, Any]]):
                             capture_output=True,
                         )
                         if proc.returncode != 0:
-                            _LOGGER.error("Failed to apply the diff\n%s\n%s", proc.stdout, proc.stderr)
-                            return None
+                            raise PatchException(
+                                f"Failed to apply the diff\n{proc.stdout}\nError:\n{proc.stderr}"
+                            )
                         error = utils.create_commit(artifact.name[:-5])
                         if error:
-                            _LOGGER.error("Failed to commit the changes\n%s", error)
-                            return None
+                            raise PatchException(f"Failed to commit the changes\n{error}")
                         should_push = True
         if should_push:
             proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -126,7 +155,7 @@ class Patch(module.Module[dict[str, Any]]):
                 encoding="utf-8",
             )
             if proc.returncode != 0:
-                _LOGGER.error("Failed to push the changes\n%s\n%s", proc.stdout, proc.stderr)
+                raise PatchException(f"Failed to push the changes\n{proc.stdout}\nError:\n{proc.stderr}")
         return None
 
     def get_json_schema(self) -> dict[str, Any]:
