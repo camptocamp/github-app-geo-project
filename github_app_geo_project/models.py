@@ -29,6 +29,7 @@ class JobStatus(enum.Enum):
     PENDING = "pending"
     ERROR = "error"
     DONE = "done"
+    SKIPPED = "skipped"
 
 
 class Queue(Base):

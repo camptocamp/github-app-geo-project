@@ -196,6 +196,25 @@ def main() -> None:
                             event_data,
                         )
                         raise
+                else:
+                    _LOGGER.info("Module %s is disabled", job_module)
+                    context = module.CleanupContext(
+                        github=github_app,
+                        event_name="event",
+                        event_data=event_data,
+                        module_config=module_config,
+                    )
+                    try:
+                        result = current_module.cleanup(context)
+                    except Exception:
+                        _LOGGER.exception(
+                            "Failed to cleanup job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
+                            job_id,
+                            job_module,
+                            module_data,
+                            event_data,
+                        )
+                        raise
 
                 session.execute(
                     sqlalchemy.update(models.Queue)

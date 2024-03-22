@@ -50,6 +50,8 @@ class CleanupContext(NamedTuple):
 
     # The github application
     github: configuration.GithubApplication
+    # The event name present in the X-GitHub-Event header
+    event_name: str
     # The event data
     event_data: dict[str, Any]
     # The data given by the get_actions method
@@ -63,6 +65,8 @@ class ProcessContext(NamedTuple, Generic[T]):
     session: Session
     # The github application
     github: configuration.GithubApplication
+    # The event name present in the X-GitHub-Event header
+    event_name: str
     # The event data
     event_data: dict[str, Any]
     # The module configuration
