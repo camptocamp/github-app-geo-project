@@ -149,7 +149,7 @@ def main() -> None:
                 if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
                     module_status = (
                         session.query(models.ModuleStatus)
-                        .filter(models.Queue.module == job_module)
+                        .filter(models.ModuleStatus.module == job_module)
                         .with_for_update(of=models.ModuleStatus)
                         .one_or_none()
                     )
