@@ -403,8 +403,9 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         repo = context.github.application.get_repo(repository)
 
         if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
+            existing_labels = {label.name for label in repo.get_labels()}
             for label, config in context.module_config.get("labels", {}).items():
-                if repo.get_label(label) is None:
+                if label not in existing_labels:
                     repo.create_label(
                         name=label,
                         color=config["color"],
