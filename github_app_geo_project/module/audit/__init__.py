@@ -143,11 +143,19 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         issue_data = _parse_issue_data(context.issue_data)
         if context.module_data["type"] == "outdated":
             repo = context.github.application.get_repo(f"{context.github.owner}/{context.github.repository}")
-            security_file = repo.get_contents("SECURITY.md")
-            assert isinstance(security_file, github.ContentFile.ContentFile)
-            security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
+            try:
+                security_file = repo.get_contents("SECURITY.md")
+                assert isinstance(security_file, github.ContentFile.ContentFile)
+                security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
-            issue_data[_OUTDATED] = audit_utils.outdated_versions(security)
+                issue_data[_OUTDATED] = audit_utils.outdated_versions(security)
+            except github.GithubException as exception:
+                if exception.status == 404:
+                    issue_data[_OUTDATED] = ["No SECURITY.md file in the repository"]
+                    _LOGGER.debug("No SECURITY.md file in the repository")
+                else:
+                    issue_data[_OUTDATED] = [f"Error while getting SECURITY.md: {exception}"]
+                    raise
 
             # Remove outdated version in the dashdoard
             versions = _get_versions(security)
