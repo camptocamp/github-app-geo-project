@@ -105,7 +105,7 @@ class Patch(module.Module[dict[str, Any]]):
                         f"Failed to clone the repository\n{proc.stdout}\nError:\n{proc.stderr}"
                     )
                 os.chdir(context.github.repository.split("/")[-1])
-                app = context.github.application.get_app()
+                app = context.github.objects.integration.get_app()
                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                     [
                         "git",
