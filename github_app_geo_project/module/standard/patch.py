@@ -36,8 +36,10 @@ class Patch(module.Module[dict[str, Any]]):
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_data.get("action") == "failure" and context.event_data.get("workflow_run", {}).get(
-            "pull_requests"
+        if (
+            context.event_data.get("action") == "completed"
+            and context.event_data.get("workflow_run", {}).get("pull_requests")
+            and context.event_data.get("workflow_run", {}).get("conclusion") == "failure"
         ):
             return [module.Action(priority=module.PRIORITY_CRON, data={})]
         return []
