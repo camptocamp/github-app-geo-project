@@ -14,6 +14,7 @@
       - **`name`** _(string)_: The name of the section.
       - **`title`** _(string)_: The title of the section.
       - **`description`** _(string)_: The description of the section.
+      - **`closed`** _(boolean)_: The section is closed and openable. Default: `false`.
   - **`default-section`** _(string)_: The default section for items.
   - **`routing`** _(array)_: The routing configuration.
     - **Items** _(object)_: The routing configuration.

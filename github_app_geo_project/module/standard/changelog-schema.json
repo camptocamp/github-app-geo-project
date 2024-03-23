@@ -65,6 +65,11 @@
               "description": {
                 "type": "string",
                 "description": "The description of the section"
+              },
+              "closed": {
+                "type": "boolean",
+                "description": "The section is closed and openable",
+                "default": false
               }
             }
           }
