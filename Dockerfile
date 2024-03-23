@@ -97,6 +97,11 @@ RUN --mount=type=cache,target=/root/.cache \
     POETRY_DYNAMIC_VERSIONING_BYPASS=${VERSION} python3 -m pip install --disable-pip-version-check --no-deps --editable=. \
     && python3 -m compileall
 
+# Create the home of www-data
+RUN mkdir /var/www \
+    && chmod a+rwx /var/www \
+    && chown -R 33:33 /var/www
+
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
 
@@ -140,11 +145,6 @@ RUN --mount=type=cache,target=/root/.cache \
     && python3 -m pip freeze >/requirements.txt
 
 COPY scripts/* /usr/bin/
-
-# Create the home of www-data
-RUN mkdir /var/www \
-    && chmod a+rwx /var/www \
-    && chown -R 33:33 /var/www
 
 # Set runner as final
 FROM runner
