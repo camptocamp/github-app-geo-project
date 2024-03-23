@@ -350,7 +350,6 @@ def generate_changelog(
     for section_config in configuration["sections"]:
         if section_config["name"] not in sections:
             continue
-        result.append(f"## {section_config['title']}")
         if section_config.get("closed", False):
             result.append("<details><summary>{section_config['title']}</summary>")
         else:
