@@ -42,14 +42,14 @@ class GetActionContext(NamedTuple):
     # The event data
     event_data: dict[str, Any]
     # The github application
-    github: configuration.GithubApplication
+    github_project: configuration.GithubProject
 
 
 class CleanupContext(NamedTuple):
     """The context of the cleanup method."""
 
     # The github application
-    github: configuration.GithubApplication
+    github_project: configuration.GithubProject
     # The event name present in the X-GitHub-Event header
     event_name: str
     # The event data
@@ -64,7 +64,7 @@ class ProcessContext(NamedTuple, Generic[T]):
     # The session to be used
     session: Session
     # The github application
-    github: configuration.GithubApplication
+    github_project: configuration.GithubProject
     # The event name present in the X-GitHub-Event header
     event_name: str
     # The event data

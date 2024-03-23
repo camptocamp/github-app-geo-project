@@ -377,7 +377,7 @@ def generate_changelog(
         if section_config["name"] not in sections:
             continue
         if section_config.get("closed", False):
-            result += ["<details><summary>", "", f"## ${section_config['title']}", "</summary>"]
+            result += ["<details><summary>", "", f"## {section_config['title']}", "</summary>"]
         else:
             result.append(f"## {section_config['title']}")
         result.append("")
@@ -438,7 +438,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         Note that this method is called in the queue consuming Pod
         """
         repository = cast(str, context.event_data.get("repository", {}).get("full_name"))
-        repo = context.github.application.get_repo(repository)
+        repo = context.github_project.github.get_repo(repository)
 
         if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
             existing_labels = {label.name for label in repo.get_labels()}
@@ -491,7 +491,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             tag_str,
             tag_name=tag_str,
             message=generate_changelog(
-                context.github.application, context.module_config, repository, tag_str, milestone
+                context.github_project.github, context.module_config, repository, tag_str, milestone
             ),
         )
 

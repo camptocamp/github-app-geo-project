@@ -22,7 +22,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     """Receive GitHub application webhook URL."""
     application = request.matchdict["application"]
     data = request.json
-    github_objects = configuration.get_github_objects(request.registry.settings, application)
+    github_objects = configuration.get_github_application(request.registry.settings, application)
 
     _LOGGER.debug("Webhook received for %s, with:\n%s", application, json.dumps(data, indent=2))
 
@@ -56,12 +56,12 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             )
         return {}
     owner, repository = data["repository"]["full_name"].split("/")
-    github = configuration.get_github_application(request.registry.settings, application, owner, repository)
+    github = configuration.get_github_project(request.registry.settings, application, owner, repository)
 
     if data.get("action") == "edited" and "issue" in data:
         if data["issue"]["user"]["login"] == github_objects.integration.get_app().slug + "[bot]":
             repository_full = f"{owner}/{repository}"
-            repository = github.application.get_repo(repository_full)
+            repository = github.github.get_repo(repository_full)
             open_issues = repository.get_issues(
                 state="open", creator=github_objects.integration.get_app().owner
             )
@@ -102,7 +102,7 @@ class ProcessContext(NamedTuple):
     """The context of the process."""
 
     # The github application name
-    github: configuration.GithubApplication
+    github_project: configuration.GithubProject
     # The application configuration
     application_config: dict[str, Any]
     # The event name present in the X-GitHub-Event header
@@ -120,7 +120,7 @@ def process_dashboard_issue(
 ) -> None:
     """Process changes on the dashboard issue."""
     for name in context.application_config.get(
-        f"application.{context.github.objects.name}.modules", ""
+        f"application.{context.github_project.application.name}.modules", ""
     ).split():
         current_module = modules.MODULES.get(name)
         if current_module is None:
@@ -133,7 +133,7 @@ def process_dashboard_issue(
             if current_module.required_issue_dashboard():
                 for action in current_module.get_actions(
                     module.GetActionContext(
-                        github=context.github,
+                        github_project=context.github_project,
                         event_name="dashboard",
                         event_data={
                             "type": "dashboard",
@@ -146,9 +146,9 @@ def process_dashboard_issue(
                         sqlalchemy.insert(models.Queue).values(
                             {
                                 "priority": action.priority,
-                                "application": context.github.objects.name,
-                                "owner": context.github.owner,
-                                "repository": context.github.repository,
+                                "application": context.github_project.application.name,
+                                "owner": context.github_project.owner,
+                                "repository": context.github_project.repository,
                                 "event_name": "dashboard",
                                 "event_data": {
                                     "type": "dashboard",
@@ -164,9 +164,9 @@ def process_dashboard_issue(
 
 def process_event(context: ProcessContext) -> None:
     """Process the event."""
-    _LOGGER.debug("Processing event for application %s", context.github.objects.name)
+    _LOGGER.debug("Processing event for application %s", context.github_project.application.name)
     for name in context.application_config.get(
-        f"application.{context.github.objects.name}.modules", ""
+        f"application.{context.github_project.application.name}.modules", ""
     ).split():
         current_module = modules.MODULES.get(name)
         if current_module is None:
@@ -174,9 +174,9 @@ def process_event(context: ProcessContext) -> None:
             continue
         _LOGGER.info(
             "Getting actions for the application: %s, repository: %s/%s, module: %s",
-            context.github.objects.name,
-            context.github.owner,
-            context.github.repository,
+            context.github_project.application.name,
+            context.github_project.owner,
+            context.github_project.repository,
             name,
         )
         try:
@@ -184,16 +184,16 @@ def process_event(context: ProcessContext) -> None:
                 module.GetActionContext(
                     event_name=context.event_name,
                     event_data=context.event_data,
-                    github=context.github,
+                    github_project=context.github_project,
                 )
             ):
                 context.session.execute(
                     sqlalchemy.insert(models.Queue).values(
                         {
                             "priority": action.priority,
-                            "application": context.github.objects.name,
-                            "owner": context.github.owner,
-                            "repository": context.github.repository,
+                            "application": context.github_project.application.name,
+                            "owner": context.github_project.owner,
+                            "repository": context.github_project.repository,
                             "event_name": context.event_name,
                             "event_data": context.event_data,
                             "module": name,
