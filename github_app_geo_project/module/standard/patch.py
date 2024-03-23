@@ -20,6 +20,17 @@ class PatchException(Exception):
     """Error while applying the patch."""
 
 
+def format_process_output(output: subprocess.CompletedProcess[str]) -> str:
+    """Format the output of the process."""
+    if output.stdout and output.stderr:
+        return f"\n{output.stdout}\nError:\n{output.stderr}"
+    if output.stdout:
+        return f"\n{output.stdout}"
+    if output.stderr:
+        return f"\n{output.stderr}"
+    return ""
+
+
 class Patch(module.Module[dict[str, Any]]):
     """Module that apply the patch present in the artifact on the branch of the pull request."""
 
@@ -58,74 +69,75 @@ class Patch(module.Module[dict[str, Any]]):
         """
         repo = context.github.application.get_repo(f"{context.github.owner}/{context.github.repository}")
         workflow_run = repo.get_workflow_run(cast(int, context.event_data["workflow_run"]["id"]))
+        if not workflow_run.get_artifacts():
+            _LOGGER.debug("No artifacts found")
+            return None
 
         token = context.github.token
         should_push = False
-        for artifact in workflow_run.get_artifacts():
-            if not artifact.name.endswith(".patch"):
-                continue
-
-            (
-                status,
-                headers,
-                response_redirect,
-            ) = workflow_run._requester.requestJson(  # pylint: disable=protected-access
-                "GET", artifact.archive_download_url
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            os.chdir(tmpdirname)
+            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                [
+                    "git",
+                    "clone",
+                    "--depth=1",
+                    f"--branch={workflow_run.head_branch}",
+                    f"https://x-access-token:{token}@github.com/{context.github.owner}/{context.github.repository}.git",
+                ],
+                capture_output=True,
+                encoding="utf-8",
             )
-            if status != 302:
-                _LOGGER.error(
-                    "Failed to download artifact %s, status: %s, data:\n%s",
-                    artifact.name,
+            if proc.returncode != 0:
+                raise PatchException(f"Failed to clone the repository{format_process_output(proc)}")
+            os.chdir(context.github.repository.split("/")[-1])
+            app = context.github.objects.integration.get_app()
+            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                [
+                    "git",
+                    "config",
+                    "--global",
+                    "user.email",
+                    f"{app.id}+{app.slug}[bot]@users.noreply.github.com",
+                ],
+                capture_output=True,
+                encoding="utf-8",
+            )
+            if proc.returncode != 0:
+                raise PatchException(f"Failed to set the email{format_process_output(proc)}")
+            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                ["git", "config", "--global", "user.name", app.name],
+                capture_output=True,
+                encoding="utf-8",
+            )
+            if proc.returncode != 0:
+                raise PatchException(f"Failed to set the name{format_process_output(proc)}")
+
+            for artifact in workflow_run.get_artifacts():
+                if not artifact.name.endswith(".patch"):
+                    continue
+
+                (
                     status,
+                    headers,
                     response_redirect,
+                ) = workflow_run._requester.requestJson(  # pylint: disable=protected-access
+                    "GET", artifact.archive_download_url
                 )
-                continue
-
-            # Follow redirect.
-            response = requests.get(headers["location"], timeout=120)
-            if not response.ok:
-                _LOGGER.error("Failed to download artifact %s", artifact.name)
-                continue
-
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                os.chdir(tmpdirname)
-                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                    [
-                        "git",
-                        "clone",
-                        "--depth=1",
-                        f"--branch={workflow_run.head_branch}",
-                        f"https://x-access-token:{token}@github.com/{context.github.owner}/{context.github.repository}.git",
-                    ],
-                    capture_output=True,
-                    encoding="utf-8",
-                )
-                if proc.returncode != 0:
-                    raise PatchException(
-                        f"Failed to clone the repository\n{proc.stdout}\nError:\n{proc.stderr}"
+                if status != 302:
+                    _LOGGER.error(
+                        "Failed to download artifact %s, status: %s, data:\n%s",
+                        artifact.name,
+                        status,
+                        response_redirect,
                     )
-                os.chdir(context.github.repository.split("/")[-1])
-                app = context.github.objects.integration.get_app()
-                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                    [
-                        "git",
-                        "config",
-                        "--global",
-                        "user.email",
-                        f"{app.id}+{app.slug}[bot]@users.noreply.github.com",
-                    ],
-                    capture_output=True,
-                    encoding="utf-8",
-                )
-                if proc.returncode != 0:
-                    raise PatchException(f"Failed to set the email\n{proc.stdout}\nError:\n{proc.stderr}")
-                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                    ["git", "config", "--global", "user.name", app.name],
-                    capture_output=True,
-                    encoding="utf-8",
-                )
-                if proc.returncode != 0:
-                    raise PatchException(f"Failed to set the name\n{proc.stdout}\nError:\n{proc.stderr}")
+                    continue
+
+                # Follow redirect.
+                response = requests.get(headers["location"], timeout=120)
+                if not response.ok:
+                    _LOGGER.error("Failed to download artifact %s", artifact.name)
+                    continue
 
                 # unzip
                 with zipfile.ZipFile(io.BytesIO(response.content)) as diff:
@@ -141,21 +153,19 @@ class Patch(module.Module[dict[str, Any]]):
                             capture_output=True,
                         )
                         if proc.returncode != 0:
-                            raise PatchException(
-                                f"Failed to apply the diff\n{proc.stdout}\nError:\n{proc.stderr}"
-                            )
+                            raise PatchException(f"Failed to apply the diff{format_process_output(proc)}")
                         error = utils.create_commit(artifact.name[:-5])
                         if error:
                             raise PatchException(f"Failed to commit the changes\n{error}")
                         should_push = True
-        if should_push:
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                ["git", "push", "origin", workflow_run.head_branch],
-                capture_output=True,
-                encoding="utf-8",
-            )
-            if proc.returncode != 0:
-                raise PatchException(f"Failed to push the changes\n{proc.stdout}\nError:\n{proc.stderr}")
+            if should_push:
+                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                    ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"],
+                    capture_output=True,
+                    encoding="utf-8",
+                )
+                if proc.returncode != 0:
+                    raise PatchException(f"Failed to push the changes{format_process_output(proc)}")
         return None
 
     def get_json_schema(self) -> dict[str, Any]:
