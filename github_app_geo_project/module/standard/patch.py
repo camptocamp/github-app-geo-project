@@ -117,6 +117,10 @@ class Patch(module.Module[dict[str, Any]]):
                 if not artifact.name.endswith(".patch"):
                     continue
 
+                if artifact.expired:
+                    _LOGGER.info("Artifact %s is expired", artifact.name)
+                    continue
+
                 (
                     status,
                     headers,
