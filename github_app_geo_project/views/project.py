@@ -96,7 +96,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     for app in request.registry.settings["applications"].split():
         try:
             if "TEST_APPLICATION" not in os.environ:
-                configuration.get_github_application(
+                configuration.get_github_project(
                     request.registry.settings,
                     app,
                     owner,

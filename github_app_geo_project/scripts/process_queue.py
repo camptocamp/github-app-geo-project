@@ -87,7 +87,7 @@ def main() -> None:
                             "Process the event: %s, application: %s", event_data.get("name"), application
                         )
 
-                        github_objects = configuration.get_github_objects(config, application)
+                        github_objects = configuration.get_github_application(config, application)
                         if "TEST_APPLICATION" in os.environ:
                             webhook.process_event(
                                 webhook.ProcessContext(
@@ -103,7 +103,7 @@ def main() -> None:
                                 for repo in installation.get_repos():
                                     webhook.process_event(
                                         webhook.ProcessContext(
-                                            configuration.get_github_application(
+                                            configuration.get_github_project(
                                                 config, github_objects, repo.owner.login, repo.name
                                             ),
                                             config,
@@ -126,13 +126,13 @@ def main() -> None:
                     _LOGGER.error("Unknown module %s", job_module)
                     continue
 
-                github_objects = configuration.get_github_objects(config, job_application)
-                github_app = configuration.get_github_application(config, github_objects, owner, repository)
+                github_objects = configuration.get_github_application(config, job_application)
+                github_app = configuration.get_github_project(config, github_objects, owner, repository)
 
                 issue_data = ""
                 if current_module.required_issue_dashboard():
                     repository_full = f"{owner}/{repository}"
-                    repo = github_app.application.get_repo(repository_full)
+                    repo = github_app.github.get_repo(repository_full)
                     open_issues = repo.get_issues(
                         state="open", creator=github_objects.integration.get_app().owner
                     )
@@ -160,7 +160,7 @@ def main() -> None:
                         result = current_module.process(
                             module.ProcessContext(
                                 session=session,
-                                github=github_app,
+                                github_project=github_app,
                                 event_name="event",
                                 event_data=event_data,
                                 module_config=module_config,
@@ -202,7 +202,7 @@ def main() -> None:
                     try:
                         current_module.cleanup(
                             module.CleanupContext(
-                                github=github_app,
+                                github_project=github_app,
                                 event_name="event",
                                 event_data=event_data,
                                 module_data=module_data,

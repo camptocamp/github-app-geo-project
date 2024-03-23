@@ -59,21 +59,21 @@ class Patch(module.Module[dict[str, Any]]):
             return [module.Action(priority=module.PRIORITY_CRON, data={})]
         return []
 
-    def process(  # pylint: disable=useless-return
-        self, context: module.ProcessContext[dict[str, Any]]
-    ) -> module.ProcessOutput | None:
+    def process(self, context: module.ProcessContext[dict[str, Any]]) -> module.ProcessOutput | None:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
         """
-        repo = context.github.application.get_repo(f"{context.github.owner}/{context.github.repository}")
+        repo = context.github_project.github.get_repo(
+            f"{context.github_project.owner}/{context.github_project.repository}"
+        )
         workflow_run = repo.get_workflow_run(cast(int, context.event_data["workflow_run"]["id"]))
         if not workflow_run.get_artifacts():
             _LOGGER.debug("No artifacts found")
             return None
 
-        token = context.github.token
+        token = context.github_project.token
         should_push = False
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.chdir(tmpdirname)
@@ -83,15 +83,15 @@ class Patch(module.Module[dict[str, Any]]):
                     "clone",
                     "--depth=1",
                     f"--branch={workflow_run.head_branch}",
-                    f"https://x-access-token:{token}@github.com/{context.github.owner}/{context.github.repository}.git",
+                    f"https://x-access-token:{token}@github.com/{context.github_project.owner}/{context.github_project.repository}.git",
                 ],
                 capture_output=True,
                 encoding="utf-8",
             )
             if proc.returncode != 0:
                 raise PatchException(f"Failed to clone the repository{format_process_output(proc)}")
-            os.chdir(context.github.repository.split("/")[-1])
-            app = context.github.objects.integration.get_app()
+            os.chdir(context.github_project.repository.split("/")[-1])
+            app = context.github_project.github.get_app()
             proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 [
                     "git",
