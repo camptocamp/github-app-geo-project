@@ -17,11 +17,19 @@ from github_app_geo_project.module.standard import changelog_configuration
 _LOGGER = logging.getLogger(__name__)
 
 
-class Author(NamedTuple):
+class Author:
     """Author of a pull request or commit."""
 
-    name: str
-    url: str
+    def __init__(self, name: str, url: str):
+        """Create an author."""
+        self.name = name
+        self.url = url
+
+    def markdown(self) -> str:
+        """Convert an author to a markdown string."""
+        if self.name.endswith("[bot]"):
+            return f"[@{self.name}]({self.url})"
+        return f"@{self.name}"
 
 
 class ChangelogItem(NamedTuple):
@@ -350,7 +358,6 @@ def generate_changelog(
     for section_config in configuration["sections"]:
         if section_config["name"] not in sections:
             continue
-        result.append(f"## {section_config['title']}")
         if section_config.get("closed", False):
             result.append("<details><summary>{section_config['title']}</summary>")
         else:
@@ -361,7 +368,7 @@ def generate_changelog(
         for item in sections[section_config["name"]]:
             item_authors = [item.author]
             item_authors.extend(a for a in item.authors if a != item.author)
-            authors_str = [f"[@{a.name}]({a.url})" for a in item_authors]
+            authors_str = [a.markdown() for a in item_authors]
             result.append(f"- {item.ref} {item.title} ({', '.join(authors_str)})")
         result.append("")
         if section_config.get("closed", False):

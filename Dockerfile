@@ -141,5 +141,10 @@ RUN --mount=type=cache,target=/root/.cache \
 
 COPY scripts/* /usr/bin/
 
+# Create the home of www-data
+RUN mkdir /var/www \
+    && chmod a+rwx /var/www \
+    && chown -R 33:33 /var/www
+
 # Set runner as final
 FROM runner
