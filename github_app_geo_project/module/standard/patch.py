@@ -91,7 +91,7 @@ class Patch(module.Module[dict[str, Any]]):
             if proc.returncode != 0:
                 raise PatchException(f"Failed to clone the repository{format_process_output(proc)}")
             os.chdir(context.github_project.repository.split("/")[-1])
-            app = context.github_project.github.get_app()
+            app = context.github_project.application.integration.get_app()
             proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 [
                     "git",
