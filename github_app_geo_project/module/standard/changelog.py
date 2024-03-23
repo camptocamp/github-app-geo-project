@@ -25,6 +25,16 @@ class Author:
         self.name = name
         self.url = url
 
+    def __eq__(self, other: object) -> bool:
+        """Check if two authors are equals."""
+        if not isinstance(other, Author):
+            return NotImplemented
+        return self.name == other.name
+
+    def __hash__(self) -> int:
+        """Get the hash of the author."""
+        return hash(self.name)
+
     def markdown(self) -> str:
         """Convert an author to a markdown string."""
         if self.name.endswith("[bot]"):
@@ -35,7 +45,7 @@ class Author:
 class ChangelogItem(NamedTuple):
     """Changelog item (pull request or commit."""
 
-    object: github.PullRequest.PullRequest | github.Commit.Commit
+    github: github.PullRequest.PullRequest | github.Commit.Commit
     ref: str
     title: str
     author: Author
@@ -43,6 +53,12 @@ class ChangelogItem(NamedTuple):
     branch: str | None
     files: set[str]
     labels: set[str]
+
+    def __eq__(self, other: object) -> bool:
+        """Check if two changelog items are equals."""
+        if not isinstance(other, ChangelogItem):
+            return NotImplemented
+        return self.ref == other.ref
 
     def __hash__(self) -> int:
         """Get the hash of the changelog item."""
@@ -174,8 +190,10 @@ class Tag:
         else:
             self.major, self.minor, self.patch = (int(e) for e in tag_match.groups())
 
-    def __eq__(self, other: "Tag") -> bool:  # type: ignore[override]
+    def __eq__(self, other: object) -> bool:
         """Compare two tags."""
+        if not isinstance(other, Tag):
+            return NotImplemented
         return self.major == other.major and self.minor == other.minor and self.patch == other.patch
 
     def __hash__(self) -> int:
@@ -324,7 +342,7 @@ def generate_changelog(
             pull_request.as_issue().edit(milestone=milestone)
             changelog_items.add(
                 ChangelogItem(
-                    object=pull_request,
+                    github=pull_request,
                     ref=f"#{pull_request.number}",
                     title=pull_request.title,
                     author=Author(pull_request.user.login, pull_request.user.html_url),
@@ -337,7 +355,7 @@ def generate_changelog(
         if not has_pr:
             changelog_items.add(
                 ChangelogItem(
-                    object=commit,
+                    github=commit,
                     ref=commit.sha,
                     title=commit.commit.message.split("\n")[0],
                     author=Author(commit.author.login, commit.author.html_url),
@@ -359,7 +377,7 @@ def generate_changelog(
         if section_config["name"] not in sections:
             continue
         if section_config.get("closed", False):
-            result.append("<details><summary>{section_config['title']}</summary>")
+            result += ["<details><summary>", "", f"## ${section_config['title']}", "</summary>"]
         else:
             result.append(f"## {section_config['title']}")
         result.append("")
