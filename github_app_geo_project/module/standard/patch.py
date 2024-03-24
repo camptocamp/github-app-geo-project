@@ -96,7 +96,6 @@ class Patch(module.Module[dict[str, Any]]):
                 [
                     "git",
                     "config",
-                    "--global",
                     "user.email",
                     f"{app.id}+{app.slug}[bot]@users.noreply.github.com",
                 ],
@@ -106,12 +105,20 @@ class Patch(module.Module[dict[str, Any]]):
             if proc.returncode != 0:
                 raise PatchException(f"Failed to set the email{format_process_output(proc)}")
             proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                ["git", "config", "--global", "user.name", app.name],
+                ["git", "config", "user.name", f"{app.slug}[bot]"],
                 capture_output=True,
                 encoding="utf-8",
             )
             if proc.returncode != 0:
                 raise PatchException(f"Failed to set the name{format_process_output(proc)}")
+
+            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                ["git", "config", "gpg.format", "ssh"],
+                capture_output=True,
+                encoding="utf-8",
+            )
+            if proc.returncode != 0:
+                raise PatchException(f"Failed to set the gpg format{format_process_output(proc)}")
 
             for artifact in workflow_run.get_artifacts():
                 if not artifact.name.endswith(".patch"):
