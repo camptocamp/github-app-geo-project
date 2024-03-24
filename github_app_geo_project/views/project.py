@@ -43,6 +43,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "jobs": [],
         }
     config: project_configuration.GithubApplicationProjectConfiguration = {}
+    issue_url = ""
     if "TEST_APPLICATION" not in os.environ:
         for app in request.registry.settings["applications"].split():
             try:
@@ -52,6 +53,20 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                     repository,
                     app,
                 )
+                github_project = configuration.get_github_project(
+                    request.registry.settings,
+                    app,
+                    owner,
+                    repository,
+                )
+                repo = github_project.github.get_repo(f"{owner}/{repository}")
+                for issue in repo.get_issues(
+                    state="open",
+                    creator=f"{github_project.application.integration.get_app().slug}[bot]",  # type: ignore[arg-type]
+                ):
+                    if "dashboard" in issue.title.lower().split() and issue.state == "open":
+                        issue_url = issue.html_url
+
                 break
             except github.GithubException:
                 _LOGGER.debug(
@@ -135,7 +150,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "output": session.execute(select_output.limit(20)).all(),
             "jobs": session.execute(select_job.limit(20)).all(),
             "error": None,
-            "issue_url": "",
+            "issue_url": issue_url,
             "issue_required": issue_required,
             "module_configuration": module_config,
         }
