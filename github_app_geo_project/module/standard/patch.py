@@ -165,7 +165,13 @@ class Patch(module.Module[dict[str, Any]]):
                         )
                         if proc.returncode != 0:
                             raise PatchException(f"Failed to apply the diff{format_process_output(proc)}")
-                        error = utils.create_commit(artifact.name[:-5])
+                        if proc.stdout:
+                            _LOGGER.debug("Apply patch\n%s", proc.stdout)
+                        if proc.stderr:
+                            _LOGGER.error("Apply patch\n%s", proc.stdout)
+                        error = utils.create_commit(
+                            f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
+                        )
                         if error:
                             raise PatchException(f"Failed to commit the changes\n{error}")
                         should_push = True
