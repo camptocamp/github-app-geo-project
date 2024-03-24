@@ -167,7 +167,7 @@ class Patch(module.Module[dict[str, Any]]):
 
                     with diff.open(diff.namelist()[0]) as file:
                         subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                            ["patch"],
+                            ["patch", "--strip=1"],
                             input=file.read().decode("utf-8"),
                             encoding="utf-8",
                             capture_output=True,
