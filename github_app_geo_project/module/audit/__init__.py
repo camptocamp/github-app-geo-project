@@ -47,15 +47,15 @@ def _format_issue_data(issue_data: dict[str, list[str]]) -> str:
 def _get_versions(security: c2cciutils.security.Security) -> list[str]:
     alternate_index = security.headers.index("Alternate Tag") if "Alternate Tag" in security.headers else -1
     version_index = security.headers.index("Version") if "Version" in security.headers else -1
-    support_until_index = (
-        security.headers.index("Support Until") if "Support Until" in security.headers else -1
+    supported_until_index = (
+        security.headers.index("Supported Until") if "Supported Until" in security.headers else -1
     )
 
     if version_index < 0:
         _LOGGER.error("No Version column in the SECURITY.md")
         return []
-    if support_until_index < 0:
-        _LOGGER.error("No Support Until column in the SECURITY.md")
+    if supported_until_index < 0:
+        _LOGGER.error("No Supported Until column in the SECURITY.md")
         return []
 
     alternate = []
@@ -66,7 +66,7 @@ def _get_versions(security: c2cciutils.security.Security) -> list[str]:
 
     versions = []
     for row in security.data:
-        if row[support_until_index] != "Unsupported":
+        if row[supported_until_index] != "Unsupported":
             if alternate:
                 if row[alternate_index] not in alternate:
                     versions.append(row[version_index])
