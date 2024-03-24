@@ -75,6 +75,14 @@ class Patch(module.Module[dict[str, Any]]):
 
         token = context.github_project.token
         should_push = False
+
+        # Store the ssh key
+        directory = os.path.expanduser("~/.ssh/")
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        with open(os.path.join(directory, "id_rsa"), "w", encoding="utf-8") as file:
+            file.write(context.github_project.application.auth.private_key)
+
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.chdir(tmpdirname)
             proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -92,12 +100,13 @@ class Patch(module.Module[dict[str, Any]]):
                 raise PatchException(f"Failed to clone the repository{format_process_output(proc)}")
             os.chdir(context.github_project.repository.split("/")[-1])
             app = context.github_project.application.integration.get_app()
+            user = context.github_project.github.get_user(app.slug + "[bot]")
             proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 [
                     "git",
                     "config",
                     "user.email",
-                    f"{app.id}+{app.slug}[bot]@users.noreply.github.com",
+                    f"{user.id}+{user.login}@users.noreply.github.com",
                 ],
                 capture_output=True,
                 encoding="utf-8",
@@ -105,7 +114,7 @@ class Patch(module.Module[dict[str, Any]]):
             if proc.returncode != 0:
                 raise PatchException(f"Failed to set the email{format_process_output(proc)}")
             proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                ["git", "config", "user.name", f"{app.slug}[bot]"],
+                ["git", "config", "user.name", user.login],
                 capture_output=True,
                 encoding="utf-8",
             )

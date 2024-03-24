@@ -157,14 +157,6 @@ def main() -> None:
                         module_status = models.ModuleStatus(module=job_module, data={})
                         session.add(module_status)
                     try:
-                        directory = os.path.expanduser("~/.ssh/")
-                        if not os.path.exists(directory):
-                            os.makedirs(directory)
-                        with open(os.path.join(directory, "id_rsa"), "w", encoding="utf-8") as file:
-                            file.write(
-                                config[f"application.{job_application}.github_app_private_key"].strip()
-                            )
-
                         result = current_module.process(
                             module.ProcessContext(
                                 session=session,

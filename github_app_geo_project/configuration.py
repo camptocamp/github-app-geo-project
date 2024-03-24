@@ -41,6 +41,7 @@ for name, profile in APPLICATION_CONFIGURATION.get("profiles", {}).items():
 class GithubApplication(NamedTuple):
     """The Github authentication objects."""
 
+    # Alias of integration.auth
     auth: github.Auth.AppAuth
     integration: github.GithubIntegration
     # The application name
