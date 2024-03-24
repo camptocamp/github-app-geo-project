@@ -109,8 +109,11 @@
           <!---->
           %endif
           <!---->
-          [${job[1].value}] ${job[6]} ${job[2]}:<b>${job[3]}</b> (${job[0]}) -
-          created:&nbsp;${job[4]|pprint_date}, started:&nbsp;${job[5]|pprint_date}
+          <span title="status">[${job[1].value}]</span> <span title="Event name">${job[6]}</span>
+          <span title="Application">${job[2]}</span>:<b><span title="Module">${job[3]}</span></b> (<span
+            title="Job id"
+            >${job[0]}</span
+          >) - created:&nbsp;${job[4]|pprint_date}, started:&nbsp;${job[5]|pprint_date}
         </div>
         <!-- for Prettier -->
         %if False:
