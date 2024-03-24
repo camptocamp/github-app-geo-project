@@ -87,7 +87,7 @@ def main() -> None:
                             "Process the event: %s, application: %s", event_data.get("name"), application
                         )
 
-                        github_objects = configuration.get_github_application(config, application)
+                        github_application = configuration.get_github_application(config, application)
                         if "TEST_APPLICATION" in os.environ:
                             webhook.process_event(
                                 webhook.ProcessContext(
@@ -99,12 +99,12 @@ def main() -> None:
                                 )
                             )
                         else:
-                            for installation in github_objects.integration.get_installations():
+                            for installation in github_application.integration.get_installations():
                                 for repo in installation.get_repos():
                                     webhook.process_event(
                                         webhook.ProcessContext(
                                             configuration.get_github_project(
-                                                config, github_objects, repo.owner.login, repo.name
+                                                config, github_application, repo.owner.login, repo.name
                                             ),
                                             config,
                                             "event",
@@ -126,15 +126,15 @@ def main() -> None:
                     _LOGGER.error("Unknown module %s", job_module)
                     continue
 
-                github_objects = configuration.get_github_application(config, job_application)
-                github_app = configuration.get_github_project(config, github_objects, owner, repository)
+                github_application = configuration.get_github_application(config, job_application)
+                github_app = configuration.get_github_project(config, github_application, owner, repository)
 
                 issue_data = ""
                 if current_module.required_issue_dashboard():
                     repository_full = f"{owner}/{repository}"
                     repo = github_app.github.get_repo(repository_full)
                     open_issues = repo.get_issues(
-                        state="open", creator=github_objects.integration.get_app().owner
+                        state="open", creator=github_application.integration.get_app().owner
                     )
                     if open_issues.totalCount > 0:
                         issue_full_data = open_issues[0].body
@@ -157,6 +157,14 @@ def main() -> None:
                         module_status = models.ModuleStatus(module=job_module, data={})
                         session.add(module_status)
                     try:
+                        directory = os.path.expanduser("~/.ssh/")
+                        if not os.path.exists(directory):
+                            os.makedirs(directory)
+                        with open(os.path.join(directory, "id_rsa"), "w", encoding="utf-8") as file:
+                            file.write(
+                                config[f"application.{job_application}.github_app_private_key"].strip()
+                            )
+
                         result = current_module.process(
                             module.ProcessContext(
                                 session=session,
@@ -227,7 +235,7 @@ def main() -> None:
 
             if current_module.required_issue_dashboard() and new_issue_data is not None:
                 open_issues = repo.get_issues(
-                    state="open", creator=github_objects.integration.get_app().owner
+                    state="open", creator=github_application.integration.get_app().owner
                 )
                 if open_issues.totalCount > 0:
                     issue_full_data = utils.update_dashboard_issue_module(
