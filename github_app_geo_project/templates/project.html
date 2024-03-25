@@ -72,11 +72,17 @@
 
     <h1 class="bd-title">Repository: ${repository}</h1>
 
-    %if issue_url:
-    <p><a href="${issue_url}">Dashboard (GitHub issue)</a></p>
+    %for application, app_config in applications.items():
+    <!---->
+    %if 'issue_url' in app_config:
+    <p>
+      <a href="${app_config['issue_url']}" , title="For application [${application}]"
+        >Dashboard (GitHub issue)</a
+      >
+    </p>
     %else:
     <!---->
-    %if issue_required:
+    %if app_config.get('issue_required'):
     <!-- warning -->
     <div class="alert alert-warning" role="alert">
       The issue looks to be missing, does the issue are activated on your project
