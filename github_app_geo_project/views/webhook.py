@@ -26,14 +26,19 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
 
     _LOGGER.debug("Webhook received for %s, with:\n%s", application, json.dumps(data, indent=2))
 
-    if not github_objects.integration.get_app().id != int(data.get("installation", {}).get("id", 0)):
+    try:
+        if not github_objects.integration.get_app().id != int(data.get("installation", {}).get("id", 0)):
+            _LOGGER.error(
+                "Invalid installation id %i != %i on %s",
+                github_objects.integration.get_app().id,
+                data.get("installation", {}).get("id", 0),
+                request.url,
+            )
+            return {}
+    except:  # pylint: disable=bare-except
         _LOGGER.error(
-            "Invalid installation id %i != %i on %s",
-            github_objects.integration.get_app().id,
-            data.get("installation", {}).get("id", 0),
-            request.url,
+            "Unable to get installation id, continuing",
         )
-        return {}
 
     if "account" in data.get("installation", {}):
         if "repositories" in data:

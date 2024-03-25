@@ -6,7 +6,9 @@ import shlex
 import subprocess  # nosec
 from typing import Any, Union
 
+import cssutils
 import github
+import lxml.html  # nosec
 from ansi2html import Ansi2HTMLConverter
 
 from github_app_geo_project import models, module
@@ -157,7 +159,37 @@ class DashboardIssue:
         return self.to_string()
 
 
-def ansi_proc_dashboard(title: str, proc: subprocess.CompletedProcess[str]) -> str:
+def merged_stylesheets(css: str) -> str:
+    """Merge the stylesheets."""
+    sheet = cssutils.parseString(css)
+    rules: dict[str, dict[str, str]] = {}
+    for rule in sheet:
+        for css_property in rule.style.keys():
+            value = rule.style.getPropertyValue(css_property)
+            rules.setdefault(rule.selectorText, {})[css_property] = value
+    sheet2 = cssutils.parseString("")
+    for selector, properties in rules.items():
+        rule = cssutils.css.CSSStyleRule(selectorText=selector)
+        for css_property, value in properties.items():
+            rule.style.setProperty(css_property, value)
+        sheet2.add(rule)
+    return sheet2.cssText.decode()  # type: ignore[no-any-return]
+
+
+def ansi_message(ansi: str, ansi_converter: Ansi2HTMLConverter | None) -> tuple[str, str]:
+    """Convert an ANSI message to HTML/style."""
+    ansi_converter = ansi_converter or Ansi2HTMLConverter()
+
+    converted_text = ansi_converter.convert(ansi)
+
+    converted_text_dom = lxml.html.fromstring(converted_text)
+    style = converted_text_dom.xpath("//style")[0]
+    body = converted_text_dom.xpath("//body")[0]
+
+    return b"\n".join([lxml.html.tostring(e) for e in body.getchildren()]).decode(), style.text
+
+
+def ansi_proc_dashboard(title: str, proc: subprocess.CompletedProcess[str]) -> tuple[str, str, str]:
     """
     Process the output of a subprocess for the dashboard.
 
@@ -165,24 +197,43 @@ def ansi_proc_dashboard(title: str, proc: subprocess.CompletedProcess[str]) -> s
     ---------
     title: The title of the section
     proc: The subprocess result
+
+    Return:
+    ------
+    The dashboard message, the simple error message, the style
     """
     ansi_converter = Ansi2HTMLConverter()
-    result = ["<details>", f"<summary>{title}</summary>", "<blockquote>"]
-    result.append(f"Command: {shlex.join(proc.args)}")
-    result.append(f"Return code: {proc.returncode}")
+    styles = []
+    message = [f"Command: {shlex.join(proc.args)}", f"Return code: {proc.returncode}"]
     if proc.stdout:
-        result.append("")
-        result.append("Output:")
-        result.append(ansi_converter.convert(proc.stdout))
+        message.append("")
+        message.append("Output:")
+        text, style = ansi_message(proc.stdout, ansi_converter)
+        message.append(text)
+        styles.append(style)
     if proc.stderr:
-        result.append("")
-        result.append("Error:")
-        result.append(ansi_converter.convert(proc.stderr))
-    result.append("</blockquote>")
-    return "\n".join(result)
+        message.append("")
+        message.append("Error:")
+        text, style = ansi_message(proc.stderr, ansi_converter)
+        message.append(text)
+        styles.append(style)
+
+    return (
+        "\n".join(["<details>", f"<summary>{title}</summary>", "<blockquote>", *message, "</blockquote>"]),
+        "\n".join(message),
+        merged_stylesheets("\n".join(styles)),
+    )
 
 
-def create_commit(message: str) -> str | None:
+def has_changes() -> bool:
+    """Check if there are changes."""
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["git", "diff", "--exit-code"], capture_output=True, encoding="utf-8"
+    )
+    return proc.returncode != 0
+
+
+def create_commit(message: str) -> tuple[str, str, str] | None:
     """Do a commit."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "add", "--all"], capture_output=True, encoding="utf-8"
@@ -200,7 +251,7 @@ def create_commit(message: str) -> str | None:
 
 def create_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
-) -> tuple[str | None, github.PullRequest.PullRequest | None]:
+) -> tuple[tuple[str, str, str] | None, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "push", "--force", "origin", new_branch],
@@ -219,8 +270,9 @@ def create_pull_request(
                 title=f"Pull request {message} is open for 5 days",
                 body=f"See: #{pull_request.number}",
             )
+            message = f"Pull request #{pull_request.number} is open for 5 days: #{issue.number}"
             return (
-                f"Pull request #{pull_request.number} is open for 5 days: #{issue.number}",
+                (message, message, ""),
                 pull_request,
             )
     else:
@@ -237,7 +289,7 @@ def create_pull_request(
 
 def create_commit_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
-) -> tuple[str | None, github.PullRequest.PullRequest | None]:
+) -> tuple[tuple[str, str, str] | None, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
     error = create_commit(message)
     if error:
