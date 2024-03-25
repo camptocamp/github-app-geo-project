@@ -1,155 +1,97 @@
 camptocamp/github-app-geo-project:latest:
-  ubuntu_23_10/libmagic-mgc: 1:5.44-3
-  ubuntu_23_10/libmagic1: 1:5.44-3
   ubuntu_23_10/adduser: 3.137ubuntu1
-  ubuntu_23_10/containerd: 1.7.2-0ubuntu2
-  ubuntu_23_10/docker.io: 24.0.5-0ubuntu1
-  ubuntu_23_10/iptables: 1.8.9-2ubuntu2
-  ubuntu_23_10/libdevmapper1.02.1: 2:1.02.185-2ubuntu1
-  ubuntu_23_10/libip4tc2: 1.8.9-2ubuntu2
-  ubuntu_23_10/libip6tc2: 1.8.9-2ubuntu2
-  ubuntu_23_10/libmnl0: 1.0.4-3ubuntu1
-  ubuntu_23_10/libnetfilter-conntrack3: 1.0.9-5
-  ubuntu_23_10/libnfnetlink0: 1.0.2-2
-  ubuntu_23_10/libnftnl11: 1.2.6-2
-  ubuntu_23_10/libxtables12: 1.8.9-2ubuntu2
-  ubuntu_23_10/runc: 1.1.7-0ubuntu2.2
-  ubuntu_23_10/xz-utils: 5.4.1-0.2
-  ubuntu_23_10/curl: 8.2.1-1ubuntu3.2
-  ubuntu_23_10/git: 1:2.40.1-1ubuntu1
-  ubuntu_23_10/git-man: 1:2.40.1-1ubuntu1
-  ubuntu_23_10/liberror-perl: 0.17029-2
-  ubuntu_23_10/patch: 2.7.6-7build2
-  ubuntu_23_10/apt: 2.7.3
+  ubuntu_23_10/apt: 2.7.3ubuntu0.1
   ubuntu_23_10/base-passwd: 3.6.1
   ubuntu_23_10/bash: 5.2.15-2ubuntu1
   ubuntu_23_10/bsdutils: 1:2.39.1-4ubuntu2
   ubuntu_23_10/ca-certificates: 20230311ubuntu1
+  ubuntu_23_10/containerd: 1.7.2-0ubuntu2
   ubuntu_23_10/coreutils: 9.1-1ubuntu2.23.10.1
+  ubuntu_23_10/curl: 8.2.1-1ubuntu3.2
   ubuntu_23_10/dash: 0.5.12-6ubuntu1
   ubuntu_23_10/debconf: 1.5.82
   ubuntu_23_10/debianutils: 5.8-1
   ubuntu_23_10/diffutils: 1:3.8-4
-  ubuntu_23_10/dpkg: 1.22.0ubuntu1
+  ubuntu_23_10/dirmngr: 2.2.40-1.1ubuntu1
+  ubuntu_23_10/docker.io: 24.0.5-0ubuntu1
+  ubuntu_23_10/dpkg: 1.22.0ubuntu1.1
   ubuntu_23_10/e2fsprogs: 1.47.0-2ubuntu1
   ubuntu_23_10/findutils: 4.9.0-5
-  ubuntu_23_10/fontconfig-config: 2.14.2-4ubuntu1
-  ubuntu_23_10/fonts-dejavu: 2.37-8
-  ubuntu_23_10/fonts-dejavu-core: 2.37-8
-  ubuntu_23_10/fonts-dejavu-extra: 2.37-8
-  ubuntu_23_10/fonts-dejavu-mono: 2.37-8
-  ubuntu_23_10/fonts-noto-core: 20201225-2
-  ubuntu_23_10/fonts-noto-mono: 20201225-2
   ubuntu_23_10/gcc-13-base: 13.2.0-4ubuntu3
-  ubuntu_23_10/gdal-data: 3.7.1+dfsg-1build1
-  ubuntu_23_10/gdal-plugins: 3.7.1+dfsg-1build1
+  ubuntu_23_10/git: 1:2.40.1-1ubuntu1
+  ubuntu_23_10/git-man: 1:2.40.1-1ubuntu1
+  ubuntu_23_10/gnupg: 2.2.40-1.1ubuntu1
+  ubuntu_23_10/gnupg-l10n: 2.2.40-1.1ubuntu1
+  ubuntu_23_10/gnupg-utils: 2.2.40-1.1ubuntu1
+  ubuntu_23_10/gpg: 2.2.40-1.1ubuntu1
+  ubuntu_23_10/gpg-agent: 2.2.40-1.1ubuntu1
+  ubuntu_23_10/gpg-wks-client: 2.2.40-1.1ubuntu1
+  ubuntu_23_10/gpg-wks-server: 2.2.40-1.1ubuntu1
+  ubuntu_23_10/gpgconf: 2.2.40-1.1ubuntu1
+  ubuntu_23_10/gpgsm: 2.2.40-1.1ubuntu1
   ubuntu_23_10/gpgv: 2.2.40-1.1ubuntu1
   ubuntu_23_10/grep: 3.11-2
   ubuntu_23_10/gzip: 1.12-1ubuntu1
   ubuntu_23_10/hostname: 3.23+nmu1ubuntu1
   ubuntu_23_10/init-system-helpers: 1.65.2ubuntu1
-  ubuntu_23_10/iputils-ping: 3:20221126-1
-  ubuntu_23_10/jpegoptim: 1.4.7-1
+  ubuntu_23_10/iptables: 1.8.9-2ubuntu2
   ubuntu_23_10/libacl1: 2.3.1-3
-  ubuntu_23_10/libaec0: 1.0.6-1
-  ubuntu_23_10/libapt-pkg6.0: 2.7.3
-  ubuntu_23_10/libarmadillo11: 1:11.4.2+dfsg-1build1
-  ubuntu_23_10/libarpack2: 3.8.0-3
+  ubuntu_23_10/libapt-pkg6.0: 2.7.3ubuntu0.1
+  ubuntu_23_10/libassuan0: 2.5.6-1
   ubuntu_23_10/libattr1: 1:2.5.1-4
   ubuntu_23_10/libaudit-common: 1:3.1.1-1
   ubuntu_23_10/libaudit1: 1:3.1.1-1
-  ubuntu_23_10/libblas3: 3.11.0-2build1
   ubuntu_23_10/libblkid1: 2.39.1-4ubuntu2
-  ubuntu_23_10/libblosc1: 1.21.3+ds-1
-  ubuntu_23_10/libboost-filesystem1.74.0: 1.74.0+ds1-22ubuntu1
-  ubuntu_23_10/libboost-program-options1.74.0: 1.74.0+ds1-22ubuntu1
-  ubuntu_23_10/libboost-regex1.74.0: 1.74.0+ds1-22ubuntu1
   ubuntu_23_10/libbrotli1: 1.0.9-2build8
-  ubuntu_23_10/libbsd0: 0.11.7-4
   ubuntu_23_10/libbz2-1.0: 1.0.8-5build1
   ubuntu_23_10/libc-bin: 2.38-1ubuntu6.1
   ubuntu_23_10/libc6: 2.38-1ubuntu6.1
-  ubuntu_23_10/libcairo2: 1.18.0-1
   ubuntu_23_10/libcap-ng0: 0.8.3-1build2
   ubuntu_23_10/libcap2: 1:2.66-4ubuntu1
-  ubuntu_23_10/libcap2-bin: 1:2.66-4ubuntu1
-  ubuntu_23_10/libcfitsio10: 4.2.0-3
   ubuntu_23_10/libcom-err2: 1.47.0-2ubuntu1
   ubuntu_23_10/libcrypt1: 1:4.4.36-2
   ubuntu_23_10/libcurl3-gnutls: 8.2.1-1ubuntu3.2
   ubuntu_23_10/libcurl4: 8.2.1-1ubuntu3.2
-  ubuntu_23_10/libdav1d6: 1.2.1-2
   ubuntu_23_10/libdb5.3: 5.3.28+dfsg2-2
-  ubuntu_23_10/libde265-0: 1.0.12-2
   ubuntu_23_10/libdebconfclient0: 0.270ubuntu1
-  ubuntu_23_10/libdeflate0: 1.18-1
-  ubuntu_23_10/libexpat1: 2.5.0-2
+  ubuntu_23_10/libdevmapper1.02.1: 2:1.02.185-2ubuntu1
+  ubuntu_23_10/liberror-perl: 0.17029-2
+  ubuntu_23_10/libexpat1: 2.5.0-2ubuntu0.1
   ubuntu_23_10/libext2fs2: 1.47.0-2ubuntu1
   ubuntu_23_10/libffi8: 3.4.4-1
-  ubuntu_23_10/libfontconfig1: 2.14.2-4ubuntu1
-  ubuntu_23_10/libfreetype6: 2.13.1+dfsg-1
-  ubuntu_23_10/libfreexl1: 2.0.0-1
-  ubuntu_23_10/libfyba0: 4.1.1-8
   ubuntu_23_10/libgcc-s1: 13.2.0-4ubuntu3
   ubuntu_23_10/libgcrypt20: 1.10.2-3ubuntu1
-  ubuntu_23_10/libgdal33: 3.7.1+dfsg-1build1
   ubuntu_23_10/libgdbm-compat4: 1.23-3
   ubuntu_23_10/libgdbm6: 1.23-3
-  ubuntu_23_10/libgeos-c1v5: 3.12.0-1
-  ubuntu_23_10/libgeos3.12.0: 3.12.0-1
-  ubuntu_23_10/libgeotiff5: 1.7.1-2build1
-  ubuntu_23_10/libgfortran5: 13.2.0-4ubuntu3
-  ubuntu_23_10/libgif7: 5.2.1-2.5
-  ubuntu_23_10/libglib2.0-0: 2.78.0-2
   ubuntu_23_10/libgmp10: 2:6.3.0+dfsg-2ubuntu4
   ubuntu_23_10/libgnutls30: 3.8.1-4ubuntu1.2
   ubuntu_23_10/libgpg-error0: 1.47-2
-  ubuntu_23_10/libgraphite2-3: 1.3.14-1build2
   ubuntu_23_10/libgssapi-krb5-2: 1.20.1-3ubuntu1
-  ubuntu_23_10/libharfbuzz0b: 8.0.1-1
-  ubuntu_23_10/libhdf4-0-alt: 4.2.16-3
-  ubuntu_23_10/libhdf5-103-1: 1.10.8+repack1-1ubuntu1
-  ubuntu_23_10/libhdf5-hl-100: 1.10.8+repack1-1ubuntu1
-  ubuntu_23_10/libheif-plugin-dav1d: 1.16.2-2ubuntu1
-  ubuntu_23_10/libheif-plugin-libde265: 1.16.2-2ubuntu1
-  ubuntu_23_10/libheif1: 1.16.2-2ubuntu1
   ubuntu_23_10/libhogweed6: 3.9.1-2
-  ubuntu_23_10/libicu72: 72.1-3ubuntu3
   ubuntu_23_10/libidn2-0: 2.3.4-1
-  ubuntu_23_10/libjbig0: 2.1-6.1ubuntu1
-  ubuntu_23_10/libjpeg-turbo8: 2.1.5-2ubuntu1
-  ubuntu_23_10/libjpeg8: 8c-2ubuntu11
-  ubuntu_23_10/libjson-c5: 0.17-1
+  ubuntu_23_10/libip4tc2: 1.8.9-2ubuntu2
+  ubuntu_23_10/libip6tc2: 1.8.9-2ubuntu2
   ubuntu_23_10/libk5crypto3: 1.20.1-3ubuntu1
   ubuntu_23_10/libkeyutils1: 1.6.3-2
-  ubuntu_23_10/libkmlbase1: 1.3.0-10
-  ubuntu_23_10/libkmldom1: 1.3.0-10
-  ubuntu_23_10/libkmlengine1: 1.3.0-10
   ubuntu_23_10/libkrb5-3: 1.20.1-3ubuntu1
   ubuntu_23_10/libkrb5support0: 1.20.1-3ubuntu1
-  ubuntu_23_10/liblapack3: 3.11.0-2build1
-  ubuntu_23_10/liblcms2-2: 2.14-2
+  ubuntu_23_10/libksba8: 1.6.4-2
   ubuntu_23_10/libldap2: 2.6.6+dfsg-1~exp1ubuntu1
-  ubuntu_23_10/liblerc4: 4.0.0+ds-2ubuntu2
-  ubuntu_23_10/libltdl7: 2.4.7-7
   ubuntu_23_10/liblz4-1: 1.9.4-1
   ubuntu_23_10/liblzma5: 5.4.1-0.2
-  ubuntu_23_10/libmapnik3.1: 3.1.0+ds-4
+  ubuntu_23_10/libmagic-mgc: 1:5.44-3
+  ubuntu_23_10/libmagic1: 1:5.44-3
   ubuntu_23_10/libmd0: 1.1.0-1
-  ubuntu_23_10/libminizip1: 1.1-8build1
+  ubuntu_23_10/libmnl0: 1.0.4-3ubuntu1
   ubuntu_23_10/libmount1: 2.39.1-4ubuntu2
-  ubuntu_23_10/libmysqlclient21: 8.0.36-0ubuntu0.23.10.1
   ubuntu_23_10/libncursesw6: 6.4+20230625-2
-  ubuntu_23_10/libnetcdf19: 1:4.9.2-2ubuntu1
+  ubuntu_23_10/libnetfilter-conntrack3: 1.0.9-5
   ubuntu_23_10/libnettle8: 3.9.1-2
+  ubuntu_23_10/libnfnetlink0: 1.0.2-2
+  ubuntu_23_10/libnftnl11: 1.2.6-2
   ubuntu_23_10/libnghttp2-14: 1.55.1-1ubuntu0.1
+  ubuntu_23_10/libnpth0: 1.6-3build2
   ubuntu_23_10/libnsl2: 1.3.0-2build2
-  ubuntu_23_10/libnspr4: 2:4.35-1.1
-  ubuntu_23_10/libnss3: 2:3.92-1
-  ubuntu_23_10/libodbc2: 2.3.12-1
-  ubuntu_23_10/libodbcinst2: 2.3.12-1
-  ubuntu_23_10/libogdi4.1: 4.1.0+ds-6
-  ubuntu_23_10/libopenjp2-7: 2.5.0-2
   ubuntu_23_10/libp11-kit0: 0.25.0-4ubuntu1
   ubuntu_23_10/libpam-modules: 1.5.2-6ubuntu1.1
   ubuntu_23_10/libpam-modules-bin: 1.5.2-6ubuntu1.1
@@ -157,20 +99,14 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_23_10/libpam0g: 1.5.2-6ubuntu1.1
   ubuntu_23_10/libpcre2-8-0: 10.42-4
   ubuntu_23_10/libperl5.36: 5.36.0-9ubuntu1.1
-  ubuntu_23_10/libpixman-1-0: 0.42.2-1
-  ubuntu_23_10/libpng16-16: 1.6.40-1
-  ubuntu_23_10/libpoppler130: 23.08.0-2ubuntu1
   ubuntu_23_10/libpq5: 15.6-0ubuntu0.23.10.1
   ubuntu_23_10/libproc2-0: 2:4.0.3-1ubuntu1.23.10.1
-  ubuntu_23_10/libproj25: 9.2.1-1
   ubuntu_23_10/libpsl5: 0.21.2-1
   ubuntu_23_10/libpython3-stdlib: 3.11.4-5
   ubuntu_23_10/libpython3.11-minimal: 3.11.6-3
   ubuntu_23_10/libpython3.11-stdlib: 3.11.6-3
-  ubuntu_23_10/libqhull-r8.0: 2020.2-6
   ubuntu_23_10/libreadline8: 8.2-1.3
   ubuntu_23_10/librtmp1: 2.4+20151223.gitfa8646d.1-2build4
-  ubuntu_23_10/librttopo1: 1.1.0-3
   ubuntu_23_10/libsasl2-2: 2.1.28+dfsg1-3
   ubuntu_23_10/libsasl2-modules-db: 2.1.28+dfsg1-3
   ubuntu_23_10/libseccomp2: 2.5.4-1ubuntu3
@@ -179,61 +115,42 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_23_10/libsemanage2: 3.5-1
   ubuntu_23_10/libsepol2: 3.5-1
   ubuntu_23_10/libsmartcols1: 2.39.1-4ubuntu2
-  ubuntu_23_10/libsnappy1v5: 1.1.10-1
-  ubuntu_23_10/libspatialite8: 5.1.0-1
   ubuntu_23_10/libsqlite3-0: 3.42.0-1ubuntu0.1
   ubuntu_23_10/libss2: 1.47.0-2ubuntu1
   ubuntu_23_10/libssh-4: 0.10.5-3ubuntu1.2
   ubuntu_23_10/libssl3: 3.0.10-1ubuntu2.3
   ubuntu_23_10/libstdc++6: 13.2.0-4ubuntu3
-  ubuntu_23_10/libsuperlu6: 6.0.0+dfsg1-3
   ubuntu_23_10/libsystemd0: 253.5-1ubuntu6.1
-  ubuntu_23_10/libsz2: 1.0.6-1
   ubuntu_23_10/libtasn1-6: 4.19.0-3
-  ubuntu_23_10/libtiff6: 4.5.1+git230720-1ubuntu1.1
   ubuntu_23_10/libtinfo6: 6.4+20230625-2
   ubuntu_23_10/libtirpc-common: 1.3.3+ds-1
   ubuntu_23_10/libtirpc3: 1.3.3+ds-1
   ubuntu_23_10/libudev1: 253.5-1ubuntu6.1
   ubuntu_23_10/libunistring2: 1.0-2
-  ubuntu_23_10/liburiparser1: 0.9.7+dfsg-2
   ubuntu_23_10/libuuid1: 2.39.1-4ubuntu2
-  ubuntu_23_10/libwebp7: 1.2.4-0.3
-  ubuntu_23_10/libx11-6: 2:1.8.6-1ubuntu1
-  ubuntu_23_10/libx11-data: 2:1.8.6-1ubuntu1
-  ubuntu_23_10/libxau6: 1:1.0.9-1build5
-  ubuntu_23_10/libxcb-render0: 1.15-1
-  ubuntu_23_10/libxcb-shm0: 1.15-1
-  ubuntu_23_10/libxcb1: 1.15-1
-  ubuntu_23_10/libxdmcp6: 1:1.1.3-0ubuntu5
-  ubuntu_23_10/libxerces-c3.2: 3.2.4+debian-1ubuntu0.23.10.1
-  ubuntu_23_10/libxext6: 2:1.3.4-1build1
-  ubuntu_23_10/libxml2: 2.9.14+dfsg-1.3ubuntu0.1
-  ubuntu_23_10/libxrender1: 1:0.9.10-1.1
+  ubuntu_23_10/libxtables12: 1.8.9-2ubuntu2
   ubuntu_23_10/libxxhash0: 0.8.1-1
   ubuntu_23_10/libzstd1: 1.5.5+dfsg2-1ubuntu2
   ubuntu_23_10/login: 1:4.13+dfsg1-1ubuntu1.1
   ubuntu_23_10/logsave: 1.47.0-2ubuntu1
-  ubuntu_23_10/mapnik-utils: 3.1.0+ds-4
   ubuntu_23_10/mawk: 1.3.4.20230730-1
   ubuntu_23_10/media-types: 10.1.0
   ubuntu_23_10/mount: 2.39.1-4ubuntu2
-  ubuntu_23_10/mysql-common: 5.8+1.1.0
   ubuntu_23_10/ncurses-base: 6.4+20230625-2
   ubuntu_23_10/ncurses-bin: 6.4+20230625-2
-  ubuntu_23_10/net-tools: 2.10-0.1ubuntu3
   ubuntu_23_10/netbase: '6.4'
+  ubuntu_23_10/nodejs: 18.19.1-1nodesource1
   ubuntu_23_10/openssl: 3.0.10-1ubuntu2.3
-  ubuntu_23_10/optipng: 0.7.7-2build1
   ubuntu_23_10/passwd: 1:4.13+dfsg1-1ubuntu1.1
+  ubuntu_23_10/patch: 2.7.6-7build2
   ubuntu_23_10/perl: 5.36.0-9ubuntu1.1
   ubuntu_23_10/perl-base: 5.36.0-9ubuntu1.1
   ubuntu_23_10/perl-modules-5.36: 5.36.0-9ubuntu1.1
+  ubuntu_23_10/pinentry-curses: 1.2.1-1ubuntu1
   ubuntu_23_10/postgresql-client: 15+253
   ubuntu_23_10/postgresql-client-15: 15.6-0ubuntu0.23.10.1
   ubuntu_23_10/postgresql-client-common: '253'
   ubuntu_23_10/procps: 2:4.0.3-1ubuntu1.23.10.1
-  ubuntu_23_10/proj-data: 9.2.1-1
   ubuntu_23_10/python3: 3.11.4-5
   ubuntu_23_10/python3-distutils: 3.11.5-1
   ubuntu_23_10/python3-lib2to3: 3.11.5-1
@@ -245,12 +162,13 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_23_10/python3.11: 3.11.6-3
   ubuntu_23_10/python3.11-minimal: 3.11.6-3
   ubuntu_23_10/readline-common: 8.2-1.3
+  ubuntu_23_10/runc: 1.1.7-0ubuntu2.2
   ubuntu_23_10/sed: 4.9-1
   ubuntu_23_10/sensible-utils: 0.0.20
   ubuntu_23_10/sysvinit-utils: 3.07-1ubuntu1
   ubuntu_23_10/tar: 1.34+dfsg-1.2ubuntu1.1
   ubuntu_23_10/tzdata: 2024a-0ubuntu0.23.10
   ubuntu_23_10/ubuntu-keyring: 2021.03.26
-  ubuntu_23_10/unixodbc-common: 2.3.12-1
   ubuntu_23_10/usrmerge: 35ubuntu1
   ubuntu_23_10/util-linux: 2.39.1-4ubuntu2
+  ubuntu_23_10/xz-utils: 5.4.1-0.2

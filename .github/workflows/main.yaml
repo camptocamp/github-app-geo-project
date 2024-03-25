@@ -43,7 +43,15 @@ jobs:
       - run: pre-commit run --all-files
         env:
           SKIP: poetry-lock
-      - run: git diff && false
+      - run: git diff
+        if: failure()
+      - run: git diff --patch > /tmp/pre-commit.patch || true
+        if: failure()
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Apply pre-commit fix.patch
+          path: /tmp/pre-commit.patch
+          retention-days: 1
         if: failure()
 
       # Use Python 3.11
@@ -79,3 +87,11 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.TOKEN }}
+      - run: git diff --patch ci/dpkg-versions.yaml > /tmp/dpkg.patch
+        if: failure()
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Update dpkg packages list.patch
+          path: /tmp/dpkg.patch
+          retention-days: 1
+        if: failure()
