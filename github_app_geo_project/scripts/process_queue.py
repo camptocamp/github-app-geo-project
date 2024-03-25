@@ -227,12 +227,13 @@ def main() -> None:
 
             if current_module.required_issue_dashboard() and new_issue_data is not None:
                 open_issues = repo.get_issues(
-                    state="open", creator=github_application.integration.get_app().owner
+                    state="open", creator=github_application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
                 )
                 if open_issues.totalCount > 0:
                     issue_full_data = utils.update_dashboard_issue_module(
                         open_issues[0].body, job_module, current_module, new_issue_data
                     )
+                    _LOGGER.debug("Update issue %s, with:\n%s", open_issues[0].number, issue_full_data)
                     open_issues[0].edit(body=issue_full_data)
                 elif new_issue_data:
                     repo.create_issue(
