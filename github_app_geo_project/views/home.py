@@ -74,6 +74,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             )
             if module_instance.required_issue_dashboard():
                 permissions["issues"] = "write"
+                events.add("issues")
             module_permissions = module_instance.get_github_application_permissions()
             events.update(module_permissions.events)
             for name, access in module_permissions.permissions.items():
@@ -91,14 +92,14 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     # test that all events are in github_events
                     if not events.issubset(github_events):
                         application["errors"].append(
-                            f"Missing events ({', '.join(events - github_events)}) "  # type: ignore[operator]
+                            f"Missing events ({', '.join(events - github_events)}) "
                             f"in the GitHub application, please add them in the "
                             "GitHub configuration interface."
                         )
                         _LOGGER.error(
                             "Missing events (%s) in the GitHub application '%s', please add them in the "
                             "GitHub configuration interface.",
-                            ", ".join(events - github_events),  # type: ignore[operator]
+                            ", ".join(events - github_events),
                             app,
                         )
                         _LOGGER.info("Current events:\n%s", "\n".join(github_events))
