@@ -166,24 +166,27 @@ class Patch(module.Module[dict[str, Any]]):
                         continue
 
                     with diff.open(diff.namelist()[0]) as file:
+                        patch_input = file.read().decode("utf-8")
+                        _LOGGER.debug("Apply patch input\n%s", patch_input)
                         subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                             ["patch", "--strip=1"],
-                            input=file.read().decode("utf-8"),
+                            input=patch_input,
                             encoding="utf-8",
                             capture_output=True,
                         )
                         if proc.returncode != 0:
                             raise PatchException(f"Failed to apply the diff{format_process_output(proc)}")
                         if proc.stdout:
-                            _LOGGER.debug("Apply patch\n%s", proc.stdout)
+                            _LOGGER.debug("Apply patch out\n%s", proc.stdout)
                         if proc.stderr:
-                            _LOGGER.error("Apply patch\n%s", proc.stdout)
-                        error = utils.create_commit(
-                            f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
-                        )
-                        if error:
-                            raise PatchException(f"Failed to commit the changes\n{error}")
-                        should_push = True
+                            _LOGGER.error("Apply patch error\n%s", proc.stdout)
+                        if utils.has_changes():
+                            error = utils.create_commit(
+                                f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
+                            )
+                            if error:
+                                raise PatchException(f"Failed to commit the changes\n{error[1]}")
+                            should_push = True
             if should_push:
                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                     ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"],

@@ -3,6 +3,7 @@ The auditing functions.
 """
 
 import datetime
+import logging
 import os.path
 import re
 import subprocess  # nosec
@@ -13,6 +14,8 @@ from ansi2html import Ansi2HTMLConverter
 
 from github_app_geo_project.module import utils
 from github_app_geo_project.module.audit import configuration
+
+_LOGGING = logging.getLogger(__name__)
 
 
 def snyk(
@@ -29,7 +32,9 @@ def snyk(
         ["git", "ls-files", "requirements.txt", "*/requirements.txt"], capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        result.append(utils.ansi_proc_dashboard("Error in ls-files", proc))
+        dashboard_message, message, _ = utils.ansi_proc_dashboard("Error in ls-files", proc)
+        _LOGGING.error(message)
+        result.append(dashboard_message)
     else:
         for file in proc.stdout.strip().split("\n"):
             if not file:
@@ -47,16 +52,20 @@ def snyk(
                 encoding="utf-8",
             )
             if proc.returncode != 0:
-                result.append(
-                    utils.ansi_proc_dashboard(f"Error while installing the dependencies from {file}", proc)
+                dashboard_message, message, _ = utils.ansi_proc_dashboard(
+                    f"Error while installing the dependencies from {file}", proc
                 )
+                _LOGGING.error(message)
+                result.append(dashboard_message)
                 continue
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        result.append(utils.ansi_proc_dashboard("Error in ls-files", proc))
+        dashboard_message, message, _ = utils.ansi_proc_dashboard("Error in ls-files", proc)
+        _LOGGING.error(message)
+        result.append(dashboard_message)
     else:
         for file in proc.stdout.strip().split("\n"):
             if not file:
@@ -76,9 +85,11 @@ def snyk(
                 encoding="utf-8",
             )
             if proc.returncode != 0:
-                result.append(
-                    utils.ansi_proc_dashboard(f"Error while installing the dependencies from {file}", proc)
+                dashboard_message, message, _ = utils.ansi_proc_dashboard(
+                    f"Error while installing the dependencies from {file}", proc
                 )
+                _LOGGING.error(message)
+                result.append(dashboard_message)
             install_success &= proc.returncode == 0
 
     env = {**os.environ}
@@ -92,7 +103,9 @@ def snyk(
         command, env=env, capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        result.append(utils.ansi_proc_dashboard("Error while monitoring the project", proc))
+        dashboard_message, message, _ = utils.ansi_proc_dashboard("Error while monitoring the project", proc)
+        _LOGGING.error(message)
+        result.append(dashboard_message)
 
     command = ["snyk", "test"] + config.get(
         "test-arguments", c2cciutils.configuration.AUDIT_SNYK_TEST_ARGUMENTS_DEFAULT
@@ -101,7 +114,9 @@ def snyk(
         command, env=env, capture_output=True, encoding="utf-8"
     )
     if test_proc.returncode != 0:
-        result.append(utils.ansi_proc_dashboard("Error while testing the project", proc))
+        dashboard_message, message, _ = utils.ansi_proc_dashboard("Error while testing the project", proc)
+        _LOGGING.error(message)
+        result.append(dashboard_message)
 
     command = ["snyk", "fix"] + config.get(
         "fix-arguments", c2cciutils.configuration.AUDIT_SNYK_FIX_ARGUMENTS_DEFAULT
@@ -165,9 +180,11 @@ def dpkg() -> list[str]:
                             encoding="utf-8",
                         )
                         if proc.returncode == 0:
-                            results.append(
-                                utils.ansi_proc_dashboard("Error while removing the container", proc)
+                            dashboard_message, message, _ = utils.ansi_proc_dashboard(
+                                "Error while removing the container", proc
                             )
+                            _LOGGING.error(message)
+                            results.append(dashboard_message)
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                             [
                                 "docker",
@@ -186,9 +203,11 @@ def dpkg() -> list[str]:
                             encoding="utf-8",
                         )
                         if proc.returncode != 0:
-                            results.append(
-                                utils.ansi_proc_dashboard("Error while creating the container", proc)
+                            dashboard_message, message, _ = utils.ansi_proc_dashboard(
+                                "Error while creating the container", proc
                             )
+                            _LOGGING.error(message)
+                            results.append(dashboard_message)
 
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                             ["docker", "exec", "apt", "apt-get", "update"],
@@ -196,9 +215,11 @@ def dpkg() -> list[str]:
                             encoding="utf-8",
                         )
                         if proc.returncode != 0:
-                            results.append(
-                                utils.ansi_proc_dashboard("Error while updating the container", proc)
+                            dashboard_message, message, _ = utils.ansi_proc_dashboard(
+                                "Error while updating the container", proc
                             )
+                            _LOGGING.error(message)
+                            results.append(dashboard_message)
 
                         package_re = re.compile(r"^([^ /]+)/[a-z-,]+ ([^ ]+) (all|amd64)( .*)?$")
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -207,9 +228,11 @@ def dpkg() -> list[str]:
                             encoding="utf-8",
                         )
                         if proc.returncode != 0:
-                            results.append(
-                                utils.ansi_proc_dashboard("Error while listing the packages", proc)
+                            dashboard_message, message, _ = utils.ansi_proc_dashboard(
+                                "Error while listing the packages", proc
                             )
+                            _LOGGING.error(message)
+                            results.append(dashboard_message)
                             return results
                         for proc_line in proc.stdout.split("\n"):
                             package_match = package_re.match(proc_line)
@@ -223,10 +246,12 @@ def dpkg() -> list[str]:
                             capture_output=True,
                             encoding="utf-8",
                         )
-                        if proc.returncode == 0:
-                            results.append(
-                                utils.ansi_proc_dashboard("Error while removing the container", proc)
+                        if proc.returncode != 0:
+                            dashboard_message, message, _ = utils.ansi_proc_dashboard(
+                                "Error while removing the container", proc
                             )
+                            _LOGGING.error(message)
+                            results.append(dashboard_message)
                 if package in cache[dist]:
                     versions[package_full] = cache[dist][package]
 

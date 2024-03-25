@@ -216,9 +216,11 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     encoding="utf-8",
                 )
                 if proc.returncode != 0:
-                    issue_data[key].append(
-                        module_utils.ansi_proc_dashboard("Error while cloning the project", proc)
+                    dashboard, message, _ = module_utils.ansi_proc_dashboard(
+                        "Error while cloning the project", proc
                     )
+                    _LOGGER.error(message)
+                    issue_data[key].append(dashboard)
 
             if context.module_data["type"] == "snyk":
                 python_version = ""
@@ -233,9 +235,11 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         ["pipenv", "local", python_version], capture_output=True, encoding="utf-8"
                     )
                     if proc.returncode != 0:
-                        issue_data[key].append(
-                            module_utils.ansi_proc_dashboard("Error while setting the python version", proc)
+                        dashboard, message, _ = module_utils.ansi_proc_dashboard(
+                            "Error while setting the python version", proc
                         )
+                        _LOGGER.error(message)
+                        issue_data[key].append(dashboard)
 
             if context.module_data["type"] == "snyk":
                 local_config: configuration.AuditConfiguration = {}
@@ -279,9 +283,12 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8"
                 )
                 if proc.returncode != 0:
-                    issue_data[key].append(
-                        module_utils.ansi_proc_dashboard("Error while creating the new branch", proc)
+                    dashboard, message, _ = module_utils.ansi_proc_dashboard(
+                        "Error while creating the new branch", proc
                     )
+                    _LOGGER.error(message)
+                    issue_data[key].append(dashboard)
+
                     return self._get_process_output(context, issue_data)
 
                 repo = context.github_project.github.get_repo(
@@ -291,7 +298,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     branch, new_branch, f"Audit {key}", body, repo
                 )
                 if error is not None:
-                    issue_data[key].append(error)
+                    dashboard, message, _ = error
+                    _LOGGER.error(message)
+                    issue_data[key].append(dashboard)
                     return self._get_process_output(context, issue_data)
                 if pull_request is not None:
                     issue_data[key] = [f"Pull request created: {pull_request.html_url}", "", *issue_data[key]]
