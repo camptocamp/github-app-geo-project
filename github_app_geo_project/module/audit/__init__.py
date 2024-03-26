@@ -183,7 +183,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             key = f"DPKG {context.module_data['version']}"
         issue_data[key] = []
         try:
-            branch: str = cast(context.module_data["version"], str)  # type: ignore[name-defined]
+            branch: str = cast(str, context.module_data["version"])
             if os.path.exists("ci/config.yaml"):
                 with open("ci/config.yaml", encoding="utf-8") as file:
                     ci_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
@@ -221,6 +221,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     )
                     _LOGGER.error(message)
                     issue_data[key].append(dashboard)
+                    return self._get_process_output(context, issue_data)
 
             if context.module_data["type"] == "snyk":
                 python_version = ""
@@ -241,7 +242,6 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         _LOGGER.error(message)
                         issue_data[key].append(dashboard)
 
-            if context.module_data["type"] == "snyk":
                 local_config: configuration.AuditConfiguration = {}
                 if os.path.exists(".github/ghci.yaml"):
                     with open(".github/ghci.yaml", encoding="utf-8") as file:
@@ -266,11 +266,11 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         f"{context.github_project.owner}/{context.github_project.repository}"
                     )
                     issue = repo.create_issue(
-                        title=f"Error on running DPKG on {branch}",
+                        title=f"Error on running dpkg on {branch}",
                         body="\n".join(issue_data[key]),
                     )
                     issue_data[key] = [
-                        f"Error on running DPKG on {branch}: #{issue.number}",
+                        f"Error on running dpkg on {branch}: #{issue.number}",
                         "",
                         *issue_data[key],
                     ]

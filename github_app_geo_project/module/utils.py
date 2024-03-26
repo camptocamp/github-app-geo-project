@@ -204,7 +204,15 @@ def ansi_proc_dashboard(title: str, proc: subprocess.CompletedProcess[str]) -> t
     """
     ansi_converter = Ansi2HTMLConverter()
     styles = []
-    message = [f"Command: {shlex.join(proc.args)}", f"Return code: {proc.returncode}"]
+    args = []
+
+    for arg in proc.args:
+        if "x-access-token" in arg:
+            args.append(re.sub(r"x-access-token:[0-9a-zA-Z_]*", "x-access-token:***", arg))
+        else:
+            args.append(arg)
+
+    message = [f"Command: {shlex.join(args)}", f"Return code: {proc.returncode}"]
     if proc.stdout:
         message.append("")
         message.append("Output:")
@@ -219,7 +227,7 @@ def ansi_proc_dashboard(title: str, proc: subprocess.CompletedProcess[str]) -> t
         styles.append(style)
 
     return (
-        "\n".join(["<details>", f"<summary>{title}</summary>", "<blockquote>", *message, "</blockquote>"]),
+        "\n".join(["<details>", f"<summary>{title}</summary>", *message, "</details>"]),
         "\n".join(message),
         merged_stylesheets("\n".join(styles)),
     )
