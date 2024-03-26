@@ -4,8 +4,6 @@ import json
 import logging
 import os
 import re
-import subprocess  # nosec
-import tempfile
 from collections.abc import Callable
 from typing import Any, NamedTuple, Union, cast
 
@@ -258,44 +256,6 @@ def get_release(tag: github.Tag.Tag) -> github.GitRelease.GitRelease | None:
         if release.tag_name == tag.name:
             return release  # type: ignore[no-any-return]
     return None
-
-
-def get_pull_request_tags(
-    repo: github.Repository.Repository, pull_request_number: int, tags: dict[Tag, Tag] | None = None
-) -> Tag | None:
-    """
-    Get the tags that contains the merge commit of the pull request.
-    """
-    pull_request = repo.get_pull(pull_request_number)
-    # Created temporary directory
-    with tempfile.TemporaryDirectory() as tmp_directory_name:
-        os.chdir(tmp_directory_name)
-        subprocess.run(["git", "clone", repo.clone_url], check=True)  # nosec
-        os.chdir(os.path.join(tmp_directory_name, repo.name))
-        tags_str = (
-            subprocess.run(  # nosec
-                ["git", "tag", "--contains", pull_request.merge_commit_sha],
-                stdout=subprocess.PIPE,
-                check=True,
-            )
-            .stdout.decode()
-            .split("\n")
-        )
-        found_tags = []
-        for tag in tags_str:
-            if tag:
-                try:
-                    found_tags.append(Tag(tag))
-                except ValueError:
-                    pass
-
-    if not found_tags:
-        return None
-    found_tags.sort()
-    found_tag = found_tags[0]
-    if tags and found_tag in tags:
-        return tags[found_tag]
-    return found_tag
 
 
 def generate_changelog(
