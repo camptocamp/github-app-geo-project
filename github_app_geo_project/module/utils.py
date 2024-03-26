@@ -143,6 +143,11 @@ class DashboardIssue:
     def add_check(self, name: str, title: str, checked: bool) -> None:
         """Add a check."""
         index = len(self.issue) - 1
+        for issue in self.issue:
+            if isinstance(issue, DashboardIssueItem) and issue.comment == name:
+                return
+
+        # Insert the check after the last check
         while index >= 0 and isinstance(self.issue[index], str):
             index -= 1
         if index < 0:
