@@ -236,10 +236,15 @@ def main() -> None:
                     _LOGGER.debug("Update issue %s, with:\n%s", open_issues[0].number, issue_full_data)
                     open_issues[0].edit(body=issue_full_data)
                 elif new_issue_data:
+                    issue_full_data = utils.update_dashboard_issue_module(
+                        f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{owner}/{repository})\n\n",
+                        job_module,
+                        current_module,
+                        new_issue_data,
+                    )
                     repo.create_issue(
-                        "GHCI Dashboard",
-                        f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{owner}/{repository})\n\n"
-                        + new_issue_data,
+                        f"{github_application.integration.get_app().name} Dashboard",
+                        issue_full_data,
                     )
 
         except Exception:  # pylint: disable=broad-exception-caught

@@ -4,7 +4,6 @@ import logging
 import os
 from typing import Any
 
-import github
 import pygments.formatters
 import pygments.lexers
 import pyramid.httpexceptions
@@ -43,35 +42,6 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "jobs": [],
         }
     config: project_configuration.GithubApplicationProjectConfiguration = {}
-    issue_url = ""
-    if "TEST_APPLICATION" not in os.environ:
-        for app in request.registry.settings["applications"].split():
-            try:
-                config = configuration.get_configuration(
-                    request.registry.settings,
-                    owner,
-                    repository,
-                    app,
-                )
-                github_project = configuration.get_github_project(
-                    request.registry.settings,
-                    app,
-                    owner,
-                    repository,
-                )
-                repo = github_project.github.get_repo(f"{owner}/{repository}")
-                for issue in repo.get_issues(
-                    state="open",
-                    creator=f"{github_project.application.integration.get_app().slug}[bot]",  # type: ignore[arg-type]
-                ):
-                    if "dashboard" in issue.title.lower().split() and issue.state == "open":
-                        issue_url = issue.html_url
-
-                break
-            except github.GithubException:
-                _LOGGER.debug(
-                    "Cannot get the configuration for %s for repository %s/%s", app, owner, repository
-                )
 
     _LOGGER.debug("Configuration: %s", config)
 
@@ -106,18 +76,38 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         .order_by(models.Queue.created_at.desc())
     )
 
-    issue_required = False
     module_names = set()
+    applications: dict[str, dict[str, Any]] = {}
     for app in request.registry.settings["applications"].split():
+        applications.setdefault(app, {})
         try:
             if "TEST_APPLICATION" not in os.environ:
-                configuration.get_github_project(
+                config = configuration.get_configuration(
+                    request.registry.settings,
+                    owner,
+                    repository,
+                    app,
+                )
+                github_project = configuration.get_github_project(
                     request.registry.settings,
                     app,
                     owner,
                     repository,
                 )
+                repo = github_project.github.get_repo(f"{owner}/{repository}")
+                for issue in repo.get_issues(
+                    state="open",
+                    creator=f"{github_project.application.integration.get_app().slug}[bot]",  # type: ignore[arg-type]
+                ):
+                    if "dashboard" in issue.title.lower().split() and issue.state == "open":
+                        applications[app]["issue_url"] = issue.html_url
+
             module_names.update(request.registry.settings[f"application.{app}.modules"].split())
+            for module_name in request.registry.settings[f"application.{app}.modules"].split():
+                module = modules.MODULES[module_name]
+                if module.required_issue_dashboard():
+                    applications[app]["issue_required"] = True
+
         except:  # nosec, pylint: disable=bare-except
             _LOGGER.debug(
                 "The repository %s/%s is not installed in the application %s", owner, repository, app
@@ -128,8 +118,6 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             _LOGGER.error("Unknown module %s", module_name)
             continue
         module = modules.MODULES[module_name]
-        if module.required_issue_dashboard():
-            issue_required = True
         module_config.append(
             {
                 "name": module_name,
@@ -150,7 +138,6 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "output": session.execute(select_output.limit(20)).all(),
             "jobs": session.execute(select_job.limit(20)).all(),
             "error": None,
-            "issue_url": issue_url,
-            "issue_required": issue_required,
+            "applications": applications,
             "module_configuration": module_config,
         }
