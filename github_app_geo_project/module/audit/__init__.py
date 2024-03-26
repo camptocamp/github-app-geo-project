@@ -104,7 +104,32 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):
             return [module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"})]
         _LOGGER.debug("Event data: %s", context.event_data)
+        results = []
+        snyk = False
+        dpkg = False
+        is_dashboard = False
+        if context.event_data.get("type") == "dashboard":
+            is_dashboard = True
+            old_check = module_utils.DashboardIssue(
+                context.event_data.get("old_data", "").split("<!---->")[0]
+            )
+            new_check = module_utils.DashboardIssue(
+                context.event_data.get("new_data", "").split("<!---->")[0]
+            )
+
+            if not old_check.is_checked("outdated") and new_check.is_checked("outdated"):
+                results.append({"type": "outdated"})
+            if not old_check.is_checked("snyk") and new_check.is_checked("snyk"):
+                snyk = True
+            if not old_check.is_checked("dpkg") and new_check.is_checked("dpkg"):
+                dpkg = True
+
         if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
+            results.append({"type": "outdated"})
+            snyk = True
+            dpkg = True
+
+        if snyk or dpkg:
             repo = context.github_project.github.get_repo(
                 f"{context.github_project.owner}/{context.github_project.repository}"
             )
@@ -122,17 +147,15 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     raise
             _LOGGER.debug("Versions: %s", versions)
 
-            results = [
-                {"type": "outdated"},
-            ]
             for version in versions:
-                results += [
-                    {"type": "snyk", "version": version},
-                    {"type": "dpkg", "version": version},
-                ]
-            return [module.Action(priority=module.PRIORITY_CRON, data=d) for d in results]
-
-        return []
+                if snyk:
+                    results.append({"type": "snyk", "version": version})
+                if dpkg:
+                    results.append({"type": "dpkg", "version": version})
+        return [
+            module.Action(priority=module.PRIORITY_STANDARD if is_dashboard else module.PRIORITY_CRON, data=d)
+            for d in results
+        ]
 
     def process(
         self, context: module.ProcessContext[configuration.AuditConfiguration]
@@ -142,7 +165,16 @@ class Audit(module.Module[configuration.AuditConfiguration]):
 
         Note that this method is called in the queue consuming Pod
         """
-        issue_data = _parse_issue_data(context.issue_data)
+        issue_data_splitted = context.issue_data.split("<!---->")
+        if len(issue_data_splitted) == 1:
+            issue_data_splitted.append("")
+        issue_check = module_utils.DashboardIssue(issue_data_splitted[0])
+        issue_data = _parse_issue_data(issue_data_splitted[1])
+
+        issue_check.add_check("outdated", "Check outdated version", False)
+        issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
+        issue_check.add_check("dpkg", "Update dpkg packages", False)
+
         if context.module_data["type"] == "outdated":
             repo = context.github_project.github.get_repo(
                 f"{context.github_project.owner}/{context.github_project.repository}"
@@ -173,7 +205,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         break
                 if to_delete:
                     del issue_data[key]
-            return self._get_process_output(context, issue_data)
+            self._get_process_output(context, issue_check, issue_data)
 
         key = f"Undefined {context.module_data['version']}"
         new_branch = f"ghci/audit/{context.module_data['type']}/{context.module_data['version']}"
@@ -221,7 +253,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     )
                     _LOGGER.error(message)
                     issue_data[key].append(dashboard)
-                    return self._get_process_output(context, issue_data)
+                    return self._get_process_output(context, issue_check, issue_data)
 
             if context.module_data["type"] == "snyk":
                 python_version = ""
@@ -289,7 +321,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     _LOGGER.error(message)
                     issue_data[key].append(dashboard)
 
-                    return self._get_process_output(context, issue_data)
+                    return self._get_process_output(context, issue_check, issue_data)
 
                 repo = context.github_project.github.get_repo(
                     f"{context.github_project.owner}/{context.github_project.repository}"
@@ -301,20 +333,24 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     dashboard, message, _ = error
                     _LOGGER.error(message)
                     issue_data[key].append(dashboard)
-                    return self._get_process_output(context, issue_data)
+                    return self._get_process_output(context, issue_check, issue_data)
+
                 if pull_request is not None:
                     issue_data[key] = [f"Pull request created: {pull_request.html_url}", "", *issue_data[key]]
         except Exception as exception:  # pylint: disable=broad-except
             _LOGGER.exception("Audit %s error", key)
             issue_data[key].append(f"Error: {exception}")
 
-        return self._get_process_output(context, issue_data)
+        return self._get_process_output(context, issue_check, issue_data)
 
     def _get_process_output(
         self,
         context: module.ProcessContext[configuration.AuditConfiguration],
+        issue_check: module_utils.DashboardIssue,
         issue_data: dict[str, list[str]],
     ) -> module.ProcessOutput:
+        issue_check.set_check(context.module_data["type"], False)
+
         module_status = context.transversal_status
         if issue_data:
             module_status[f"{context.github_project.owner}/{context.github_project.repository}"] = issue_data
@@ -322,7 +358,8 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             del module_status[f"{context.github_project.owner}/{context.github_project.repository}"]
 
         return module.ProcessOutput(
-            dashboard=_format_issue_data(issue_data), transversal_status=module_status
+            dashboard="<!---->".join([issue_check.to_string(), _format_issue_data(issue_data)]),
+            transversal_status=module_status,
         )
 
     def get_json_schema(self) -> dict[str, Any]:
