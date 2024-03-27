@@ -330,13 +330,13 @@ def main() -> None:
             event_data = job.event_data
             module_data = job.module_data
         try:
-            error = False
+            success = True
             if not job.module:
                 if event_data.get("type") == "event":
                     _process_event(config, event_data, session)
                 elif module_data.get("type") == "dashboard":
-                    error = _validate_job(config, job_application, event_data)
-                    if not error:
+                    success = _validate_job(config, job_application, event_data)
+                    if success:
                         _process_dashboard_issue(
                             config,
                             session,
@@ -349,11 +349,11 @@ def main() -> None:
                     _LOGGER.error(
                         "Unknown event type: %s/%s", event_data.get("type"), module_data.get("type")
                     )
-                    error = True
+                    success = False
             else:
-                error = _validate_job(config, job_application, event_data)
-                if not error:
-                    error = _process_job(
+                success = _validate_job(config, job_application, event_data)
+                if success:
+                    success = _process_job(
                         config,
                         session,
                         event_data,
@@ -369,7 +369,7 @@ def main() -> None:
             session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(models.Queue.id == job_id)
-                .values(status=models.JobStatus.ERROR if error else models.JobStatus.DONE)
+                .values(status=models.JobStatus.DONE if success else models.JobStatus.ERROR)
             )
             session.commit()
 
