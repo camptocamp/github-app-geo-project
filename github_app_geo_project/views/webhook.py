@@ -9,7 +9,7 @@ import sqlalchemy.engine
 import sqlalchemy.orm
 from pyramid.view import view_config
 
-from github_app_geo_project import configuration, models, module, utils
+from github_app_geo_project import models, module
 from github_app_geo_project.module import modules
 
 _LOGGER = logging.getLogger(__name__)
@@ -22,21 +22,8 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     """Receive GitHub application webhook URL."""
     application = request.matchdict["application"]
     data = request.json
-    github_objects = configuration.get_github_application(request.registry.settings, application)
 
     _LOGGER.debug("Webhook received for %s, with:\n%s", application, json.dumps(data, indent=2))
-
-    try:
-        if not github_objects.integration.get_app().id != int(data.get("installation", {}).get("id", 0)):
-            _LOGGER.error(
-                "Invalid installation id %i != %i on %s",
-                github_objects.integration.get_app().id,
-                data.get("installation", {}).get("id", 0),
-                request.url,
-            )
-            return {}
-    except:  # pylint: disable=bare-except
-        _LOGGER.warning("Unable to compare installation id, continuing", exc_info=True)
 
     if "account" in data.get("installation", {}):
         if "repositories" in data:
@@ -59,45 +46,37 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             )
         return {}
     owner, repository = data["repository"]["full_name"].split("/")
-    github = configuration.get_github_project(request.registry.settings, application, owner, repository)
-
-    if data.get("action") == "edited" and "issue" in data:
-        if (
-            data["issue"]["user"]["login"] == github_objects.integration.get_app().slug + "[bot]"
-            and "dashboard" in data["issue"]["title"].lower().split()
-        ):
-            repository_full = f"{owner}/{repository}"
-            repository = github.github.get_repo(repository_full)
-            open_issues = repository.get_issues(
-                state="open", creator=github_objects.integration.get_app().owner
-            )
-
-            if open_issues.totalCount > 0 and open_issues[0].number == data["issue"]["number"]:
-                _LOGGER.debug("Dashboard issue edited")
-                old_content = data.get("changes", {}).get("body", {}).get("from", "")
-                new_content = data["issue"]["body"]
-                session_factory = request.registry["dbsession_factory"]
-                engine = session_factory.rw_engine
-                with engine.connect() as session:
-                    process_dashboard_issue(
-                        ProcessContext(github, request.registry.settings, "dashboard", data, session),
-                        old_content,
-                        new_content,
-                    )
-                    session.commit()
-
-                return {}
 
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.rw_engine
     with engine.connect() as session:
+        if data.get("action") == "edited" and "issue" in data:
+            if "dashboard" in data["issue"]["title"].lower().split():
+                session.execute(
+                    sqlalchemy.insert(models.Queue).values(
+                        {
+                            "priority": module.PRIORITY_HIGH,
+                            "application": application,
+                            "owner": owner,
+                            "repository": repository,
+                            "event_name": "dashboard",
+                            "event_data": data,
+                            "module_data": {
+                                "type": "dashboard",
+                            },
+                        }
+                    )
+                )
+
         process_event(
             ProcessContext(
-                github,
-                request.registry.settings,
-                request.headers.get("X-GitHub-Event", "undefined"),
-                data,
-                session,
+                owner=owner,
+                repository=repository,
+                config=request.registry.settings,
+                application=application,
+                event_name=request.headers.get("X-GitHub-Event", "undefined"),
+                event_data=data,
+                session=session,
             )
         )
         session.commit()
@@ -107,10 +86,14 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
 class ProcessContext(NamedTuple):
     """The context of the process."""
 
-    # The github application name
-    github_project: configuration.GithubProject
+    # The GitHub project owner
+    owner: str
+    # The GitHub project repository
+    repository: str
     # The application configuration
-    application_config: dict[str, Any]
+    config: dict[str, Any]
+    # The application name
+    application: str
     # The event name present in the X-GitHub-Event header
     event_name: str
     # The event data
@@ -119,70 +102,19 @@ class ProcessContext(NamedTuple):
     session: sqlalchemy.orm.Session
 
 
-def process_dashboard_issue(
-    context: ProcessContext,
-    old_data: str,
-    new_data: str,
-) -> None:
-    """Process changes on the dashboard issue."""
-    for name in context.application_config.get(
-        f"application.{context.github_project.application.name}.modules", ""
-    ).split():
-        current_module = modules.MODULES.get(name)
-        if current_module is None:
-            _LOGGER.error("Unknown module %s", name)
-            continue
-        module_old = utils.get_dashboard_issue_module(old_data, name)
-        module_new = utils.get_dashboard_issue_module(new_data, name)
-        if module_old != module_new:
-            _LOGGER.debug("Dashboard issue edited for module %s: %s", name, current_module.title())
-            if current_module.required_issue_dashboard():
-                for action in current_module.get_actions(
-                    module.GetActionContext(
-                        github_project=context.github_project,
-                        event_name="dashboard",
-                        event_data={
-                            "type": "dashboard",
-                            "old_data": module_old,
-                            "new_data": module_new,
-                        },
-                    )
-                ):
-                    context.session.execute(
-                        sqlalchemy.insert(models.Queue).values(
-                            {
-                                "priority": action.priority,
-                                "application": context.github_project.application.name,
-                                "owner": context.github_project.owner,
-                                "repository": context.github_project.repository,
-                                "event_name": "dashboard",
-                                "event_data": {
-                                    "type": "dashboard",
-                                    "old_data": module_old,
-                                    "new_data": module_new,
-                                },
-                                "module": name,
-                                "module_data": action.data,
-                            }
-                        )
-                    )
-
-
 def process_event(context: ProcessContext) -> None:
     """Process the event."""
-    _LOGGER.debug("Processing event for application %s", context.github_project.application.name)
-    for name in context.application_config.get(
-        f"application.{context.github_project.application.name}.modules", ""
-    ).split():
+    _LOGGER.debug("Processing event for application %s", context.application)
+    for name in context.config.get(f"application.{context.application}.modules", "").split():
         current_module = modules.MODULES.get(name)
         if current_module is None:
             _LOGGER.error("Unknown module %s", name)
             continue
         _LOGGER.info(
             "Getting actions for the application: %s, repository: %s/%s, module: %s",
-            context.github_project.application.name,
-            context.github_project.owner,
-            context.github_project.repository,
+            context.application,
+            context.owner,
+            context.repository,
             name,
         )
         try:
@@ -190,16 +122,17 @@ def process_event(context: ProcessContext) -> None:
                 module.GetActionContext(
                     event_name=context.event_name,
                     event_data=context.event_data,
-                    github_project=context.github_project,
+                    owner=context.owner,
+                    repository=context.repository,
                 )
             ):
                 context.session.execute(
                     sqlalchemy.insert(models.Queue).values(
                         {
                             "priority": action.priority,
-                            "application": context.github_project.application.name,
-                            "owner": context.github_project.owner,
-                            "repository": context.github_project.repository,
+                            "application": context.application,
+                            "owner": context.owner,
+                            "repository": context.repository,
                             "event_name": context.event_name,
                             "event_data": context.event_data,
                             "module": name,

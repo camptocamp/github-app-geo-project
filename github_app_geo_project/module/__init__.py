@@ -22,6 +22,8 @@ class Action(NamedTuple):
     data: Mapping[str, Any]
 
 
+# Priority used to preprocess the dashboard issue
+PRIORITY_HIGH = 0
 # Priority used to update the pull request status
 PRIORITY_STATUS = 10
 # Priority used for actions triggered by dashborad issue
@@ -41,8 +43,10 @@ class GetActionContext(NamedTuple):
     event_name: str
     # The event data
     event_data: dict[str, Any]
-    # The github application
-    github_project: configuration.GithubProject
+    # The owner of the event
+    owner: str
+    # The repository of the event
+    repository: str
 
 
 class CleanupContext(NamedTuple):
@@ -227,14 +231,23 @@ class GitHubApplicationPermissions(NamedTuple):
 class ProcessOutput:
     """The output of the process method."""
 
+    dashboard: str | None
+    """The dashboard issue content."""
+    transversal_status: dict[str, Any] | None
+    """The transversal status of the module."""
+    actions: list[Action]
+    """The new actions that should be done."""
+
     def __init__(
-        self, dashboard: str | None = None, transversal_status: dict[str, Any] | None = None
+        self,
+        dashboard: str | None = None,
+        transversal_status: dict[str, Any] | None = None,
+        actions: list[Action] | None = None,
     ) -> None:
         """Create the output of the process method."""
         self.dashboard = dashboard
-        """The dashboard issue content."""
         self.transversal_status = transversal_status
-        """The transversal status of the module."""
+        self.actions = actions or []
 
 
 class TransversalDashboardContext(NamedTuple):

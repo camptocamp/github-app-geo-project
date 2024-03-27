@@ -7,7 +7,7 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
@@ -20,6 +20,258 @@ from github_app_geo_project.module import modules
 from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
+    github_application = configuration.get_github_application(config, application)
+    github_app = github_application.integration.get_app()
+    installation_id = event_data.get("installation", {}).get("id", 0)
+    if not github_app.id != installation_id:
+        _LOGGER.error("Invalid installation id %i != %i", github_app.id, installation_id)
+        return False
+    return True
+
+
+def _process_job(
+    config: dict[str, str],
+    session: sqlalchemy.orm.Session,
+    event_data: dict[str, Any],
+    module_data: dict[str, Any],
+    owner: str,
+    repository: str,
+    job_id: int,
+    module_name: str,
+    application: str,
+    event_name: str,
+) -> bool:
+    current_module = modules.MODULES.get(module_name)
+    if current_module is None:
+        _LOGGER.error("Unknown module %s", module_name)
+        return False
+
+    github_application = configuration.get_github_application(config, application)
+    github_project = configuration.get_github_project(config, github_application, owner, repository)
+
+    issue_data = ""
+    if current_module.required_issue_dashboard():
+        repository_full = f"{owner}/{repository}"
+        repo = github_project.github.get_repo(repository_full)
+        open_issues = repo.get_issues(state="open", creator=github_application.integration.get_app().owner)
+        if open_issues.totalCount > 0:
+            issue_full_data = open_issues[0].body
+            issue_data = utils.get_dashboard_issue_module(issue_full_data, module_name)
+
+    module_config = cast(
+        project_configuration.ModuleConfiguration,
+        configuration.get_configuration(config, owner, repository, application).get(module_name, {}),
+    )
+    if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
+        module_status = (
+            session.query(models.ModuleStatus)
+            .filter(models.ModuleStatus.module == module_name)
+            .with_for_update(of=models.ModuleStatus)
+            .one_or_none()
+        )
+        if module_status is None:
+            module_status = models.ModuleStatus(module=module_name, data={})
+            session.add(module_status)
+        try:
+            result = current_module.process(
+                module.ProcessContext(
+                    session=session,
+                    github_project=github_project,
+                    event_name="event",
+                    event_data=event_data,
+                    module_config=module_config,
+                    module_data=module_data,
+                    issue_data=issue_data,
+                    transversal_status=module_status.data or {},
+                )
+            )
+            if result is not None and result.transversal_status is not None:
+                module_status.data = result.transversal_status
+                session.commit()
+            if result is not None:
+                for action in result.actions:
+                    session.execute(
+                        sqlalchemy.insert(models.Queue).values(
+                            {
+                                "priority": action.priority,
+                                "application": application,
+                                "owner": owner,
+                                "repository": repository,
+                                "event_name": event_name,
+                                "event_data": event_data,
+                                "module": module_name,
+                                "module_data": action.data,
+                            }
+                        )
+                    )
+            new_issue_data = result.dashboard if result is not None else None
+        except github.GithubException as exception:
+            _LOGGER.exception(
+                "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                job_id,
+                module_name,
+                exception.data,
+                ("\n".join(f"{k}: {v}" for k, v in exception.headers.items()) if exception.headers else ""),
+                exception.message,
+                exception.status,
+            )
+            raise
+        except Exception:
+            _LOGGER.exception(
+                "Failed to process job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
+                job_id,
+                module_name,
+                module_data,
+                event_data,
+            )
+            raise
+    else:
+        _LOGGER.info("Module %s is disabled", module_name)
+        try:
+            current_module.cleanup(
+                module.CleanupContext(
+                    github_project=github_project,
+                    event_name="event",
+                    event_data=event_data,
+                    module_data=module_data,
+                )
+            )
+        except Exception:
+            _LOGGER.exception(
+                "Failed to cleanup job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
+                job_id,
+                module_name,
+                module_data,
+                event_data,
+            )
+            raise
+
+    if current_module.required_issue_dashboard() and new_issue_data is not None:
+        open_issues = repo.get_issues(
+            state="open", creator=github_application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
+        )
+        if open_issues.totalCount > 0:
+            issue_full_data = utils.update_dashboard_issue_module(
+                open_issues[0].body, module_name, current_module, new_issue_data
+            )
+            _LOGGER.debug("Update issue %s, with:\n%s", open_issues[0].number, issue_full_data)
+            open_issues[0].edit(body=issue_full_data)
+        elif new_issue_data:
+            issue_full_data = utils.update_dashboard_issue_module(
+                f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{owner}/{repository})\n\n",
+                module_name,
+                current_module,
+                new_issue_data,
+            )
+            repo.create_issue(
+                f"{github_application.integration.get_app().name} Dashboard",
+                issue_full_data,
+            )
+    return True
+
+
+def _process_event(
+    config: dict[str, str], event_data: dict[str, str], session: sqlalchemy.orm.Session
+) -> None:
+    for application in config["applications"].split():
+        _LOGGER.info("Process the event: %s, application: %s", event_data.get("name"), application)
+
+        github_application = configuration.get_github_application(config, application)
+        if "TEST_APPLICATION" in os.environ:
+            webhook.process_event(
+                webhook.ProcessContext(
+                    owner=None,  # type: ignore[arg-type]
+                    repository=None,  # type: ignore[arg-type]
+                    config=config,
+                    application=os.environ["TEST_APPLICATION"],
+                    event_name="event",
+                    event_data=event_data,
+                    session=session,
+                )
+            )
+        else:
+            for installation in github_application.integration.get_installations():
+                for repo in installation.get_repos():
+                    webhook.process_event(
+                        webhook.ProcessContext(
+                            owner=repo.owner.login,
+                            repository=repo.name,
+                            config=config,
+                            application=application,
+                            event_name="event",
+                            event_data=event_data,
+                            session=session,
+                        )
+                    )
+
+
+def _process_dashboard_issue(
+    config: dict[str, Any],
+    session: sqlalchemy.orm.Session,
+    event_data: dict[str, Any],
+    application: str,
+    owner: str,
+    repository: str,
+) -> None:
+    """Process changes on the dashboard issue."""
+    github_application = configuration.get_github_application(config, application)
+    github_project = configuration.get_github_project(config, github_application, owner, repository)
+
+    if event_data["issue"]["user"]["login"] == github_application.integration.get_app().slug + "[bot]":
+        repository_full = f"{owner}/{repository}"
+        github_repository = github_project.github.get_repo(repository_full)
+        open_issues = github_repository.get_issues(
+            state="open", creator=github_application.integration.get_app().owner
+        )
+
+        if open_issues.totalCount > 0 and open_issues[0].number == event_data["issue"]["number"]:
+            _LOGGER.debug("Dashboard issue edited")
+            old_data = event_data.get("changes", {}).get("body", {}).get("from", "")
+            new_data = event_data["issue"]["body"]
+
+            for name in config.get(f"application.{github_project.application.name}.modules", "").split():
+                current_module = modules.MODULES.get(name)
+                if current_module is None:
+                    _LOGGER.error("Unknown module %s", name)
+                    continue
+                module_old = utils.get_dashboard_issue_module(old_data, name)
+                module_new = utils.get_dashboard_issue_module(new_data, name)
+                if module_old != module_new:
+                    _LOGGER.debug("Dashboard issue edited for module %s: %s", name, current_module.title())
+                    if current_module.required_issue_dashboard():
+                        for action in current_module.get_actions(
+                            module.GetActionContext(
+                                event_name="dashboard",
+                                event_data={
+                                    "type": "dashboard",
+                                    "old_data": module_old,
+                                    "new_data": module_new,
+                                },
+                                owner=github_project.owner,
+                                repository=github_project.repository,
+                            )
+                        ):
+                            session.execute(
+                                sqlalchemy.insert(models.Queue).values(
+                                    {
+                                        "priority": action.priority,
+                                        "application": github_project.application.name,
+                                        "owner": github_project.owner,
+                                        "repository": github_project.repository,
+                                        "event_name": "dashboard",
+                                        "event_data": {
+                                            "type": "dashboard",
+                                            "old_data": module_old,
+                                            "new_data": module_new,
+                                        },
+                                        "module": name,
+                                        "module_data": action.data,
+                                    }
+                                )
+                            )
 
 
 def main() -> None:
@@ -77,178 +329,52 @@ def main() -> None:
             repository = job.repository
             event_data = job.event_data
             module_data = job.module_data
-            with Session() as session:
-                session.commit()
         try:
-            with Session() as session:
-                if not job.module and event_data.get("type") == "event":
-                    for application in config["applications"].split():
-                        _LOGGER.info(
-                            "Process the event: %s, application: %s", event_data.get("name"), application
-                        )
-
-                        github_application = configuration.get_github_application(config, application)
-                        if "TEST_APPLICATION" in os.environ:
-                            webhook.process_event(
-                                webhook.ProcessContext(
-                                    None,  # type: ignore[arg-type]
-                                    config,
-                                    "event",
-                                    event_data,
-                                    session,
-                                )
-                            )
-                        else:
-                            for installation in github_application.integration.get_installations():
-                                for repo in installation.get_repos():
-                                    webhook.process_event(
-                                        webhook.ProcessContext(
-                                            configuration.get_github_project(
-                                                config, github_application, repo.owner.login, repo.name
-                                            ),
-                                            config,
-                                            "event",
-                                            event_data,
-                                            session,
-                                        )
-                                    )
-
-                    session.execute(
-                        sqlalchemy.update(models.Queue)
-                        .where(models.Queue.id == job_id)
-                        .values(status=models.JobStatus.DONE)
-                    )
-                    session.commit()
-                    continue
-
-                current_module = modules.MODULES.get(job_module)
-                if current_module is None:
-                    _LOGGER.error("Unknown module %s", job_module)
-                    continue
-
-                github_application = configuration.get_github_application(config, job_application)
-                github_app = configuration.get_github_project(config, github_application, owner, repository)
-
-                issue_data = ""
-                if current_module.required_issue_dashboard():
-                    repository_full = f"{owner}/{repository}"
-                    repo = github_app.github.get_repo(repository_full)
-                    open_issues = repo.get_issues(
-                        state="open", creator=github_application.integration.get_app().owner
-                    )
-                    if open_issues.totalCount > 0:
-                        issue_full_data = open_issues[0].body
-                        issue_data = utils.get_dashboard_issue_module(issue_full_data, job_module)
-
-                module_config = cast(
-                    project_configuration.ModuleConfiguration,
-                    configuration.get_configuration(config, owner, repository, job_application).get(
-                        job_module, {}
-                    ),
-                )
-                if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
-                    module_status = (
-                        session.query(models.ModuleStatus)
-                        .filter(models.ModuleStatus.module == job_module)
-                        .with_for_update(of=models.ModuleStatus)
-                        .one_or_none()
-                    )
-                    if module_status is None:
-                        module_status = models.ModuleStatus(module=job_module, data={})
-                        session.add(module_status)
-                    try:
-                        result = current_module.process(
-                            module.ProcessContext(
-                                session=session,
-                                github_project=github_app,
-                                event_name="event",
-                                event_data=event_data,
-                                module_config=module_config,
-                                module_data=module_data,
-                                issue_data=issue_data,
-                                transversal_status=module_status.data or {},
-                            )
-                        )
-                        if result is not None and result.transversal_status is not None:
-                            module_status.data = result.transversal_status
-                            session.commit()
-                        new_issue_data = result.dashboard if result is not None else None
-                    except github.GithubException as exception:
-                        _LOGGER.exception(
-                            "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
-                            job_id,
-                            job_module,
-                            exception.data,
-                            (
-                                "\n".join(f"{k}: {v}" for k, v in exception.headers.items())
-                                if exception.headers
-                                else ""
-                            ),
-                            exception.message,
-                            exception.status,
-                        )
-                        raise
-                    except Exception:
-                        _LOGGER.exception(
-                            "Failed to process job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
-                            job_id,
-                            job_module,
-                            module_data,
+            error = False
+            if not job.module:
+                if event_data.get("type") == "event":
+                    _process_event(config, event_data, session)
+                elif module_data.get("type") == "dashboard":
+                    error = _validate_job(config, job_application, event_data)
+                    if not error:
+                        _process_dashboard_issue(
+                            config,
+                            session,
                             event_data,
+                            job_application,
+                            owner,
+                            repository,
                         )
-                        raise
                 else:
-                    _LOGGER.info("Module %s is disabled", job_module)
-                    try:
-                        current_module.cleanup(
-                            module.CleanupContext(
-                                github_project=github_app,
-                                event_name="event",
-                                event_data=event_data,
-                                module_data=module_data,
-                            )
-                        )
-                    except Exception:
-                        _LOGGER.exception(
-                            "Failed to cleanup job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
-                            job_id,
-                            job_module,
-                            module_data,
-                            event_data,
-                        )
-                        raise
-
-                session.execute(
-                    sqlalchemy.update(models.Queue)
-                    .where(models.Queue.id == job_id)
-                    .values(status=models.JobStatus.DONE)
-                )
-                session.commit()
-
-            if current_module.required_issue_dashboard() and new_issue_data is not None:
-                open_issues = repo.get_issues(
-                    state="open", creator=github_application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
-                )
-                if open_issues.totalCount > 0:
-                    issue_full_data = utils.update_dashboard_issue_module(
-                        open_issues[0].body, job_module, current_module, new_issue_data
+                    _LOGGER.error(
+                        "Unknown event type: %s/%s", event_data.get("type"), module_data.get("type")
                     )
-                    _LOGGER.debug("Update issue %s, with:\n%s", open_issues[0].number, issue_full_data)
-                    open_issues[0].edit(body=issue_full_data)
-                elif new_issue_data:
-                    issue_full_data = utils.update_dashboard_issue_module(
-                        f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{owner}/{repository})\n\n",
+                    error = True
+            else:
+                error = _validate_job(config, job_application, event_data)
+                if not error:
+                    error = _process_job(
+                        config,
+                        session,
+                        event_data,
+                        module_data,
+                        owner,
+                        repository,
+                        job_id,
                         job_module,
-                        current_module,
-                        new_issue_data,
+                        job_application,
+                        job.event_name,
                     )
-                    repo.create_issue(
-                        f"{github_application.integration.get_app().name} Dashboard",
-                        issue_full_data,
-                    )
+
+            session.execute(
+                sqlalchemy.update(models.Queue)
+                .where(models.Queue.id == job_id)
+                .values(status=models.JobStatus.ERROR if error else models.JobStatus.DONE)
+            )
+            session.commit()
 
         except Exception:  # pylint: disable=broad-exception-caught
-            _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module)
+            _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module or "-")
             with Session() as session:
                 session.execute(
                     sqlalchemy.update(models.Queue)
