@@ -3,6 +3,7 @@ The auditing functions.
 """
 
 import datetime
+import json
 import logging
 import os.path
 import re
@@ -109,16 +110,33 @@ def snyk(
             f"<details>\n<summary>Error while monitoring the project</summary>\n{message}\n</details>"
         )
 
-    command = ["snyk", "test"] + config.get(
+    command = ["snyk", "test", "--json"] + config.get(
         "test-arguments", c2cciutils.configuration.AUDIT_SNYK_TEST_ARGUMENTS_DEFAULT
     )
     test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
-    if test_proc.returncode != 0:
-        message = utils.ansi_proc_dashboard(proc)
-        _LOGGING.error(message)
-        result.append(f"<details>\n<summary>Error while testing the project</summary>\n{message}\n</details>")
+    test_joon = json.loads(test_proc.stdout)
+    for raw in test_joon:
+        result.append(f"{raw['targetFile']} ({raw['packageManager']})")
+        for vuln in raw["vulnerabilities"]:
+            result += [
+                "<details>",
+                "<summary>",
+                f"[{vuln['severity'].upper()}] {vuln['packageName']}@{vuln['version']}: {vuln['title']}, fixed in {', '.join(vuln['fixedIn'])}",
+                "</summary>",
+                vuln["id"],
+                " > ".join(vuln["from"]),
+                *[
+                    f"{identifier_type} {', '.join(identifiers)}"
+                    for identifier_type, identifiers in vuln["identifiers"].items()
+                ],
+                *[f"[{reference['title']}]({reference['url']})" for reference in vuln["references"]],
+                "",
+                vuln["description"],
+                "",
+                "</details>",
+            ]
 
     command = ["snyk", "fix"] + config.get(
         "fix-arguments", c2cciutils.configuration.AUDIT_SNYK_FIX_ARGUMENTS_DEFAULT
