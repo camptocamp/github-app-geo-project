@@ -249,11 +249,11 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     encoding="utf-8",
                 )
                 if proc.returncode != 0:
-                    dashboard, message, _ = module_utils.ansi_proc_dashboard(
-                        "Error while cloning the project", proc
-                    )
+                    message = module_utils.ansi_proc_dashboard(proc)
                     _LOGGER.error(message)
-                    issue_data[key].append(dashboard)
+                    issue_data[key].append(
+                        f"<details><summary>Error while cloning the project</summary>{message}</details>"
+                    )
                     return self._get_process_output(context, issue_check, issue_data)
 
             if context.module_data["type"] == "snyk":
@@ -269,11 +269,11 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         ["pipenv", "local", python_version], capture_output=True, encoding="utf-8"
                     )
                     if proc.returncode != 0:
-                        dashboard, message, _ = module_utils.ansi_proc_dashboard(
-                            "Error while setting the python version", proc
-                        )
+                        message = module_utils.ansi_proc_dashboard(proc)
                         _LOGGER.error(message)
-                        issue_data[key].append(dashboard)
+                        issue_data[key].append(
+                            f"<details><summary>Error while setting the python version</summary>{message}</details>"
+                        )
 
                 local_config: configuration.AuditConfiguration = {}
                 if os.path.exists(".github/ghci.yaml"):
@@ -316,11 +316,11 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8"
                 )
                 if proc.returncode != 0:
-                    dashboard, message, _ = module_utils.ansi_proc_dashboard(
-                        "Error while creating the new branch", proc
-                    )
+                    message = module_utils.ansi_proc_dashboard(proc)
                     _LOGGER.error(message)
-                    issue_data[key].append(dashboard)
+                    issue_data[key].append(
+                        f"<details><summary>Error while creating the new branch</summary>{message}</details>"
+                    )
 
                     return self._get_process_output(context, issue_check, issue_data)
 
@@ -331,9 +331,10 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     branch, new_branch, f"Audit {key}", body, repo
                 )
                 if error is not None:
-                    dashboard, message, _ = error
-                    _LOGGER.error(message)
-                    issue_data[key].append(dashboard)
+                    _LOGGER.error(error)
+                    issue_data[key].append(
+                        f"<details><summary>Error while create commit or pull request</summary>{error}</details>"
+                    )
                     return self._get_process_output(context, issue_check, issue_data)
 
                 if pull_request is not None:
