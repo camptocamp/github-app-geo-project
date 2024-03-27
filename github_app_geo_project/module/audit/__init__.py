@@ -205,7 +205,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         break
                 if to_delete:
                     del issue_data[key]
-            self._get_process_output(context, issue_check, issue_data)
+            return self._get_process_output(context, issue_check, issue_data)
 
         key = f"Undefined {context.module_data['version']}"
         new_branch = f"ghci/audit/{context.module_data['type']}/{context.module_data['version']}"
@@ -242,7 +242,8 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         "clone",
                         "--depth=1",
                         f"--branch={branch}",
-                        f"https://x-access-token:{token}@github.com/sbrunner/test-github-app.git",
+                        f"https://x-access-token:{token}@github.com/"
+                        f"{context.github_project.owner}/{context.github_project.repository}.git",
                     ],
                     capture_output=True,
                     encoding="utf-8",
@@ -358,7 +359,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             del module_status[f"{context.github_project.owner}/{context.github_project.repository}"]
 
         return module.ProcessOutput(
-            dashboard="<!---->".join([issue_check.to_string(), _format_issue_data(issue_data)]),
+            dashboard="\n<!---->\n".join([issue_check.to_string(), _format_issue_data(issue_data)]),
             transversal_status=module_status,
         )
 

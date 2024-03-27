@@ -36,9 +36,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             )
             return {}
     except:  # pylint: disable=bare-except
-        _LOGGER.error(
-            "Unable to get installation id, continuing",
-        )
+        _LOGGER.warning("Unable to compare installation id, continuing", exc_info=True)
 
     if "account" in data.get("installation", {}):
         if "repositories" in data:
