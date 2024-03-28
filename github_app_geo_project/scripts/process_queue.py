@@ -56,9 +56,9 @@ def _process_job(
     if current_module.required_issue_dashboard():
         repository_full = f"{owner}/{repository}"
         repo = github_project.github.get_repo(repository_full)
-        open_issues = repo.get_issues(state="open", creator=github_application.integration.get_app().owner)
-        if open_issues.totalCount > 0:
-            issue_full_data = open_issues[0].body
+        dashboard_issue = _get_dashboard_issue(github_application, repo)
+        if dashboard_issue:
+            issue_full_data = dashboard_issue.body
             issue_data = utils.get_dashboard_issue_module(issue_full_data, module_name)
 
     module_config = cast(
@@ -150,15 +150,7 @@ def _process_job(
             raise
 
     if current_module.required_issue_dashboard() and new_issue_data is not None:
-        open_issues = repo.get_issues(
-            state="open", creator=github_application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
-        )
-        dashboard_issue = None
-        if open_issues.totalCount > 0:
-            for candidate in open_issues:
-                if "dashboard" in candidate.title.lower().split():
-                    dashboard_issue = candidate
-                    break
+        dashboard_issue = _get_dashboard_issue(github_application, repo)
 
         if dashboard_issue:
             issue_full_data = utils.update_dashboard_issue_module(
@@ -215,6 +207,19 @@ def _process_event(
                     )
 
 
+def _get_dashboard_issue(
+    github_application: configuration.GithubApplication, repo: github.Repository.Repository
+) -> github.Issue.Issue | None:
+    open_issues = repo.get_issues(
+        state="open", creator=github_application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
+    )
+    if open_issues.totalCount > 0:
+        for candidate in open_issues:
+            if "dashboard" in candidate.title.lower().split():
+                return candidate
+    return None
+
+
 def _process_dashboard_issue(
     config: dict[str, Any],
     session: sqlalchemy.orm.Session,
@@ -229,12 +234,10 @@ def _process_dashboard_issue(
 
     if event_data["issue"]["user"]["login"] == github_application.integration.get_app().slug + "[bot]":
         repository_full = f"{owner}/{repository}"
-        github_repository = github_project.github.get_repo(repository_full)
-        open_issues = github_repository.get_issues(
-            state="open", creator=github_application.integration.get_app().owner
-        )
+        repo = github_project.github.get_repo(repository_full)
+        dashboard_issue = _get_dashboard_issue(github_application, repo)
 
-        if open_issues.totalCount > 0 and open_issues[0].number == event_data["issue"]["number"]:
+        if dashboard_issue and dashboard_issue.number == event_data["issue"]["number"]:
             _LOGGER.debug("Dashboard issue edited")
             old_data = event_data.get("changes", {}).get("body", {}).get("from", "")
             new_data = event_data["issue"]["body"]
@@ -279,6 +282,12 @@ def _process_dashboard_issue(
                                     }
                                 )
                             )
+    else:
+        _LOGGER.debug(
+            "Dashboard event ignored %s!=%s",
+            event_data["issue"]["user"]["login"],
+            github_application.integration.get_app().slug + "[bot]",
+        )
 
 
 def main() -> None:
@@ -345,15 +354,17 @@ def main() -> None:
             owner = job.owner
             repository = job.repository
             event_data = job.event_data
+            event_name = job.event_name
             module_data = job.module_data
             try:
                 success = True
                 if not job.module:
                     if event_data.get("type") == "event":
                         _process_event(config, event_data, session)
-                    elif module_data.get("type") == "dashboard":
+                    elif event_name == "dashboard":
                         success = _validate_job(config, job_application, event_data)
                         if success:
+                            _LOGGER.info("Process dashboard issue %i", job_id)
                             _process_dashboard_issue(
                                 config,
                                 session,
