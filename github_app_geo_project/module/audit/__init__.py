@@ -347,7 +347,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
         issue_check.add_check("dpkg", "Update dpkg packages", False)
 
-        if context.module_data["type"] == "outdated":
+        if context.module_data.get("type") == "outdated":
             _get_process_output(context, issue_check, issue_data)
 
         else:
