@@ -182,87 +182,89 @@ def _process_snyk_dpkg(
                 )
                 return
 
-        if context.module_data["type"] == "snyk":
-            python_version = ""
-            if os.path.exists(".tool-versions"):
-                with open(".tool-versions", encoding="utf-8") as file:
-                    for line in file:
-                        if line.startswith("python "):
-                            python_version = ".".join(line.split(" ")[1].split(".")[0:2])
-                            break
-            if python_version:
+            if context.module_data["type"] == "snyk":
+                python_version = ""
+                if os.path.exists(".tool-versions"):
+                    with open(".tool-versions", encoding="utf-8") as file:
+                        for line in file:
+                            if line.startswith("python "):
+                                python_version = ".".join(line.split(" ")[1].split(".")[0:2])
+                                break
+                if python_version:
+                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                        ["pipenv", "local", python_version], capture_output=True, encoding="utf-8"
+                    )
+                    if proc.returncode != 0:
+                        message = module_utils.ansi_proc_dashboard(proc)
+                        _LOGGER.error(message)
+                        issue_data[key].append(
+                            f"<details><summary>Error while setting the python version</summary>{message}</details>"
+                        )
+
+                local_config: configuration.AuditConfiguration = {}
+                if os.path.exists(".github/ghci.yaml"):
+                    with open(".github/ghci.yaml", encoding="utf-8") as file:
+                        local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
+                result, body, create_issue = audit_utils.snyk(branch, context.module_config, local_config)
+                if create_issue or result:
+                    repo = context.github_project.github.get_repo(
+                        f"{context.github_project.owner}/{context.github_project.repository}"
+                    )
+                    issue = repo.create_issue(
+                        title=f"Error on running Snyk on {branch}",
+                        body=body or "\n".join(result),
+                    )
+                    issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
+                issue_data[key] += result
+
+            if context.module_data["type"] == "dpkg":
+                body = "Update dpkg packages"
+                issue_data[key] += audit_utils.dpkg()
+                if issue_data[key]:
+                    repo = context.github_project.github.get_repo(
+                        f"{context.github_project.owner}/{context.github_project.repository}"
+                    )
+                    issue = repo.create_issue(
+                        title=f"Error on running dpkg on {branch}",
+                        body="\n".join(issue_data[key]),
+                    )
+                    issue_data[key] = [
+                        f"Error on running dpkg on {branch}: #{issue.number}",
+                        "",
+                        *issue_data[key],
+                    ]
+
+            diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                ["git", "diff", "--quiet"]
+            )
+            if diff_proc.returncode != 0:
                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                    ["pipenv", "local", python_version], capture_output=True, encoding="utf-8"
+                    ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8"
                 )
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_dashboard(proc)
                     _LOGGER.error(message)
                     issue_data[key].append(
-                        f"<details><summary>Error while setting the python version</summary>{message}</details>"
+                        f"<details><summary>Error while creating the new branch</summary>{message}</details>"
                     )
 
-            local_config: configuration.AuditConfiguration = {}
-            if os.path.exists(".github/ghci.yaml"):
-                with open(".github/ghci.yaml", encoding="utf-8") as file:
-                    local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
-            result, body, create_issue = audit_utils.snyk(branch, context.module_config, local_config)
-            if create_issue or result:
+                    return
+
                 repo = context.github_project.github.get_repo(
                     f"{context.github_project.owner}/{context.github_project.repository}"
                 )
-                issue = repo.create_issue(
-                    title=f"Error on running Snyk on {branch}",
-                    body=body or "\n".join(result),
+                error, pull_request = module_utils.create_commit_pull_request(
+                    branch, new_branch, f"Audit {key}", body, repo
                 )
-                issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
-            issue_data[key] += result
+                if error is not None:
+                    _LOGGER.error(error)
+                    issue_data[key].append(
+                        f"<details><summary>Error while create commit or pull request</summary>{error}</details>"
+                    )
+                    return
 
-        if context.module_data["type"] == "dpkg":
-            body = "Update dpkg packages"
-            issue_data[key] += audit_utils.dpkg()
-            if issue_data[key]:
-                repo = context.github_project.github.get_repo(
-                    f"{context.github_project.owner}/{context.github_project.repository}"
-                )
-                issue = repo.create_issue(
-                    title=f"Error on running dpkg on {branch}",
-                    body="\n".join(issue_data[key]),
-                )
-                issue_data[key] = [
-                    f"Error on running dpkg on {branch}: #{issue.number}",
-                    "",
-                    *issue_data[key],
-                ]
-
-        diff_proc = subprocess.run(["git", "diff", "--quiet"])  # nosec # pylint: disable=subprocess-run-check
-        if diff_proc.returncode != 0:
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8"
-            )
-            if proc.returncode != 0:
-                message = module_utils.ansi_proc_dashboard(proc)
-                _LOGGER.error(message)
-                issue_data[key].append(
-                    f"<details><summary>Error while creating the new branch</summary>{message}</details>"
-                )
-
-                return
-
-            repo = context.github_project.github.get_repo(
-                f"{context.github_project.owner}/{context.github_project.repository}"
-            )
-            error, pull_request = module_utils.create_commit_pull_request(
-                branch, new_branch, f"Audit {key}", body, repo
-            )
-            if error is not None:
-                _LOGGER.error(error)
-                issue_data[key].append(
-                    f"<details><summary>Error while create commit or pull request</summary>{error}</details>"
-                )
-                return
-
-            if pull_request is not None:
-                issue_data[key] = [f"Pull request created: {pull_request.html_url}", "", *issue_data[key]]
+                if pull_request is not None:
+                    issue_data[key] = [f"Pull request created: {pull_request.html_url}", "", *issue_data[key]]
 
     except Exception as exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
