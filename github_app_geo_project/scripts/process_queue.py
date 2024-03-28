@@ -329,59 +329,59 @@ def main() -> None:
             repository = job.repository
             event_data = job.event_data
             module_data = job.module_data
-        try:
-            success = True
-            if not job.module:
-                if event_data.get("type") == "event":
-                    _process_event(config, event_data, session)
-                elif module_data.get("type") == "dashboard":
+            try:
+                success = True
+                if not job.module:
+                    if event_data.get("type") == "event":
+                        _process_event(config, event_data, session)
+                    elif module_data.get("type") == "dashboard":
+                        success = _validate_job(config, job_application, event_data)
+                        if success:
+                            _process_dashboard_issue(
+                                config,
+                                session,
+                                event_data,
+                                job_application,
+                                owner,
+                                repository,
+                            )
+                    else:
+                        _LOGGER.error(
+                            "Unknown event type: %s/%s", event_data.get("type"), module_data.get("type")
+                        )
+                        success = False
+                else:
                     success = _validate_job(config, job_application, event_data)
                     if success:
-                        _process_dashboard_issue(
+                        success = _process_job(
                             config,
                             session,
                             event_data,
-                            job_application,
+                            module_data,
                             owner,
                             repository,
+                            job_id,
+                            job_module,
+                            job_application,
+                            job.event_name,
                         )
-                else:
-                    _LOGGER.error(
-                        "Unknown event type: %s/%s", event_data.get("type"), module_data.get("type")
-                    )
-                    success = False
-            else:
-                success = _validate_job(config, job_application, event_data)
-                if success:
-                    success = _process_job(
-                        config,
-                        session,
-                        event_data,
-                        module_data,
-                        owner,
-                        repository,
-                        job_id,
-                        job_module,
-                        job_application,
-                        job.event_name,
-                    )
 
-            session.execute(
-                sqlalchemy.update(models.Queue)
-                .where(models.Queue.id == job_id)
-                .values(status=models.JobStatus.DONE if success else models.JobStatus.ERROR)
-            )
-            session.commit()
-
-        except Exception:  # pylint: disable=broad-exception-caught
-            _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module or "-")
-            with Session() as session:
                 session.execute(
                     sqlalchemy.update(models.Queue)
                     .where(models.Queue.id == job_id)
-                    .values(status=models.JobStatus.ERROR)
+                    .values(status=models.JobStatus.DONE if success else models.JobStatus.ERROR)
                 )
                 session.commit()
+
+            except Exception:  # pylint: disable=broad-exception-caught
+                _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module or "-")
+                with Session() as session:
+                    session.execute(
+                        sqlalchemy.update(models.Queue)
+                        .where(models.Queue.id == job_id)
+                        .values(status=models.JobStatus.ERROR)
+                    )
+                    session.commit()
 
 
 if __name__ == "__main__":
