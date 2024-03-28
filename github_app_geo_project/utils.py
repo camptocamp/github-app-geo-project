@@ -12,6 +12,7 @@ def get_dashboard_issue_module(text: str, current_module: str) -> str:
     """Get the part of the issue related to a module."""
     start_tag = _ISSUE_START.format(current_module)
     end_tag = _ISSUE_END.format(current_module)
+    issue_data = ""
     if start_tag in text and end_tag in text:
         start = text.index(start_tag) + len(start_tag)
         end = text.index(end_tag)
