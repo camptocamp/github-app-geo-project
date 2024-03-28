@@ -138,7 +138,7 @@ def _process_snyk_dpkg(
     if context.module_data["type"] == "snyk":
         key = f"Snyk check/fix {context.module_data['version']}"
     if context.module_data["type"] == "dpkg":
-        key = f"DPKG {context.module_data['version']}"
+        key = f"Dpkg {context.module_data['version']}"
     issue_data[key] = []
     try:
         branch: str = cast(str, context.module_data["version"])
@@ -280,11 +280,11 @@ class Audit(module.Module[configuration.AuditConfiguration]):
 
     def title(self) -> str:
         """Get the title of the module."""
-        return "Audit (Snyk/DPKG)"
+        return "Audit (Snyk/dpkg)"
 
     def description(self) -> str:
         """Get the description of the module."""
-        return "Audit the project with Snyk (for CVE in dependency) and update DPKG package version to trigger a rebuild"
+        return "Audit the project with Snyk (for CVE in dependency) and update dpkg package version to trigger a rebuild"
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""

@@ -100,9 +100,11 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     && pyenv install 3.8 3.9 3.10 3.11 \
     && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES}
 
+ENV PATH=${PATH}:/app/node_modules/.bin
+
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.cache \
-    npm install --global
+    npm install
 
 COPY . /app/
 ARG VERSION=dev
