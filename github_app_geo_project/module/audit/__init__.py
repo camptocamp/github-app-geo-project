@@ -310,10 +310,10 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         is_dashboard = context.event_name == "dashboard"
         if is_dashboard:
             old_check = module_utils.DashboardIssue(
-                context.event_data.get("changes", {}).get("body", {}).get("from", "").split("<!---->")[0]
+                context.event_data.get("old_data", "").split("<!---->")[0]
             )
             new_check = module_utils.DashboardIssue(
-                context.event_data.get("issue", {}).get("body", "").split("<!---->")[0]
+                context.event_data.get("new_data", "").split("<!---->")[0]
             )
 
             if not old_check.is_checked("outdated") and new_check.is_checked("outdated"):
