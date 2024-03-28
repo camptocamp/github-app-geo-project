@@ -153,12 +153,19 @@ def _process_job(
         open_issues = repo.get_issues(
             state="open", creator=github_application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
         )
+        dashboard_issue = None
         if open_issues.totalCount > 0:
+            for candidate in open_issues:
+                if "dashboard" in candidate.title.lower().split():
+                    dashboard_issue = candidate
+                    break
+
+        if dashboard_issue:
             issue_full_data = utils.update_dashboard_issue_module(
-                open_issues[0].body, module_name, current_module, new_issue_data
+                dashboard_issue.body, module_name, current_module, new_issue_data
             )
-            _LOGGER.debug("Update issue %s, with:\n%s", open_issues[0].number, issue_full_data)
-            open_issues[0].edit(body=issue_full_data)
+            _LOGGER.debug("Update issue %s, with:\n%s", dashboard_issue.number, issue_full_data)
+            dashboard_issue.edit(body=issue_full_data)
         elif new_issue_data:
             issue_full_data = utils.update_dashboard_issue_module(
                 f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{owner}/{repository})\n\n",

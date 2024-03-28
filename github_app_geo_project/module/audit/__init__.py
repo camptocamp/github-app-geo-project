@@ -198,7 +198,7 @@ def _process_snyk_dpkg(
                         message = module_utils.ansi_proc_dashboard(proc)
                         _LOGGER.error(message)
                         issue_data[key].append(
-                            f"<details><summary>Error while setting the python version</summary>{message}</details>"
+                            f"<details><summary>Error while setting the Python version</summary>{message}</details>"
                         )
 
                 local_config: configuration.AuditConfiguration = {}
@@ -206,7 +206,7 @@ def _process_snyk_dpkg(
                     with open(".github/ghci.yaml", encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
                 result, body, create_issue = audit_utils.snyk(branch, context.module_config, local_config)
-                if create_issue or result:
+                if create_issue and result:
                     repo = context.github_project.github.get_repo(
                         f"{context.github_project.owner}/{context.github_project.repository}"
                     )
@@ -219,20 +219,24 @@ def _process_snyk_dpkg(
 
             if context.module_data["type"] == "dpkg":
                 body = "Update dpkg packages"
-                issue_data[key] += audit_utils.dpkg()
-                if issue_data[key]:
-                    repo = context.github_project.github.get_repo(
-                        f"{context.github_project.owner}/{context.github_project.repository}"
-                    )
-                    issue = repo.create_issue(
-                        title=f"Error on running dpkg on {branch}",
-                        body="\n".join(issue_data[key]),
-                    )
-                    issue_data[key] = [
-                        f"Error on running dpkg on {branch}: #{issue.number}",
-                        "",
-                        *issue_data[key],
-                    ]
+
+                if not os.path.exists("ci/dpkg-versions.yaml"):
+                    issue_data[key] = ["The file ci/dpkg-versions.yaml does not exist"]
+                else:
+                    result = audit_utils.dpkg()
+                    if result:
+                        repo = context.github_project.github.get_repo(
+                            f"{context.github_project.owner}/{context.github_project.repository}"
+                        )
+                        issue = repo.create_issue(
+                            title=f"Error on running dpkg on {branch}",
+                            body="\n".join(result),
+                        )
+                        issue_data[key] = [
+                            f"Error on running dpkg on {branch}: #{issue.number}",
+                            "",
+                            *result,
+                        ]
 
             diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 ["git", "diff", "--quiet"]
