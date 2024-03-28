@@ -87,7 +87,8 @@ def _get_process_output(
     if issue_data:
         module_status[f"{context.github_project.owner}/{context.github_project.repository}"] = issue_data
     else:
-        del module_status[f"{context.github_project.owner}/{context.github_project.repository}"]
+        if f"{context.github_project.owner}/{context.github_project.repository}" in module_status:
+            del module_status[f"{context.github_project.owner}/{context.github_project.repository}"]
 
     return module.ProcessOutput(
         dashboard="\n<!---->\n".join([issue_check.to_string(), _format_issue_data(issue_data)]),
