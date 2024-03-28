@@ -322,6 +322,16 @@ def main() -> None:
             job.started_at = datetime.now()
             session.commit()
 
+            _LOGGER.info(
+                "Start process job '%s' id: %s, on %s/%s on module: %s, on application %s.",
+                job.event_name,
+                job.id,
+                job.owner or "-",
+                job.repository or "-",
+                job.module or "-",
+                job.application or "-",
+            )
+
             job_id = job.id
             job_application = job.application
             job_module = job.module
