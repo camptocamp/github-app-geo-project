@@ -307,7 +307,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         results: list[module.Action] = []
         snyk = False
         dpkg = False
-        is_dashboard = context.event_data.get("type") == "dashboard"
+        is_dashboard = context.event_name == "dashboard"
         if is_dashboard:
             old_check = module_utils.DashboardIssue(
                 context.event_data.get("old_data", "").split("<!---->")[0]
