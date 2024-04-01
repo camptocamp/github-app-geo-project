@@ -149,13 +149,13 @@ virtualenv = ["virtualenv (>=20.0.35)"]
 
 [[package]]
 name = "c2cciutils"
-version = "1.6.17"
+version = "1.6.18"
 description = "Common utilities for Camptocamp CI"
 optional = false
-python-versions = ">=3.9,<4.0"
+python-versions = "<4.0,>=3.9"
 files = [
-    {file = "c2cciutils-1.6.17-py3-none-any.whl", hash = "sha256:e523f90584f0c8c601891bf517306cbd23c2db88d6c58e4fc59e35235455b3ce"},
-    {file = "c2cciutils-1.6.17.tar.gz", hash = "sha256:8a6714cf1c094d5f5a63982a6200b9003a891a3dc8a27d6ec90a57f6be4b2708"},
+    {file = "c2cciutils-1.6.18-py3-none-any.whl", hash = "sha256:502826a1092e6498b67d1a272f7185b67d3a07c8da915c54d2daaa4dfc4226d6"},
+    {file = "c2cciutils-1.6.18.tar.gz", hash = "sha256:77d58af1407fa34434177ec5c857473c65da69a91f5250b38e7c612397a73c9d"},
 ]
 
 [package.dependencies]
@@ -178,13 +178,13 @@ version = ["multi-repo-automation (>=0.0.0,<1.0.0)"]
 
 [[package]]
 name = "c2cwsgiutils"
-version = "6.0.4"
+version = "6.0.7"
 description = "Common utilities for Camptocamp WSGI applications"
 optional = false
-python-versions = ">=3.9,<3.12"
+python-versions = ">=3.9"
 files = [
-    {file = "c2cwsgiutils-6.0.4-py3-none-any.whl", hash = "sha256:1b5a126f75eebfac150742733bcd00b6b9dac2acf3398c7e29e859104e0021f9"},
-    {file = "c2cwsgiutils-6.0.4.tar.gz", hash = "sha256:9d91e3630f341697455728e17487f2e5cffe9f60ff3af4a7c8fceb656f372f1c"},
+    {file = "c2cwsgiutils-6.0.7-py3-none-any.whl", hash = "sha256:adfc2c9bf3aef5cc8fc2c990f91806c96f39526a7306b2c9f465b4b1484d505f"},
+    {file = "c2cwsgiutils-6.0.7.tar.gz", hash = "sha256:f16bf681c179c2fba6a701235bcdc2b3fed3af6b38b61b868fba9ca732cb328a"},
 ]
 
 [package.dependencies]
@@ -211,6 +211,7 @@ sentry-sdk = {version = "*", optional = true, markers = "extra == \"standard\" o
 SQLAlchemy = {version = "*", optional = true, markers = "extra == \"standard\" or extra == \"webserver\" or extra == \"all\""}
 SQLAlchemy-Utils = {version = "*", optional = true, markers = "extra == \"standard\" or extra == \"webserver\" or extra == \"all\""}
 ujson = "*"
+urllib3 = "*"
 waitress = {version = "*", optional = true, markers = "extra == \"dev\" or extra == \"all\""}
 "zope.interface" = {version = "*", optional = true, markers = "extra == \"standard\" or extra == \"webserver\" or extra == \"all\""}
 "zope.sqlalchemy" = {version = "*", optional = true, markers = "extra == \"standard\" or extra == \"webserver\" or extra == \"all\""}
@@ -754,13 +755,13 @@ tornado = ["tornado (>=0.2)"]
 
 [[package]]
 name = "html-sanitizer"
-version = "2.3.0"
+version = "2.3.1"
 description = "HTML sanitizer"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "html_sanitizer-2.3.0-py3-none-any.whl", hash = "sha256:2b9f130b29e1739128bbc43abecada86c1f3818afd68c9a12bd78d0976d9daa8"},
-    {file = "html_sanitizer-2.3.0.tar.gz", hash = "sha256:34d1dfad0cf7663022864521425dcbeaca3ddcca16daa06b1e4325e5347368db"},
+    {file = "html_sanitizer-2.3.1-py3-none-any.whl", hash = "sha256:be70b94b52a33cedcaaa480710d81928fb1c788650e8c0ff54fb0a2936072c1c"},
+    {file = "html_sanitizer-2.3.1.tar.gz", hash = "sha256:7e3a98ff9f12cef3a76cf0092bcaa1f0365876c9d38ff7da4c8a1284111b3bd1"},
 ]
 
 [package.dependencies]
@@ -1987,13 +1988,13 @@ test = ["setuptools (>=60)", "zest.releaser[recommended]"]
 
 [[package]]
 name = "pytest"
-version = "7.4.3"
+version = "7.4.4"
 description = "pytest: simple powerful testing with Python"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "pytest-7.4.3-py3-none-any.whl", hash = "sha256:0d009c083ea859a71b76adf7c1d502e4bc170b80a8ef002da5806527b9591fac"},
-    {file = "pytest-7.4.3.tar.gz", hash = "sha256:d989d136982de4e3b29dabcc838ad581c64e8ed52c11fbe86ddebd9da0818cd5"},
+    {file = "pytest-7.4.4-py3-none-any.whl", hash = "sha256:b090cdf5ed60bf4c45261be03239c2c1c22df034fbffe691abe93cd80cea01d8"},
+    {file = "pytest-7.4.4.tar.gz", hash = "sha256:2cf0005922c6ace4a3e2ec8b4080eb0d9753fdc93107415332f50ce9e7994280"},
 ]
 
 [package.dependencies]
@@ -2803,35 +2804,35 @@ files = [
 
 [[package]]
 name = "types-markdown"
-version = "3.5.0.20240129"
+version = "3.5.0.20240311"
 description = "Typing stubs for Markdown"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "types-Markdown-3.5.0.20240129.tar.gz", hash = "sha256:9acd36fef264d9ed5a96345c45f7d80f0d967059e92213998b3046fbb64f67fc"},
-    {file = "types_Markdown-3.5.0.20240129-py3-none-any.whl", hash = "sha256:d6861d9d68e8268a5346d8a43d14727e6c636ebc6d49f2b8fc034c25996d35dd"},
+    {file = "types-Markdown-3.5.0.20240311.tar.gz", hash = "sha256:4c58ef33ee278183c540a58e599cbe97090f655302b6ef65a1084c4b32d748a4"},
+    {file = "types_Markdown-3.5.0.20240311-py3-none-any.whl", hash = "sha256:508fedc02601aa8943d0adbb390e2b4f00deab07870a51b411f6653d8e29e390"},
 ]
 
 [[package]]
 name = "types-pyyaml"
-version = "6.0.12.12"
+version = "6.0.12.20240311"
 description = "Typing stubs for PyYAML"
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
 files = [
-    {file = "types-PyYAML-6.0.12.12.tar.gz", hash = "sha256:334373d392fde0fdf95af5c3f1661885fa10c52167b14593eb856289e1855062"},
-    {file = "types_PyYAML-6.0.12.12-py3-none-any.whl", hash = "sha256:c05bc6c158facb0676674b7f11fe3960db4f389718e19e62bd2b84d6205cfd24"},
+    {file = "types-PyYAML-6.0.12.20240311.tar.gz", hash = "sha256:a9e0f0f88dc835739b0c1ca51ee90d04ca2a897a71af79de9aec5f38cb0a5342"},
+    {file = "types_PyYAML-6.0.12.20240311-py3-none-any.whl", hash = "sha256:b845b06a1c7e54b8e5b4c683043de0d9caf205e7434b3edc678ff2411979b8f6"},
 ]
 
 [[package]]
 name = "types-requests"
-version = "2.31.0.20240218"
+version = "2.31.0.20240311"
 description = "Typing stubs for requests"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "types-requests-2.31.0.20240218.tar.gz", hash = "sha256:f1721dba8385958f504a5386240b92de4734e047a08a40751c1654d1ac3349c5"},
-    {file = "types_requests-2.31.0.20240218-py3-none-any.whl", hash = "sha256:a82807ec6ddce8f00fe0e949da6d6bc1fbf1715420218a9640d695f70a9e5a9b"},
+    {file = "types-requests-2.31.0.20240311.tar.gz", hash = "sha256:b1c1b66abfb7fa79aae09097a811c4aa97130eb8831c60e47aee4ca344731ca5"},
+    {file = "types_requests-2.31.0.20240311-py3-none-any.whl", hash = "sha256:47872893d65a38e282ee9f277a4ee50d1b28bd592040df7d1fdaffdf3779937d"},
 ]
 
 [package.dependencies]
@@ -2839,13 +2840,13 @@ urllib3 = ">=2"
 
 [[package]]
 name = "types-setuptools"
-version = "69.1.0.20240217"
+version = "69.1.0.20240310"
 description = "Typing stubs for setuptools"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "types-setuptools-69.1.0.20240217.tar.gz", hash = "sha256:243fecc8850b6f7fbfa84bab18ec93407046a4e91130056fd5a7caef971aaff9"},
-    {file = "types_setuptools-69.1.0.20240217-py3-none-any.whl", hash = "sha256:8b60e14a652b48bda292801c5a0c1251c190ad587c295f7839e901634913bb96"},
+    {file = "types-setuptools-69.1.0.20240310.tar.gz", hash = "sha256:fc0e1082f55c974611bce844b1e5beb2d1a895501f4a464e48305592a4268100"},
+    {file = "types_setuptools-69.1.0.20240310-py3-none-any.whl", hash = "sha256:7801245ecaf371d24f1154924c8f1f0efdc53977339bf79886b5b10890af6478"},
 ]
 
 [[package]]
@@ -3184,4 +3185,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "69db690a54dfdadbf3678ce05b5ce714d35d53fc1848b3b830864a663f4eaeb3"
+content-hash = "563bcd78bd49995189fd3677dcac9da9518c1709be31ccd9d1a5401a6063cecf"
