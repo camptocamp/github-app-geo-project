@@ -389,9 +389,11 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 return ProcessOutput(
                     actions=[
                         module.Action(
-                            priority=module.PRIORITY_STANDARD
-                            if context.module_data["is_dashboard"]
-                            else module.PRIORITY_CRON,
+                            priority=(
+                                module.PRIORITY_STANDARD
+                                if context.module_data["is_dashboard"]
+                                else module.PRIORITY_CRON
+                            ),
                             data=d,
                         )
                         for d in results

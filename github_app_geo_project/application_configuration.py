@@ -2,7 +2,6 @@
 Automatically generated file from a JSON schema.
 """
 
-
 from typing import Any, TypedDict
 
 # GitHub application project configuration.
