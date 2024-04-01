@@ -31,7 +31,7 @@ repos:
       - id: trailing-whitespace
       - id: mixed-line-ending
   - repo: https://github.com/sbrunner/hooks
-    rev: 0.7.0
+    rev: 1.0.0
     hooks:
       - id: poetry-check
         additional_dependencies:
@@ -89,7 +89,7 @@ repos:
           - -p
           - github_app_gep_project
   - repo: https://github.com/psf/black
-    rev: 23.12.1
+    rev: 24.3.0
     hooks:
       - id: black
   - repo: https://github.com/PyCQA/prospector
@@ -101,7 +101,7 @@ repos:
           - --die-on-tool-error
           - --output-format=pylint
         additional_dependencies:
-          - prospector-profile-duplicated==0.5.1 # pypi
+          - prospector-profile-duplicated==1.2.0 # pypi
           - prospector-profile-utils==1.7.2 # pypi
   - repo: https://github.com/camptocamp/jsonschema-gentypes
     rev: 2.5.0
