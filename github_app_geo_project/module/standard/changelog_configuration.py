@@ -2,7 +2,6 @@
 Automatically generated file from a JSON schema.
 """
 
-
 from typing import Literal, TypedDict, Union
 
 CREATE_LABELS_DEFAULT = False
