@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import os.path
 import subprocess  # nosec
 import tempfile
 from typing import Any, cast
@@ -181,6 +182,7 @@ def _process_snyk_dpkg(
                     f"<details><summary>Error while cloning the project</summary>{message}</details>"
                 )
                 return
+            os.chdir(os.path.join(tmpdirname, context.github_project.repository))
 
             if context.module_data["type"] == "snyk":
                 python_version = ""
