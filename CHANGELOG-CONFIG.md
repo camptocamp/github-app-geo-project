@@ -21,21 +21,21 @@
       - **`section`** _(string)_: The section section affected to changelog items that match with the conditions.
       - **`condition`** _(object)_: The condition to match with the changelog items. Cannot contain additional properties.
         - **One of**
-          - - **`type`** _(string)_: The type of the condition.
+          - - **`type`** _(string)_: The type of the condition. Must be: `"const"`.
             - **`value`** _(boolean)_: The value of the condition.
           - - **`type`** _(string)_: The type of the condition. Must be one of: `["and", "or"]`.
             - **`conditions`** _(array)_: The value of the conditions.
               - **Items**
           - - **`type`** _(string)_: The type of the condition. Must be one of: `["not"]`.
             - **`condition`**
-          - - **`type`** _(string)_: The type of the condition.
+          - - **`type`** _(string)_: The type of the condition. Must be: `"label"`.
             - **`value`** _(string)_: The value of the label.
-          - - **`type`** _(string)_: The type of the condition.
+          - - **`type`** _(string)_: The type of the condition. Must be: `"files"`.
             - **`regex`** _(array)_: The list of regex that all the files should match.
               - **Items** _(string)_: The regex that all the files should match.
-          - - **`type`** _(string)_: The type of the condition.
+          - - **`type`** _(string)_: The type of the condition. Must be: `"author"`.
             - **`value`** _(string)_: The value of the author.
-          - - **`type`** _(string)_: The type of the condition.
+          - - **`type`** _(string)_: The type of the condition. Must be: `"title"`.
             - **`regex`** _(string)_: The regex the the title should match.
-          - - **`type`** _(string)_: The type of the condition.
+          - - **`type`** _(string)_: The type of the condition. Must be: `"branch"`.
             - **`regex`** _(string)_: The regex the the title should match.
