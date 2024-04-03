@@ -117,6 +117,7 @@ def snyk(
     test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
+    _LOGGING.debug("Snyk test output:\n%s", test_proc.stdout)
     test_json = json.loads(test_proc.stdout)
     for raw in test_json:
         result.append(f"{raw['targetFile']} ({raw['packageManager']})")
