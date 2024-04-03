@@ -65,6 +65,7 @@ def test_home() -> None:
         height=1500,
         result_folder="/results",
         expected_filename=os.path.join(os.path.dirname(__file__), "home.expected.png"),
+        sleep=500,
     )
 
 
@@ -79,6 +80,7 @@ def test_project() -> None:
         height=500,
         result_folder="/results",
         expected_filename=os.path.join(os.path.dirname(__file__), "project.expected.png"),
+        sleep=500,
     )
 
 
@@ -93,6 +95,7 @@ def test_welcome() -> None:
         height=500,
         result_folder="/results",
         expected_filename=os.path.join(os.path.dirname(__file__), "welcome.expected.png"),
+        sleep=500,
     )
 
 
@@ -107,4 +110,5 @@ def test_transversal_dashboard() -> None:
         height=200,
         result_folder="/results",
         expected_filename=os.path.join(os.path.dirname(__file__), "dashboard.expected.png"),
+        sleep=500,
     )
