@@ -40,14 +40,14 @@ def snyk(
         for file in proc.stdout.strip().split("\n"):
             if not file:
                 continue
-            if file in local_config.get("files-no-install", []):
+            if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
             proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 [
                     "pip",
                     "install",
+                    *local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
                     f"--requirement={file}",
-                    *local_config.get("pip-install-arguments", []),
                 ],
                 capture_output=True,
                 encoding="utf-8",
@@ -71,7 +71,7 @@ def snyk(
         for file in proc.stdout.strip().split("\n"):
             if not file:
                 continue
-            if file in local_config.get("files-no-install", []):
+            if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
             directory = os.path.dirname(os.path.abspath(file))
 
@@ -79,7 +79,7 @@ def snyk(
                 [
                     "pipenv",
                     "sync",
-                    *local_config.get("pipenv-sync-arguments", []),
+                    *local_config.get("pipenv-sync-arguments", config.get("pipenv-sync-arguments", [])),
                 ],
                 cwd=directory,
                 capture_output=True,
