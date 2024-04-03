@@ -119,26 +119,40 @@ def snyk(
     )
     _LOGGING.debug("Snyk test output:\n%s", test_proc.stdout)
     test_json = json.loads(test_proc.stdout)
-    for raw in test_json:
-        result.append(f"{raw['targetFile']} ({raw['packageManager']})")
-        for vuln in raw["vulnerabilities"]:
-            result += [
-                "<details>",
-                "<summary>",
-                f"[{vuln['severity'].upper()}] {vuln['packageName']}@{vuln['version']}: {vuln['title']}, fixed in {', '.join(vuln['fixedIn'])}",
-                "</summary>",
-                vuln["id"],
-                " > ".join(vuln["from"]),
-                *[
-                    f"{identifier_type} {', '.join(identifiers)}"
-                    for identifier_type, identifiers in vuln["identifiers"].items()
-                ],
-                *[f"[{reference['title']}]({reference['url']})" for reference in vuln["references"]],
-                "",
-                vuln["description"],
-                "",
-                "</details>",
-            ]
+    if test_json.get("ok", True) is False:
+        _LOGGING.error(test_json.get("error"))
+
+        command = ["snyk", "test"] + config.get(
+            "test-arguments", c2cciutils.configuration.AUDIT_SNYK_TEST_ARGUMENTS_DEFAULT
+        )
+        test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+            command, env=env, capture_output=True, encoding="utf-8"
+        )
+        dashboard_message = utils.ansi_proc_dashboard(proc)
+        result.append(
+            f"<details>\n<summary>Error while testing the project</summary>\n{dashboard_message}\n</details>"
+        )
+    else:
+        for raw in test_json:
+            result.append(f"{raw['targetFile']} ({raw['packageManager']})")
+            for vuln in raw["vulnerabilities"]:
+                result += [
+                    "<details>",
+                    "<summary>",
+                    f"[{vuln['severity'].upper()}] {vuln['packageName']}@{vuln['version']}: {vuln['title']}, fixed in {', '.join(vuln['fixedIn'])}",
+                    "</summary>",
+                    vuln["id"],
+                    " > ".join(vuln["from"]),
+                    *[
+                        f"{identifier_type} {', '.join(identifiers)}"
+                        for identifier_type, identifiers in vuln["identifiers"].items()
+                    ],
+                    *[f"[{reference['title']}]({reference['url']})" for reference in vuln["references"]],
+                    "",
+                    vuln["description"],
+                    "",
+                    "</details>",
+                ]
 
     command = ["snyk", "fix"] + config.get(
         "fix-arguments", c2cciutils.configuration.AUDIT_SNYK_FIX_ARGUMENTS_DEFAULT
