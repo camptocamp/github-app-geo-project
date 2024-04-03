@@ -120,6 +120,8 @@ RUN mkdir /var/www \
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
 
+RUN chmod a+rwx /pyenv/shims
+
 ENV PROMETHEUS_MULTIPROC_DIR=/prometheus-metrics
 
 # Do the lint, used by the tests
