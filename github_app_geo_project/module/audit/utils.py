@@ -95,6 +95,7 @@ def snyk(
 
     env = {**os.environ}
     env["FORCE_COLOR"] = "true"
+    env["DEBUG"] = "*snyk*"  # debug mode
     ansi_converter = Ansi2HTMLConverter(inline=True)
 
     command = ["snyk", "monitor", f"--target-reference={branch}"] + config.get(
