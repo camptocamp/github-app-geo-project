@@ -97,7 +97,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     DEV_PACKAGES="build-essential libffi-dev libssl-dev liblzma-dev libsqlite3-dev libcurses-ocaml-dev libreadline-dev libbz2-dev zlib1g-dev" \
     && apt-get update && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
     && git clone --depth=1 https://github.com/pyenv/pyenv.git /pyenv \
-    && pyenv install 3.8 3.9 3.10 3.11 \
+    && pyenv install 3.7 3.8 3.9 3.10 3.11 \
     && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES}
 
 ENV PATH=${PATH}:/app/node_modules/.bin
