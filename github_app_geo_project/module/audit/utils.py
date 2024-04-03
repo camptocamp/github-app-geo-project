@@ -40,14 +40,14 @@ def snyk(
         for file in proc.stdout.strip().split("\n"):
             if not file:
                 continue
-            if file in local_config.get("files-no-install", []):
+            if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
             proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 [
                     "pip",
                     "install",
+                    *local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
                     f"--requirement={file}",
-                    *local_config.get("pip-install-arguments", []),
                 ],
                 capture_output=True,
                 encoding="utf-8",
@@ -71,7 +71,7 @@ def snyk(
         for file in proc.stdout.strip().split("\n"):
             if not file:
                 continue
-            if file in local_config.get("files-no-install", []):
+            if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
             directory = os.path.dirname(os.path.abspath(file))
 
@@ -79,7 +79,7 @@ def snyk(
                 [
                     "pipenv",
                     "sync",
-                    *local_config.get("pipenv-sync-arguments", []),
+                    *local_config.get("pipenv-sync-arguments", config.get("pipenv-sync-arguments", [])),
                 ],
                 cwd=directory,
                 capture_output=True,
@@ -95,6 +95,7 @@ def snyk(
 
     env = {**os.environ}
     env["FORCE_COLOR"] = "true"
+    env["DEBUG"] = "*snyk*"  # debug mode
     ansi_converter = Ansi2HTMLConverter(inline=True)
 
     command = ["snyk", "monitor", f"--target-reference={branch}"] + config.get(
@@ -116,6 +117,7 @@ def snyk(
     test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
+    _LOGGING.debug("Snyk test output:\n%s", test_proc.stdout)
     test_json = json.loads(test_proc.stdout)
     for raw in test_json:
         result.append(f"{raw['targetFile']} ({raw['packageManager']})")
