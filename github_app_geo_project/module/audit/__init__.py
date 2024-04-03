@@ -13,7 +13,7 @@ import github
 import yaml
 
 from github_app_geo_project import module
-from github_app_geo_project.module import PRIORITY_HIGH, ProcessOutput
+from github_app_geo_project.module import ProcessOutput
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
 from github_app_geo_project.module.audit import utils as audit_utils
@@ -110,6 +110,8 @@ def _process_outdated(
         security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
         issue_data[_OUTDATED] = audit_utils.outdated_versions(security)
+        if not issue_data[_OUTDATED]:
+            del issue_data[_OUTDATED]
         # Remove outdated version in the dashboard
         versions = _get_versions(security)
     except github.GithubException as exception:
@@ -358,8 +360,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         issue_check.add_check("dpkg", "Update dpkg packages", False)
 
         if context.module_data.get("type") == "outdated":
-            _get_process_output(context, issue_check, issue_data)
-
+            _process_outdated(context, issue_data)
         else:
             if "version" not in context.module_data:
                 # Creates new jobs with the versions from the SECURITY.md
