@@ -34,7 +34,7 @@ def snyk(
     )
     if proc.returncode != 0:
         message = utils.ansi_proc_dashboard(proc)
-        _LOGGING.error(message)
+        _LOGGING.error(utils.remove_tags(message))
         result.append(f"<details>\n<summary>Error in ls-files</summary>\n{message}\n</details>")
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -54,7 +54,7 @@ def snyk(
             )
             if proc.returncode != 0:
                 message = utils.ansi_proc_dashboard(proc)
-                _LOGGING.error(message)
+                _LOGGING.error(utils.remove_tags(message))
                 result.append(
                     f"<details>\n<summary>Error while installing the dependencies from {file}</summary>\n{message}\n</details>"
                 )
@@ -65,7 +65,7 @@ def snyk(
     )
     if proc.returncode != 0:
         message = utils.ansi_proc_dashboard(proc)
-        _LOGGING.error(message)
+        _LOGGING.error(utils.remove_tags(message))
         result.append(f"<details>\n<summary>Error in ls-files</summary>\n{message}\n</details>")
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -87,7 +87,7 @@ def snyk(
             )
             if proc.returncode != 0:
                 message = utils.ansi_proc_dashboard(proc)
-                _LOGGING.error(message)
+                _LOGGING.error(utils.remove_tags(message))
                 result.append(
                     f"<details>\n<summary>Error while installing the dependencies from {file}</summary>\n{message}\n</details>"
                 )
@@ -106,7 +106,7 @@ def snyk(
     )
     if proc.returncode != 0:
         message = utils.ansi_proc_dashboard(proc)
-        _LOGGING.error(message)
+        _LOGGING.error(utils.remove_tags(message))
         result.append(
             f"<details>\n<summary>Error while monitoring the project</summary>\n{message}\n</details>"
         )
@@ -203,7 +203,7 @@ def dpkg() -> list[str]:
                         )
                         if proc.returncode == 0:
                             message = utils.ansi_proc_dashboard(proc)
-                            _LOGGING.error(message)
+                            _LOGGING.error(utils.remove_tags(message))
                             results.append(
                                 f"<details>\n<summary>Error while removing the container</summary>\n{message}\n</details>"
                             )

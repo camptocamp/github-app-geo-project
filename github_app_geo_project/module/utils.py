@@ -206,6 +206,11 @@ def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> str:
     return "\n".join(message)
 
 
+def remove_tags(text: str) -> str:
+    """Remove HTML tags."""
+    return re.sub(r"<[^>]*>", "", text)
+
+
 def has_changes() -> bool:
     """Check if there are changes."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
