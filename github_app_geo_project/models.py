@@ -47,7 +47,7 @@ class Queue(Base):
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True  # type: ignore[no-untyped-call]
+        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
@@ -96,7 +96,7 @@ class Output(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True  # type: ignore[no-untyped-call]
+        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True
     )
     status: Mapped[OutputStatus] = mapped_column(
         Enum(OutputStatus, create_type=False, native_enum=False), nullable=False, index=True
