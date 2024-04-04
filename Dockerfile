@@ -120,7 +120,9 @@ RUN mkdir /var/www \
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
 
-RUN chmod a+rwx /pyenv/shims
+RUN chmod a+rwx /pyenv/shims \
+    && mkdir /pyenv/version \
+    && chmod a+rwx /pyenv/version
 
 ENV PROMETHEUS_MULTIPROC_DIR=/prometheus-metrics
 
