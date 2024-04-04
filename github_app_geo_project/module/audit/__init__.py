@@ -31,7 +31,7 @@ def _parse_issue_data(issue_data: str) -> dict[str, list[str]]:
         if line.startswith("### "):
             key = line[4:]
         elif line:
-            result.get(key, []).append(line)
+            result.setdefault(key, []).append(line)
     return result
 
 
@@ -40,7 +40,7 @@ def _format_issue_data(issue_data: dict[str, list[str]]) -> str:
     result = ""
     for key, value in issue_data.items():
         if value:
-            result += f"## {key}\n"
+            result += f"### {key}\n"
             result += "\n".join(value)
             result += "\n"
     return result
