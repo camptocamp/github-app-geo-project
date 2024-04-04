@@ -239,11 +239,15 @@ def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> AnsiMessage:
     if proc.stdout:
         message.append("")
         message.append("Output:")
+        message.append("```")
         message.append(proc.stdout)
+        message.append("```")
     if proc.stderr:
         message.append("")
         message.append("Error:")
+        message.append("```")
         message.append(proc.stderr)
+        message.append("```")
 
     return AnsiMessage("\n".join(message))
 
