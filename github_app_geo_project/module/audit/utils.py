@@ -21,7 +21,7 @@ _LOGGING = logging.getLogger(__name__)
 
 def snyk(
     branch: str, config: configuration.AuditConfiguration, local_config: configuration.AuditConfiguration
-) -> tuple[list[str], str, bool]:
+) -> tuple[list[utils.AnsiMessage], utils.AnsiMessage, bool]:
     """
     Audit the code with Snyk.
     """
@@ -34,8 +34,9 @@ def snyk(
     )
     if proc.returncode != 0:
         message = utils.ansi_proc_dashboard(proc)
-        _LOGGING.error(utils.remove_tags(message))
-        result.append(f"<details>\n<summary>Error in ls-files</summary>\n{message}\n</details>")
+        message.title = "Error in ls-files"
+        _LOGGING.error(message.to_str())
+        result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
             if not file:
@@ -54,10 +55,9 @@ def snyk(
             )
             if proc.returncode != 0:
                 message = utils.ansi_proc_dashboard(proc)
-                _LOGGING.error(utils.remove_tags(message))
-                result.append(
-                    f"<details>\n<summary>Error while installing the dependencies from {file}</summary>\n{message}\n</details>"
-                )
+                message.title = f"Error while installing the dependencies from {file}"
+                _LOGGING.error(message.to_str())
+                result.append(message)
                 continue
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -65,8 +65,9 @@ def snyk(
     )
     if proc.returncode != 0:
         message = utils.ansi_proc_dashboard(proc)
-        _LOGGING.error(utils.remove_tags(message))
-        result.append(f"<details>\n<summary>Error in ls-files</summary>\n{message}\n</details>")
+        message.title = "Error in ls-files"
+        _LOGGING.error(message.to_str())
+        result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
             if not file:
@@ -87,16 +88,14 @@ def snyk(
             )
             if proc.returncode != 0:
                 message = utils.ansi_proc_dashboard(proc)
-                _LOGGING.error(utils.remove_tags(message))
-                result.append(
-                    f"<details>\n<summary>Error while installing the dependencies from {file}</summary>\n{message}\n</details>"
-                )
+                message.title = f"Error while installing the dependencies from {file}"
+                _LOGGING.error(message.to_str())
+                result.append(message)
             install_success &= proc.returncode == 0
 
     env = {**os.environ}
     env["FORCE_COLOR"] = "true"
     env["DEBUG"] = "*snyk*"  # debug mode
-    ansi_converter = Ansi2HTMLConverter(inline=True)
 
     command = ["snyk", "monitor", f"--target-reference={branch}"] + config.get(
         "monitor-arguments", c2cciutils.configuration.AUDIT_SNYK_MONITOR_ARGUMENTS_DEFAULT
@@ -106,10 +105,9 @@ def snyk(
     )
     if proc.returncode != 0:
         message = utils.ansi_proc_dashboard(proc)
-        _LOGGING.error(utils.remove_tags(message))
-        result.append(
-            f"<details>\n<summary>Error while monitoring the project</summary>\n{message}\n</details>"
-        )
+        message.title = "Error while monitoring the project"
+        _LOGGING.error(message.to_str())
+        result.append(message)
 
     command = ["snyk", "test", "--json"] + config.get(
         "test-arguments", c2cciutils.configuration.AUDIT_SNYK_TEST_ARGUMENTS_DEFAULT
@@ -129,30 +127,33 @@ def snyk(
             command, env=env, capture_output=True, encoding="utf-8"
         )
         dashboard_message = utils.ansi_proc_dashboard(proc)
-        result.append(
-            f"<details>\n<summary>Error while testing the project</summary>\n{dashboard_message}\n</details>"
-        )
+        dashboard_message.title = "Error while testing the project"
+        _LOGGING.error(dashboard_message.to_str())
     else:
         for raw in test_json:
-            result.append(f"{raw['targetFile']} ({raw['packageManager']})")
+            result.append(utils.AnsiMessage(f"{raw['targetFile']} ({raw['packageManager']})"))
             for vuln in raw["vulnerabilities"]:
-                result += [
-                    "<details>",
-                    "<summary>",
-                    f"[{vuln['severity'].upper()}] {vuln['packageName']}@{vuln['version']}: {vuln['title']}, fixed in {', '.join(vuln['fixedIn'])}",
-                    "</summary>",
-                    vuln["id"],
-                    " > ".join(vuln["from"]),
-                    *[
-                        f"{identifier_type} {', '.join(identifiers)}"
-                        for identifier_type, identifiers in vuln["identifiers"].items()
-                    ],
-                    *[f"[{reference['title']}]({reference['url']})" for reference in vuln["references"]],
-                    "",
-                    vuln["description"],
-                    "",
-                    "</details>",
-                ]
+                result.append(
+                    utils.AnsiMessage(
+                        "\n".join(
+                            [
+                                vuln["id"],
+                                " > ".join(vuln["from"]),
+                                *[
+                                    f"{identifier_type} {', '.join(identifiers)}"
+                                    for identifier_type, identifiers in vuln["identifiers"].items()
+                                ],
+                                *[
+                                    f"[{reference['title']}]({reference['url']})"
+                                    for reference in vuln["references"]
+                                ],
+                                "",
+                                vuln["description"],
+                            ]
+                        ),
+                        f"[{vuln['severity'].upper()}] {vuln['packageName']}@{vuln['version']}: {vuln['title']}, fixed in {', '.join(vuln['fixedIn'])}",
+                    )
+                )
 
     command = ["snyk", "fix"] + config.get(
         "fix-arguments", c2cciutils.configuration.AUDIT_SNYK_FIX_ARGUMENTS_DEFAULT
@@ -160,7 +161,7 @@ def snyk(
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
-    snyk_fix_message = ansi_converter.convert(snyk_fix_proc.stdout.strip())
+    snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
     if snyk_fix_proc.returncode == 0:
         create_issue = False
 
@@ -190,13 +191,13 @@ def outdated_versions(
     return errors
 
 
-def dpkg() -> list[str]:
+def dpkg() -> list[utils.AnsiMessage]:
     """Update the version of packages in the file ci/dpkg-versions.yaml."""
     if not os.path.exists("ci/dpkg-versions.yaml"):
-        return ["The file ci/dpkg-versions.yaml does not exist"]
+        return [utils.AnsiMessage("The file ci/dpkg-versions.yaml does not exist")]
 
     cache: dict[str, dict[str, str]] = {}
-    results: list[str] = []
+    results: list[utils.AnsiMessage] = []
     with open("ci/dpkg-versions.yaml", encoding="utf-8") as versions_file:
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)
         for versions in versions_config.values():
@@ -217,10 +218,9 @@ def dpkg() -> list[str]:
                         )
                         if proc.returncode == 0:
                             message = utils.ansi_proc_dashboard(proc)
-                            _LOGGING.error(utils.remove_tags(message))
-                            results.append(
-                                f"<details>\n<summary>Error while removing the container</summary>\n{message}\n</details>"
-                            )
+                            message.title = "Error while removing the container"
+                            _LOGGING.error(message.to_str())
+                            results.append(message)
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                             [
                                 "docker",
@@ -240,10 +240,9 @@ def dpkg() -> list[str]:
                         )
                         if proc.returncode != 0:
                             message = utils.ansi_proc_dashboard(proc)
-                            _LOGGING.error(message)
-                            results.append(
-                                f"<details>\n<summary>Error while creating the container</summary>\n{message}\n</details>"
-                            )
+                            message.title = "Error while creating the container"
+                            _LOGGING.error(message.to_str())
+                            results.append(message)
 
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                             ["docker", "exec", "apt", "apt-get", "update"],
@@ -252,10 +251,9 @@ def dpkg() -> list[str]:
                         )
                         if proc.returncode != 0:
                             message = utils.ansi_proc_dashboard(proc)
-                            _LOGGING.error(message)
-                            results.append(
-                                f"<details>\n<summary>Error while updating the container</summary>\n{message}\n</details>"
-                            )
+                            message.title = "Error while updating the container"
+                            _LOGGING.error(message.to_str())
+                            results.append(message)
 
                         package_re = re.compile(r"^([^ /]+)/[a-z-,]+ ([^ ]+) (all|amd64)( .*)?$")
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -265,10 +263,9 @@ def dpkg() -> list[str]:
                         )
                         if proc.returncode != 0:
                             message = utils.ansi_proc_dashboard(proc)
-                            _LOGGING.error(message)
-                            results.append(
-                                f"<details>\n<summary>Error while listing the packages</summary>\n{message}\n</details>"
-                            )
+                            message.title = "Error while listing the packages"
+                            _LOGGING.error(message.to_str())
+                            results.append(message)
                             return results
                         for proc_line in proc.stdout.split("\n"):
                             package_match = package_re.match(proc_line)
@@ -284,10 +281,9 @@ def dpkg() -> list[str]:
                         )
                         if proc.returncode != 0:
                             message = utils.ansi_proc_dashboard(proc)
-                            _LOGGING.error(message)
-                            results.append(
-                                f"<details>\n<summary>Error while removing the container</summary>\n{message}\n</details>"
-                            )
+                            message.title = "Error while removing the container"
+                            _LOGGING.error(message.to_str())
+                            results.append(message)
                 if package in cache[dist]:
                     versions[package_full] = cache[dist][package]
 

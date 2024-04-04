@@ -185,7 +185,7 @@ class Patch(module.Module[dict[str, Any]]):
                                 f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
                             )
                             if error:
-                                raise PatchException(f"Failed to commit the changes\n{error[1]}")
+                                raise PatchException(f"Failed to commit the changes\n{error.to_str()}")
                             should_push = True
             if should_push:
                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check

@@ -162,6 +162,52 @@ class DashboardIssue:
         return self.to_string()
 
 
+class AnsiMessage:
+    """Utility class to convert ANSI messages to HTML/markdown."""
+
+    def __init__(self, ansi_message_str: str, title: str = "") -> None:
+        """Initialize the ANSI message."""
+        self.ansi_message = ansi_message_str
+        self.title = title
+
+    def to_html(self) -> str:
+        """Convert the ANSI message to HTML."""
+        ansi_converter = Ansi2HTMLConverter(inline=True)
+        html = ansi_converter.convert(self.ansi_message, full=False)
+        if self.title:
+            html = "\n".join(
+                [
+                    f"<h3>{self.title}</h3>",
+                    html,
+                ]
+            )
+        return html
+
+    def to_markdown(self) -> str:
+        """Convert the ANSI message to markdown."""
+        ansi_converter = Ansi2HTMLConverter(inline=True)
+        html = ansi_converter.convert(self.ansi_message, full=False)
+        markdown = remove_tags(html).replace("\n", "<br>")
+        if self.title:
+            markdown = "\n".join(
+                [
+                    "<details>",
+                    f"<summary>{self.title}</summary>",
+                    markdown,
+                    "</details>",
+                ]
+            )
+        return markdown
+
+    def to_str(self) -> str:
+        """Get the ANSI message."""
+        ansi_converter = Ansi2HTMLConverter(inline=True)
+        html = ansi_converter.convert(self.ansi_message, full=False)
+        if self.title:
+            return f"{self.title}\n{remove_tags(html)}"
+        return remove_tags(html)
+
+
 def ansi_message(ansi: str, ansi_converter: Ansi2HTMLConverter | None) -> str:
     """Convert an ANSI message to HTML/style."""
     ansi_converter = ansi_converter or Ansi2HTMLConverter(inline=True)
@@ -169,20 +215,18 @@ def ansi_message(ansi: str, ansi_converter: Ansi2HTMLConverter | None) -> str:
     return ansi_converter.convert(ansi, full=False)
 
 
-def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> str:
+def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> AnsiMessage:
     """
     Process the output of a subprocess for the dashboard.
 
     Arguments:
     ---------
-    title: The title of the section
     proc: The subprocess result
 
     Return:
     ------
     The dashboard message, the simple error message, the style
     """
-    ansi_converter = Ansi2HTMLConverter()
     args = []
 
     for arg in proc.args:
@@ -195,15 +239,13 @@ def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> str:
     if proc.stdout:
         message.append("")
         message.append("Output:")
-        text = ansi_message(proc.stdout, ansi_converter)
-        message.append(text)
+        message.append(proc.stdout)
     if proc.stderr:
         message.append("")
         message.append("Error:")
-        text = ansi_message(proc.stderr, ansi_converter)
-        message.append(text)
+        message.append(proc.stderr)
 
-    return "\n".join(message)
+    return AnsiMessage("\n".join(message))
 
 
 def remove_tags(text: str) -> str:
@@ -219,7 +261,7 @@ def has_changes() -> bool:
     return proc.returncode != 0
 
 
-def create_commit(message: str) -> str | None:
+def create_commit(message: str) -> AnsiMessage | None:
     """Do a commit."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "add", "--all"], capture_output=True, encoding="utf-8"
@@ -237,7 +279,7 @@ def create_commit(message: str) -> str | None:
 
 def create_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
-) -> tuple[str | None, github.PullRequest.PullRequest | None]:
+) -> tuple[AnsiMessage | None, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "push", "--force", "origin", new_branch],
@@ -257,7 +299,7 @@ def create_pull_request(
                 body=f"See: #{pull_request.number}",
             )
             message = f"Pull request #{pull_request.number} is open for 5 days: #{issue.number}"
-            return (message, pull_request)
+            return AnsiMessage(message), pull_request
     else:
         pull_request = repo.create_pull(
             title=message,
@@ -272,7 +314,7 @@ def create_pull_request(
 
 def create_commit_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
-) -> tuple[str | None, github.PullRequest.PullRequest | None]:
+) -> tuple[AnsiMessage | None, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
     error = create_commit(message)
     if error:
