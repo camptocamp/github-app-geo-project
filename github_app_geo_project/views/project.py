@@ -68,6 +68,8 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             models.Queue.created_at,
             models.Queue.started_at,
             models.Queue.event_name,
+            models.Queue.finished_at,
+            models.Queue.log,
         )
         .where(
             models.Queue.owner == owner,

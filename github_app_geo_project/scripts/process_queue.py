@@ -6,6 +6,7 @@ import argparse
 import logging
 import os
 import time
+import traceback
 from datetime import datetime, timedelta
 from typing import Any, cast
 
@@ -20,6 +21,13 @@ from github_app_geo_project.module import modules
 from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class _Handler(logging.Handler):
+    results: list[logging.LogRecord] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        self.results.append(record)
 
 
 def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
@@ -43,6 +51,7 @@ def _process_job(
     module_name: str,
     application: str,
     event_name: str,
+    handler: _Handler,
 ) -> bool:
     current_module = modules.MODULES.get(module_name)
     if current_module is None:
@@ -80,7 +89,7 @@ def _process_job(
                 module.ProcessContext(
                     session=session,
                     github_project=github_project,
-                    event_name="event",
+                    event_name=event_name,
                     event_data=event_data,
                     module_config=module_config,
                     module_data=module_data,
@@ -88,6 +97,14 @@ def _process_job(
                     transversal_status=module_status.data or {},
                 )
             )
+            if result is not None and result.log:
+                session.execute(
+                    sqlalchemy.update(models.Queue)
+                    .where(models.Queue.id == job_id)
+                    .values(
+                        log="\n".join([*[handler.format(msg) for msg in handler.results], "", result.log])
+                    )
+                )
             if result is not None and result.transversal_status is not None:
                 module_status.data = result.transversal_status
                 session.commit()
@@ -100,7 +117,7 @@ def _process_job(
                                 "application": application,
                                 "owner": owner,
                                 "repository": repository,
-                                "event_name": event_name,
+                                "event_name": action.title or event_name,
                                 "event_data": event_data,
                                 "module": module_name,
                                 "module_data": action.data,
@@ -271,7 +288,7 @@ def _process_dashboard_issue(
                                         "application": github_project.application.name,
                                         "owner": github_project.owner,
                                         "repository": github_project.repository,
-                                        "event_name": "dashboard",
+                                        "event_name": action.title or "dashboard",
                                         "event_data": {
                                             "type": "dashboard",
                                             "old_data": module_old,
@@ -356,6 +373,14 @@ def main() -> None:
             event_data = job.event_data
             event_name = job.event_name
             module_data = job.module_data
+            # capture_logs
+            root_logger = logging.getLogger()
+            handler = _Handler()
+            handler.setFormatter(
+                logging.Formatter("%(levelname)-5.5s %(filename)s:%(lineno)d %(funcName)s() %(message)s")
+            )
+            root_logger.addHandler(handler)
+
             try:
                 success = True
                 if not job.module:
@@ -392,12 +417,16 @@ def main() -> None:
                             job_module,
                             job_application,
                             job.event_name,
+                            handler,
                         )
 
                 session.execute(
                     sqlalchemy.update(models.Queue)
                     .where(models.Queue.id == job_id)
-                    .values(status=models.JobStatus.DONE if success else models.JobStatus.ERROR)
+                    .values(
+                        status=models.JobStatus.DONE if success else models.JobStatus.ERROR,
+                        finished_at=datetime.now(),
+                    )
                 )
                 session.commit()
 
@@ -407,9 +436,22 @@ def main() -> None:
                     session.execute(
                         sqlalchemy.update(models.Queue)
                         .where(models.Queue.id == job_id)
-                        .values(status=models.JobStatus.ERROR)
+                        .values(
+                            status=models.JobStatus.ERROR,
+                            finished_at=datetime.now(),
+                            # Stack trace
+                            log="\n".join(
+                                [
+                                    *[handler.format(msg) for msg in handler.results],
+                                    "",
+                                    traceback.format_exc(),
+                                ]
+                            ),
+                        )
                     )
                     session.commit()
+            finally:
+                root_logger.removeHandler(handler)
 
 
 if __name__ == "__main__":

@@ -82,6 +82,7 @@ def _get_process_output(
     context: module.ProcessContext[configuration.AuditConfiguration],
     issue_check: module_utils.DashboardIssue,
     issue_data: dict[str, list[str]],
+    log: list[module_utils.AnsiMessage],
 ) -> module.ProcessOutput:
     issue_check.set_check(context.module_data["type"], False)
 
@@ -95,6 +96,7 @@ def _get_process_output(
     return module.ProcessOutput(
         dashboard="\n<!---->\n".join([issue_check.to_string(), _format_issue_data(issue_data)]),
         transversal_status=module_status,
+        log="\n".join([msg.to_html() for msg in log]),
     )
 
 
@@ -135,7 +137,9 @@ def _process_outdated(
 
 
 def _process_snyk_dpkg(
-    context: module.ProcessContext[configuration.AuditConfiguration], issue_data: dict[str, list[str]]
+    context: module.ProcessContext[configuration.AuditConfiguration],
+    issue_data: dict[str, list[str]],
+    log: list[module_utils.AnsiMessage],
 ) -> None:
     key = f"Undefined {context.module_data['version']}"
     new_branch = f"ghci/audit/{context.module_data['type']}/{context.module_data['version']}"
@@ -180,10 +184,10 @@ def _process_snyk_dpkg(
             )
             if proc.returncode != 0:
                 message = module_utils.ansi_proc_dashboard(proc)
-                _LOGGER.error(message)
-                issue_data[key].append(
-                    f"<details><summary>Error while cloning the project</summary>{message}</details>"
-                )
+                message.title = "Error while cloning the project"
+                _LOGGER.error(message.to_str())
+                issue_data[key].append(message.to_markdown())
+                log.append(message)
                 return
             os.chdir(os.path.join(tmpdirname, context.github_project.repository))
 
@@ -201,16 +205,18 @@ def _process_snyk_dpkg(
                     )
                     if proc.returncode != 0:
                         message = module_utils.ansi_proc_dashboard(proc)
-                        _LOGGER.error(message)
-                        issue_data[key].append(
-                            f"<details><summary>Error while setting the Python version</summary>{message}</details>"
-                        )
+                        message.title = "Error while setting the Python version"
+                        _LOGGER.error(message.to_str())
+                        issue_data[key].append(message.to_markdown())
+                        log.append(message)
 
                 local_config: configuration.AuditConfiguration = {}
                 if os.path.exists(".github/ghci.yaml"):
                     with open(".github/ghci.yaml", encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
                 result, body, create_issue = audit_utils.snyk(branch, context.module_config, local_config)
+                if result:
+                    log += result
                 if create_issue and result:
                     repo = context.github_project.github.get_repo(
                         f"{context.github_project.owner}/{context.github_project.repository}"
@@ -242,6 +248,7 @@ def _process_snyk_dpkg(
                             "",
                             *[r.to_markdown() for r in result],
                         ]
+                        log += result
 
             diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 ["git", "diff", "--quiet"]
@@ -252,10 +259,10 @@ def _process_snyk_dpkg(
                 )
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_dashboard(proc)
-                    _LOGGER.error(message)
-                    issue_data[key].append(
-                        f"<details><summary>Error while creating the new branch</summary>{message}</details>"
-                    )
+                    message.title = "Error while creating the new branch"
+                    _LOGGER.error(message.to_str())
+                    issue_data[key].append(message.to_markdown())
+                    log.append(message)
 
                     return
 
@@ -307,7 +314,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
         if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):
-            return [module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"})]
+            return [module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"}, title="outdated")]
         _LOGGER.debug("Event data: %s", context.event_data)
         results: list[module.Action] = []
         snyk = False
@@ -322,14 +329,20 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             )
 
             if not old_check.is_checked("outdated") and new_check.is_checked("outdated"):
-                results.append(module.Action(priority=module.PRIORITY_STANDARD, data={"type": "outdated"}))
+                results.append(
+                    module.Action(
+                        priority=module.PRIORITY_STANDARD, data={"type": "outdated"}, title="outdated"
+                    )
+                )
             if not old_check.is_checked("snyk") and new_check.is_checked("snyk"):
                 snyk = True
             if not old_check.is_checked("dpkg") and new_check.is_checked("dpkg"):
                 dpkg = True
 
         if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
-            results.append(module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"}))
+            results.append(
+                module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"}, title="outdated")
+            )
             snyk = True
             dpkg = True
 
@@ -338,6 +351,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 module.Action(
                     priority=module.PRIORITY_HIGH,
                     data={"snyk": snyk, "dpkg": dpkg, "is_dashboard": is_dashboard},
+                    title="snyk",
                 )
             )
         return results
@@ -359,6 +373,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         issue_check.add_check("outdated", "Check outdated version", False)
         issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
         issue_check.add_check("dpkg", "Update dpkg packages", False)
+        log: list[module_utils.AnsiMessage] = []
 
         if context.module_data.get("type") == "outdated":
             _process_outdated(context, issue_data)
@@ -397,14 +412,15 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                                 else module.PRIORITY_CRON
                             ),
                             data=d,
+                            title="dpkg",
                         )
                         for d in results
                     ],
                 )
             else:
-                _process_snyk_dpkg(context, issue_data)
+                _process_snyk_dpkg(context, issue_data, log)
 
-        return _get_process_output(context, issue_check, issue_data)
+        return _get_process_output(context, issue_check, issue_data, log)
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""

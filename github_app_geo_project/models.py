@@ -50,6 +50,7 @@ class Queue(Base):
         DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     application: Mapped[str] = mapped_column(Unicode, nullable=False)
     owner: Mapped[str] = mapped_column(Unicode, nullable=True)
@@ -58,6 +59,7 @@ class Queue(Base):
     event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     module: Mapped[str] = mapped_column(Unicode, nullable=True)
     module_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)
+    log: Mapped[str] = mapped_column(Unicode, nullable=True)
 
     def __repr__(self) -> str:
         """Return the representation of the job."""
