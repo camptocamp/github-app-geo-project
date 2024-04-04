@@ -10,16 +10,31 @@ from sqlalchemy.orm import Session
 from github_app_geo_project import configuration, models
 
 
-class Action(NamedTuple):
+class Action:
     """The action to be done by the module."""
 
-    # The action priority usually
-    # 10 for updating pull request status
-    # 20 for standard action
-    # 30 for actions triggered by a cron event
+    title: str
+    """Title"""
     priority: int
-    # Some data to be used by the process method
+    """
+    The action priority usually
+    10 for updating pull request status
+    20 for standard action
+    30 for actions triggered by a cron event
+    """
     data: Mapping[str, Any]
+    """Some data to be used by the process method"""
+
+    def __init__(
+        self,
+        priority: int,
+        data: Mapping[str, Any],
+        title: str = "",
+    ) -> None:
+        """Create an action."""
+        self.title = title
+        self.priority = priority
+        self.data = data
 
 
 # Priority used to preprocess the dashboard issue
@@ -237,17 +252,21 @@ class ProcessOutput:
     """The transversal status of the module."""
     actions: list[Action]
     """The new actions that should be done."""
+    log: str | None
+    """The log of the process."""
 
     def __init__(
         self,
         dashboard: str | None = None,
         transversal_status: dict[str, Any] | None = None,
         actions: list[Action] | None = None,
+        log: str | None = None,
     ) -> None:
         """Create the output of the process method."""
         self.dashboard = dashboard
         self.transversal_status = transversal_status
         self.actions = actions or []
+        self.log = log
 
 
 class TransversalDashboardContext(NamedTuple):

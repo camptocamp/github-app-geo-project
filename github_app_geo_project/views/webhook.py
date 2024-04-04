@@ -133,7 +133,7 @@ def process_event(context: ProcessContext) -> None:
                             "application": context.application,
                             "owner": context.owner,
                             "repository": context.repository,
-                            "event_name": context.event_name,
+                            "event_name": action.title or context.event_name,
                             "event_data": context.event_data,
                             "module": name,
                             "module_data": action.data,
