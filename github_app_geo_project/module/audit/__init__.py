@@ -40,6 +40,7 @@ def _format_issue_data(issue_data: dict[str, list[str]]) -> str:
     result = ""
     for key, value in issue_data.items():
         if value:
+            result += "\n"
             result += f"### {key}\n"
             result += "\n".join(value)
             result += "\n"
@@ -216,13 +217,13 @@ def _process_snyk_dpkg(
                     )
                     issue = repo.create_issue(
                         title=f"Error on running Snyk on {branch}",
-                        body=body or "\n".join(result),
+                        body=body.to_markdown() or "\n".join([r.to_markdown() for r in result]),
                     )
                     issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
-                issue_data[key] += result
+                issue_data[key] += [r.to_markdown() for r in result]
 
             if context.module_data["type"] == "dpkg":
-                body = "Update dpkg packages"
+                body = module_utils.AnsiMessage("Update dpkg packages")
 
                 if not os.path.exists("ci/dpkg-versions.yaml"):
                     issue_data[key] = ["The file ci/dpkg-versions.yaml does not exist"]
@@ -234,12 +235,12 @@ def _process_snyk_dpkg(
                         )
                         issue = repo.create_issue(
                             title=f"Error on running dpkg on {branch}",
-                            body="\n".join(result),
+                            body="\n".join([r.to_markdown() for r in result]),
                         )
                         issue_data[key] = [
                             f"Error on running dpkg on {branch}: #{issue.number}",
                             "",
-                            *result,
+                            *[r.to_markdown() for r in result],
                         ]
 
             diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -262,7 +263,7 @@ def _process_snyk_dpkg(
                     f"{context.github_project.owner}/{context.github_project.repository}"
                 )
                 error, pull_request = module_utils.create_commit_pull_request(
-                    branch, new_branch, f"Audit {key}", body, repo
+                    branch, new_branch, f"Audit {key}", body.to_markdown(), repo
                 )
                 if error is not None:
                     _LOGGER.error(error)
