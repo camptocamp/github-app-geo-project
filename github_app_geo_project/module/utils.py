@@ -187,7 +187,7 @@ class AnsiMessage:
         """Convert the ANSI message to markdown."""
         ansi_converter = Ansi2HTMLConverter(inline=True)
         html = ansi_converter.convert(self.ansi_message, full=False)
-        markdown = remove_tags(html).replace("\n", "<br>")
+        markdown = remove_tags(html)
         if self.title:
             markdown = "\n".join(
                 [
@@ -240,13 +240,13 @@ def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> AnsiMessage:
         message.append("")
         message.append("Output:")
         message.append("```")
-        message.append(proc.stdout)
+        message.append(proc.stdout.replace("\n", "<br>"))
         message.append("```")
     if proc.stderr:
         message.append("")
         message.append("Error:")
         message.append("```")
-        message.append(proc.stderr)
+        message.append(proc.stderr.replace("\n", "<br>"))
         message.append("```")
 
     return AnsiMessage("\n".join(message))
