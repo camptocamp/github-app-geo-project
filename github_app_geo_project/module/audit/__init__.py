@@ -214,18 +214,18 @@ def _process_snyk_dpkg(
                 if os.path.exists(".github/ghci.yaml"):
                     with open(".github/ghci.yaml", encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
-                result, body, create_issue = audit_utils.snyk(branch, context.module_config, local_config)
+                result, body, _ = audit_utils.snyk(branch, context.module_config, local_config)
                 if result:
                     log += result
-                if create_issue and result:
-                    repo = context.github_project.github.get_repo(
-                        f"{context.github_project.owner}/{context.github_project.repository}"
-                    )
-                    issue = repo.create_issue(
-                        title=f"Error on running Snyk on {branch}",
-                        body=body.to_markdown() or "\n".join([r.to_markdown() for r in result]),
-                    )
-                    issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
+                # if create_issue and result:
+                #     repo = context.github_project.github.get_repo(
+                #         f"{context.github_project.owner}/{context.github_project.repository}"
+                #     )
+                #     issue = repo.create_issue(
+                #         title=f"Error on running Snyk on {branch}",
+                #         body=body.to_markdown() or "\n".join([r.to_markdown() for r in result]),
+                #     )
+                #     issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
                 issue_data[key] += [r.to_markdown() for r in result]
 
             if context.module_data["type"] == "dpkg":
