@@ -105,6 +105,14 @@ def _process_job(
                         log="\n".join([*[handler.format(msg) for msg in handler.results], "", result.log])
                     )
                 )
+                session.commit()
+            else:
+                session.execute(
+                    sqlalchemy.update(models.Queue)
+                    .where(models.Queue.id == job_id)
+                    .values(log="\n".join([handler.format(msg) for msg in handler.results]))
+                )
+                session.commit()
             if result is not None and result.transversal_status is not None:
                 module_status.data = result.transversal_status
                 session.commit()

@@ -21,13 +21,12 @@ _LOGGING = logging.getLogger(__name__)
 
 def snyk(
     branch: str, config: configuration.AuditConfiguration, local_config: configuration.AuditConfiguration
-) -> tuple[list[utils.Message], utils.Message, bool]:
+) -> tuple[list[utils.Message], utils.Message]:
     """
     Audit the code with Snyk.
     """
     install_success = True
     result = []
-    create_issue = True
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "requirements.txt", "*/requirements.txt"], capture_output=True, encoding="utf-8"
@@ -117,7 +116,7 @@ def snyk(
     )
     _LOGGING.debug("Snyk test output:\n%s", test_proc.stdout)
     test_json = json.loads(test_proc.stdout)
-    if test_json.get("ok", True) is False:
+    if isinstance(test_json, dict) and test_json.get("ok", True) is False:
         _LOGGING.error(test_json.get("error"))
 
         command = ["snyk", "test"] + config.get(
@@ -161,11 +160,10 @@ def snyk(
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
+    result.append(utils.ansi_proc_dashboard(snyk_fix_proc))
     snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
-    if snyk_fix_proc.returncode == 0:
-        create_issue = False
 
-    return result, snyk_fix_message, create_issue
+    return result, snyk_fix_message
 
 
 def outdated_versions(
