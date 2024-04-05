@@ -214,7 +214,7 @@ def _process_snyk_dpkg(
                 if os.path.exists(".github/ghci.yaml"):
                     with open(".github/ghci.yaml", encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
-                result, body, _ = audit_utils.snyk(branch, context.module_config, local_config)
+                result, body = audit_utils.snyk(branch, context.module_config, local_config)
                 if result:
                     log += result
                 # if create_issue and result:
@@ -231,9 +231,7 @@ def _process_snyk_dpkg(
             if context.module_data["type"] == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")
 
-                if not os.path.exists("ci/dpkg-versions.yaml"):
-                    issue_data[key] = ["The file ci/dpkg-versions.yaml does not exist"]
-                else:
+                if os.path.exists("ci/dpkg-versions.yaml"):
                     result = audit_utils.dpkg()
                     if result:
                         repo = context.github_project.github.get_repo(
@@ -315,7 +313,6 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         """
         if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):
             return [module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"}, title="outdated")]
-        _LOGGER.debug("Event data: %s", context.event_data)
         results: list[module.Action] = []
         snyk = False
         dpkg = False

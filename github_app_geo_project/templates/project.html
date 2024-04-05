@@ -116,11 +116,6 @@
     <div class="alert alert-danger" role="alert">${error}</div>
     %endif
 
-    <h2>Last outputs</h2>
-    %for o in output:
-    <p><a href="${request.route_url('output', id=o[0])}">${o[1]}</a></p>
-    %endfor
-
     <h2>Last thread events</h2>
     %for job in jobs:
     <!---->
@@ -151,7 +146,13 @@
           >
           (<a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Job id">${job[0]}</a>)
           -
-          <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="${date_tooltip(job)}">
+          <a
+            href="#"
+            data-bs-toggle="tooltip"
+            data-bs-placement="top"
+            data-bs-html="true"
+            data-bs-title="${date_tooltip(job)}"
+          >
             %if job[7]:
             <!---->
             elapsed:&nbsp;${job[7] - job[5]|pprint_duration}
@@ -174,7 +175,6 @@
             <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="${job[8]}">Logs</a>
             %endif
           </a>
-          &lt;br/&gt;elapsed:&nbsp;${job[5]|pprint_date}
         </div>
         <!-- for Prettier -->
         %if False:
@@ -182,6 +182,11 @@
     </div>
     %endif
     <!---->
+    %endfor
+
+    <h2>Last outputs</h2>
+    %for o in output:
+    <p><a href="${request.route_url('output', id=o[0])}">${o[1]}</a></p>
     %endfor
 
     <!---->
