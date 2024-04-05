@@ -82,7 +82,7 @@ def _get_process_output(
     context: module.ProcessContext[configuration.AuditConfiguration],
     issue_check: module_utils.DashboardIssue,
     issue_data: dict[str, list[str]],
-    log: list[module_utils.AnsiMessage],
+    log: list[module_utils.Message],
 ) -> module.ProcessOutput:
     issue_check.set_check(context.module_data["type"], False)
 
@@ -139,7 +139,7 @@ def _process_outdated(
 def _process_snyk_dpkg(
     context: module.ProcessContext[configuration.AuditConfiguration],
     issue_data: dict[str, list[str]],
-    log: list[module_utils.AnsiMessage],
+    log: list[module_utils.Message],
 ) -> None:
     key = f"Undefined {context.module_data['version']}"
     new_branch = f"ghci/audit/{context.module_data['type']}/{context.module_data['version']}"
@@ -185,7 +185,7 @@ def _process_snyk_dpkg(
             if proc.returncode != 0:
                 message = module_utils.ansi_proc_dashboard(proc)
                 message.title = "Error while cloning the project"
-                _LOGGER.error(message.to_str())
+                _LOGGER.error(message.to_plain_text())
                 issue_data[key].append(message.to_markdown())
                 log.append(message)
                 return
@@ -206,7 +206,7 @@ def _process_snyk_dpkg(
                     if proc.returncode != 0:
                         message = module_utils.ansi_proc_dashboard(proc)
                         message.title = "Error while setting the Python version"
-                        _LOGGER.error(message.to_str())
+                        _LOGGER.error(message.to_plain_text())
                         issue_data[key].append(message.to_markdown())
                         log.append(message)
 
@@ -214,22 +214,22 @@ def _process_snyk_dpkg(
                 if os.path.exists(".github/ghci.yaml"):
                     with open(".github/ghci.yaml", encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
-                result, body, create_issue = audit_utils.snyk(branch, context.module_config, local_config)
+                result, body, _ = audit_utils.snyk(branch, context.module_config, local_config)
                 if result:
                     log += result
-                if create_issue and result:
-                    repo = context.github_project.github.get_repo(
-                        f"{context.github_project.owner}/{context.github_project.repository}"
-                    )
-                    issue = repo.create_issue(
-                        title=f"Error on running Snyk on {branch}",
-                        body=body.to_markdown() or "\n".join([r.to_markdown() for r in result]),
-                    )
-                    issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
+                # if create_issue and result:
+                #     repo = context.github_project.github.get_repo(
+                #         f"{context.github_project.owner}/{context.github_project.repository}"
+                #     )
+                #     issue = repo.create_issue(
+                #         title=f"Error on running Snyk on {branch}",
+                #         body=body.to_markdown() or "\n".join([r.to_markdown() for r in result]),
+                #     )
+                #     issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
                 issue_data[key] += [r.to_markdown() for r in result]
 
             if context.module_data["type"] == "dpkg":
-                body = module_utils.AnsiMessage("Update dpkg packages")
+                body = module_utils.HtmlMessage("Update dpkg packages")
 
                 if not os.path.exists("ci/dpkg-versions.yaml"):
                     issue_data[key] = ["The file ci/dpkg-versions.yaml does not exist"]
@@ -260,7 +260,7 @@ def _process_snyk_dpkg(
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_dashboard(proc)
                     message.title = "Error while creating the new branch"
-                    _LOGGER.error(message.to_str())
+                    _LOGGER.error(message.to_plain_text())
                     issue_data[key].append(message.to_markdown())
                     log.append(message)
 
@@ -373,7 +373,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         issue_check.add_check("outdated", "Check outdated version", False)
         issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
         issue_check.add_check("dpkg", "Update dpkg packages", False)
-        log: list[module_utils.AnsiMessage] = []
+        log: list[module_utils.Message] = []
 
         if context.module_data.get("type") == "outdated":
             _process_outdated(context, issue_data)

@@ -4,9 +4,10 @@ import datetime
 import re
 import shlex
 import subprocess  # nosec
-from typing import Any, Union
+from typing import Any, Union, cast
 
 import github
+import html_sanitizer
 from ansi2html import Ansi2HTMLConverter
 
 from github_app_geo_project import models, module
@@ -162,32 +163,61 @@ class DashboardIssue:
         return self.to_string()
 
 
-class AnsiMessage:
-    """Utility class to convert ANSI messages to HTML/markdown."""
+class Message:
+    """Represent a message with an optional title."""
 
-    def __init__(self, ansi_message_str: str, title: str = "") -> None:
+    title: str
+
+    def to_html(self) -> str:
+        """Convert the message to HTML."""
+        raise NotImplementedError
+
+    def to_markdown(self) -> str:
+        """Convert the message to markdown."""
+        raise NotImplementedError
+
+    def to_plain_text(self) -> str:
+        """Convert the message to plain text."""
+        raise NotImplementedError
+
+
+class HtmlMessage(Message):
+    """Utility class to convert HTML messages to HTML/markdown."""
+
+    def __init__(self, html: str, title: str = "") -> None:
         """Initialize the ANSI message."""
-        self.ansi_message = ansi_message_str
+        self.html = html
         self.title = title
 
     def to_html(self) -> str:
         """Convert the ANSI message to HTML."""
-        ansi_converter = Ansi2HTMLConverter(inline=True)
-        html = ansi_converter.convert(self.ansi_message, full=False)
+        sanitizer_instance = html_sanitizer.Sanitizer(
+            {
+                "tags": html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"]
+                | {"span", "code", "pre", "blockquote"},
+                "attributes": html_sanitizer.sanitizer.DEFAULT_SETTINGS["attributes"] | {"span": ("style",)},
+            }
+        )
+        html = cast(str, sanitizer_instance.sanitize(self.html))
         if self.title:
-            html = "\n".join(
-                [
-                    f"<h3>{self.title}</h3>",
-                    html,
-                ]
-            )
+            html = "\n".join([f"<h3>{self.title}</h3>", html])
         return html
 
     def to_markdown(self) -> str:
         """Convert the ANSI message to markdown."""
-        ansi_converter = Ansi2HTMLConverter(inline=True)
-        html = ansi_converter.convert(self.ansi_message, full=False)
-        markdown = remove_tags(html)
+        sanitizer = html_sanitizer.Sanitizer(
+            {
+                "tags": {"blockquote", "br"},
+                "attributes": {},
+                "empty": {"br"},
+                "separate": set(),
+                "keep_typographic_whitespace": True,
+            }
+        )
+        markdown = cast(
+            str, sanitizer.sanitize(self.html.replace("\n", " ").replace("<p>", "\n\n<p>"))
+        ).strip()
+
         if self.title:
             markdown = "\n".join(
                 [
@@ -199,13 +229,22 @@ class AnsiMessage:
             )
         return markdown
 
-    def to_str(self) -> str:
+    def to_plain_text(self) -> str:
         """Get the ANSI message."""
-        ansi_converter = Ansi2HTMLConverter(inline=True)
-        html = ansi_converter.convert(self.ansi_message, full=False)
         if self.title:
-            return f"{self.title}\n{remove_tags(html)}"
-        return remove_tags(html)
+            return f"{self.title}\n{remove_tags(self.html)}"
+        return remove_tags(self.html)
+
+
+class AnsiMessage(HtmlMessage):
+    """Utility class to convert ANSI messages to HTML/markdown."""
+
+    def __init__(self, ansi_message_str: str, title: str = "") -> None:
+        """Initialize the ANSI message."""
+        ansi_converter = Ansi2HTMLConverter(inline=True)
+        html = ansi_converter.convert(ansi_message_str, full=False)
+        super().__init__(html, title)
+        self.title = title
 
 
 def ansi_message(ansi: str, ansi_converter: Ansi2HTMLConverter | None) -> str:
@@ -215,7 +254,7 @@ def ansi_message(ansi: str, ansi_converter: Ansi2HTMLConverter | None) -> str:
     return ansi_converter.convert(ansi, full=False)
 
 
-def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> AnsiMessage:
+def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> Message:
     """
     Process the output of a subprocess for the dashboard.
 
@@ -236,25 +275,37 @@ def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> AnsiMessage:
             args.append(arg)
 
     message = [f"Command: {shlex.join(args)}", f"Return code: {proc.returncode}"]
+    ansi_converter = Ansi2HTMLConverter(inline=True)
     if proc.stdout:
-        message.append("")
         message.append("Output:")
-        message.append("```")
-        message.append(proc.stdout.replace("\n", "<br>"))
-        message.append("```")
+        message.append("<blockquote>")
+        message.append(ansi_message(proc.stdout, ansi_converter).replace("\n", "<br>"))
+        message.append("</blockquote>")
     if proc.stderr:
-        message.append("")
         message.append("Error:")
-        message.append("```")
-        message.append(proc.stderr.replace("\n", "<br>"))
-        message.append("```")
+        message.append("<blockquote>")
+        message.append(ansi_message(proc.stderr, ansi_converter).replace("\n", "<br>"))
+        message.append("</blockquote>")
 
-    return AnsiMessage("\n".join(message))
+    return HtmlMessage("<p>" + "</p>\n<p>".join(message) + "</p>")
 
 
 def remove_tags(text: str) -> str:
     """Remove HTML tags."""
-    return re.sub(r"<[^>]*>", "", text)
+    sanitizer = html_sanitizer.Sanitizer(
+        {
+            "tags": {
+                "unexisting",
+            },
+            "attributes": {},
+            "empty": set(),
+            "separate": set(),
+            "keep_typographic_whitespace": True,
+        }
+    )
+    return cast(
+        str, sanitizer.sanitize(text.replace("\n", " ").replace("<p>", "\n<p>").replace("<br>", "\n"))
+    ).strip()
 
 
 def has_changes() -> bool:
@@ -265,7 +316,7 @@ def has_changes() -> bool:
     return proc.returncode != 0
 
 
-def create_commit(message: str) -> AnsiMessage | None:
+def create_commit(message: str) -> Message | None:
     """Do a commit."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "add", "--all"], capture_output=True, encoding="utf-8"
@@ -283,7 +334,7 @@ def create_commit(message: str) -> AnsiMessage | None:
 
 def create_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
-) -> tuple[AnsiMessage | None, github.PullRequest.PullRequest | None]:
+) -> tuple[Message | None, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "push", "--force", "origin", new_branch],
@@ -318,7 +369,7 @@ def create_pull_request(
 
 def create_commit_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
-) -> tuple[AnsiMessage | None, github.PullRequest.PullRequest | None]:
+) -> tuple[Message | None, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
     error = create_commit(message)
     if error:
