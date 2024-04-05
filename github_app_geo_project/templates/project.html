@@ -38,6 +38,21 @@
         padding: .13rem .4rem .2rem;
         margin: .3rem 0;
       }
+      a[data-bs-toggle="tooltip"] {
+        text-decoration: none;
+      }
+      div.alert-primary a[data-bs-toggle="tooltip"] {
+        color: var(--bs-primary-text-emphasis);
+      }
+      div.alert-secondary a[data-bs-toggle="tooltip"] {
+        color: var(--bs-secondary-text-emphasis);
+      }
+      div.alert-warning a[data-bs-toggle="tooltip"] {
+        color: var(--bs-warning-text-emphasis);
+      }
+      div.alert-danger a[data-bs-toggle="tooltip"] {
+        color: var(--bs-danger-text-emphasis);
+      }
       /* pygments */
       ${styles|n}
     </style>
@@ -76,7 +91,11 @@
     <!---->
     %if 'issue_url' in app_config:
     <p>
-      <a href="${app_config['issue_url']}" , title="For application [${application}]"
+      <a
+        href="${app_config['issue_url']}"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        data-bs-title="For application [${application}]"
         >Dashboard (GitHub issue)</a
       >
     </p>
@@ -201,5 +220,11 @@
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     ></script>
+    <script>
+      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+      });
+    </script>
   </body>
 </html>
