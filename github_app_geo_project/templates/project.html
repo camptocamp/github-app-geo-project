@@ -132,16 +132,7 @@
           >
           (<a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Job id">${job[0]}</a>)
           -
-          <a
-            href="#"
-            data-bs-toggle="tooltip"
-            data-bs-placement="top"
-            data-bs-title="created:&nbsp;${job[4]|pprint_date}&lt;br/&gt;started:&nbsp;${job[5]|pprint_date}
-          %if job[7]:
-          &lt;br/&gt;elapsed:&nbsp;${job[7] - job[5]|pprint_duration}
-          %endif
-          "
-          >
+          <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="${date_tooltip(job)}">
             %if job[7]:
             <!---->
             elapsed:&nbsp;${job[7] - job[5]|pprint_duration}

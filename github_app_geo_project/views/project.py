@@ -1,5 +1,6 @@
 """Output view."""
 
+import datetime
 import logging
 import os
 from typing import Any
@@ -16,8 +17,21 @@ from pyramid.view import view_config
 
 from github_app_geo_project import configuration, models, project_configuration
 from github_app_geo_project.module import modules
+from github_app_geo_project.templates import pprint_date, pprint_duration
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _date_tooltip(job: list[datetime.datetime]) -> str:
+    """Get the tooltip for the date."""
+    created = job[4]
+    started = job[5]
+    finished = job[7]
+    if started is None:
+        return f"created:&nbsp;{pprint_date(created)}<br>not started yet"
+    if finished is None:
+        return f"created:&nbsp;{pprint_date(created)}<br>started:&nbsp;{pprint_date(started)}"
+    return f"created:&nbsp;{pprint_date(created)}<br>started:&nbsp;{pprint_date(started)}<br>elapsed:&nbsp;{pprint_duration(finished - started)}"
 
 
 @view_config(route_name="project", renderer="github_app_geo_project:templates/project.html")  # type: ignore
@@ -142,4 +156,5 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "error": None,
             "applications": applications,
             "module_configuration": module_config,
+            "date_tooltip": _date_tooltip,
         }

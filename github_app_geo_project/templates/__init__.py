@@ -24,14 +24,14 @@ def markdown(text: str) -> str:
     return sanitizer(markdown_lib.markdown(text))
 
 
-def pprint_date(date_str: str) -> str:
+def pprint_date(date_in: str | datetime) -> str:
     """
     Pretty print a date.
     """
-    if date_str == "None":
+    if date_in == "None" or date_in is None:
         return "-"
 
-    date = datetime.fromisoformat(date_str)
+    date = datetime.fromisoformat(date_in) if isinstance(date_in, str) else date_in
     full_date = datetime.strftime(date, "%Y-%m-%d %H:%M:%S")
 
     delta = datetime.now(timezone.utc) - date
@@ -51,23 +51,26 @@ def pprint_date(date_str: str) -> str:
     return f'<span title="{full_date}">{short_date}</span>'
 
 
-def pprint_duration(duration_str: str) -> str:
+def pprint_duration(duration_in: str | timedelta) -> str:
     """
     Pretty print a duration.
     """
-    if duration_str == "None":
+    if duration_in == "None" or duration_in is None:
         return "-"
 
-    if " days, " in duration_str:
-        day_, duration_str = duration_str.split(" days, ")
-        day = int(day_)
-        date = datetime.strptime(duration_str, "%H:%M:%S")
+    if isinstance(duration_in, str):
+        if " days, " in duration_in:
+            day_, duration_in = duration_in.split(" days, ")
+            day = int(day_)
+            date = datetime.strptime(duration_in, "%H:%M:%S")
+        else:
+            day = 0
+            date = datetime.strptime(duration_in, "%H:%M:%S.%f")
+        duration = timedelta(
+            days=day, hours=date.hour, minutes=date.minute, seconds=date.second, microseconds=date.microsecond
+        )
     else:
-        day = 0
-        date = datetime.strptime(duration_str, "%H:%M:%S.%f")
-    duration = timedelta(
-        days=day, hours=date.hour, minutes=date.minute, seconds=date.second, microseconds=date.microsecond
-    )
+        duration = duration_in
 
     if duration.total_seconds() < 60:
         return f"{duration.seconds} seconds"
