@@ -112,6 +112,10 @@ RUN --mount=type=cache,target=/root/.cache \
     POETRY_DYNAMIC_VERSIONING_BYPASS=${VERSION} python3 -m pip install --disable-pip-version-check --no-deps --editable=. \
     && python3 -m compileall
 
+# Set the default Python version to 3.10 (version present on Ubuntu LTS))
+RUN pyenv global 3.10 \
+    && chmod a+rw -R /pyenv/
+
 # Create the home of www-data
 RUN mkdir /var/www \
     && chmod a+rwx /var/www \
@@ -120,7 +124,6 @@ RUN mkdir /var/www \
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
 
-RUN chmod a+rwx -R /pyenv/
 
 ENV PROMETHEUS_MULTIPROC_DIR=/prometheus-metrics
 
