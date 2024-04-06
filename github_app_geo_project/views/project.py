@@ -31,7 +31,7 @@ def _date_tooltip(job: list[datetime.datetime]) -> str:
         return f"created:&nbsp;{pprint_date(created)}<br>not started yet"
     if finished is None:
         return f"created:&nbsp;{pprint_date(created)}<br>started:&nbsp;{pprint_date(started)}"
-    return f"created:&nbsp;{pprint_date(created)}<br>started:&nbsp;{pprint_date(started)}<br>elapsed:&nbsp;{pprint_duration(finished - started)}"
+    return f"created:&nbsp;{pprint_date(created)}<br>started:&nbsp;{pprint_date(started)}<br>duration:&nbsp;{pprint_duration(finished - started)}"
 
 
 @view_config(route_name="project", renderer="github_app_geo_project:templates/project.html")  # type: ignore
@@ -54,6 +54,8 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "issue_required": False,
             "module_configuration": [],
             "jobs": [],
+            "applications": {},
+            "date_tooltip": _date_tooltip,
         }
     config: project_configuration.GithubApplicationProjectConfiguration = {}
 

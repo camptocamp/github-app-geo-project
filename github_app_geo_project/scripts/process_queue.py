@@ -30,6 +30,17 @@ class _Handler(logging.Handler):
         self.results.append(record)
 
 
+class _Formatter(logging.Formatter):
+    def formatMessage(self, record: logging.LogRecord) -> str:  # noqa: N802
+        str_msg = super().formatMessage(record)
+        attributes = ""
+        if record.levelname == "WARNING":
+            attributes = ' style="color:orange"'
+        elif record.levelname == "ERROR":
+            attributes = ' style="color:red"'
+        return f"<p{attributes}>{str_msg}</p>"
+
+
 def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
     github_application = configuration.get_github_application(config, application)
     github_app = github_application.integration.get_app()
@@ -387,7 +398,7 @@ def main() -> None:
             root_logger = logging.getLogger()
             handler = _Handler()
             handler.setFormatter(
-                logging.Formatter("%(levelname)-5.5s %(filename)s:%(lineno)d %(funcName)s() %(message)s")
+                _Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s() %(message)s")
             )
             root_logger.addHandler(handler)
 
