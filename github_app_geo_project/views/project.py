@@ -152,7 +152,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "styles": formatter.get_style_defs(),
             "repository": f"{owner}/{repository}",
             "output": session.execute(select_output.limit(10)).all(),
-            "jobs": session.execute(select_job.limit(10)).all(),
+            "jobs": session.execute(select_job.limit(20)).all(),
             "error": None,
             "applications": applications,
             "module_configuration": module_config,

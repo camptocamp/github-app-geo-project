@@ -130,7 +130,9 @@ def snyk(
         _LOGGING.error(dashboard_message.to_plain_text())
     else:
         for raw in test_json:
-            result.append(utils.HtmlMessage(f"{raw['targetFile']} ({raw['packageManager']})"))
+            result.append(
+                utils.HtmlMessage(f"{raw.get('targetFile', '-')} ({raw.get('packageManager', '-')})")
+            )
             for vuln in raw["vulnerabilities"]:
                 result.append(
                     utils.HtmlMessage(
