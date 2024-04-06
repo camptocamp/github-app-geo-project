@@ -54,6 +54,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             "issue_required": False,
             "module_configuration": [],
             "jobs": [],
+            "applications": {},
         }
     config: project_configuration.GithubApplicationProjectConfiguration = {}
 
