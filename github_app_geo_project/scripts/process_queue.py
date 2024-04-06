@@ -95,6 +95,8 @@ def _process_job(
                     module_data=module_data,
                     issue_data=issue_data,
                     transversal_status=module_status.data or {},
+                    job_id=job_id,
+                    service_url=config["service-url"],
                 )
             )
             if result is not None and result.log:
