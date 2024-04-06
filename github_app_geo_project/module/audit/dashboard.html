@@ -1,10 +1,10 @@
 %for data in repositories:
 <h2>${data['repository']}</h2>
-We get the following errors, see dashboard issue for more details
+We get errors, on the following checks:
 <ul>
   %for error in data['data']:
   <li>${error}</li>
   %endfor
-  <a href="?repository=${data['repository']}">Details</a>
 </ul>
+<a href="?repository=${data['repository']}">Details</a>
 %endfor
