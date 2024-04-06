@@ -172,7 +172,7 @@
             %endif
             <!---->
             %if job[8]:
-            <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="${job[8]}">Logs</a>
+            <a href="${request.route_url('logs', job[0])}">Logs</a>
             %endif
           </a>
         </div>

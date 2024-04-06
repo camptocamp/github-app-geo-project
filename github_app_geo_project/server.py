@@ -106,6 +106,11 @@ from github_app_geo_project.templates import markdown, sanitizer, pprint_date, p
         "output/{id}",
         request_method="GET",
     )
+    config.add_route(
+        "logs",
+        "logs/{id}",
+        request_method="GET",
+    )
 
     config.add_route(
         "dashboard",

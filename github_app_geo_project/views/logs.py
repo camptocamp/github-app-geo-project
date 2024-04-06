@@ -15,37 +15,36 @@ from github_app_geo_project import models
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="output", renderer="github_app_geo_project:templates/output.html")  # type: ignore
-def output(request: pyramid.request.Request) -> dict[str, Any]:
-    """Get the output of a job."""
-    title = request.matchdict["id"]
-    data = ["Element not found"]
+@view_config(route_name="logs", renderer="github_app_geo_project:templates/logs.html")  # type: ignore
+def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
+    """Get the logs of a job."""
+    title = f"Logs of job {request.matchdict['id']}"
+    logs = ["Element not found"]
     has_access = True
 
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
     with engine.connect() as session:
-        out = session.execute(
-            sqlalchemy.select(models.Output).where(models.Output.id == request.matchdict["id"])
+        job = session.execute(
+            sqlalchemy.select(models.Queue).where(models.Queue.id == request.matchdict["id"])
         ).first()
-        if out is not None:
-            full_repository = f"{out.owner}/{out.repository}"
+        if job is not None:
+            full_repository = f"{job.owner}/{job.repository}"
             permission = request.has_permission(
                 full_repository,
-                {"github_repository": full_repository, "github_access_type": out.access_type},
+                {"github_repository": full_repository, "github_access_type": job.access_type},
             )
             has_access = isinstance(permission, pyramid.security.Allowed)
             if has_access:
-                title = out.title
-                data = out.data
+                logs = job.log
             else:
                 request.response.status = 302
-                data = ["Access Denied"]
+                logs = ["Access Denied"]
         else:
             request.response.status = 404
 
         return {
             "title": title,
-            "output": data,
+            "logs": logs,
             "enumerate": enumerate,
         }

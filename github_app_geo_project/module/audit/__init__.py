@@ -186,7 +186,7 @@ def _process_snyk_dpkg(
                 message = module_utils.ansi_proc_dashboard(proc)
                 message.title = "Error while cloning the project"
                 _LOGGER.error(message.to_plain_text())
-                issue_data[key].append(message.to_markdown())
+                issue_data[key].append(message.to_markdown().split("\n")[0])
                 log.append(message)
                 return
             os.chdir(os.path.join(tmpdirname, context.github_project.repository))
@@ -207,7 +207,7 @@ def _process_snyk_dpkg(
                         message = module_utils.ansi_proc_dashboard(proc)
                         message.title = "Error while setting the Python version"
                         _LOGGER.error(message.to_plain_text())
-                        issue_data[key].append(message.to_markdown())
+                        issue_data[key].append(message.to_markdown().split("\n")[0])
                         log.append(message)
 
                 local_config: configuration.AuditConfiguration = {}
@@ -226,7 +226,8 @@ def _process_snyk_dpkg(
                 #         body=body.to_markdown() or "\n".join([r.to_markdown() for r in result]),
                 #     )
                 #     issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
-                issue_data[key] += [r.to_markdown() for r in result]
+                if result:
+                    issue_data[key] += result[0].to_markdown().split("\n")[0]
 
             if context.module_data["type"] == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")
@@ -244,7 +245,7 @@ def _process_snyk_dpkg(
                         issue_data[key] = [
                             f"Error on running dpkg on {branch}: #{issue.number}",
                             "",
-                            *[r.to_markdown() for r in result],
+                            result[0].to_markdown().split("\n")[0] if result else "",
                         ]
                         log += result
 
@@ -259,7 +260,7 @@ def _process_snyk_dpkg(
                     message = module_utils.ansi_proc_dashboard(proc)
                     message.title = "Error while creating the new branch"
                     _LOGGER.error(message.to_plain_text())
-                    issue_data[key].append(message.to_markdown())
+                    issue_data[key].append(message.to_markdown().split("\n")[0])
                     log.append(message)
 
                     return
@@ -283,6 +284,8 @@ def _process_snyk_dpkg(
     except Exception as exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
         issue_data[key].append(f"Error: {exception}")
+
+    issue_data[key] = [f"[Logs]({context.service_url}/logs/{context.job_id})", "", *issue_data[key]]
 
 
 class Audit(module.Module[configuration.AuditConfiguration]):

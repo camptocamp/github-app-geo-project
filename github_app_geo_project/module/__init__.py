@@ -4,10 +4,10 @@ from abc import abstractmethod
 from collections.abc import Mapping
 from typing import Any, Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar
 
-import github
+import pyramid.request
 from sqlalchemy.orm import Session
 
-from github_app_geo_project import configuration, models
+from github_app_geo_project import configuration
 
 
 class Action:
@@ -37,16 +37,16 @@ class Action:
         self.data = data
 
 
-# Priority used to preprocess the dashboard issue
 PRIORITY_HIGH = 0
-# Priority used to update the pull request status
+"""Priority used to preprocess the dashboard issue"""
 PRIORITY_STATUS = 10
-# Priority used for actions triggered by dashborad issue
+"""Priority used to update the pull request status"""
 PRIORITY_DASHBOARD = 20
-# Standard priority
+"""Priority used for actions triggered by dashborad issue"""
 PRIORITY_STANDARD = 30
-# Priority for an action triggered by a cron
+"""Standard priority"""
 PRIORITY_CRON = 40
+"""Priority for an action triggered by a cron"""
 
 T = TypeVar("T")
 
@@ -54,48 +54,52 @@ T = TypeVar("T")
 class GetActionContext(NamedTuple):
     """The context of the get_actions method."""
 
-    # The event name present in the X-GitHub-Event header
     event_name: str
-    # The event data
+    """The event name present in the X-GitHub-Event header."""
     event_data: dict[str, Any]
-    # The owner of the event
+    """The event data."""
     owner: str
-    # The repository of the event
+    """The owner of the event."""
     repository: str
+    """The repository of the event."""
 
 
 class CleanupContext(NamedTuple):
     """The context of the cleanup method."""
 
-    # The github application
     github_project: configuration.GithubProject
-    # The event name present in the X-GitHub-Event header
+    """The github application."""
     event_name: str
-    # The event data
+    """The event name present in the X-GitHub-Event header."""
     event_data: dict[str, Any]
-    # The data given by the get_actions method
+    """The event data."""
     module_data: dict[str, Any]
+    """The data given by the get_actions method."""
 
 
 class ProcessContext(NamedTuple, Generic[T]):
     """The context of the process."""
 
-    # The session to be used
     session: Session
-    # The github application
+    """The session to be used."""
     github_project: configuration.GithubProject
-    # The event name present in the X-GitHub-Event header
+    """The github application."""
     event_name: str
-    # The event data
+    """The event name present in the X-GitHub-Event header."""
     event_data: dict[str, Any]
-    # The module configuration
+    """The event data."""
     module_config: "T"
-    # The data given by the get_actions method
+    """The module configuration."""
     module_data: dict[str, Any]
-    # The data from the issue dashboard
+    """The data given by the get_actions method."""
     issue_data: str
-    # The module status
+    """The data from the issue dashboard."""
     transversal_status: dict[str, Any]
+    """The module status."""
+    job_id: int
+    """The job ID."""
+    service_url: str
+    """The base URL of the application."""
 
 
 class Permissions(TypedDict):
