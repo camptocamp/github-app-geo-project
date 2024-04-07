@@ -335,6 +335,7 @@ def _process_dashboard_issue(
 def main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--exit-when-empty", action="store_true", help="Exit when the queue is empty")
     c2cwsgiutils.setup_process.fill_arguments(parser)
     args = parser.parse_args()
 
@@ -362,6 +363,8 @@ def main() -> None:
                 .first()
             )
             if job is None:
+                if args.exit_when_empty:
+                    break
                 # Get too old pending jobs
                 session.execute(
                     sqlalchemy.update(models.Queue)
