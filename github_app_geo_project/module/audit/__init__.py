@@ -6,6 +6,7 @@ import os
 import os.path
 import subprocess  # nosec
 import tempfile
+import urllib.parse
 from typing import Any, cast
 
 import c2cciutils.security
@@ -285,7 +286,11 @@ def _process_snyk_dpkg(
         _LOGGER.exception("Audit %s error", key)
         issue_data[key].append(f"Error: {exception}")
 
-    issue_data[key] = [f"[Logs]({context.service_url}/logs/{context.job_id})", "", *issue_data[key]]
+    service_url = context.service_url
+    service_url = service_url if service_url.endswith("/") else service_url + "/"
+    service_url = urllib.parse.urljoin(service_url, "logs")
+    service_url = urllib.parse.urljoin(service_url, str(context.job_id))
+    issue_data[key] = [f"[Logs]({service_url})", "", *issue_data[key]]
 
 
 class Audit(module.Module[configuration.AuditConfiguration]):
