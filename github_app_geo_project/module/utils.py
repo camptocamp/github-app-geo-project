@@ -19,18 +19,19 @@ def add_output(
     data: list[str | models.OutputData],
     status: models.OutputStatus = models.OutputStatus.SUCCESS,
     access_type: models.AccessType = models.AccessType.PULL,
-) -> None:
+) -> int:
     """Add an output to the database."""
-    context.session.add(
-        models.Output(
-            title=title,
-            status=status,
-            owner=context.github_project.owner,
-            repository=context.github_project.repository,
-            access_type=access_type,
-            data=data,
-        )
+    output = models.Output(
+        title=title,
+        status=status,
+        owner=context.github_project.owner if context.github_project else "camptocamp",
+        repository=context.github_project.repository if context.github_project else "test",
+        access_type=access_type,
+        data=data,
     )
+    context.session.add(output)
+    context.session.commit()
+    return output.id
 
 
 class DashboardIssueItem:
@@ -198,7 +199,7 @@ class HtmlMessage(Message):
                 "attributes": html_sanitizer.sanitizer.DEFAULT_SETTINGS["attributes"] | {"span": ("style",)},
             }
         )
-        html = cast(str, sanitizer_instance.sanitize(self.html))
+        html = cast(str, sanitizer_instance.sanitize(self.html.replace(" ", "&nbsp;")))
         if self.title:
             html = "\n".join([f"<h3>{self.title}</h3>", html])
         return html

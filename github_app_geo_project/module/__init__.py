@@ -4,7 +4,6 @@ from abc import abstractmethod
 from collections.abc import Mapping
 from typing import Any, Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar
 
-import pyramid.request
 from sqlalchemy.orm import Session
 
 from github_app_geo_project import configuration

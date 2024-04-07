@@ -1,12 +1,17 @@
+import logging
+import os
 from typing import Any
+
+import yaml
 
 from github_app_geo_project import models, module
 from github_app_geo_project.module import utils
 
-ConfigType = dict[str, Any]
+_LOGGER = logging.getLogger(__name__)
+_ConfigType = dict[str, Any]
 
 
-class TestModule(module.Module[ConfigType]):
+class TestModule(module.Module[_ConfigType]):
     def title(self) -> str:
         """Get the title of the module."""
         return "Test Module"
@@ -27,9 +32,12 @@ class TestModule(module.Module[ConfigType]):
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
         del context
-        return [module.Action(priority=module.PRIORITY_STATUS, data={})]
+        return [
+            module.Action(priority=module.PRIORITY_STATUS, data={"error": False}),
+            module.Action(priority=module.PRIORITY_STATUS, data={"error": True}),
+        ]
 
-    def process(self, context: module.ProcessContext[ConfigType]) -> module.ProcessOutput | None:
+    def process(self, context: module.ProcessContext[_ConfigType]) -> module.ProcessOutput | None:
         """
         Process the action.
 
@@ -37,9 +45,34 @@ class TestModule(module.Module[ConfigType]):
 
         :return: The status of the process to be stored in the dashboard issue
         """
-        utils.add_output(context, "Test", ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}])
-        utils.add_output(context, "Test", ["Test error"], status=models.OutputStatus.ERROR)
-        return None
+        result = {}
+        try:
+            if os.path.exists("/tmp/test-result.yaml"):
+                with open("/tmp/test-result.yaml", encoding="utf-8") as file:
+                    result = yaml.load(file, Loader=yaml.SafeLoader)
+            if context.module_data.get("error", False):
+                result["error-job-id"] = context.job_id
+                _LOGGER.debug("Debug")
+                _LOGGER.info("Info")
+                _LOGGER.warning("Warning")
+                _LOGGER.error("Error")
+                _LOGGER.critical("Critical")
+                with open("/tmp/test-result.yaml", "w", encoding="utf-8") as file:
+                    yaml.dump(result, file)
+                raise Exception("Exception")  # pylint: disable=broad-exception-raised
+            result["success-job-id"] = context.job_id
+            result["output-multi-line-id"] = utils.add_output(
+                context, "Test", ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}]
+            )
+            result["output-error-id"] = utils.add_output(
+                context, "Test", ["Test error"], status=models.OutputStatus.ERROR
+            )
+            with open("/tmp/test-result.yaml", "w", encoding="utf-8") as file:
+                yaml.dump(result, file)
+            return None
+        finally:
+            with open("/results/test-result.yaml", "w", encoding="utf-8") as file:
+                file.write(yaml.dump(result))
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""

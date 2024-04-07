@@ -15,14 +15,21 @@ build: ## Build the acceptences test application Docker image
 .PHONY: run
 run: ## Run the acceptences application Docker image
 run: build
+	docker compose down --volume --remove-orphans
 	docker compose up -d db
 	docker compose run --rm tests wait-db
-	docker compose up -d worker
-	echo Wait that the worker creates the database structure
+	# Create the tables
+	docker compose run --no-TTY worker process-queue --exit-when-empty
 	sleep 1
+	# Run the application
 	docker compose up -d
-	docker compose exec worker send-event --application=test --event=test
-
+	# Get one success and one error job
+	docker compose run --no-TTY worker send-event --application=test --event=test
+	docker compose run --no-TTY worker process-queue --exit-when-empty
+	# Get one new and one pending job
+	docker compose run --no-TTY worker send-event --application=test --event=test
+	docker compose run --no-TTY worker process-queue --only-one
+	docker compose run --no-TTY worker process-queue --make-pending
 
 .PHONY: tests
 tests: ## Run the unit tests
@@ -34,4 +41,4 @@ tests:
 .PHONY: acceptance-tests
 acceptance-tests: ## Run the acceptance tests
 acceptance-tests: run
-	docker compose exec -T tests pytest -vv /acceptance_tests
+	docker compose run --no-TTY tests pytest -vv /acceptance_tests

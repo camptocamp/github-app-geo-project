@@ -155,23 +155,28 @@
           >
             %if job[7]:
             <!---->
-            duration:&nbsp;${job[7] - job[5]|pprint_duration}
-            <!---->
-            %else:
-            <!---->
-            %if job[5]:
-            <!---->
-            started:&nbsp;${job[5]|pprint_date}
-            <!---->
-            %else:
-            <!---->
-            created:&nbsp;${job[4]|pprint_date}
-            <!---->
-            %endif
-            <!---->
-            %endif
-            <!----></a
+            duration:&nbsp;${job[7] - job[5]|pprint_duration}</a
           >${',' if job[7] else ''}
+          <!---->
+          %else:
+          <!---->
+          %if job[5]:
+          <!---->
+          started:&nbsp;${job[5]|pprint_date}
+          <!---->
+          %else:
+          <!---->
+          created:&nbsp;${job[4]|pprint_date}
+          <!---->
+          %endif
+          <!-- for Prettier -->
+          %if False:
+          <a>
+            <!---->
+            %endif
+            <!---->
+          </a>
+          %endif
           <!---->
           %if job[8]:
           <a href="${request.route_url('logs', id=job[0])}">Logs</a>
