@@ -40,23 +40,14 @@
       h1 {
         /* Leave some space for the GitHub login button */
         margin-right: 20rem;
-      }
-      /* related to aria-expanded attribute */
-      [aria-expanded='true'] .col-up {
-        display: none;
-      }
-      [aria-expanded='false'] .col-down {
-        display: none;
-      }
-      .logs a {
-        text-decoration: none;
-        color: var(--bs-body-color);
+        margin-bottom: 2rem;
       }
       .logs p {
         margin: 0;
       }
-      .logs .collapse {
-        margin-left: 1.1rem;
+      .logs pre {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
       }
     </style>
   </head>
@@ -89,7 +80,7 @@
     </div>
     <h1 class="bd-title">${title}</h1>
 
-    ${logs | n}
+    <div class="logs">${logs | n}</div>
 
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"

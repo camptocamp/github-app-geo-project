@@ -128,7 +128,7 @@ def test_logs(log_type: str) -> None:
             {"name": "prefers-color-scheme", "value": "dark"},
         ],
         width=900,
-        height=500,
+        height=700,
         result_folder="/results",
         expected_filename=os.path.join(os.path.dirname(__file__), f"logs-{log_type}.expected.png"),
         sleep=500,
