@@ -228,7 +228,7 @@ def _process_snyk_dpkg(
                 #     )
                 #     issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
                 if result:
-                    issue_data[key] += result[0].to_markdown().split("\n")[0]
+                    issue_data[key].append(result[0].to_markdown().split("\n")[0])
 
             if context.module_data["type"] == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")
@@ -245,8 +245,7 @@ def _process_snyk_dpkg(
                         )
                         issue_data[key] = [
                             f"Error on running dpkg on {branch}: #{issue.number}",
-                            "",
-                            result[0].to_markdown().split("\n")[0] if result else "",
+                            *(["", result[0].to_markdown().split("\n")[0]] if result else []),
                         ]
                         log += result
 
