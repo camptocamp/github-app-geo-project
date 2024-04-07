@@ -38,6 +38,10 @@ class _Formatter(logging.Formatter):
             attributes = ' style="color:orange"'
         elif record.levelname == "ERROR":
             attributes = ' style="color:red"'
+        elif record.levelname == "CRITICAL":
+            attributes = ' style="color:red; font-weight:bold"'
+        elif record.levelname == "INFO":
+            attributes = ' style="color:blue"'
         return f"<p{attributes}>{str_msg}</p>"
 
 
