@@ -54,6 +54,7 @@ services:
       - PGPORT=5432
     volumes:
       - ./docker/test-app/config.yaml:/etc/ghci/config.yaml:ro
+      - ./github_app_geo_project:/app/github_app_geo_project:ro
     links:
       - db
     ports:
@@ -62,9 +63,13 @@ services:
   worker:
     <<: *app
     command:
-      - process-queue
+      - 'true'
     environment: *app-env
     ports: []
+    volumes:
+      - ./docker/test-app/config.yaml:/etc/ghci/config.yaml:ro
+      - ./github_app_geo_project:/app/github_app_geo_project:ro
+      - ./results:/results:rw
 
   tests:
     image: camptocamp/github-app-geo-project-tests
@@ -78,5 +83,5 @@ services:
     links:
       - db
     volumes:
-      - ./acceptance_tests:/acceptance_tests:ro
+      - ./acceptance_tests:/acceptance_tests:rw
       - ./results:/results:rw

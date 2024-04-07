@@ -11,6 +11,7 @@ from typing import Any, cast
 
 import c2cciutils.security
 import github
+import markdown
 import yaml
 
 from github_app_geo_project import module
@@ -89,7 +90,9 @@ def _get_process_output(
 
     module_status = context.transversal_status
     if issue_data:
-        module_status[f"{context.github_project.owner}/{context.github_project.repository}"] = issue_data
+        module_status[f"{context.github_project.owner}/{context.github_project.repository}"] = {
+            k: [markdown.markdown(v) for v in vl] for k, vl in issue_data.items()
+        }
     else:
         if f"{context.github_project.owner}/{context.github_project.repository}" in module_status:
             del module_status[f"{context.github_project.owner}/{context.github_project.repository}"]
@@ -287,7 +290,7 @@ def _process_snyk_dpkg(
 
     service_url = context.service_url
     service_url = service_url if service_url.endswith("/") else service_url + "/"
-    service_url = urllib.parse.urljoin(service_url, "logs")
+    service_url = urllib.parse.urljoin(service_url, "logs/")
     service_url = urllib.parse.urljoin(service_url, str(context.job_id))
     issue_data[key] = [f"[Logs]({service_url})", "", *issue_data[key]]
 

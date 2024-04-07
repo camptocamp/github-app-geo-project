@@ -3,3 +3,4 @@ __pycache__
 /docker-compose.override.yaml
 /.env
 /node_modules/
+/results/

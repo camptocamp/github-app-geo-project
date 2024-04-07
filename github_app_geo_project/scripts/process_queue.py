@@ -46,6 +46,8 @@ class _Formatter(logging.Formatter):
 
 
 def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
+    if "TEST_APPLICATION" in os.environ:
+        return True
     github_application = configuration.get_github_application(config, application)
     github_app = github_application.integration.get_app()
     installation_id = event_data.get("installation", {}).get("id", 0)
@@ -73,22 +75,25 @@ def _process_job(
         _LOGGER.error("Unknown module %s", module_name)
         return False
 
-    github_application = configuration.get_github_application(config, application)
-    github_project = configuration.get_github_project(config, github_application, owner, repository)
-
     issue_data = ""
-    if current_module.required_issue_dashboard():
-        repository_full = f"{owner}/{repository}"
-        repo = github_project.github.get_repo(repository_full)
-        dashboard_issue = _get_dashboard_issue(github_application, repo)
-        if dashboard_issue:
-            issue_full_data = dashboard_issue.body
-            issue_data = utils.get_dashboard_issue_module(issue_full_data, module_name)
+    module_config: project_configuration.ModuleConfiguration = {}
+    github_project = cast(configuration.GithubProject, None)
+    if "TEST_APPLICATION" not in os.environ:
+        github_application = configuration.get_github_application(config, application)
+        github_project = configuration.get_github_project(config, github_application, owner, repository)
 
-    module_config = cast(
-        project_configuration.ModuleConfiguration,
-        configuration.get_configuration(config, owner, repository, application).get(module_name, {}),
-    )
+        if current_module.required_issue_dashboard():
+            repository_full = f"{owner}/{repository}"
+            repo = github_project.github.get_repo(repository_full)
+            dashboard_issue = _get_dashboard_issue(github_application, repo)
+            if dashboard_issue:
+                issue_full_data = dashboard_issue.body
+                issue_data = utils.get_dashboard_issue_module(issue_full_data, module_name)
+
+        module_config = cast(
+            project_configuration.ModuleConfiguration,
+            configuration.get_configuration(config, owner, repository, application).get(module_name, {}),
+        )
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         module_status = (
             session.query(models.ModuleStatus)
@@ -220,12 +225,11 @@ def _process_event(
     for application in config["applications"].split():
         _LOGGER.info("Process the event: %s, application: %s", event_data.get("name"), application)
 
-        github_application = configuration.get_github_application(config, application)
         if "TEST_APPLICATION" in os.environ:
             webhook.process_event(
                 webhook.ProcessContext(
-                    owner=None,  # type: ignore[arg-type]
-                    repository=None,  # type: ignore[arg-type]
+                    owner="camptocamp",
+                    repository="test",
                     config=config,
                     application=os.environ["TEST_APPLICATION"],
                     event_name="event",
@@ -234,6 +238,7 @@ def _process_event(
                 )
             )
         else:
+            github_application = configuration.get_github_application(config, application)
             for installation in github_application.integration.get_installations():
                 for repo in installation.get_repos():
                     webhook.process_event(
@@ -336,6 +341,8 @@ def main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exit-when-empty", action="store_true", help="Exit when the queue is empty")
+    parser.add_argument("--only-one", action="store_true", help="Exit after processing one job")
+    parser.add_argument("--make-pending", action="store_true", help="Make one job in pending")
     c2cwsgiutils.setup_process.fill_arguments(parser)
     args = parser.parse_args()
 
@@ -382,6 +389,9 @@ def main() -> None:
             job.status = models.JobStatus.PENDING
             job.started_at = datetime.now()
             session.commit()
+            if args.make_pending:
+                _LOGGER.info("Make job %s pending", args.make_pending)
+                break
 
             _LOGGER.info(
                 "Start process job '%s' id: %s, on %s/%s on module: %s, on application %s.",
@@ -480,6 +490,8 @@ def main() -> None:
                     session.commit()
             finally:
                 root_logger.removeHandler(handler)
+        if args.only_one:
+            break
 
 
 if __name__ == "__main__":
