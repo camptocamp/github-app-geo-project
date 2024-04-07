@@ -32,7 +32,7 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
             full_repository = f"{job.owner}/{job.repository}"
             permission = request.has_permission(
                 full_repository,
-                {"github_repository": full_repository, "github_access_type": job.access_type},
+                {"github_repository": full_repository, "github_access_type": "admin"},
             )
             has_access = isinstance(permission, pyramid.security.Allowed)
             if has_access:

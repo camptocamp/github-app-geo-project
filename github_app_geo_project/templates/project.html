@@ -170,11 +170,12 @@
             %endif
             <!---->
             %endif
-            <!---->
-            %if job[8]:
-            <a href="${request.route_url('logs', id=job[0])}">Logs</a>
-            %endif
-          </a>
+            <!----></a
+          >${',' if job[7] else ''}
+          <!---->
+          %if job[8]:
+          <a href="${request.route_url('logs', id=job[0])}">Logs</a>
+          %endif
         </div>
         <!-- for Prettier -->
         %if False:
