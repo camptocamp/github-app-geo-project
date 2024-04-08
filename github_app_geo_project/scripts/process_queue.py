@@ -6,13 +6,13 @@ import argparse
 import logging
 import os
 import time
-import traceback
 from datetime import datetime, timedelta
 from typing import Any, cast
 
 import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
 import github
+import html_sanitizer
 import plaster
 import sqlalchemy.orm
 
@@ -24,7 +24,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class _Handler(logging.Handler):
-    results: list[logging.LogRecord] = []
+    def __init__(self) -> None:
+        super().__init__()
+        self.results: list[logging.LogRecord] = []
 
     def emit(self, record: logging.LogRecord) -> None:
         self.results.append(record)
@@ -32,17 +34,29 @@ class _Handler(logging.Handler):
 
 class _Formatter(logging.Formatter):
     def formatMessage(self, record: logging.LogRecord) -> str:  # noqa: N802
-        str_msg = super().formatMessage(record)
-        attributes = ""
+        str_msg = super().formatMessage(record).strip()
+        styles = []
         if record.levelname == "WARNING":
-            attributes = ' style="color:orange"'
+            styles.append("color: orange")
         elif record.levelname == "ERROR":
-            attributes = ' style="color:red"'
+            styles.append("color: red")
         elif record.levelname == "CRITICAL":
-            attributes = ' style="color:red; font-weight:bold"'
+            styles.append("color: red")
+            styles.append("font-weight: bold")
         elif record.levelname == "INFO":
-            attributes = ' style="color:blue"'
-        return f"<p{attributes}>{str_msg}</p>"
+            styles.append("color: rgba(var(--bs-link-color-rgb)")
+        attributes = f" style=\"{'; '.join(styles)}\"" if styles else ""
+        result = f"<p{attributes}>{str_msg}</p>"
+
+        sanitizer_instance = html_sanitizer.Sanitizer()
+        str_msg = sanitizer_instance.sanitize(record.message)
+        result += f"<p>{str_msg}</p>"
+
+        return result
+
+    def format(self, record: logging.LogRecord) -> str:
+        msg = super().format(record)
+        return f"<pre>{msg}</pre>"
 
 
 def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
@@ -68,6 +82,7 @@ def _process_job(
     module_name: str,
     application: str,
     event_name: str,
+    root_logger: logging.Logger,
     handler: _Handler,
 ) -> bool:
     current_module = modules.MODULES.get(module_name)
@@ -105,6 +120,8 @@ def _process_job(
             module_status = models.ModuleStatus(module=module_name, data={})
             session.add(module_status)
         try:
+            root_logger.addHandler(handler)
+
             result = current_module.process(
                 module.ProcessContext(
                     session=session,
@@ -119,6 +136,9 @@ def _process_job(
                     service_url=config["service-url"],
                 )
             )
+
+            root_logger.removeHandler(handler)
+
             if result is not None and result.log:
                 session.execute(
                     sqlalchemy.update(models.Queue)
@@ -174,6 +194,7 @@ def _process_job(
                 module_data,
                 event_data,
             )
+            root_logger.removeHandler(handler)
             raise
     else:
         _LOGGER.info("Module %s is disabled", module_name)
@@ -393,15 +414,26 @@ def main() -> None:
                 _LOGGER.info("Make job %s pending", args.make_pending)
                 break
 
+            # Force get job
+            job_id = job.id
+
+            # Capture_logs
+            root_logger = logging.getLogger()
+            handler = _Handler()
+            handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
+            root_logger.addHandler(handler)
+
             _LOGGER.info(
                 "Start process job '%s' id: %s, on %s/%s on module: %s, on application %s.",
                 job.event_name,
-                job.id,
+                job_id,
                 job.owner or "-",
                 job.repository or "-",
                 job.module or "-",
                 job.application or "-",
             )
+
+            root_logger.removeHandler(handler)
 
             job_id = job.id
             job_application = job.application
@@ -411,13 +443,6 @@ def main() -> None:
             event_data = job.event_data
             event_name = job.event_name
             module_data = job.module_data
-            # capture_logs
-            root_logger = logging.getLogger()
-            handler = _Handler()
-            handler.setFormatter(
-                _Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s() %(message)s")
-            )
-            root_logger.addHandler(handler)
 
             try:
                 success = True
@@ -455,6 +480,7 @@ def main() -> None:
                             job_module,
                             job_application,
                             job.event_name,
+                            root_logger,
                             handler,
                         )
 
@@ -470,6 +496,7 @@ def main() -> None:
 
             except Exception:  # pylint: disable=broad-exception-caught
                 _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module or "-")
+                root_logger.removeHandler(handler)
                 with Session() as session:
                     session.execute(
                         sqlalchemy.update(models.Queue)
@@ -477,14 +504,7 @@ def main() -> None:
                         .values(
                             status=models.JobStatus.ERROR,
                             finished_at=datetime.now(),
-                            # Stack trace
-                            log="\n".join(
-                                [
-                                    *[handler.format(msg) for msg in handler.results],
-                                    "",
-                                    traceback.format_exc(),
-                                ]
-                            ),
+                            log="\n".join([handler.format(msg) for msg in handler.results]),
                         )
                     )
                     session.commit()
