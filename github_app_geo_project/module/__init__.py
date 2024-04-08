@@ -255,21 +255,17 @@ class ProcessOutput:
     """The transversal status of the module."""
     actions: list[Action]
     """The new actions that should be done."""
-    log: str | None
-    """The log of the process."""
 
     def __init__(
         self,
         dashboard: str | None = None,
         transversal_status: dict[str, Any] | None = None,
         actions: list[Action] | None = None,
-        log: str | None = None,
     ) -> None:
         """Create the output of the process method."""
         self.dashboard = dashboard
         self.transversal_status = transversal_status
         self.actions = actions or []
-        self.log = log
 
 
 class TransversalDashboardContext(NamedTuple):
