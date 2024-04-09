@@ -80,7 +80,7 @@
     </div>
     <h1 class="bd-title">${title}</h1>
 
-    <div class="logs">${logs | n}</div>
+    <div class="logs">${logs | sanitizer, n}</div>
 
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"

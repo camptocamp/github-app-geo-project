@@ -192,14 +192,7 @@ class HtmlMessage(Message):
 
     def to_html(self) -> str:
         """Convert the ANSI message to HTML."""
-        sanitizer_instance = html_sanitizer.Sanitizer(
-            {
-                "tags": html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"]
-                | {"span", "code", "pre", "blockquote"},
-                "attributes": html_sanitizer.sanitizer.DEFAULT_SETTINGS["attributes"] | {"span": ("style",)},
-            }
-        )
-        html = cast(str, sanitizer_instance.sanitize(self.html.replace(" ", "&nbsp;")))
+        html = self.html
         if self.title:
             html = "\n".join([f"<h3>{self.title}</h3>", html])
         return html
@@ -255,9 +248,9 @@ def ansi_message(ansi: str, ansi_converter: Ansi2HTMLConverter | None) -> str:
     return ansi_converter.convert(ansi, full=False)
 
 
-def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> Message:
+def ansi_proc_message(proc: subprocess.CompletedProcess[str]) -> Message:
     """
-    Process the output of a subprocess for the dashboard.
+    Process the output of a subprocess for the dashboard (markdown)/HTML.
 
     Arguments:
     ---------
@@ -279,14 +272,18 @@ def ansi_proc_dashboard(proc: subprocess.CompletedProcess[str]) -> Message:
     ansi_converter = Ansi2HTMLConverter(inline=True)
     if proc.stdout:
         message.append("Output:")
-        message.append("<blockquote>")
-        message.append(ansi_message(proc.stdout, ansi_converter).replace("\n", "<br>"))
-        message.append("</blockquote>")
+        message.append(
+            "<blockquote>"
+            + ansi_message(proc.stdout.strip(), ansi_converter).replace("\n", "<br>")
+            + "</blockquote>"
+        )
     if proc.stderr:
         message.append("Error:")
-        message.append("<blockquote>")
-        message.append(ansi_message(proc.stderr, ansi_converter).replace("\n", "<br>"))
-        message.append("</blockquote>")
+        message.append(
+            "<blockquote>"
+            + ansi_message(proc.stderr.strip(), ansi_converter).replace("\n", "<br>")
+            + "</blockquote>"
+        )
 
     return HtmlMessage("<p>" + "</p>\n<p>".join(message) + "</p>")
 
@@ -323,12 +320,12 @@ def create_commit(message: str) -> Message | None:
         ["git", "add", "--all"], capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        return ansi_proc_dashboard(proc)
+        return ansi_proc_message(proc)
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        return ansi_proc_dashboard(proc)
+        return ansi_proc_message(proc)
 
     return None
 
@@ -343,7 +340,7 @@ def create_pull_request(
         encoding="utf-8",
     )
     if proc.returncode != 0:
-        return ansi_proc_dashboard(proc), None
+        return ansi_proc_message(proc), None
 
     pulls = repo.get_pulls(state="open", head=new_branch)
     if pulls.totalCount > 0:

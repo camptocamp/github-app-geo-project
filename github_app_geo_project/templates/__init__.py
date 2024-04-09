@@ -13,7 +13,15 @@ def sanitizer(text: str) -> str:
     """
     Sanitize the input string.
     """
-    sanitizer_instance = html_sanitizer.Sanitizer()
+    sanitizer_instance = html_sanitizer.Sanitizer(
+        {
+            "keep_typographic_whitespace": True,
+            "tags": html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"] | {"span", "pre", "code"},
+            "attributes": html_sanitizer.sanitizer.DEFAULT_SETTINGS["attributes"]
+            | {"span": ("style", "class"), "p": ("style", "class")},
+            "separate": html_sanitizer.sanitizer.DEFAULT_SETTINGS["separate"] | {"pre", "code", "span"},
+        }
+    )
     return sanitizer_instance.sanitize(text)  # type: ignore[no-any-return]
 
 

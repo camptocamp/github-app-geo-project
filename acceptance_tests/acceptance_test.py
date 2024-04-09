@@ -79,7 +79,7 @@ def test_project() -> None:
             {"name": "prefers-color-scheme", "value": "dark"},
         ],
         width=1000,
-        height=700,
+        height=900,
         result_folder="/results",
         expected_filename=os.path.join(os.path.dirname(__file__), "project.expected.png"),
         sleep=500,
@@ -116,7 +116,7 @@ def test_transversal_dashboard() -> None:
     )
 
 
-@pytest.mark.parametrize("log_type", ["success", "error"])
+@pytest.mark.parametrize("log_type", ["success", "error", "log-multiline", "log-command", "log-json"])
 def test_logs(log_type: str) -> None:
     """Tests the logs page."""
     with open("/results/test-result.yaml", encoding="utf-8") as file:  # nosec
@@ -128,7 +128,7 @@ def test_logs(log_type: str) -> None:
             {"name": "prefers-color-scheme", "value": "dark"},
         ],
         width=900,
-        height=700,
+        height=900,
         result_folder="/results",
         expected_filename=os.path.join(os.path.dirname(__file__), f"logs-{log_type}.expected.png"),
         sleep=500,

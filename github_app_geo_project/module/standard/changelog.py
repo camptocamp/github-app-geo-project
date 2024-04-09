@@ -384,7 +384,12 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         if event_data.get("ref_type") == "tag":
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "tag"})]
         if (
-            event_data.get("action") == "edited"
+            (
+                event_data.get("action") == "edited"
+                or event_data.get("action") == "labeled"
+                or event_data.get("action") == "unlabeled"
+                or event_data.get("action") == "milestoned"
+            )
             and event_data.get("pull_request", {}).get("state") == "closed"
             and event_data.get("pull_request", {}).get("milestone")
         ):
