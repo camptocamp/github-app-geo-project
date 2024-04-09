@@ -33,7 +33,7 @@ def snyk(
         ["git", "ls-files", "requirements.txt", "*/requirements.txt"], capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        message = utils.ansi_proc_dashboard(proc)
+        message = utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
         _LOGGING.warning(message.to_html())
         result.append(message)
@@ -54,7 +54,7 @@ def snyk(
                 encoding="utf-8",
             )
             if proc.returncode != 0:
-                message = utils.ansi_proc_dashboard(proc)
+                message = utils.ansi_proc_message(proc)
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message.to_html())
                 result.append(message)
@@ -64,7 +64,7 @@ def snyk(
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        message = utils.ansi_proc_dashboard(proc)
+        message = utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
         _LOGGING.warning(message.to_html())
         result.append(message)
@@ -87,7 +87,7 @@ def snyk(
                 encoding="utf-8",
             )
             if proc.returncode != 0:
-                message = utils.ansi_proc_dashboard(proc)
+                message = utils.ansi_proc_message(proc)
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message.to_html())
                 result.append(message)
@@ -104,7 +104,7 @@ def snyk(
         command, env=env, capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        message = utils.ansi_proc_dashboard(proc)
+        message = utils.ansi_proc_message(proc)
         message.title = "Error while monitoring the project"
         _LOGGING.warning(message.to_html())
         result.append(message)
@@ -115,11 +115,14 @@ def snyk(
     test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
-    lexer = pygments.lexers.YamlLexer()
+    lexer = pygments.lexers.JsonLexer()
     formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
 
-    _LOGGING.debug("Snyk test output:\n%s", pygments.highlight(test_proc.stdout, lexer, formatter))
     test_json = json.loads(test_proc.stdout)
+    _LOGGING.debug(
+        "Snyk test output:\n%s", pygments.highlight(json.dumps(test_json, indent=4), lexer, formatter)
+    )
+
     if isinstance(test_json, dict) and test_json.get("ok", True) is False:
         _LOGGING.warning(test_json.get("error"))
 
@@ -129,7 +132,7 @@ def snyk(
         test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
             command, env=env, capture_output=True, encoding="utf-8"
         )
-        dashboard_message = utils.ansi_proc_dashboard(proc)
+        dashboard_message = utils.ansi_proc_message(proc)
         dashboard_message.title = "Error while testing the project"
         _LOGGING.warning(dashboard_message.to_html())
     else:
@@ -166,7 +169,7 @@ def snyk(
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
-    result.append(utils.ansi_proc_dashboard(snyk_fix_proc))
+    result.append(utils.ansi_proc_message(snyk_fix_proc))
     snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
     _LOGGING.info("Snyk fix:\n%s", snyk_fix_message.to_html())
 
@@ -222,7 +225,7 @@ def dpkg() -> list[utils.Message]:
                             encoding="utf-8",
                         )
                         if proc.returncode == 0:
-                            message = utils.ansi_proc_dashboard(proc)
+                            message = utils.ansi_proc_message(proc)
                             message.title = "Error while removing the container"
                             _LOGGING.warning(message.to_html())
                             results.append(message)
@@ -244,7 +247,7 @@ def dpkg() -> list[utils.Message]:
                             encoding="utf-8",
                         )
                         if proc.returncode != 0:
-                            message = utils.ansi_proc_dashboard(proc)
+                            message = utils.ansi_proc_message(proc)
                             message.title = "Error while creating the container"
                             _LOGGING.warning(message.to_html())
                             results.append(message)
@@ -255,7 +258,7 @@ def dpkg() -> list[utils.Message]:
                             encoding="utf-8",
                         )
                         if proc.returncode != 0:
-                            message = utils.ansi_proc_dashboard(proc)
+                            message = utils.ansi_proc_message(proc)
                             message.title = "Error while updating the container"
                             _LOGGING.warning(message.to_html())
                             results.append(message)
@@ -267,7 +270,7 @@ def dpkg() -> list[utils.Message]:
                             encoding="utf-8",
                         )
                         if proc.returncode != 0:
-                            message = utils.ansi_proc_dashboard(proc)
+                            message = utils.ansi_proc_message(proc)
                             message.title = "Error while listing the packages"
                             _LOGGING.warning(message.to_html())
                             results.append(message)
@@ -285,7 +288,7 @@ def dpkg() -> list[utils.Message]:
                             encoding="utf-8",
                         )
                         if proc.returncode != 0:
-                            message = utils.ansi_proc_dashboard(proc)
+                            message = utils.ansi_proc_message(proc)
                             message.title = "Error while removing the container"
                             _LOGGING.warning(message.to_html())
                             results.append(message)

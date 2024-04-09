@@ -184,7 +184,7 @@ def _process_snyk_dpkg(
                 encoding="utf-8",
             )
             if proc.returncode != 0:
-                message = module_utils.ansi_proc_dashboard(proc)
+                message = module_utils.ansi_proc_message(proc)
                 message.title = "Error while cloning the project"
                 _LOGGER.error(message.to_html())
                 issue_data[key].append(message.to_markdown().split("\n")[0])
@@ -204,7 +204,7 @@ def _process_snyk_dpkg(
                         ["pipenv", "local", python_version], capture_output=True, encoding="utf-8"
                     )
                     if proc.returncode != 0:
-                        message = module_utils.ansi_proc_dashboard(proc)
+                        message = module_utils.ansi_proc_message(proc)
                         message.title = "Error while setting the Python version"
                         _LOGGER.error(message.to_html())
                         issue_data[key].append(message.to_markdown().split("\n")[0])
@@ -252,7 +252,7 @@ def _process_snyk_dpkg(
                     ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8"
                 )
                 if proc.returncode != 0:
-                    message = module_utils.ansi_proc_dashboard(proc)
+                    message = module_utils.ansi_proc_message(proc)
                     message.title = "Error while creating the new branch"
                     _LOGGER.error(message.to_html())
                     issue_data[key].append(message.to_markdown().split("\n")[0])

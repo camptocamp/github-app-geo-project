@@ -1,6 +1,6 @@
 %for title, lines in audit.items():
 <h2>${title}</h2>
 %for line in lines:
-<p>${line|sanitizer}</p>
+<p>${line|sanitizer, n}</p>
 %endfor
 %endfor

@@ -3,6 +3,7 @@ Process the jobs present in the database queue.
 """
 
 import argparse
+import json
 import logging
 import os
 import time
@@ -12,8 +13,9 @@ from typing import Any, cast
 import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
 import github
-import html_sanitizer
 import plaster
+import pygments.formatters
+import pygments.lexers
 import sqlalchemy.orm
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
@@ -48,15 +50,14 @@ class _Formatter(logging.Formatter):
         attributes = f" style=\"{'; '.join(styles)}\"" if styles else ""
         result = f"<p{attributes}>{str_msg}</p>"
 
-        sanitizer_instance = html_sanitizer.Sanitizer()
-        str_msg = sanitizer_instance.sanitize(record.message)
+        str_msg = record.message.strip()
         result += f"<p>{str_msg}</p>"
 
         return result
 
     def format(self, record: logging.LogRecord) -> str:
-        msg = super().format(record)
-        return f"<pre>{msg}</pre>"
+        str_msg = super().format(record).strip()
+        return f"<pre>{str_msg}</pre>"
 
 
 def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
@@ -177,13 +178,7 @@ def _process_job(
             )
             raise
         except Exception:
-            _LOGGER.exception(
-                "Failed to process job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
-                job_id,
-                module_name,
-                module_data,
-                event_data,
-            )
+            _LOGGER.exception("Failed to process job id: %s on module: %s", job_id, module_name)
             root_logger.removeHandler(handler)
             raise
     else:
@@ -413,14 +408,19 @@ def main() -> None:
             handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
             root_logger.addHandler(handler)
 
+            lexer = pygments.lexers.JsonLexer()
+            formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
+
             _LOGGER.info(
-                "Start process job '%s' id: %s, on %s/%s on module: %s, on application %s.",
+                "Start process job '%s' id: %s, on %s/%s on module: %s, on application %s,\nmodule data:\n%sevent data:\n%s",
                 job.event_name,
                 job_id,
                 job.owner or "-",
                 job.repository or "-",
                 job.module or "-",
                 job.application or "-",
+                pygments.highlight(json.dumps(job.module_data, indent=4), lexer, formatter),
+                pygments.highlight(json.dumps(job.event_data, indent=4), lexer, formatter),
             )
 
             root_logger.removeHandler(handler)
@@ -452,9 +452,7 @@ def main() -> None:
                                 repository,
                             )
                     else:
-                        _LOGGER.error(
-                            "Unknown event type: %s/%s", event_data.get("type"), module_data.get("type")
-                        )
+                        _LOGGER.error("Unknown event name: %s", event_name)
                         success = False
                 else:
                     success = _validate_job(config, job_application, event_data)
