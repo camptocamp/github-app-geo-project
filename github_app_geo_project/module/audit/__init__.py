@@ -350,7 +350,6 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 module.Action(
                     priority=module.PRIORITY_HIGH,
                     data={"snyk": snyk, "dpkg": dpkg, "is_dashboard": is_dashboard},
-                    title="snyk",
                 )
             )
         return results
@@ -393,28 +392,26 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         _LOGGER.debug("No SECURITY.md file in the repository")
                     else:
                         raise
-                _LOGGER.debug("Versions: %s", versions)
+                _LOGGER.debug("Versions: %s", ", ".join(versions))
 
-                results = []
+                priority = (
+                    module.PRIORITY_STANDARD if context.module_data["is_dashboard"] else module.PRIORITY_CRON
+                )
+                actions = []
                 for version in versions:
                     if context.module_data.get("snyk", False):
-                        results.append({"type": "snyk", "version": version})
-                    if context.module_data.get("dpkg", False):
-                        results.append({"type": "dpkg", "version": version})
-                return ProcessOutput(
-                    actions=[
-                        module.Action(
-                            priority=(
-                                module.PRIORITY_STANDARD
-                                if context.module_data["is_dashboard"]
-                                else module.PRIORITY_CRON
-                            ),
-                            data=d,
-                            title="dpkg",
+                        actions.append(
+                            module.Action(
+                                priority=priority, data={"type": "snyk", "version": version}, title="snyk"
+                            )
                         )
-                        for d in results
-                    ],
-                )
+                    if context.module_data.get("dpkg", False):
+                        actions.append(
+                            module.Action(
+                                priority=priority, data={"type": "dpkg", "version": version}, title="dpkg"
+                            )
+                        )
+                return ProcessOutput(actions=actions)
             else:
                 _process_snyk_dpkg(context, issue_data)
 

@@ -10,6 +10,8 @@ import re
 import subprocess  # nosec
 
 import c2cciutils.security
+import pygments.formatters
+import pygments.lexers
 import yaml  # nosec
 
 from github_app_geo_project.module import utils
@@ -113,7 +115,10 @@ def snyk(
     test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
-    _LOGGING.debug("Snyk test output:\n%s", test_proc.stdout)
+    lexer = pygments.lexers.YamlLexer()
+    formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
+
+    _LOGGING.debug("Snyk test output:\n%s", pygments.highlight(test_proc.stdout, lexer, formatter))
     test_json = json.loads(test_proc.stdout)
     if isinstance(test_json, dict) and test_json.get("ok", True) is False:
         _LOGGING.warning(test_json.get("error"))
