@@ -298,7 +298,8 @@ def generate_changelog(
             has_pr = True
             authors = {Author(pull_request.user.login, pull_request.user.html_url)}
             for commit_ in pull_request.get_commits():
-                authors.add(Author(commit_.author.login, commit_.author.html_url))
+                if commit_.author is not None:
+                    authors.add(Author(commit_.author.login, commit_.author.html_url))
             pull_request.as_issue().edit(milestone=milestone)
             changelog_items.add(
                 ChangelogItem(
@@ -429,7 +430,14 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         elif context.module_data.get("type") == "pull_request":
             # Get the milestone
             tag_str = context.event_data.get("pull_request", {}).get("milestone", {}).get("title")
-            release = repo.get_release(tag_str)
+            try:
+                release = repo.get_release(tag_str)
+            except github.UnknownObjectException as exception:
+                if exception.status == 404:
+                    # Create a release
+                    release = repo.create_git_release(tag_str, tag_str, "")
+                else:
+                    raise
             tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
             if tag is None:
                 _LOGGER.info(
