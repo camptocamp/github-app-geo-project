@@ -298,7 +298,8 @@ def generate_changelog(
             has_pr = True
             authors = {Author(pull_request.user.login, pull_request.user.html_url)}
             for commit_ in pull_request.get_commits():
-                authors.add(Author(commit_.author.login, commit_.author.html_url))
+                if commit_.author is not None:
+                    authors.add(Author(commit_.author.login, commit_.author.html_url))
             pull_request.as_issue().edit(milestone=milestone)
             changelog_items.add(
                 ChangelogItem(
