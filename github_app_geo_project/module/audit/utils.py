@@ -11,7 +11,6 @@ import subprocess  # nosec
 
 import c2cciutils.security
 import yaml  # nosec
-from ansi2html import Ansi2HTMLConverter
 
 from github_app_geo_project.module import utils
 from github_app_geo_project.module.audit import configuration
@@ -34,7 +33,7 @@ def snyk(
     if proc.returncode != 0:
         message = utils.ansi_proc_dashboard(proc)
         message.title = "Error in ls-files"
-        _LOGGING.error(message.to_plain_text())
+        _LOGGING.warning(message.to_html())
         result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -55,7 +54,7 @@ def snyk(
             if proc.returncode != 0:
                 message = utils.ansi_proc_dashboard(proc)
                 message.title = f"Error while installing the dependencies from {file}"
-                _LOGGING.error(message.to_plain_text())
+                _LOGGING.warning(message.to_html())
                 result.append(message)
                 continue
 
@@ -65,7 +64,7 @@ def snyk(
     if proc.returncode != 0:
         message = utils.ansi_proc_dashboard(proc)
         message.title = "Error in ls-files"
-        _LOGGING.error(message.to_plain_text())
+        _LOGGING.warning(message.to_html())
         result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -88,7 +87,7 @@ def snyk(
             if proc.returncode != 0:
                 message = utils.ansi_proc_dashboard(proc)
                 message.title = f"Error while installing the dependencies from {file}"
-                _LOGGING.error(message.to_plain_text())
+                _LOGGING.warning(message.to_html())
                 result.append(message)
             install_success &= proc.returncode == 0
 
@@ -105,7 +104,7 @@ def snyk(
     if proc.returncode != 0:
         message = utils.ansi_proc_dashboard(proc)
         message.title = "Error while monitoring the project"
-        _LOGGING.error(message.to_plain_text())
+        _LOGGING.warning(message.to_html())
         result.append(message)
 
     command = ["snyk", "test", "--json"] + config.get(
@@ -117,7 +116,7 @@ def snyk(
     _LOGGING.debug("Snyk test output:\n%s", test_proc.stdout)
     test_json = json.loads(test_proc.stdout)
     if isinstance(test_json, dict) and test_json.get("ok", True) is False:
-        _LOGGING.error(test_json.get("error"))
+        _LOGGING.warning(test_json.get("error"))
 
         command = ["snyk", "test"] + config.get(
             "test-arguments", c2cciutils.configuration.AUDIT_SNYK_TEST_ARGUMENTS_DEFAULT
@@ -127,7 +126,7 @@ def snyk(
         )
         dashboard_message = utils.ansi_proc_dashboard(proc)
         dashboard_message.title = "Error while testing the project"
-        _LOGGING.error(dashboard_message.to_plain_text())
+        _LOGGING.warning(dashboard_message.to_html())
     else:
         for raw in test_json:
             result.append(
@@ -164,6 +163,7 @@ def snyk(
     )
     result.append(utils.ansi_proc_dashboard(snyk_fix_proc))
     snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
+    _LOGGING.info("Snyk fix:\n%s", snyk_fix_message.to_html())
 
     return result, snyk_fix_message
 
@@ -219,7 +219,7 @@ def dpkg() -> list[utils.Message]:
                         if proc.returncode == 0:
                             message = utils.ansi_proc_dashboard(proc)
                             message.title = "Error while removing the container"
-                            _LOGGING.error(message.to_plain_text())
+                            _LOGGING.warning(message.to_html())
                             results.append(message)
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                             [
@@ -241,7 +241,7 @@ def dpkg() -> list[utils.Message]:
                         if proc.returncode != 0:
                             message = utils.ansi_proc_dashboard(proc)
                             message.title = "Error while creating the container"
-                            _LOGGING.error(message.to_plain_text())
+                            _LOGGING.warning(message.to_html())
                             results.append(message)
 
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -252,7 +252,7 @@ def dpkg() -> list[utils.Message]:
                         if proc.returncode != 0:
                             message = utils.ansi_proc_dashboard(proc)
                             message.title = "Error while updating the container"
-                            _LOGGING.error(message.to_plain_text())
+                            _LOGGING.warning(message.to_html())
                             results.append(message)
 
                         package_re = re.compile(r"^([^ /]+)/[a-z-,]+ ([^ ]+) (all|amd64)( .*)?$")
@@ -264,7 +264,7 @@ def dpkg() -> list[utils.Message]:
                         if proc.returncode != 0:
                             message = utils.ansi_proc_dashboard(proc)
                             message.title = "Error while listing the packages"
-                            _LOGGING.error(message.to_plain_text())
+                            _LOGGING.warning(message.to_html())
                             results.append(message)
                             return results
                         for proc_line in proc.stdout.split("\n"):
@@ -282,7 +282,7 @@ def dpkg() -> list[utils.Message]:
                         if proc.returncode != 0:
                             message = utils.ansi_proc_dashboard(proc)
                             message.title = "Error while removing the container"
-                            _LOGGING.error(message.to_plain_text())
+                            _LOGGING.warning(message.to_html())
                             results.append(message)
                 if package in cache[dist]:
                     versions[package_full] = cache[dist][package]

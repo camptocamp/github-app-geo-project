@@ -84,7 +84,6 @@ def _get_process_output(
     context: module.ProcessContext[configuration.AuditConfiguration],
     issue_check: module_utils.DashboardIssue,
     issue_data: dict[str, list[str]],
-    log: list[module_utils.Message],
 ) -> module.ProcessOutput:
     issue_check.set_check(context.module_data["type"], False)
 
@@ -100,7 +99,6 @@ def _get_process_output(
     return module.ProcessOutput(
         dashboard="\n<!---->\n".join([issue_check.to_string(), _format_issue_data(issue_data)]),
         transversal_status=module_status,
-        log="\n".join([msg.to_html() for msg in log]),
     )
 
 
@@ -143,7 +141,6 @@ def _process_outdated(
 def _process_snyk_dpkg(
     context: module.ProcessContext[configuration.AuditConfiguration],
     issue_data: dict[str, list[str]],
-    log: list[module_utils.Message],
 ) -> None:
     key = f"Undefined {context.module_data['version']}"
     new_branch = f"ghci/audit/{context.module_data['type']}/{context.module_data['version']}"
@@ -189,9 +186,8 @@ def _process_snyk_dpkg(
             if proc.returncode != 0:
                 message = module_utils.ansi_proc_dashboard(proc)
                 message.title = "Error while cloning the project"
-                _LOGGER.error(message.to_plain_text())
+                _LOGGER.error(message.to_html())
                 issue_data[key].append(message.to_markdown().split("\n")[0])
-                log.append(message)
                 return
             os.chdir(os.path.join(tmpdirname, context.github_project.repository))
 
@@ -210,17 +206,14 @@ def _process_snyk_dpkg(
                     if proc.returncode != 0:
                         message = module_utils.ansi_proc_dashboard(proc)
                         message.title = "Error while setting the Python version"
-                        _LOGGER.error(message.to_plain_text())
+                        _LOGGER.error(message.to_html())
                         issue_data[key].append(message.to_markdown().split("\n")[0])
-                        log.append(message)
 
                 local_config: configuration.AuditConfiguration = {}
                 if os.path.exists(".github/ghci.yaml"):
                     with open(".github/ghci.yaml", encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
                 result, body = audit_utils.snyk(branch, context.module_config, local_config)
-                if result:
-                    log += result
                 # if create_issue and result:
                 #     repo = context.github_project.github.get_repo(
                 #         f"{context.github_project.owner}/{context.github_project.repository}"
@@ -250,7 +243,6 @@ def _process_snyk_dpkg(
                             f"Error on running dpkg on {branch}: #{issue.number}",
                             *(["", result[0].to_markdown().split("\n")[0]] if result else []),
                         ]
-                        log += result
 
             diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 ["git", "diff", "--quiet"]
@@ -262,9 +254,8 @@ def _process_snyk_dpkg(
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_dashboard(proc)
                     message.title = "Error while creating the new branch"
-                    _LOGGER.error(message.to_plain_text())
+                    _LOGGER.error(message.to_html())
                     issue_data[key].append(message.to_markdown().split("\n")[0])
-                    log.append(message)
 
                     return
 
@@ -381,7 +372,6 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         issue_check.add_check("outdated", "Check outdated version", False)
         issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
         issue_check.add_check("dpkg", "Update dpkg packages", False)
-        log: list[module_utils.Message] = []
 
         if context.module_data.get("type") == "outdated":
             _process_outdated(context, issue_data)
@@ -426,9 +416,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     ],
                 )
             else:
-                _process_snyk_dpkg(context, issue_data, log)
+                _process_snyk_dpkg(context, issue_data)
 
-        return _get_process_output(context, issue_check, issue_data, log)
+        return _get_process_output(context, issue_check, issue_data)
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
