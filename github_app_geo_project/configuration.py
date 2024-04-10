@@ -1,5 +1,6 @@
 """Manage configuration of the application."""
 
+import logging
 import os
 from typing import Any, NamedTuple, cast
 
@@ -8,6 +9,8 @@ import jsonmerge
 import yaml
 
 from github_app_geo_project import application_configuration, project_configuration
+
+_LOGGER = logging.getLogger(__name__)
 
 APPLICATION_CONFIGURATION: application_configuration.GithubApplicationProjectConfiguration = {}
 if "GHCI_CONFIGURATION" in os.environ:
@@ -20,22 +23,27 @@ def apply_profile_inheritance(profile_name: str, profiles: dict[str, Any]) -> No
     Apply the inheritance of the profile.
     """
     for other_name, other_profile in APPLICATION_CONFIGURATION["profiles"].items():
-        if profile.get("inherits") == profile_name:
+        if other_profile.get("inherits") == profile_name:
+            _LOGGER.debug("Apply inheritance %s -> %s", profile_name, other_name)
             APPLICATION_CONFIGURATION["profiles"][other_name] = jsonmerge.merge(
                 profiles[profile_name], other_profile
             )
+            del APPLICATION_CONFIGURATION["profiles"][other_name]["inherits"]
             apply_profile_inheritance(name, profiles)
 
 
-for name, profile in APPLICATION_CONFIGURATION.get("profiles", {}).items():
-    if "inherits" not in profile:
-        apply_profile_inheritance(
-            name,
-            cast(
-                dict[str, Any],
-                APPLICATION_CONFIGURATION["profiles"],
-            ),
-        )
+while [True for p in APPLICATION_CONFIGURATION.get("profiles", {}).values() if "inherits" in p]:
+    for name, profile in APPLICATION_CONFIGURATION.get("profiles", {}).items():
+        if "inherits" not in profile:
+            apply_profile_inheritance(
+                name,
+                cast(
+                    dict[str, Any],
+                    APPLICATION_CONFIGURATION["profiles"],
+                ),
+            )
+
+_LOGGER.debug("Configuration loaded: %s", APPLICATION_CONFIGURATION)
 
 
 class GithubApplication(NamedTuple):

@@ -64,7 +64,7 @@ def test_home() -> None:
             {"name": "prefers-color-scheme", "value": "dark"},
         ],
         width=900,
-        height=1500,
+        height=1900,
         result_folder="/results",
         expected_filename=os.path.join(os.path.dirname(__file__), "home.expected.png"),
         sleep=500,
