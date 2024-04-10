@@ -19,11 +19,29 @@ default-profile: full
 profiles:
   standard:
     description: |
-      All stadard functions
+      All standard functions
+    module:
+      standard: True
   disable:
     inherits: standard
     description: |
-      All stadard functions but disabled
+      All standard functions but disabled
+    module:
+      disable: True
+  double-inherit:
+    inherits: disable
+    description: |
+      Tests double inheritance
+    module:
+      double-inherit: True
+  second-inherit:
+    inherits: standard
+    description: |
+      Tests second inheritance
+    module:
+      second-inherit: True
   clean:
     description: |
       Empty profile
+    module:
+      clean: True
