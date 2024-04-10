@@ -100,7 +100,7 @@ def snyk(
     env["DEBUG"] = "*snyk*"  # debug mode
 
     command = ["snyk", "monitor", f"--target-reference={branch}"] + config.get(
-        "monitor-arguments", c2cciutils.configuration.AUDIT_SNYK_MONITOR_ARGUMENTS_DEFAULT
+        "monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT
     )
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
@@ -115,7 +115,7 @@ def snyk(
         _LOGGING.debug(message.to_html())
 
     command = ["snyk", "test", "--json"] + config.get(
-        "test-arguments", c2cciutils.configuration.AUDIT_SNYK_TEST_ARGUMENTS_DEFAULT
+        "test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT
     )
     test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
@@ -131,9 +131,7 @@ def snyk(
     if isinstance(test_json, dict) and test_json.get("ok", True) is False:
         _LOGGING.warning(test_json.get("error"))
 
-        command = ["snyk", "test"] + config.get(
-            "test-arguments", c2cciutils.configuration.AUDIT_SNYK_TEST_ARGUMENTS_DEFAULT
-        )
+        command = ["snyk", "test"] + config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
         test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
             command, env=env, capture_output=True, encoding="utf-8"
         )
@@ -168,15 +166,15 @@ def snyk(
                     )
                 )
 
-    command = ["snyk", "fix"] + config.get(
-        "fix-arguments", c2cciutils.configuration.AUDIT_SNYK_FIX_ARGUMENTS_DEFAULT
-    )
+    command = ["snyk", "fix"] + config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
     snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
     if snyk_fix_proc.returncode != 0:
-        result.append(utils.ansi_proc_message(snyk_fix_proc))
+        # Hide error if there is no error in test
+        if result:
+            result.append(utils.ansi_proc_message(snyk_fix_proc))
         _LOGGING.error("Snyk fix error:\n%s", snyk_fix_message.to_html())
     else:
         _LOGGING.info("Snyk fix:\n%s", snyk_fix_message.to_html())

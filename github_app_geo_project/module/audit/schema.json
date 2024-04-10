@@ -12,42 +12,54 @@
       "properties": {
         "files-no-install": {
           "type": "array",
+          "title": "Files not to install",
           "description": "Dependency files that will not be installed",
+          "default": [],
           "items": {
             "type": "string"
           }
         },
         "pip-install-arguments": {
           "type": "array",
+          "title": "Pip install arguments",
           "description": "Arguments to pass to pip install",
+          "default": ["--user"],
           "items": {
             "type": "string"
           }
         },
         "pipenv-sync-arguments": {
           "type": "array",
+          "title": "Pipenv sync arguments",
           "description": "Arguments to pass to pipenv sync",
+          "default": [],
           "items": {
             "type": "string"
           }
         },
         "monitor-arguments": {
           "type": "array",
+          "title": "Snyk monitor arguments",
           "description": "Arguments to pass to snyk monitor",
+          "default": ["--all-projects"],
           "items": {
             "type": "string"
           }
         },
         "test-arguments": {
           "type": "array",
+          "title": "Snyk test arguments",
           "description": "Arguments to pass to snyk test",
+          "default": ["--all-projects", "--fail-on=upgradable", "--severity-threshold=medium"],
           "items": {
             "type": "string"
           }
         },
         "fix-arguments": {
           "type": "array",
+          "title": "Snyk fix arguments",
           "description": "Arguments to pass to snyk fix",
+          "default": ["--all-projects"],
           "items": {
             "type": "string"
           }
