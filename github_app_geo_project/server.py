@@ -65,7 +65,7 @@ def main(global_config: Any, **settings: Any) -> Router:
     config.registry.settings["mako.imports"] = (
         config.registry.settings.get("mako.imports", "")
         + """
-from github_app_geo_project.templates import markdown, sanitizer, pprint_date, pprint_duration
+from github_app_geo_project.templates import markdown, sanitizer, pprint_date, pprint_duration, pprint_short_date, pprint_full_date
     """
     )
     add_mako_renderer(config, ".html")

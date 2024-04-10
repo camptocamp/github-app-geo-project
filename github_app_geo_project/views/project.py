@@ -17,9 +17,15 @@ from pyramid.view import view_config
 
 from github_app_geo_project import configuration, models, project_configuration
 from github_app_geo_project.module import modules
-from github_app_geo_project.templates import pprint_date, pprint_duration
+from github_app_geo_project.templates import pprint_duration, pprint_full_date, pprint_short_date
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _pprint_date(date: datetime.datetime) -> str:
+    short_date = pprint_short_date(date)
+    full_date = pprint_full_date(date)
+    return f"{short_date} ({full_date})"
 
 
 def _date_tooltip(job: list[datetime.datetime]) -> str:
@@ -28,10 +34,10 @@ def _date_tooltip(job: list[datetime.datetime]) -> str:
     started = job[5]
     finished = job[7]
     if started is None:
-        return f"created:&nbsp;{pprint_date(created)}<br>not started yet"
+        return f"created:&nbsp;{_pprint_date(created)}<br>not started yet"
     if finished is None:
-        return f"created:&nbsp;{pprint_date(created)}<br>started:&nbsp;{pprint_date(started)}"
-    return f"created:&nbsp;{pprint_date(created)}<br>started:&nbsp;{pprint_date(started)}<br>duration:&nbsp;{pprint_duration(finished - started)}"
+        return f"created:&nbsp;{_pprint_date(created)}<br>started:&nbsp;{_pprint_date(started)}"
+    return f"created:&nbsp;{_pprint_date(created)}<br>started:&nbsp;{_pprint_date(started)}<br>duration:&nbsp;{pprint_duration(finished - started)}"
 
 
 @view_config(route_name="project", renderer="github_app_geo_project:templates/project.html")  # type: ignore

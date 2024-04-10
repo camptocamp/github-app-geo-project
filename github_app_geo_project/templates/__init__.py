@@ -32,15 +32,14 @@ def markdown(text: str) -> str:
     return sanitizer(markdown_lib.markdown(text))
 
 
-def pprint_date(date_in: str | datetime) -> str:
+def pprint_short_date(date_in: str | datetime) -> str:
     """
-    Pretty print a date.
+    Pretty print a short date (essentially time to current time).
     """
     if date_in == "None" or date_in is None:
         return "-"
 
     date = datetime.fromisoformat(date_in) if isinstance(date_in, str) else date_in
-    full_date = datetime.strftime(date, "%Y-%m-%d %H:%M:%S")
 
     delta = datetime.now(timezone.utc) - date
     if delta.total_seconds() < 1:
@@ -55,6 +54,32 @@ def pprint_date(date_in: str | datetime) -> str:
         short_date = f"{delta.days} days ago"
     else:
         short_date = date.strftime("%Y-%m-%d")
+
+    return short_date
+
+
+def pprint_full_date(date_in: str | datetime) -> str:
+    """
+    Pretty print a full date.
+    """
+    if date_in == "None" or date_in is None:
+        return "-"
+
+    date = datetime.fromisoformat(date_in) if isinstance(date_in, str) else date_in
+    return datetime.strftime(date, "%Y-%m-%d %H:%M:%S")
+
+
+def pprint_date(date_in: str | datetime) -> str:
+    """
+    Pretty print a date.
+
+    Short date with full date as title
+    """
+    if date_in == "None" or date_in is None:
+        return "-"
+
+    full_date = pprint_full_date(date_in)
+    short_date = pprint_short_date(date_in)
 
     return f'<span title="{full_date}">{short_date}</span>'
 
