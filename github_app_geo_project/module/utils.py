@@ -212,7 +212,7 @@ class HtmlMessage(Message):
             str, sanitizer.sanitize(self.html.replace("\n", " ").replace("<p>", "\n\n<p>"))
         ).strip()
         if summary:
-            markdown = markdown.split("\n", 1)[1]
+            markdown = markdown.split("\n", 1)[0]
 
         if self.title and not summary:
             markdown = "\n".join(
