@@ -24,10 +24,13 @@
       referrerpolicy="no-referrer"
     />
     <style>
-      :root {
+      :root .tooltip {
         --bs-tooltip-max-width: 400px;
         --bs-tooltip-color: var(--bs-body-color);
         --bs-tooltip-bg: var(--bs-body-bg);
+      }
+      .tooltip {
+        filter: contrast(80%) brightness(120%)
       }
       a {
         text-decoration: none;
