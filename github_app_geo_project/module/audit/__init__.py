@@ -32,8 +32,11 @@ def _parse_issue_data(issue_data: str) -> dict[str, list[str]]:
     for line in issue_data.split("\n"):
         if line.startswith("### "):
             key = line[4:]
-        elif line:
+        elif line.strip() or result.get(key):
             result.setdefault(key, []).append(line)
+    for lines in result.values():
+        while not lines[-1].strip():
+            lines.pop()
     return result
 
 
