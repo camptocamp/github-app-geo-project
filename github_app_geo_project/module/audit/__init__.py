@@ -183,12 +183,14 @@ def _process_snyk_dpkg(
                 capture_output=True,
                 encoding="utf-8",
             )
+            message = module_utils.ansi_proc_message(proc)
             if proc.returncode != 0:
-                message = module_utils.ansi_proc_message(proc)
                 message.title = "Error while cloning the project"
                 _LOGGER.error(message.to_html())
                 issue_data[key].append(message.to_markdown().split("\n")[0])
                 return
+            message.title = "Cloning the project"
+            _LOGGER.debug(message.to_html())
             os.chdir(os.path.join(tmpdirname, context.github_project.repository))
 
             if context.module_data["type"] == "snyk":
@@ -203,11 +205,14 @@ def _process_snyk_dpkg(
                     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                         ["pipenv", "local", python_version], capture_output=True, encoding="utf-8"
                     )
+                    message = module_utils.ansi_proc_message(proc)
                     if proc.returncode != 0:
-                        message = module_utils.ansi_proc_message(proc)
                         message.title = "Error while setting the Python version"
                         _LOGGER.error(message.to_html())
                         issue_data[key].append(message.to_markdown().split("\n")[0])
+                    else:
+                        message.title = "Setting the Python version"
+                        _LOGGER.debug(message.to_html())
 
                 local_config: configuration.AuditConfiguration = {}
                 if os.path.exists(".github/ghci.yaml"):
@@ -224,7 +229,7 @@ def _process_snyk_dpkg(
                 #     )
                 #     issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
                 if result:
-                    issue_data[key].append(result[0].to_markdown().split("\n")[0])
+                    issue_data[key] += [r.to_markdown(summary=True) for r in result]
 
             if context.module_data["type"] == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")
@@ -241,7 +246,8 @@ def _process_snyk_dpkg(
                         )
                         issue_data[key] = [
                             f"Error on running dpkg on {branch}: #{issue.number}",
-                            *(["", result[0].to_markdown().split("\n")[0]] if result else []),
+                            "",
+                            *[r.to_markdown(summary=True) for r in result],
                         ]
 
             diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
