@@ -173,7 +173,7 @@ class Message:
         """Convert the message to HTML."""
         raise NotImplementedError
 
-    def to_markdown(self) -> str:
+    def to_markdown(self, summary: bool = False) -> str:
         """Convert the message to markdown."""
         raise NotImplementedError
 
@@ -197,7 +197,7 @@ class HtmlMessage(Message):
             html = "\n".join([f"<h3>{self.title}</h3>", html])
         return html
 
-    def to_markdown(self) -> str:
+    def to_markdown(self, summary: bool = False) -> str:
         """Convert the ANSI message to markdown."""
         sanitizer = html_sanitizer.Sanitizer(
             {
@@ -211,8 +211,10 @@ class HtmlMessage(Message):
         markdown = cast(
             str, sanitizer.sanitize(self.html.replace("\n", " ").replace("<p>", "\n\n<p>"))
         ).strip()
+        if summary:
+            markdown = markdown.split("\n", 1)[1]
 
-        if self.title:
+        if self.title and not summary:
             markdown = "\n".join(
                 [
                     "<details>",
@@ -221,6 +223,8 @@ class HtmlMessage(Message):
                     "</details>",
                 ]
             )
+        elif self.title:
+            markdown = f"### {self.title}\n{markdown}"
         return markdown
 
     def to_plain_text(self) -> str:

@@ -26,7 +26,6 @@ def snyk(
     """
     Audit the code with Snyk.
     """
-    install_success = True
     result = []
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -53,12 +52,13 @@ def snyk(
                 capture_output=True,
                 encoding="utf-8",
             )
+            message = utils.ansi_proc_message(proc)
             if proc.returncode != 0:
-                message = utils.ansi_proc_message(proc)
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message.to_html())
                 result.append(message)
-                continue
+            message.title = f"Dependencies installed from {file}"
+            _LOGGING.debug(message.to_html())
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8"
@@ -86,12 +86,14 @@ def snyk(
                 capture_output=True,
                 encoding="utf-8",
             )
+            message = utils.ansi_proc_message(proc)
             if proc.returncode != 0:
-                message = utils.ansi_proc_message(proc)
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message.to_html())
                 result.append(message)
-            install_success &= proc.returncode == 0
+            else:
+                message.title = f"Dependencies installed from {file}"
+                _LOGGING.debug(message.to_html())
 
     env = {**os.environ}
     env["FORCE_COLOR"] = "true"
@@ -103,11 +105,14 @@ def snyk(
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
+    message = utils.ansi_proc_message(proc)
     if proc.returncode != 0:
-        message = utils.ansi_proc_message(proc)
         message.title = "Error while monitoring the project"
         _LOGGING.warning(message.to_html())
         result.append(message)
+    else:
+        message.title = "Project monitored"
+        _LOGGING.debug(message.to_html())
 
     command = ["snyk", "test", "--json"] + config.get(
         "test-arguments", c2cciutils.configuration.AUDIT_SNYK_TEST_ARGUMENTS_DEFAULT
@@ -169,9 +174,12 @@ def snyk(
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8"
     )
-    result.append(utils.ansi_proc_message(snyk_fix_proc))
     snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
-    _LOGGING.info("Snyk fix:\n%s", snyk_fix_message.to_html())
+    if snyk_fix_proc.returncode != 0:
+        result.append(utils.ansi_proc_message(snyk_fix_proc))
+        _LOGGING.error("Snyk fix error:\n%s", snyk_fix_message.to_html())
+    else:
+        _LOGGING.info("Snyk fix:\n%s", snyk_fix_message.to_html())
 
     return result, snyk_fix_message
 
@@ -278,7 +286,7 @@ def dpkg() -> list[utils.Message]:
                         for proc_line in proc.stdout.split("\n"):
                             package_match = package_re.match(proc_line)
                             if package_match is None:
-                                print(f"not matching: {proc_line}")
+                                _LOGGING.debug("Not matching: %s", proc_line)
                                 continue
                             cache.setdefault(dist, {})[package_match.group(1)] = package_match.group(2)
 
