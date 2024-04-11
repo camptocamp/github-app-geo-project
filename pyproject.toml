@@ -53,7 +53,7 @@ patch = "github_app_geo_project.module.standard.patch:Patch"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
-c2cwsgiutils = { version = "6.0.7",  extras = ["standard", "debug", "dev"] }
+c2cwsgiutils = { version = "6.0.8",  extras = ["standard", "debug", "dev"] }
 pyramid-mako = "1.1.0"
 jsonmerge = "1.9.2"
 pygithub = "2.3.0"
@@ -66,7 +66,7 @@ apt-repo = "0.5"
 debian-inspector = "31.1.0"
 
 [tool.poetry.group.dev.dependencies]
-c2cwsgiutils = { version = "6.0.7",  extras = ["test-images"] }
+c2cwsgiutils = { version = "6.0.8",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma"], version = "1.10.3" }
 prospector-profile-duplicated = "1.3.0"
 prospector-profile-utils = "1.7.2"
@@ -75,7 +75,7 @@ WebTest = "3.0.0"
 types-pyyaml = "6.0.12.20240311"
 types-setuptools = "69.2.0.20240317"
 types-markdown = "3.6.0.20240316"
-types-requests = "2.31.0.20240403"
+types-requests = "2.31.0.20240406"
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning", "poetry-plugin-tweak-dependencies-version", "poetry-plugin-drop-python-upper-constraint"]
