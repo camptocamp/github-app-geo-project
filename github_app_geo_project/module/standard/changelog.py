@@ -10,6 +10,7 @@ from typing import Any, NamedTuple, Union, cast
 import github
 
 from github_app_geo_project import module
+from github_app_geo_project.module import utils
 from github_app_geo_project.module.standard import changelog_configuration
 
 _LOGGER = logging.getLogger(__name__)
@@ -321,7 +322,7 @@ def generate_changelog(
                     title=commit.commit.message.split("\n")[0],
                     author=Author(commit.author.login, commit.author.html_url),
                     authors={Author(commit.author.login, commit.author.html_url)},
-                    branch=commit.committer.login,
+                    branch=None,
                     files={f.filename for f in commit.files},
                     labels=set(),
                 )
@@ -331,6 +332,19 @@ def generate_changelog(
     for item in changelog_items:
         section = get_section(item, configuration)
         sections.setdefault(section, []).append(item)
+
+    message = []
+    for section, items in sections.items():
+        message.append(f"<h5>{section}</h5>")
+        for item in items:
+            authors_message = ", ".join([a.name for a in item.authors])
+            labels_message = ", ".join(item.labels)
+            message.append(
+                f"<p>- {item.ref} {item.title} {item.author} ({', '.join(authors_message)}) {item.branch} {len(item.files)} {labels_message}</p>"
+            )
+    message_obj = utils.HtmlMessage("\n".join(message))
+    message_obj.title = f"Changelog for {tag.major}.{tag.minor}.{tag.patch}"
+    _LOGGER.debug(message_obj.to_html(style="collapse"))
 
     created = tag.tag.commit.commit.author.date
     result = [f"# {tag.major}.{tag.minor}.{tag.patch} ({created:%Y-%m-%d})", ""]
