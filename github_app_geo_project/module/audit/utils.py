@@ -253,7 +253,7 @@ def _get_packages_version(
             _LOGGING.warning("No version found for %s", package)
             return None
         else:
-            _PACKAGE_VERSION[package] = versions[-1].to_string()
+            _PACKAGE_VERSION[package] = str(versions[-1])
     return _PACKAGE_VERSION[package]
 
 
