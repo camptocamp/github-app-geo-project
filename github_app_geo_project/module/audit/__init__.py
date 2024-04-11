@@ -196,6 +196,12 @@ def _process_snyk_dpkg(
             _LOGGER.debug(message.to_html())
             os.chdir(os.path.join(tmpdirname, context.github_project.repository))
 
+            local_config: configuration.AuditConfiguration = {}
+            if context.module_data["type"] in ("snyk", "dpkg"):
+                if os.path.exists(".github/ghci.yaml"):
+                    with open(".github/ghci.yaml", encoding="utf-8") as file:
+                        local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
+
             if context.module_data["type"] == "snyk":
                 python_version = ""
                 if os.path.exists(".tool-versions"):
@@ -217,10 +223,6 @@ def _process_snyk_dpkg(
                         message.title = "Setting the Python version"
                         _LOGGER.debug(message.to_html())
 
-                local_config: configuration.AuditConfiguration = {}
-                if os.path.exists(".github/ghci.yaml"):
-                    with open(".github/ghci.yaml", encoding="utf-8") as file:
-                        local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
                 result, body = audit_utils.snyk(
                     branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
                 )
