@@ -1,6 +1,7 @@
 """Module utility functions for the modules."""
 
 import datetime
+import logging
 import re
 import shlex
 import subprocess  # nosec
@@ -11,6 +12,8 @@ import html_sanitizer
 from ansi2html import Ansi2HTMLConverter
 
 from github_app_geo_project import models, module
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def add_output(
@@ -176,7 +179,7 @@ class Message:
 
     title: str
 
-    def to_html(self) -> str:
+    def to_html(self, style: str = "h3") -> str:
         """Convert the message to HTML."""
         raise NotImplementedError
 
@@ -189,6 +192,9 @@ class Message:
         raise NotImplementedError
 
 
+_suffix = 0  # pylint: disable=invalid-name
+
+
 class HtmlMessage(Message):
     """Utility class to convert HTML messages to HTML/markdown."""
 
@@ -197,11 +203,38 @@ class HtmlMessage(Message):
         self.html = html
         self.title = title
 
-    def to_html(self) -> str:
+    def to_html(self, style: str = "h3") -> str:
         """Convert the ANSI message to HTML."""
+        global _suffix  # pylint: disable=global-statement
+
         html = self.html
         if self.title:
-            html = "\n".join([f"<h3>{self.title}</h3>", html])
+            _suffix += 1
+            if style == "collapse":
+                html = "".join(
+                    [
+                        '<div class="collapse-container">',
+                        '<p class="d-inline-flex gap-1">',
+                        "<a",
+                        '  class=""',
+                        '  data-bs-toggle="collapse"',
+                        f'  href="#element{_suffix}"',
+                        '  role="button"',
+                        '  aria-expanded="false"',
+                        '  aria-controls="collapseExample">',
+                        '<em class="col-up bi bi-chevron-right">&nbsp;</em>',
+                        '<em class="col-down bi bi-chevron-down">&nbsp;</em>',
+                        self.title,
+                        "</a>",
+                        "</p>",
+                        f'<div class="collapse" id="element{_suffix}">',
+                        html,
+                        "</div>",
+                        "</div>",
+                    ]
+                )
+            else:
+                html = "\n".join([f"<{style}>{self.title}</{style}>", html])
         return html
 
     def to_markdown(self, summary: bool = False) -> str:
@@ -296,7 +329,7 @@ def ansi_proc_message(proc: subprocess.CompletedProcess[str]) -> Message:
             + "</blockquote>"
         )
 
-    return HtmlMessage("<p>" + "</p>\n<p>".join(message) + "</p>")
+    return HtmlMessage("".join([f"<p>{line}</p>" for line in message]))
 
 
 def remove_tags(text: str) -> str:
@@ -325,25 +358,31 @@ def has_changes() -> bool:
     return proc.returncode != 0
 
 
-def create_commit(message: str) -> Message | None:
+def create_commit(message: str) -> bool:
     """Do a commit."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "add", "--all"], capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        return ansi_proc_message(proc)
+        proc_message = ansi_proc_message(proc)
+        proc_message.title = "Error adding files to commit"
+        _LOGGER.error(proc_message.to_html(style="collapse"))
+        return False
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8"
     )
     if proc.returncode != 0:
-        return ansi_proc_message(proc)
+        proc_message = ansi_proc_message(proc)
+        proc_message.title = "Error committing files"
+        _LOGGER.error(proc_message.to_html(style="collapse"))
+        return False
 
-    return None
+    return True
 
 
 def create_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
-) -> tuple[Message | None, github.PullRequest.PullRequest | None]:
+) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "push", "--force", "origin", new_branch],
@@ -351,7 +390,10 @@ def create_pull_request(
         encoding="utf-8",
     )
     if proc.returncode != 0:
-        return ansi_proc_message(proc), None
+        proc_message = ansi_proc_message(proc)
+        proc_message.title = "Error pushing branch"
+        _LOGGER.error(proc_message.to_html(style="collapse"))
+        return False, None
 
     pulls = repo.get_pulls(state="open", head=new_branch)
     if pulls.totalCount > 0:
@@ -362,8 +404,8 @@ def create_pull_request(
                 title=f"Pull request {message} is open for 5 days",
                 body=f"See: #{pull_request.number}",
             )
-            message = f"Pull request #{pull_request.number} is open for 5 days: #{issue.number}"
-            return AnsiMessage(message), pull_request
+            _LOGGER.warning("Pull request #%s is open for 5 days: #%s", pull_request.number, issue.number)
+            return False, pull_request
     else:
         pull_request = repo.create_pull(
             title=message,
@@ -372,15 +414,14 @@ def create_pull_request(
             base=branch,
         )
         pull_request.enable_automerge(merge_method="SQUASH")
-        return None, pull_request
-    return None, None
+        return True, pull_request
+    return True, None
 
 
 def create_commit_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
-) -> tuple[Message | None, github.PullRequest.PullRequest | None]:
+) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
-    error = create_commit(message)
-    if error:
-        return error, None
+    if not create_commit(message):
+        return False, None
     return create_pull_request(branch, new_branch, message, body, repo)

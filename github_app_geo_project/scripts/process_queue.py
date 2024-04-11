@@ -51,7 +51,10 @@ class _Formatter(logging.Formatter):
         result = f"<p{attributes}>{str_msg}</p>"
 
         str_msg = record.message.strip()
-        result += f"<p>{str_msg}</p>"
+        if not str_msg.startswith("<p>") and not str_msg.endswith("<div>"):
+            result += f"<p>{str_msg}</p>"
+        else:
+            result += str_msg
 
         return result
 

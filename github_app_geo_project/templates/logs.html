@@ -49,6 +49,29 @@
         margin-top: 0;
         margin-bottom: 0.5rem;
       }
+      /* related to aria-expanded attribute */
+      [aria-expanded='true'] .col-up {
+        display: none;
+      }
+      [aria-expanded='false'] .col-down {
+        display: none;
+      }
+      .collapse-container a {
+        text-decoration: none;
+        color: var(--bs-body-color);
+      }
+      .collapse-container a i {
+        margin-right: 0.3rem;
+        width: 1rem;
+      }
+      .collapse-container p {
+        margin: 0;
+      }
+      .collapse-container .collapse {
+        margin-left: 0.3rem;
+        padding-left: 0.9rem;
+        border-left: gray solid 0.2rem;
+      }
     </style>
   </head>
   <body class="px-5 py-4">
