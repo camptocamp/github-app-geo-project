@@ -221,7 +221,9 @@ def _process_snyk_dpkg(
                 if os.path.exists(".github/ghci.yaml"):
                     with open(".github/ghci.yaml", encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
-                result, body = audit_utils.snyk(branch, context.module_config, local_config)
+                result, body = audit_utils.snyk(
+                    branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
+                )
                 # if create_issue and result:
                 #     repo = context.github_project.github.get_repo(
                 #         f"{context.github_project.owner}/{context.github_project.repository}"
@@ -238,20 +240,7 @@ def _process_snyk_dpkg(
                 body = module_utils.HtmlMessage("Update dpkg packages")
 
                 if os.path.exists("ci/dpkg-versions.yaml"):
-                    result = audit_utils.dpkg()
-                    if result:
-                        repo = context.github_project.github.get_repo(
-                            f"{context.github_project.owner}/{context.github_project.repository}"
-                        )
-                        issue = repo.create_issue(
-                            title=f"Error on running dpkg on {branch}",
-                            body="\n".join([r.to_markdown() for r in result]),
-                        )
-                        issue_data[key] = [
-                            f"Error on running dpkg on {branch}: #{issue.number}",
-                            "",
-                            *[r.to_markdown(summary=True) for r in result],
-                        ]
+                    audit_utils.dpkg(context.module_config.get("dpkg", {}), local_config.get("dpkg", {}))
 
             diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 ["git", "diff", "--quiet"]
@@ -378,8 +367,29 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         issue_data = _parse_issue_data(issue_data_splitted[1])
 
         issue_check.add_check("outdated", "Check outdated version", False)
-        issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
-        issue_check.add_check("dpkg", "Update dpkg packages", False)
+        if context.module_data.get("snyk", {}).get("enabled", configuration.ENABLE_SNYK_DEFAULT):
+            issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
+        else:
+            issue_check.remove_check("snyk")
+
+        repo = context.github_project.github.get_repo(
+            f"{context.github_project.owner}/{context.github_project.repository}"
+        )
+        dpkg_version = None
+        try:
+            dpkg_version = repo.get_contents("ci/dpkg-versions.yaml")
+        except github.GithubException as exception:
+            if exception.status == 404:
+                _LOGGER.debug("No dpkg-versions.yaml file in the repository")
+            else:
+                raise
+        if (
+            context.module_data.get("dpkg", {}).get("enabled", configuration.ENABLE_DPKG_DEFAULT)
+            and dpkg_version is not None
+        ):
+            issue_check.add_check("dpkg", "Update dpkg packages", False)
+        else:
+            issue_check.remove_check("dpkg")
 
         if context.module_data.get("type") == "outdated":
             _process_outdated(context, issue_data)
@@ -408,13 +418,17 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 )
                 actions = []
                 for version in versions:
-                    if context.module_data.get("snyk", False):
+                    if context.module_data.get("snyk", False) and context.module_data.get("snyk", {}).get(
+                        "enabled", configuration.ENABLE_SNYK_DEFAULT
+                    ):
                         actions.append(
                             module.Action(
                                 priority=priority, data={"type": "snyk", "version": version}, title="snyk"
                             )
                         )
-                    if context.module_data.get("dpkg", False):
+                    if context.module_data.get("dpkg", False) and context.module_data.get("dpkg", {}).get(
+                        "enabled", configuration.ENABLE_DPKG_DEFAULT
+                    ):
                         actions.append(
                             module.Action(
                                 priority=priority, data={"type": "dpkg", "version": version}, title="dpkg"

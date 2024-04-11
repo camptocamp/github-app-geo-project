@@ -10,58 +10,194 @@
       "title": "Audit configuration",
       "additionalProperties": false,
       "properties": {
-        "files-no-install": {
-          "type": "array",
-          "title": "Files not to install",
-          "description": "Dependency files that will not be installed",
-          "default": [],
-          "items": {
-            "type": "string"
+        "snyk": {
+          "type": "object",
+          "title": "Snyk configuration",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable Snyk",
+              "description": "Enable Snyk audit",
+              "default": true
+            },
+            "files-no-install": {
+              "type": "array",
+              "title": "Files not to install",
+              "description": "Dependency files that will not be installed",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "pip-install-arguments": {
+              "type": "array",
+              "title": "Pip install arguments",
+              "description": "Arguments to pass to pip install",
+              "default": ["--user"],
+              "items": {
+                "type": "string"
+              }
+            },
+            "pipenv-sync-arguments": {
+              "type": "array",
+              "title": "Pipenv sync arguments",
+              "description": "Arguments to pass to pipenv sync",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "monitor-arguments": {
+              "type": "array",
+              "title": "Snyk monitor arguments",
+              "description": "Arguments to pass to snyk monitor",
+              "default": ["--all-projects"],
+              "items": {
+                "type": "string"
+              }
+            },
+            "test-arguments": {
+              "type": "array",
+              "title": "Snyk test arguments",
+              "description": "Arguments to pass to snyk test",
+              "default": ["--all-projects", "--fail-on=upgradable", "--severity-threshold=medium"],
+              "items": {
+                "type": "string"
+              }
+            },
+            "fix-arguments": {
+              "type": "array",
+              "title": "Snyk fix arguments",
+              "description": "Arguments to pass to snyk fix",
+              "default": ["--all-projects"],
+              "items": {
+                "type": "string"
+              }
+            }
           }
         },
-        "pip-install-arguments": {
-          "type": "array",
-          "title": "Pip install arguments",
-          "description": "Arguments to pass to pip install",
-          "default": ["--user"],
-          "items": {
-            "type": "string"
-          }
-        },
-        "pipenv-sync-arguments": {
-          "type": "array",
-          "title": "Pipenv sync arguments",
-          "description": "Arguments to pass to pipenv sync",
-          "default": [],
-          "items": {
-            "type": "string"
-          }
-        },
-        "monitor-arguments": {
-          "type": "array",
-          "title": "Snyk monitor arguments",
-          "description": "Arguments to pass to snyk monitor",
-          "default": ["--all-projects"],
-          "items": {
-            "type": "string"
-          }
-        },
-        "test-arguments": {
-          "type": "array",
-          "title": "Snyk test arguments",
-          "description": "Arguments to pass to snyk test",
-          "default": ["--all-projects", "--fail-on=upgradable", "--severity-threshold=medium"],
-          "items": {
-            "type": "string"
-          }
-        },
-        "fix-arguments": {
-          "type": "array",
-          "title": "Snyk fix arguments",
-          "description": "Arguments to pass to snyk fix",
-          "default": ["--all-projects"],
-          "items": {
-            "type": "string"
+        "dpkg": {
+          "type": "object",
+          "title": "Dpkg configuration",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable Dpkg",
+              "description": "Enable Dpkg audit",
+              "default": true
+            },
+            "sources": {
+              "type": "object",
+              "title": "Dpkg sources",
+              "default": {
+                "ubuntu_22_04": [
+                  {
+                    "url": "http://archive.ubuntu.com/ubuntu",
+                    "distribution": "jammy",
+                    "components": ["main", "restricted", "universe", "multiverse"]
+                  },
+                  {
+                    "url": "http://security.ubuntu.com/ubuntu",
+                    "distribution": "jammy-security",
+                    "components": ["main", "restricted", "universe", "multiverse"]
+                  },
+                  {
+                    "url": "http://security.ubuntu.com/ubuntu",
+                    "distribution": "jammy-updates",
+                    "components": ["main", "restricted", "universe", "multiverse"]
+                  },
+                  {
+                    "url": "http://security.ubuntu.com/ubuntu",
+                    "distribution": "jammy-backports",
+                    "components": ["main", "restricted", "universe", "multiverse"]
+                  }
+                ],
+                "ubuntu_24_04": [
+                  {
+                    "url": "http://archive.ubuntu.com/ubuntu",
+                    "distribution": "noble",
+                    "components": ["main", "restricted", "universe", "multiverse"]
+                  },
+                  {
+                    "url": "http://security.ubuntu.com/ubuntu",
+                    "distribution": "noble-security",
+                    "components": ["main", "restricted", "universe", "multiverse"]
+                  },
+                  {
+                    "url": "http://security.ubuntu.com/ubuntu",
+                    "distribution": "noble-updates",
+                    "components": ["main", "restricted", "universe", "multiverse"]
+                  },
+                  {
+                    "url": "http://security.ubuntu.com/ubuntu",
+                    "distribution": "noble-backports",
+                    "components": ["main", "restricted", "universe", "multiverse"]
+                  }
+                ],
+                "debian_11": [
+                  {
+                    "url": "http://deb.debian.org/debian",
+                    "distribution": "bullseye",
+                    "components": ["main", "contrib", "non-free"]
+                  },
+                  {
+                    "url": "http://deb.debian.org/debian",
+                    "distribution": "bullseye-updates",
+                    "components": ["main", "contrib", "non-free"]
+                  },
+                  {
+                    "url": "http://security.debian.org/debian-security",
+                    "distribution": "bullseye-security",
+                    "components": ["main", "contrib", "non-free"]
+                  }
+                ],
+                "debian_12": [
+                  {
+                    "url": "http://deb.debian.org/debian",
+                    "distribution": "bookworm",
+                    "components": ["main", "contrib", "non-free"]
+                  },
+                  {
+                    "url": "http://deb.debian.org/debian",
+                    "distribution": "bookworm-updates",
+                    "components": ["main", "contrib", "non-free"]
+                  },
+                  {
+                    "url": "http://security.debian.org/debian-security",
+                    "distribution": "bookworm-security",
+                    "components": ["main", "contrib", "non-free"]
+                  }
+                ]
+              },
+              "additionalProperties": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string",
+                      "title": "URL",
+                      "description": "URL of the source"
+                    },
+                    "distribution": {
+                      "type": "string",
+                      "title": "Distribution",
+                      "description": "Distribution of the source"
+                    },
+                    "components": {
+                      "type": "array",
+                      "title": "Components",
+                      "description": "Components of the source",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

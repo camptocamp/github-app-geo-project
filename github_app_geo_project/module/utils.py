@@ -155,6 +155,13 @@ class DashboardIssue:
         else:
             self.issue.insert(index + 1, DashboardIssueItem(title, name, checked))
 
+    def remove_check(self, name: str) -> None:
+        """Remove a check."""
+        for index, issue in enumerate(self.issue):
+            if isinstance(issue, DashboardIssueItem) and issue.comment == name:
+                self.issue.pop(index)
+                return
+
     def to_string(self) -> str:
         """Get the issue data."""
         return format_dashboard_issue(self.issue)
