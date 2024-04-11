@@ -367,7 +367,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         issue_data = _parse_issue_data(issue_data_splitted[1])
 
         issue_check.add_check("outdated", "Check outdated version", False)
-        if context.module_data.get("snyk", {}).get("enabled", configuration.ENABLE_SNYK_DEFAULT):
+        if context.module_config.get("snyk", {}).get("enabled", configuration.ENABLE_SNYK_DEFAULT):
             issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
         else:
             issue_check.remove_check("snyk")
@@ -384,7 +384,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             else:
                 raise
         if (
-            context.module_data.get("dpkg", {}).get("enabled", configuration.ENABLE_DPKG_DEFAULT)
+            context.module_config.get("dpkg", {}).get("enabled", configuration.ENABLE_DPKG_DEFAULT)
             and dpkg_version is not None
         ):
             issue_check.add_check("dpkg", "Update dpkg packages", False)
@@ -418,7 +418,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                 )
                 actions = []
                 for version in versions:
-                    if context.module_data.get("snyk", False) and context.module_data.get("snyk", {}).get(
+                    if context.module_data.get("snyk", False) and context.module_config.get("snyk", {}).get(
                         "enabled", configuration.ENABLE_SNYK_DEFAULT
                     ):
                         actions.append(
@@ -426,7 +426,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                                 priority=priority, data={"type": "snyk", "version": version}, title="snyk"
                             )
                         )
-                    if context.module_data.get("dpkg", False) and context.module_data.get("dpkg", {}).get(
+                    if context.module_data.get("dpkg", False) and context.module_config.get("dpkg", {}).get(
                         "enabled", configuration.ENABLE_DPKG_DEFAULT
                     ):
                         actions.append(
