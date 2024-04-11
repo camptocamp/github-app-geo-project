@@ -15,11 +15,32 @@ def sanitizer(text: str) -> str:
     """
     sanitizer_instance = html_sanitizer.Sanitizer(
         {
+            "tags": html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"] | {"span", "div", "pre", "code"},
+            "attributes": {
+                "a": (
+                    "id",
+                    "href",
+                    "name",
+                    "target",
+                    "title",
+                    "rel",
+                    "style",
+                    "class",
+                    "data-bs-toggle",
+                    "role",
+                    "aria-expanded",
+                    "aria-controls",
+                ),
+                "span": ("id", "style", "class"),
+                "p": ("id", "style", "class"),
+                "div": ("id", "style", "class"),
+                "em": ("id", "style", "class"),
+            },
+            "separate": html_sanitizer.sanitizer.DEFAULT_SETTINGS["separate"]
+            | {"pre", "code", "span", "div", "em"},
+            "empty": {"hr", "br"},
             "keep_typographic_whitespace": True,
-            "tags": html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"] | {"span", "pre", "code"},
-            "attributes": html_sanitizer.sanitizer.DEFAULT_SETTINGS["attributes"]
-            | {"span": ("style", "class"), "p": ("style", "class")},
-            "separate": html_sanitizer.sanitizer.DEFAULT_SETTINGS["separate"] | {"pre", "code", "span"},
+            "element_preprocessors": [],
         }
     )
     return sanitizer_instance.sanitize(text)  # type: ignore[no-any-return]

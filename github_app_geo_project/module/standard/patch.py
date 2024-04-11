@@ -181,11 +181,11 @@ class Patch(module.Module[dict[str, Any]]):
                         if proc.stderr:
                             _LOGGER.error("Apply patch error\n%s", proc.stdout)
                         if utils.has_changes():
-                            error = utils.create_commit(
+                            success = utils.create_commit(
                                 f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
                             )
-                            if error:
-                                raise PatchException(f"Failed to commit the changes\n{error.to_plain_text()}")
+                            if not success:
+                                raise PatchException("Failed to commit the changes, see logs for details")
                             should_push = True
             if should_push:
                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check

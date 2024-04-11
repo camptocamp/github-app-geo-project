@@ -35,7 +35,7 @@ def snyk(
     if proc.returncode != 0:
         message = utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
-        _LOGGING.warning(message.to_html())
+        _LOGGING.warning(message.to_html(style="collapse"))
         result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -56,10 +56,10 @@ def snyk(
             message = utils.ansi_proc_message(proc)
             if proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
-                _LOGGING.warning(message.to_html())
+                _LOGGING.warning(message.to_html(style="collapse"))
                 result.append(message)
             message.title = f"Dependencies installed from {file}"
-            _LOGGING.debug(message.to_html())
+            _LOGGING.debug(message.to_html(style="collapse"))
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8"
@@ -67,7 +67,7 @@ def snyk(
     if proc.returncode != 0:
         message = utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
-        _LOGGING.warning(message.to_html())
+        _LOGGING.warning(message.to_html(style="collapse"))
         result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -90,11 +90,11 @@ def snyk(
             message = utils.ansi_proc_message(proc)
             if proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
-                _LOGGING.warning(message.to_html())
+                _LOGGING.warning(message.to_html(style="collapse"))
                 result.append(message)
             else:
                 message.title = f"Dependencies installed from {file}"
-                _LOGGING.debug(message.to_html())
+                _LOGGING.debug(message.to_html(style="collapse"))
 
     env = {**os.environ}
     env["FORCE_COLOR"] = "true"
@@ -109,11 +109,11 @@ def snyk(
     message = utils.ansi_proc_message(proc)
     if proc.returncode != 0:
         message.title = "Error while monitoring the project"
-        _LOGGING.warning(message.to_html())
+        _LOGGING.warning(message.to_html(style="collapse"))
         result.append(message)
     else:
         message.title = "Project monitored"
-        _LOGGING.debug(message.to_html())
+        _LOGGING.debug(message.to_html(style="collapse"))
 
     command = ["snyk", "test", "--json"] + config.get(
         "test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT
@@ -138,7 +138,7 @@ def snyk(
         )
         dashboard_message = utils.ansi_proc_message(proc)
         dashboard_message.title = "Error while testing the project"
-        _LOGGING.warning(dashboard_message.to_html())
+        _LOGGING.warning(dashboard_message.to_html(style="collapse"))
     else:
         for raw in test_json:
             result.append(
@@ -176,9 +176,11 @@ def snyk(
         # Hide error if there is no error in test
         if result:
             result.append(utils.ansi_proc_message(snyk_fix_proc))
-        _LOGGING.error("Snyk fix error:\n%s", snyk_fix_message.to_html())
+        snyk_fix_message.title = "Error while fixing the project"
+        _LOGGING.error(snyk_fix_message.to_html(style="collapse"))
     else:
-        _LOGGING.info("Snyk fix:\n%s", snyk_fix_message.to_html())
+        snyk_fix_message.title = "Snyk fix applied"
+        _LOGGING.info(snyk_fix_message.to_html(style="collapse"))
 
     return result, snyk_fix_message
 

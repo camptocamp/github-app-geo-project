@@ -92,6 +92,15 @@ class TestModule(module.Module[_ConfigType]):
                 )
                 message = utils.ansi_proc_message(proc)
                 _LOGGER.info(message.to_html())
+                proc = subprocess.run(
+                    ["echo", "-e", r"plain \e[0;31mRED MESSAGE\e[0m reset"],
+                    capture_output=True,
+                    encoding="utf-8",
+                    check=True,
+                )
+                message = utils.ansi_proc_message(proc)
+                message.title = "Command with title"
+                _LOGGER.info(message.to_html(style="collapse"))
 
             if type_ == "log-json":
                 lexer = pygments.lexers.JsonLexer()

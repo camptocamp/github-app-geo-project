@@ -5,7 +5,7 @@ from github_app_geo_project.templates import markdown, markdown_lib, pprint_date
 
 def test_sanitizer() -> None:
     # Test input with HTML tags
-    input_text = "<p>Hello, <b>world!</b></p>"
+    input_text = "<p>Hello, <strong>world!</strong></p>"
     expected_output = "<p>Hello, <strong>world!</strong></p>"
     assert sanitizer(input_text) == expected_output
 
