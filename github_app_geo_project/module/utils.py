@@ -399,8 +399,16 @@ def create_pull_request(
     pulls = repo.get_pulls(state="open", head=new_branch)
     if pulls.totalCount > 0:
         pull_request = pulls[0]
+        _LOGGER.debug(
+            "Found pull request #%s (%s - %s)",
+            pull_request.number,
+            pull_request.created_at,
+            pull_request.head.ref,
+        )
         # Create an issue it the pull request is open for 5 days
-        if pull_request.created_at < datetime.datetime.now() - datetime.timedelta(days=5):
+        if pull_request.created_at.timestamp() < datetime.datetime.now(
+            tz=datetime.timezone.utc
+        ) - datetime.timedelta(days=5):
             issue = repo.create_issue(
                 title=f"Pull request {message} is open for 5 days",
                 body=f"See: #{pull_request.number}",
