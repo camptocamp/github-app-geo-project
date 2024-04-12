@@ -189,11 +189,11 @@ def _process_snyk_dpkg(
             message = module_utils.ansi_proc_message(proc)
             if proc.returncode != 0:
                 message.title = "Error while cloning the project"
-                _LOGGER.error(message.to_html())
+                _LOGGER.error(message.to_html(style="collapse"))
                 issue_data[key].append(message.to_markdown().split("\n")[0])
                 return
             message.title = "Cloning the project"
-            _LOGGER.debug(message.to_html())
+            _LOGGER.debug(message.to_html(style="collapse"))
             os.chdir(os.path.join(tmpdirname, context.github_project.repository))
 
             local_config: configuration.AuditConfiguration = {}
@@ -217,11 +217,11 @@ def _process_snyk_dpkg(
                     message = module_utils.ansi_proc_message(proc)
                     if proc.returncode != 0:
                         message.title = "Error while setting the Python version"
-                        _LOGGER.error(message.to_html())
+                        _LOGGER.error(message.to_html(style="collapse"))
                         issue_data[key].append(message.to_markdown().split("\n")[0])
                     else:
                         message.title = "Setting the Python version"
-                        _LOGGER.debug(message.to_html())
+                        _LOGGER.debug(message.to_html(style="collapse"))
 
                 result, body = audit_utils.snyk(
                     branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
@@ -254,7 +254,7 @@ def _process_snyk_dpkg(
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_message(proc)
                     message.title = "Error while creating the new branch"
-                    _LOGGER.error(message.to_html())
+                    _LOGGER.error(message.to_html(style="collapse"))
                     issue_data[key].append(message.to_markdown().split("\n")[0])
 
                     return
