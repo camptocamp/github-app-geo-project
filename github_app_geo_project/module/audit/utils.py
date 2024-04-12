@@ -125,9 +125,9 @@ def snyk(
     formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
 
     test_json = json.loads(test_proc.stdout)
-    _LOGGING.debug(
-        "Snyk test output:\n%s", pygments.highlight(json.dumps(test_json, indent=4), lexer, formatter)
-    )
+    message = utils.HtmlMessage(pygments.highlight(json.dumps(test_json, indent=4), lexer, formatter))
+    message.title = "Snyk test output"
+    _LOGGING.debug(message.to_html(style="collapse"))
 
     vulnerabilities = False
     if isinstance(test_json, dict) and test_json.get("ok", True) is False:
@@ -144,11 +144,13 @@ def snyk(
         for raw in test_json:
             if not raw.get("vulnerabilities", []):
                 continue
-            vulnerabilities = True
+
             result.append(
                 utils.HtmlMessage(f"{raw.get('targetFile', '-')} ({raw.get('packageManager', '-')})")
             )
             for vuln in raw["vulnerabilities"]:
+                if vuln.get("isUpgradable", False):
+                    vulnerabilities = True
                 result.append(
                     utils.HtmlMessage(
                         "\n".join(

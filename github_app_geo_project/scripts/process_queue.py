@@ -20,6 +20,7 @@ import sqlalchemy.orm
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
 from github_app_geo_project.module import modules
+from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
@@ -416,17 +417,13 @@ def main() -> None:
             lexer = pygments.lexers.JsonLexer()
             formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
 
-            _LOGGER.info(
-                "Start process job '%s' id: %s, on %s/%s on module: %s, on application %s,\nmodule data:\n%sevent data:\n%s",
-                job.event_name,
-                job_id,
-                job.owner or "-",
-                job.repository or "-",
-                job.module or "-",
-                job.application or "-",
-                pygments.highlight(json.dumps(job.module_data, indent=4), lexer, formatter),
-                pygments.highlight(json.dumps(job.event_data, indent=4), lexer, formatter),
+            module_data_formated = pygments.highlight(json.dumps(job.module_data, indent=4), lexer, formatter)
+            event_data_formated = pygments.highlight(json.dumps(job.event_data, indent=4), lexer, formatter)
+            message = module_utils.HtmlMessage(
+                f"<p>module data:</p>{module_data_formated}<p>event data:</p>{event_data_formated}"
             )
+            message.title = f"Start process job '{job.event_name}' id: {job_id}, on {job.owner}/{job.repository} on module: {job.module}, on application {job.application}"
+            _LOGGER.info(message.to_html(style="collapse"))
 
             root_logger.removeHandler(handler)
 
