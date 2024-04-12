@@ -149,7 +149,7 @@ def snyk(
                 utils.HtmlMessage(f"{raw.get('targetFile', '-')} ({raw.get('packageManager', '-')})")
             )
             for vuln in raw["vulnerabilities"]:
-                if vuln.get("isUpgradable", False):
+                if vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):
                     vulnerabilities = True
                 result.append(
                     utils.HtmlMessage(
@@ -172,6 +172,11 @@ def snyk(
                         f"[{vuln['severity'].upper()}] {vuln['packageName']}@{vuln['version']}: {vuln['title']}, fixed in {', '.join(vuln['fixedIn'])}",
                     )
                 )
+
+    if vulnerabilities:
+        message = utils.HtmlMessage(" ".join(m.to_html() for m in result))
+        message.title = "Vulnerabilities found"
+        _LOGGING.warning(message.to_html(style="collapse"))
 
     command = ["snyk", "fix"] + config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
