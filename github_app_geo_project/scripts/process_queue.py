@@ -392,6 +392,7 @@ def main() -> None:
                     )
                     .values(status=models.JobStatus.NEW)
                 )
+                session.commit()
 
                 time.sleep(1)
                 continue
