@@ -1,6 +1,5 @@
 """Webhook view."""
 
-import json
 import logging
 from typing import Any, NamedTuple
 
@@ -9,7 +8,7 @@ import sqlalchemy.engine
 import sqlalchemy.orm
 from pyramid.view import view_config
 
-from github_app_geo_project import models, module
+from github_app_geo_project import configuration, models, module
 from github_app_geo_project.module import modules
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,7 +22,17 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     application = request.matchdict["application"]
     data = request.json
 
-    _LOGGER.debug("Webhook received for %s, with:\n%s", application, json.dumps(data, indent=2))
+    _LOGGER.debug(
+        "Webhook received for %s on%s", request.headers.get("X-GitHub-Event", "undefined"), application
+    )
+
+    try:
+        application_object = configuration.get_github_application(request.registry.settings, application)
+        if data.get("sender", {}).get("login") == application_object.integration.get_app().slug + "[bot]":
+            _LOGGER.info("Ignoring event from the application itself")
+            return {}
+    except Exception:  # pylint: disable=broad-except
+        _LOGGER.exception("Application not found: %s", application)
 
     if "account" in data.get("installation", {}):
         if "repositories" in data:
