@@ -129,6 +129,7 @@ def snyk(
         "Snyk test output:\n%s", pygments.highlight(json.dumps(test_json, indent=4), lexer, formatter)
     )
 
+    vulnerabilities = False
     if isinstance(test_json, dict) and test_json.get("ok", True) is False:
         _LOGGING.warning(test_json.get("error"))
 
@@ -141,6 +142,9 @@ def snyk(
         _LOGGING.warning(dashboard_message.to_html(style="collapse"))
     else:
         for raw in test_json:
+            if not raw.get("vulnerabilities", []):
+                continue
+            vulnerabilities = True
             result.append(
                 utils.HtmlMessage(f"{raw.get('targetFile', '-')} ({raw.get('packageManager', '-')})")
             )
@@ -172,15 +176,16 @@ def snyk(
         command, env=env, capture_output=True, encoding="utf-8"
     )
     snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
+    message = utils.ansi_proc_message(snyk_fix_proc)
     if snyk_fix_proc.returncode != 0:
-        # Hide error if there is no error in test
-        if result:
-            result.append(utils.ansi_proc_message(snyk_fix_proc))
-        snyk_fix_message.title = "Error while fixing the project"
-        _LOGGING.error(snyk_fix_message.to_html(style="collapse"))
+        message.title = "Error while fixing the project"
+        _LOGGING.warning(message.to_html(style="collapse"))
     else:
-        snyk_fix_message.title = "Snyk fix applied"
-        _LOGGING.info(snyk_fix_message.to_html(style="collapse"))
+        message.title = "Snyk fix applied"
+        _LOGGING.debug(message.to_html(style="collapse"))
+
+    if snyk_fix_proc.returncode != 0 and vulnerabilities:
+        result.append(utils.ansi_proc_message(snyk_fix_proc))
 
     return result, snyk_fix_message
 
