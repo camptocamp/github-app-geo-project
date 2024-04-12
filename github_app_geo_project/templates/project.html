@@ -163,18 +163,18 @@
           >
             %if job[7]:
             <!---->
-            duration:&nbsp;${job[7] - job[5]|pprint_duration}</a
+            ${job[7] - job[5]|pprint_duration}</a
           >${',' if job[8] else ''}
           <!---->
           %else:
           <!---->
           %if job[5]:
           <!---->
-          started:&nbsp;${job[5]|pprint_date}
+          started&nbsp;${job[5]|pprint_date}
           <!---->
           %else:
           <!---->
-          created:&nbsp;${job[4]|pprint_date}
+          created&nbsp;${job[4]|pprint_date}
           <!---->
           %endif
           <!-- for Prettier -->
