@@ -16,7 +16,6 @@ import yaml
 
 from github_app_geo_project import module
 from github_app_geo_project.module import ProcessOutput
-from github_app_geo_project.module import utils
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
 from github_app_geo_project.module.audit import utils as audit_utils
@@ -174,7 +173,7 @@ def _process_snyk_dpkg(
         # Checkout the right branch on a temporary directory
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.chdir(tmpdirname)
-            success = utils.git_clone(context.github_project, branch)
+            success = module_utils.git_clone(context.github_project, branch)
 
             local_config: configuration.AuditConfiguration = {}
             if context.module_data["type"] in ("snyk", "dpkg"):
