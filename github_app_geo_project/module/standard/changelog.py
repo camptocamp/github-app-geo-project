@@ -153,15 +153,22 @@ def match_author(item: ChangelogItem, condition: changelog_configuration.Conditi
     return condition["value"] == item.author.name
 
 
-def get_section(item: ChangelogItem, config: changelog_configuration.Changelog) -> str:
+class MatchedItem(NamedTuple):
+    """Matched item."""
+
+    item: ChangelogItem
+    condition: str
+
+
+def get_section(item: ChangelogItem, config: changelog_configuration.Changelog) -> tuple[str, MatchedItem]:
     """Get the section of the changelog item."""
     group = config["default-section"]
-    for group_condition in config["routing"]:
+    for index, group_condition in enumerate(config["routing"]):
         if match(item, group_condition["condition"]):
             group = group_condition["section"]
             if not group_condition.get("continue", False):
-                return group
-    return group
+                return group, MatchedItem(item, group_condition.get("name", str(index)))
+    return group, MatchedItem(item, "default")
 
 
 class Tag:
@@ -309,7 +316,7 @@ def generate_changelog(
                     title=pull_request.title,
                     author=Author(pull_request.user.login, pull_request.user.html_url),
                     authors=authors,
-                    branch=pull_request.base.ref,
+                    branch=pull_request.head.ref,
                     files={github_file.filename for github_file in pull_request.get_files()},
                     labels={label.name for label in pull_request.get_labels()},
                 )
@@ -328,19 +335,20 @@ def generate_changelog(
                 )
             )
 
-    sections: dict[str, list[ChangelogItem]] = {}
+    sections: dict[str, list[MatchedItem]] = {}
     for item in changelog_items:
-        section = get_section(item, configuration)
-        sections.setdefault(section, []).append(item)
+        section, matched_item = get_section(item, configuration)
+        sections.setdefault(section, []).append(matched_item)
 
     message = []
     for section, items in sections.items():
         message.append(f"<h5>{section}</h5>")
-        for item in items:
+        for matched_item in items:
+            item = matched_item.item
             authors_message = ", ".join([a.name for a in item.authors])
             labels_message = ", ".join(item.labels)
             message.append(
-                f"<p>- {item.ref} {item.title} {item.author} ({', '.join(authors_message)}) {item.branch} {len(item.files)} {labels_message}</p>"
+                f"<p>- [{matched_item.condition}] {item.ref} {item.title} {item.author} ({authors_message}) {item.branch} {len(item.files)} - {labels_message}</p>"
             )
     message_obj = utils.HtmlMessage("\n".join(message))
     message_obj.title = f"Changelog for {tag.major}.{tag.minor}.{tag.patch}"
@@ -358,7 +366,8 @@ def generate_changelog(
         result.append("")
         result.append(section_config.get("description", ""))
         result.append("")
-        for item in sections[section_config["name"]]:
+        for matched_item in sections[section_config["name"]]:
+            item = matched_item.item
             item_authors = [item.author]
             item_authors.extend(a for a in item.authors if a != item.author)
             authors_str = [a.markdown() for a in item_authors]

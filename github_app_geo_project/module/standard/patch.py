@@ -73,61 +73,13 @@ class Patch(module.Module[dict[str, Any]]):
             _LOGGER.debug("No artifacts found")
             return None
 
-        token = context.github_project.token
         should_push = False
-
-        # Store the ssh key
-        directory = os.path.expanduser("~/.ssh/")
-        if not os.path.exists(directory):
-            os.makedirs(directory)
-        with open(os.path.join(directory, "id_rsa"), "w", encoding="utf-8") as file:
-            file.write(context.github_project.application.auth.private_key)
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.chdir(tmpdirname)
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                [
-                    "git",
-                    "clone",
-                    "--depth=1",
-                    f"--branch={workflow_run.head_branch}",
-                    f"https://x-access-token:{token}@github.com/{context.github_project.owner}/{context.github_project.repository}.git",
-                ],
-                capture_output=True,
-                encoding="utf-8",
-            )
-            if proc.returncode != 0:
-                raise PatchException(f"Failed to clone the repository{format_process_output(proc)}")
-            os.chdir(context.github_project.repository.split("/")[-1])
-            app = context.github_project.application.integration.get_app()
-            user = context.github_project.github.get_user(app.slug + "[bot]")
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                [
-                    "git",
-                    "config",
-                    "user.email",
-                    f"{user.id}+{user.login}@users.noreply.github.com",
-                ],
-                capture_output=True,
-                encoding="utf-8",
-            )
-            if proc.returncode != 0:
-                raise PatchException(f"Failed to set the email{format_process_output(proc)}")
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                ["git", "config", "user.name", user.login],
-                capture_output=True,
-                encoding="utf-8",
-            )
-            if proc.returncode != 0:
-                raise PatchException(f"Failed to set the name{format_process_output(proc)}")
-
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                ["git", "config", "gpg.format", "ssh"],
-                capture_output=True,
-                encoding="utf-8",
-            )
-            if proc.returncode != 0:
-                raise PatchException(f"Failed to set the gpg format{format_process_output(proc)}")
+            success = utils.git_clone(context.github_project, workflow_run.head_branch)
+            if not success:
+                raise PatchException("Failed to clone the repository, see logs for details")
 
             for artifact in workflow_run.get_artifacts():
                 if not artifact.name.endswith(".patch"):
@@ -168,18 +120,20 @@ class Patch(module.Module[dict[str, Any]]):
                     with diff.open(diff.namelist()[0]) as file:
                         patch_input = file.read().decode("utf-8")
                         _LOGGER.debug("Apply patch input\n%s", patch_input)
-                        subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                             ["patch", "--strip=1"],
                             input=patch_input,
                             encoding="utf-8",
                             capture_output=True,
                         )
+                        message = utils.ansi_proc_message(proc)
                         if proc.returncode != 0:
-                            raise PatchException(f"Failed to apply the diff{format_process_output(proc)}")
-                        if proc.stdout:
-                            _LOGGER.debug("Apply patch out\n%s", proc.stdout)
-                        if proc.stderr:
-                            _LOGGER.error("Apply patch error\n%s", proc.stdout)
+                            message.title = f"Failed to apply the diff {artifact.name}"
+                            _LOGGER.error(message.to_html(style="collapse"))
+                            raise PatchException("Failed to apply the diff")
+                        message.title = f"Applied the diff {artifact.name}"
+                        _LOGGER.info(message.to_html(style="collapse"))
+
                         if utils.has_changes():
                             success = utils.create_commit(
                                 f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"

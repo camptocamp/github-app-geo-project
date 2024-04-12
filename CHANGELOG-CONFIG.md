@@ -19,6 +19,7 @@
   - **`routing`** _(array)_: The routing configuration.
     - **Items** _(object)_: The routing configuration.
       - **`section`** _(string)_: The section section affected to changelog items that match with the conditions.
+      - **`name`** _(string)_: The name of the routing condition.
       - **`condition`** _(object)_: The condition to match with the changelog items. Cannot contain additional properties.
         - **One of**
           - - **`type`** _(string)_: The type of the condition. Must be: `"const"`.

@@ -94,6 +94,9 @@ class ChangelogRoutingConfiguration(TypedDict, total=False):
     section: str
     """ The section section affected to changelog items that match with the conditions """
 
+    name: str
+    """ The name of the routing condition """
+
     condition: Union[
         "ConditionConst",
         "ConditionAndSolidusOr",

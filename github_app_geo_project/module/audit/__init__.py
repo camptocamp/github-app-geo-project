@@ -16,6 +16,7 @@ import yaml
 
 from github_app_geo_project import module
 from github_app_geo_project.module import ProcessOutput
+from github_app_geo_project.module import utils
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
 from github_app_geo_project.module.audit import utils as audit_utils
@@ -170,31 +171,10 @@ def _process_snyk_dpkg(
                         branch = github_branch.name
                         break
 
-        token = context.github_project.token
         # Checkout the right branch on a temporary directory
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.chdir(tmpdirname)
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                [
-                    "git",
-                    "clone",
-                    "--depth=1",
-                    f"--branch={branch}",
-                    f"https://x-access-token:{token}@github.com/"
-                    f"{context.github_project.owner}/{context.github_project.repository}.git",
-                ],
-                capture_output=True,
-                encoding="utf-8",
-            )
-            message = module_utils.ansi_proc_message(proc)
-            if proc.returncode != 0:
-                message.title = "Error while cloning the project"
-                _LOGGER.error(message.to_html())
-                issue_data[key].append(message.to_markdown().split("\n")[0])
-                return
-            message.title = "Cloning the project"
-            _LOGGER.debug(message.to_html())
-            os.chdir(os.path.join(tmpdirname, context.github_project.repository))
+            success = utils.git_clone(context.github_project, branch)
 
             local_config: configuration.AuditConfiguration = {}
             if context.module_data["type"] in ("snyk", "dpkg"):
@@ -217,11 +197,11 @@ def _process_snyk_dpkg(
                     message = module_utils.ansi_proc_message(proc)
                     if proc.returncode != 0:
                         message.title = "Error while setting the Python version"
-                        _LOGGER.error(message.to_html())
+                        _LOGGER.error(message.to_html(style="collapse"))
                         issue_data[key].append(message.to_markdown().split("\n")[0])
                     else:
                         message.title = "Setting the Python version"
-                        _LOGGER.debug(message.to_html())
+                        _LOGGER.debug(message.to_html(style="collapse"))
 
                 result, body = audit_utils.snyk(
                     branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
@@ -254,7 +234,7 @@ def _process_snyk_dpkg(
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_message(proc)
                     message.title = "Error while creating the new branch"
-                    _LOGGER.error(message.to_html())
+                    _LOGGER.error(message.to_html(style="collapse"))
                     issue_data[key].append(message.to_markdown().split("\n")[0])
 
                     return
@@ -262,14 +242,11 @@ def _process_snyk_dpkg(
                 repo = context.github_project.github.get_repo(
                     f"{context.github_project.owner}/{context.github_project.repository}"
                 )
-                error, pull_request = module_utils.create_commit_pull_request(
+                success, pull_request = module_utils.create_commit_pull_request(
                     branch, new_branch, f"Audit {key}", body.to_markdown(), repo
                 )
-                if error is not None:
-                    _LOGGER.error(error)
-                    issue_data[key].append(
-                        f"<details><summary>Error while create commit or pull request</summary>{error}</details>"
-                    )
+                if not success:
+                    issue_data[key].append("Error while create commit or pull request")
                     return
 
                 if pull_request is not None:

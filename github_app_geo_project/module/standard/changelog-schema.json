@@ -92,6 +92,10 @@
                 "type": "string",
                 "description": "The section section affected to changelog items that match with the conditions"
               },
+              "name": {
+                "type": "string",
+                "description": "The name of the routing condition"
+              },
               "condition": {
                 "type": "object",
                 "title": "Condition",
