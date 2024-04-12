@@ -3,11 +3,11 @@ Process the jobs present in the database queue.
 """
 
 import argparse
+import datetime
 import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta
 from typing import Any, cast
 
 import c2cwsgiutils.loader
@@ -387,7 +387,8 @@ def main() -> None:
                     .where(
                         models.Queue.status == models.JobStatus.PENDING,
                         models.Queue.started_at
-                        < datetime.now() - timedelta(seconds=int(os.environ.get("JOB_TIMEOUT", 3600))),
+                        < datetime.datetime.now(tz=datetime.timezone.utc)
+                        - datetime.timedelta(seconds=int(os.environ.get("JOB_TIMEOUT", 3600))),
                     )
                     .values(status=models.JobStatus.NEW)
                 )
@@ -396,7 +397,7 @@ def main() -> None:
                 continue
 
             job.status = models.JobStatus.PENDING
-            job.started_at = datetime.now()
+            job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
             if args.make_pending:
                 _LOGGER.info("Make job %s pending", args.make_pending)
@@ -480,7 +481,7 @@ def main() -> None:
                     .where(models.Queue.id == job_id)
                     .values(
                         status=models.JobStatus.DONE if success else models.JobStatus.ERROR,
-                        finished_at=datetime.now(),
+                        finished_at=datetime.datetime.now(tz=datetime.timezone.utc),
                     )
                 )
                 session.commit()
@@ -494,7 +495,7 @@ def main() -> None:
                         .where(models.Queue.id == job_id)
                         .values(
                             status=models.JobStatus.ERROR,
-                            finished_at=datetime.now(),
+                            finished_at=datetime.datetime.now(tz=datetime.timezone.utc),
                             log="\n".join([handler.format(msg) for msg in handler.results]),
                         )
                     )
