@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+import os
 import re
 import shlex
 import subprocess  # nosec
@@ -11,7 +12,7 @@ import github
 import html_sanitizer
 from ansi2html import Ansi2HTMLConverter
 
-from github_app_geo_project import models, module
+from github_app_geo_project import configuration, models, module
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -425,3 +426,81 @@ def create_commit_pull_request(
     if not create_commit(message):
         return False, None
     return create_pull_request(branch, new_branch, message, body, repo)
+
+
+def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
+    """Clone the Git repository."""
+    # Store the ssh key
+    directory = os.path.expanduser("~/.ssh/")
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+    with open(os.path.join(directory, "id_rsa"), "w", encoding="utf-8") as file:
+        file.write(github_project.application.auth.private_key)
+
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        [
+            "git",
+            "clone",
+            "--depth=1",
+            f"--branch={branch}",
+            f"https://x-access-token:{github_project.token}@github.com/{github_project.owner}/{github_project.repository}.git",
+        ],
+        capture_output=True,
+        encoding="utf-8",
+    )
+    message = ansi_proc_message(proc)
+    if proc.returncode != 0:
+        message.title = "Error cloning the repository"
+        _LOGGER.error(message.to_html(style="collapse"))
+        return False
+    message.title = "Clone repository"
+    _LOGGER.debug(message.to_html(style="collapse"))
+
+    os.chdir(github_project.repository.split("/")[-1])
+    app = github_project.application.integration.get_app()
+    user = github_project.github.get_user(app.slug + "[bot]")
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        [
+            "git",
+            "config",
+            "user.email",
+            f"{user.id}+{user.login}@users.noreply.github.com",
+        ],
+        capture_output=True,
+        encoding="utf-8",
+    )
+    message = ansi_proc_message(proc)
+    if proc.returncode != 0:
+        message.title = "Error setting the email"
+        _LOGGER.error(message.to_html(style="collapse"))
+        return False
+    message.title = "Set email"
+    _LOGGER.debug(message.to_html(style="collapse"))
+
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["git", "config", "user.name", user.login],
+        capture_output=True,
+        encoding="utf-8",
+    )
+    message = ansi_proc_message(proc)
+    if proc.returncode != 0:
+        message.title = "Error setting the name"
+        _LOGGER.error(message.to_html(style="collapse"))
+        return False
+    message.title = "Set name"
+    _LOGGER.debug(message.to_html(style="collapse"))
+
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["git", "config", "gpg.format", "ssh"],
+        capture_output=True,
+        encoding="utf-8",
+    )
+    message = ansi_proc_message(proc)
+    if proc.returncode != 0:
+        message.title = "Error setting the gpg format"
+        _LOGGER.error(message.to_html(style="collapse"))
+        return False
+    message.title = "Set gpg format"
+    _LOGGER.debug(message.to_html(style="collapse"))
+
+    return True
