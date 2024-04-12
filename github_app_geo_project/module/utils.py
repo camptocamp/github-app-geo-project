@@ -406,9 +406,9 @@ def create_pull_request(
             pull_request.head.ref,
         )
         # Create an issue it the pull request is open for 5 days
-        if pull_request.created_at.timestamp() < datetime.datetime.now(
-            tz=datetime.timezone.utc
-        ) - datetime.timedelta(days=5):
+        if pull_request.created_at < datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(
+            days=5
+        ):
             issue = repo.create_issue(
                 title=f"Pull request {message} is open for 5 days",
                 body=f"See: #{pull_request.number}",
