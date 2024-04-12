@@ -343,16 +343,29 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             issue_data_splitted.append("")
         issue_check = module_utils.DashboardIssue(issue_data_splitted[0])
         issue_data = _parse_issue_data(issue_data_splitted[1])
+        repo = context.github_project.github.get_repo(
+            f"{context.github_project.owner}/{context.github_project.repository}"
+        )
 
-        issue_check.add_check("outdated", "Check outdated version", False)
+        security = None
+        try:
+            security = repo.get_contents("SECURITY.md")
+        except github.GithubException as exception:
+            if exception.status == 404:
+                _LOGGER.debug("No security file in the repository")
+            else:
+                raise
+        if security is not None:
+            issue_check.add_check("outdated", "Check outdated version", False)
+        else:
+            issue_check.remove_check("outdated")
+            del issue_data[_OUTDATED]
+
         if context.module_config.get("snyk", {}).get("enabled", configuration.ENABLE_SNYK_DEFAULT):
             issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
         else:
             issue_check.remove_check("snyk")
 
-        repo = context.github_project.github.get_repo(
-            f"{context.github_project.owner}/{context.github_project.repository}"
-        )
         dpkg_version = None
         try:
             dpkg_version = repo.get_contents("ci/dpkg-versions.yaml")
