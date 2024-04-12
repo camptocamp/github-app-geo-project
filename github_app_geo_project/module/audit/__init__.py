@@ -347,6 +347,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             f"{context.github_project.owner}/{context.github_project.repository}"
         )
 
+        key_starts = []
         security = None
         try:
             security = repo.get_contents("SECURITY.md")
@@ -356,13 +357,14 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             else:
                 raise
         if security is not None:
+            key_starts.append(_OUTDATED)
             issue_check.add_check("outdated", "Check outdated version", False)
         else:
             issue_check.remove_check("outdated")
-            del issue_data[_OUTDATED]
 
         if context.module_config.get("snyk", {}).get("enabled", configuration.ENABLE_SNYK_DEFAULT):
             issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
+            key_starts.append("Snyk check/fix ")
         else:
             issue_check.remove_check("snyk")
 
@@ -379,8 +381,13 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             and dpkg_version is not None
         ):
             issue_check.add_check("dpkg", "Update dpkg packages", False)
+            key_starts.append("Dpkg ")
         else:
             issue_check.remove_check("dpkg")
+
+        for key in list(issue_data.keys()):
+            if not any(key.startswith(start) for start in key_starts):
+                del issue_data[key]
 
         if context.module_data.get("type") == "outdated":
             _process_outdated(context, issue_data)
