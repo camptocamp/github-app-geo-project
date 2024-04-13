@@ -347,16 +347,17 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             f"{context.github_project.owner}/{context.github_project.repository}"
         )
 
+        # if no SECURITY.md apply on main branch
         key_starts = []
-        security = None
+        security_file = None
         try:
-            security = repo.get_contents("SECURITY.md")
+            security_file = repo.get_contents("SECURITY.md")
         except github.GithubException as exception:
             if exception.status == 404:
                 _LOGGER.debug("No security file in the repository")
             else:
                 raise
-        if security is not None:
+        if security_file is not None:
             key_starts.append(_OUTDATED)
             issue_check.add_check("outdated", "Check outdated version", False)
         else:
@@ -394,21 +395,17 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         else:
             if "version" not in context.module_data:
                 # Creates new jobs with the versions from the SECURITY.md
-                repo = context.github_project.github.get_repo(
-                    f"{context.github_project.owner}/{context.github_project.repository}"
-                )
                 versions = []
-                try:
-                    security_file = repo.get_contents("SECURITY.md")
+                if security_file is not None:
                     assert isinstance(security_file, github.ContentFile.ContentFile)
-                    security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
+                    security_file = c2cciutils.security.Security(
+                        security_file.decoded_content.decode("utf-8")
+                    )
 
-                    versions = _get_versions(security)
-                except github.GithubException as exception:
-                    if exception.status == 404:
-                        _LOGGER.debug("No SECURITY.md file in the repository")
-                    else:
-                        raise
+                    versions = _get_versions(security_file)
+                else:
+                    _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
+                    versions = [repo.default_branch]
                 _LOGGER.debug("Versions: %s", ", ".join(versions))
 
                 priority = (
