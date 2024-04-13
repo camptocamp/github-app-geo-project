@@ -129,26 +129,24 @@ def snyk(
     message.title = "Snyk test output"
     _LOGGING.debug(message.to_html(style="collapse"))
 
-    vulnerabilities = False
-    if isinstance(test_json, dict) and test_json.get("ok", True) is False:
-        _LOGGING.warning(test_json.get("error"))
+    if not isinstance(test_json, list):
+        test_json = [test_json]
 
-        command = ["snyk", "test"] + config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
-        test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-            command, env=env, capture_output=True, encoding="utf-8"
-        )
-        dashboard_message = utils.ansi_proc_message(proc)
-        dashboard_message.title = "Error while testing the project"
-        _LOGGING.warning(dashboard_message.to_html(style="collapse"))
-    else:
-        for raw in test_json:
-            if not raw.get("vulnerabilities", []):
+    vulnerabilities = False
+    error = False
+    for row in test_json:
+        if test_json.get("ok", True) is False:
+            _LOGGING.warning("Error on file %s: %s", row.get("targetFile", "-"), test_json.get("error"))
+            error = True
+            continue
+        for row in test_json:
+            if not row.get("vulnerabilities", []):
                 continue
 
             result.append(
-                utils.HtmlMessage(f"{raw.get('targetFile', '-')} ({raw.get('packageManager', '-')})")
+                utils.HtmlMessage(f"{row.get('targetFile', '-')} ({row.get('packageManager', '-')})")
             )
-            for vuln in raw["vulnerabilities"]:
+            for vuln in row["vulnerabilities"]:
                 if vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):
                     vulnerabilities = True
                 result.append(
@@ -172,6 +170,15 @@ def snyk(
                         f"[{vuln['severity'].upper()}] {vuln['packageName']}@{vuln['version']}: {vuln['title']}, fixed in {', '.join(vuln['fixedIn'])}",
                     )
                 )
+
+    if error:
+        command = ["snyk", "test"] + config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
+        test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+            command, env=env, capture_output=True, encoding="utf-8"
+        )
+        dashboard_message = utils.ansi_proc_message(proc)
+        dashboard_message.title = "Error while testing the project"
+        _LOGGING.error(dashboard_message.to_html(style="collapse"))
 
     if vulnerabilities:
         message = utils.HtmlMessage(" ".join(m.to_html() for m in result))
