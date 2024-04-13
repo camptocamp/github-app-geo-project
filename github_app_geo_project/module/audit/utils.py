@@ -135,11 +135,12 @@ def snyk(
     vulnerabilities = False
     error = False
     for row in test_json:
-        if test_json.get("ok", True) is False:
-            _LOGGING.warning("Error on file %s: %s", row.get("targetFile", "-"), test_json.get("error"))
+        if row.get("ok", True) is False:
+            _LOGGING.warning("Error on file %s: %s", row.get("targetFile", "-"), row.get("error"))
             error = True
             continue
-        for row in test_json:
+
+        else:
             if not row.get("vulnerabilities", []):
                 continue
 
