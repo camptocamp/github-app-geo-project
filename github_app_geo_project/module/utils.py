@@ -396,7 +396,7 @@ def create_pull_request(
         _LOGGER.error(proc_message.to_html(style="collapse"))
         return False, None
 
-    pulls = repo.get_pulls(state="open", head=new_branch)
+    pulls = repo.get_pulls(state="open", head=f"{repo.full_name.split('/')[0]}:{new_branch}")
     if pulls.totalCount > 0:
         pull_request = pulls[0]
         _LOGGER.debug(
