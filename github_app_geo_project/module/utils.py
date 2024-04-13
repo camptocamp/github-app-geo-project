@@ -265,7 +265,7 @@ class HtmlMessage(Message):
                 ]
             )
         elif self.title:
-            markdown = f"### {self.title}\n{markdown}"
+            markdown = f"#### {self.title}\n{markdown}"
         return markdown
 
     def to_plain_text(self) -> str:
