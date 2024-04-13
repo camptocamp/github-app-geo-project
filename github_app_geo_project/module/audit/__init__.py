@@ -236,20 +236,23 @@ def _process_snyk_dpkg(
                     _LOGGER.error(message.to_html(style="collapse"))
                     issue_data[key].append(message.to_markdown().split("\n")[0])
 
-                    return
+                else:
+                    repo = context.github_project.github.get_repo(
+                        f"{context.github_project.owner}/{context.github_project.repository}"
+                    )
+                    success, pull_request = module_utils.create_commit_pull_request(
+                        branch, new_branch, f"Audit {key}", body.to_markdown(), repo
+                    )
+                    if not success:
+                        issue_data[key].append("Error while create commit or pull request")
 
-                repo = context.github_project.github.get_repo(
-                    f"{context.github_project.owner}/{context.github_project.repository}"
-                )
-                success, pull_request = module_utils.create_commit_pull_request(
-                    branch, new_branch, f"Audit {key}", body.to_markdown(), repo
-                )
-                if not success:
-                    issue_data[key].append("Error while create commit or pull request")
-                    return
-
-                if pull_request is not None:
-                    issue_data[key] = [f"Pull request created: {pull_request.html_url}", "", *issue_data[key]]
+                    else:
+                        if pull_request is not None:
+                            issue_data[key] = [
+                                f"Pull request created: {pull_request.html_url}",
+                                "",
+                                *issue_data[key],
+                            ]
 
     except Exception as exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
