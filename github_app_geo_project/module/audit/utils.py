@@ -98,6 +98,7 @@ def snyk(
 
     env = {**os.environ}
     env["FORCE_COLOR"] = "true"
+    env_no_debug = {**env}
     env["DEBUG"] = "*snyk*"  # debug mode
 
     command = ["snyk", "monitor", f"--target-reference={branch}"] + config.get(
@@ -119,7 +120,7 @@ def snyk(
         "test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT
     )
     test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        command, env=env, capture_output=True, encoding="utf-8"
+        command, env=env_no_debug, capture_output=True, encoding="utf-8"
     )
     lexer = pygments.lexers.JsonLexer()
     formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
@@ -188,7 +189,7 @@ def snyk(
 
     command = ["snyk", "fix"] + config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        command, env=env, capture_output=True, encoding="utf-8"
+        command, env=env_no_debug, capture_output=True, encoding="utf-8"
     )
     snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
     message = utils.ansi_proc_message(snyk_fix_proc)
