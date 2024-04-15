@@ -90,6 +90,10 @@ def _get_process_output(
 ) -> module.ProcessOutput:
     issue_check.set_check(context.module_data["type"], False)
 
+    for key in list(issue_data.keys()):
+        if not issue_data[key]:
+            del issue_data[key]
+
     module_status = context.transversal_status
     if issue_data:
         module_status[f"{context.github_project.owner}/{context.github_project.repository}"] = {
@@ -118,8 +122,6 @@ def _process_outdated(
         security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
         issue_data[_OUTDATED] = audit_utils.outdated_versions(security)
-        if not issue_data[_OUTDATED]:
-            del issue_data[_OUTDATED]
         # Remove outdated version in the dashboard
         versions = _get_versions(security)
     except github.GithubException as exception:
