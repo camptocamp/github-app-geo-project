@@ -249,7 +249,7 @@ SNYK_MONITOR_ARGUMENTS_DEFAULT = ["--all-projects"]
 """ Default value of the field path 'Snyk configuration monitor-arguments' """
 
 
-SNYK_TEST_ARGUMENTS_DEFAULT = ["--all-projects", "--fail-on=upgradable", "--severity-threshold=medium"]
+SNYK_TEST_ARGUMENTS_DEFAULT = ["--all-projects", "--severity-threshold=medium"]
 """ Default value of the field path 'Snyk configuration test-arguments' """
 
 
@@ -297,7 +297,6 @@ SnykConfiguration = TypedDict(
         #
         # default:
         #   - --all-projects
-        #   - --fail-on=upgradable
         #   - --severity-threshold=medium
         "test-arguments": list[str],
         # Snyk fix arguments.
