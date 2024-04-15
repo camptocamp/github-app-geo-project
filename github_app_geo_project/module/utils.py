@@ -271,9 +271,25 @@ class HtmlMessage(Message):
 
     def to_plain_text(self) -> str:
         """Get the ANSI message."""
+        sanitizer = html_sanitizer.Sanitizer(
+            {
+                "tags": {
+                    "unexisting",
+                },
+                "attributes": {},
+                "empty": set(),
+                "separate": set(),
+                "keep_typographic_whitespace": True,
+            }
+        )
+        message = cast(
+            str,
+            sanitizer.sanitize(self.html.replace("\n", " ").replace("<p>", "\n<p>").replace("<br>", "\n")),
+        ).strip()
+
         if self.title:
-            return f"{self.title}\n{remove_tags(self.html)}"
-        return remove_tags(self.html)
+            return f"{self.title}\n{message}"
+        return message
 
 
 class AnsiMessage(HtmlMessage):
@@ -287,11 +303,83 @@ class AnsiMessage(HtmlMessage):
         self.title = title
 
 
-def ansi_message(ansi: str, ansi_converter: Ansi2HTMLConverter | None) -> str:
-    """Convert an ANSI message to HTML/style."""
-    ansi_converter = ansi_converter or Ansi2HTMLConverter(inline=True)
+class ProcessMessage(HtmlMessage):
+    """Represent a message from a subprocess."""
 
-    return ansi_converter.convert(ansi, full=False)
+    _ansi_converter = Ansi2HTMLConverter(inline=True)
+    _markdown_sanitizer = html_sanitizer.Sanitizer(
+        {
+            "tags": {"unexisting"},
+            "attributes": {},
+            "empty": set(),
+            "separate": set(),
+            "keep_typographic_whitespace": True,
+        }
+    )
+
+    def __init__(self, proc: subprocess.CompletedProcess[str]) -> None:
+        """Initialize the process message."""
+        self.args = []
+
+        for arg in proc.args:
+            if "x-access-token" in arg:
+                self.args.append(re.sub(r"x-access-token:[0-9a-zA-Z_]*", "x-access-token:***", arg))
+            else:
+                self.args.append(arg)
+
+        self.returncode = proc.returncode
+        self.stdout = self._ansi_converter.convert(proc.stdout, full=False)
+        self.stderr = self._ansi_converter.convert(proc.stderr, full=False)
+
+        message = [f"Command: {shlex.join(self.args)}", f"Return code: {proc.returncode}"]
+        if self.stdout:
+            message.append("Output:")
+            message.append(self.stdout)
+        if self.stderr:
+            message.append("Error:")
+            message.append(self.stderr)
+
+        super().__init__("".join([f"<p>{line}</p>" for line in message]))
+
+    def to_markdown(self, summary: bool = False) -> str:
+        """Convert the process message to markdown."""
+        return "\n".join(
+            [
+                "<details>",
+                f"<summary>{self.title}</summary>",
+                f"Command: {shlex.join(self.args)}",
+                f"Return code: {self.returncode}",
+                "Output:",
+                "```",
+                self._markdown_sanitizer.sanitize(self.stdout).strip(),
+                "```",
+                "",
+                "Error:",
+                "```",
+                self._markdown_sanitizer.sanitize(self.stderr).strip(),
+                "```",
+                "</details>",
+            ]
+            if summary and self.title
+            else [
+                *([f"#### {self.title}"] if self.title else []),
+                f"Command: {shlex.join(self.args)}",
+                f"Return code: {self.returncode}",
+                "Output:",
+                "```",
+                self._markdown_sanitizer.sanitize(self.stdout).strip(),
+                "```",
+                "",
+                "Error:",
+                "```",
+                self._markdown_sanitizer.sanitize(self.stderr).strip(),
+                "```",
+            ]
+        )
+
+    def to_plain_text(self) -> str:
+        """Get the process message."""
+        return self.to_markdown()
 
 
 def ansi_proc_message(proc: subprocess.CompletedProcess[str]) -> Message:
@@ -306,50 +394,7 @@ def ansi_proc_message(proc: subprocess.CompletedProcess[str]) -> Message:
     ------
     The dashboard message, the simple error message, the style
     """
-    args = []
-
-    for arg in proc.args:
-        if "x-access-token" in arg:
-            args.append(re.sub(r"x-access-token:[0-9a-zA-Z_]*", "x-access-token:***", arg))
-        else:
-            args.append(arg)
-
-    message = [f"Command: {shlex.join(args)}", f"Return code: {proc.returncode}"]
-    ansi_converter = Ansi2HTMLConverter(inline=True)
-    if proc.stdout:
-        message.append("Output:")
-        message.append(
-            "<blockquote>"
-            + ansi_message(proc.stdout.strip(), ansi_converter).replace("\n", "<br>")
-            + "</blockquote>"
-        )
-    if proc.stderr:
-        message.append("Error:")
-        message.append(
-            "<blockquote>"
-            + ansi_message(proc.stderr.strip(), ansi_converter).replace("\n", "<br>")
-            + "</blockquote>"
-        )
-
-    return HtmlMessage("".join([f"<p>{line}</p>" for line in message]))
-
-
-def remove_tags(text: str) -> str:
-    """Remove HTML tags."""
-    sanitizer = html_sanitizer.Sanitizer(
-        {
-            "tags": {
-                "unexisting",
-            },
-            "attributes": {},
-            "empty": set(),
-            "separate": set(),
-            "keep_typographic_whitespace": True,
-        }
-    )
-    return cast(
-        str, sanitizer.sanitize(text.replace("\n", " ").replace("<p>", "\n<p>").replace("<br>", "\n"))
-    ).strip()
+    return ProcessMessage(proc)
 
 
 def has_changes() -> bool:
