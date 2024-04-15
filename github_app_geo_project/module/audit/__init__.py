@@ -443,7 +443,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
-            return json.loads(schema_file.read()).get("definitions", {}).get("auto")  # type: ignore[no-any-return]
+            return json.loads(schema_file.read()).get("properties", {}).get("audit")  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the permissions and events required by the module."""
