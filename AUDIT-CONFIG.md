@@ -13,7 +13,7 @@
       - **Items** _(string)_
     - **`monitor-arguments`** _(array)_: Arguments to pass to snyk monitor. Default: `["--all-projects"]`.
       - **Items** _(string)_
-    - **`test-arguments`** _(array)_: Arguments to pass to snyk test. Default: `["--all-projects", "--fail-on=upgradable", "--severity-threshold=medium"]`.
+    - **`test-arguments`** _(array)_: Arguments to pass to snyk test. Default: `["--all-projects", "--severity-threshold=medium"]`.
       - **Items** _(string)_
     - **`fix-arguments`** _(array)_: Arguments to pass to snyk fix. Default: `["--all-projects"]`.
       - **Items** _(string)_

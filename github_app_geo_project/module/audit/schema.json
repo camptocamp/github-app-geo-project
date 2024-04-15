@@ -61,7 +61,7 @@
               "type": "array",
               "title": "Snyk test arguments",
               "description": "Arguments to pass to snyk test",
-              "default": ["--all-projects", "--fail-on=upgradable", "--severity-threshold=medium"],
+              "default": ["--all-projects", "--severity-threshold=medium"],
               "items": {
                 "type": "string"
               }
