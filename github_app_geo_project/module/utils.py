@@ -250,7 +250,8 @@ class HtmlMessage(Message):
             }
         )
         markdown = cast(
-            str, sanitizer.sanitize(self.html.replace("\n", " ").replace("<p>", "\n\n<p>"))
+            str,
+            sanitizer.sanitize(self.html.replace("\n", " ").replace("<p>", "\n\n<p>").replace("<br>", "\n")),
         ).strip()
         if summary:
             markdown = markdown.split("\n", 1)[0]

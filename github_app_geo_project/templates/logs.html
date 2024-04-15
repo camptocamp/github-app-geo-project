@@ -6,14 +6,14 @@
       rel="icon"
       type="image/png"
       sizes="32x32"
-      href="${request.static_url('/app/github_app_geo_project/static/favicon-32x32.png')}"
+      href="${request.static_url('/app/github_app_geo_project/static/favicon-${favicon_postfix}-32x32.png')}"
       referrerpolicy="no-referrer"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="16x16"
-      href="${request.static_url('/app/github_app_geo_project/static/favicon-16x16.png')}"
+      href="${request.static_url('/app/github_app_geo_project/static/favicon-${favicon_postfix}-16x16.png')}"
       referrerpolicy="no-referrer"
     />
     <link
@@ -102,8 +102,16 @@
       %endif
     </div>
     <h1 class="bd-title">${title}</h1>
+    <p>
+      [${job.status.value}] created ${job.created_at|pprint_date}, started ${job.started_at|pprint_date},
+      finished ${job.finished_at|pprint_date},
+      <a href="${request.route_url('project', owner=job.owner, repository=job.repository)}">project</a>.
+    </p>
 
+    %if logs:
+    <h2>Logs</h2>
     <div class="logs">${logs | sanitizer, n}</div>
+    %endif
 
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
@@ -123,5 +131,12 @@
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     ></script>
+    %if reload:
+    <script>
+      setTimeout(() => {
+        location.reload();
+      }, 30000);
+    </script>
+    %endif
   </body>
 </html>
