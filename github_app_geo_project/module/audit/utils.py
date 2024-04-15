@@ -146,8 +146,18 @@ def snyk(
                 continue
 
             result.append(
-                utils.HtmlMessage(f"{row.get('targetFile', '-')} ({row.get('packageManager', '-')})")
+                utils.HtmlMessage(
+                    f"<p>Package manager: {row.get('packageManager', '-')}</p>"
+                    f"<p>Target file: {row.get('targetFile', '-')}</p>"
+                    f"<p>Project path: {row.get('projectPath', '-')}</p>"
+                )
             )
+
+            # TODO: Example message:
+            # Pin idna@3.3 to idna@3.7 to fix
+            # ✗ Resource Exhaustion (new) [Medium Severity][https://security.snyk.io/vuln/SNYK-PYTHON-IDNA-6597975] in idna@3.3
+            #   introduced by requests@2.31.0 > idna@3.3 and 6 other path(s)
+
             for vuln in row["vulnerabilities"]:
                 if vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):
                     vulnerabilities = True
