@@ -1,3 +1,5 @@
+from unittest.mock import Mock
+
 from github_app_geo_project.module import utils
 
 
@@ -61,4 +63,36 @@ def test_dashboard_issue() -> None:
     assert (
         dashboard_issue.to_string()
         == "first\n- [ ] <!-- comment --> new title\n- [ ] title2\n- [x] <!-- new --> new title\n\nother"
+    )
+
+
+def test_ProcMessage():
+    proc = Mock()
+    proc.args = ["command", "arg1", "arg2", "x-access-token:123456"]
+    proc.returncode = 0
+    proc.stdout = "stdout\nmessage"
+    proc.stderr = "stderr\nmessage"
+    proc_message = utils.ProcessMessage(proc)
+
+    assert proc_message.args == ["command", "arg1", "arg2", "x-access-token:***"]
+    assert proc_message.returncode == 0
+    assert "stdout\nmessage" in proc_message.stdout
+    assert "stderr\nmessage" in proc_message.stderr
+
+    markdown = proc_message.to_markdown()
+    assert (
+        markdown
+        == """Command: command arg1 arg2 'x-access-token:***'
+Return code: 0
+Output:
+```
+stdout
+message
+```
+
+Error:
+```
+stderr
+message
+```"""
     )
