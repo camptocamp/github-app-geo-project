@@ -50,6 +50,7 @@ auto-review = "github_app_geo_project.module.standard.auto_review:AutoReview"
 auto-merge = "github_app_geo_project.module.standard.auto_merge:AutoMerge"
 auto-close = "github_app_geo_project.module.standard.auto_close:AutoClose"
 patch = "github_app_geo_project.module.standard.patch:Patch"
+versions = "github_app_geo_project.module.versions:Versions"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
