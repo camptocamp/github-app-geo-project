@@ -129,7 +129,7 @@ class Patch(module.Module[dict[str, Any]]):
                         message = utils.ansi_proc_message(proc)
                         if proc.returncode != 0:
                             message.title = f"Failed to apply the diff {artifact.name}"
-                            _LOGGER.error(message.to_html(style="collapse"))
+                            _LOGGER.warning(message.to_html(style="collapse"))
                             raise PatchException("Failed to apply the diff")
                         message.title = f"Applied the diff {artifact.name}"
                         _LOGGER.info(message.to_html(style="collapse"))

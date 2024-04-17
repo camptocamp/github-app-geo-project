@@ -413,7 +413,7 @@ def create_commit(message: str) -> bool:
     if proc.returncode != 0:
         proc_message = ansi_proc_message(proc)
         proc_message.title = "Error adding files to commit"
-        _LOGGER.error(proc_message.to_html(style="collapse"))
+        _LOGGER.warning(proc_message.to_html(style="collapse"))
         return False
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8"
@@ -421,7 +421,7 @@ def create_commit(message: str) -> bool:
     if proc.returncode != 0:
         proc_message = ansi_proc_message(proc)
         proc_message.title = "Error committing files"
-        _LOGGER.error(proc_message.to_html(style="collapse"))
+        _LOGGER.warning(proc_message.to_html(style="collapse"))
         return False
 
     return True
@@ -439,7 +439,7 @@ def create_pull_request(
     if proc.returncode != 0:
         proc_message = ansi_proc_message(proc)
         proc_message.title = "Error pushing branch"
-        _LOGGER.error(proc_message.to_html(style="collapse"))
+        _LOGGER.warning(proc_message.to_html(style="collapse"))
         return False, None
 
     pulls = repo.get_pulls(state="open", head=f"{repo.full_name.split('/')[0]}:{new_branch}")
@@ -505,7 +505,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     message = ansi_proc_message(proc)
     if proc.returncode != 0:
         message.title = "Error cloning the repository"
-        _LOGGER.error(message.to_html(style="collapse"))
+        _LOGGER.warning(message.to_html(style="collapse"))
         return False
     message.title = "Clone repository"
     _LOGGER.debug(message.to_html(style="collapse"))
@@ -526,7 +526,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     message = ansi_proc_message(proc)
     if proc.returncode != 0:
         message.title = "Error setting the email"
-        _LOGGER.error(message.to_html(style="collapse"))
+        _LOGGER.warning(message.to_html(style="collapse"))
         return False
     message.title = "Set email"
     _LOGGER.debug(message.to_html(style="collapse"))
@@ -539,7 +539,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     message = ansi_proc_message(proc)
     if proc.returncode != 0:
         message.title = "Error setting the name"
-        _LOGGER.error(message.to_html(style="collapse"))
+        _LOGGER.warning(message.to_html(style="collapse"))
         return False
     message.title = "Set name"
     _LOGGER.debug(message.to_html(style="collapse"))
@@ -552,7 +552,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     message = ansi_proc_message(proc)
     if proc.returncode != 0:
         message.title = "Error setting the gpg format"
-        _LOGGER.error(message.to_html(style="collapse"))
+        _LOGGER.warning(message.to_html(style="collapse"))
         return False
     message.title = "Set gpg format"
     _LOGGER.debug(message.to_html(style="collapse"))
