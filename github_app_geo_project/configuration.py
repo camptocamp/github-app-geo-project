@@ -89,7 +89,7 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
             config[f"application.{application_name}.github_app_id"],
             private_key,
         )
-        objects = GithubApplication(auth, github.GithubIntegration(auth=auth), application_name)
+        objects = GithubApplication(auth, github.GithubIntegration(auth=auth, retry=3), application_name)
 
         GITHUB_APPLICATIONS[application_name] = objects  # noqa
 
