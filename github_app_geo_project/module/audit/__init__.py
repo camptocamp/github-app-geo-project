@@ -413,6 +413,18 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                     versions = [repo.default_branch]
                 _LOGGER.debug("Versions: %s", ", ".join(versions))
 
+                all_key_starts = []
+                for key in key_starts:
+                    if key == _OUTDATED:
+                        all_key_starts.append(_OUTDATED)
+                    else:
+                        for version in versions:
+                            all_key_starts.append(f"{key}{version}")
+
+                for key in list(issue_data.keys()):
+                    if not any(key.startswith(start) for start in all_key_starts):
+                        del issue_data[key]
+
                 priority = (
                     module.PRIORITY_STANDARD if context.module_data["is_dashboard"] else module.PRIORITY_CRON
                 )
