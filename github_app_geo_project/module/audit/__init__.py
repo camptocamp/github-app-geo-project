@@ -60,10 +60,10 @@ def _get_versions(security: c2cciutils.security.Security) -> list[str]:
     )
 
     if version_index < 0:
-        _LOGGER.error("No Version column in the SECURITY.md")
+        _LOGGER.warning("No Version column in the SECURITY.md")
         return []
     if supported_until_index < 0:
-        _LOGGER.error("No Supported Until column in the SECURITY.md")
+        _LOGGER.warning("No Supported Until column in the SECURITY.md")
         return []
 
     alternate = []
@@ -198,7 +198,7 @@ def _process_snyk_dpkg(
                     message = module_utils.ansi_proc_message(proc)
                     if proc.returncode != 0:
                         message.title = "Error while setting the Python version"
-                        _LOGGER.error(message.to_html(style="collapse"))
+                        _LOGGER.warning(message.to_html(style="collapse"))
                         issue_data[key].append(message.to_markdown().split("\n", maxsplit=1)[0])
                     else:
                         message.title = "Setting the Python version"
@@ -235,7 +235,7 @@ def _process_snyk_dpkg(
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_message(proc)
                     message.title = "Error while creating the new branch"
-                    _LOGGER.error(message.to_html(style="collapse"))
+                    _LOGGER.warning(message.to_html(style="collapse"))
                     issue_data[key].append(message.to_markdown().split("\n", maxsplit=1)[0])
 
                 else:
