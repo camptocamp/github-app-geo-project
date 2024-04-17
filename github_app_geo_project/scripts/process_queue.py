@@ -84,6 +84,7 @@ def _process_job(
     owner: str,
     repository: str,
     job_id: int,
+    job_priority: int,
     module_name: str,
     application: str,
     event_name: str,
@@ -158,7 +159,7 @@ def _process_job(
                     session.execute(
                         sqlalchemy.insert(models.Queue).values(
                             {
-                                "priority": action.priority,
+                                "priority": action.priority if action.priority >= 0 else job_priority,
                                 "application": application,
                                 "owner": owner,
                                 "repository": repository,
@@ -324,7 +325,11 @@ def _process_dashboard_issue(
                             session.execute(
                                 sqlalchemy.insert(models.Queue).values(
                                     {
-                                        "priority": action.priority,
+                                        "priority": (
+                                            action.priority
+                                            if action.priority >= 0
+                                            else module.PRIORITY_DASHBOARD
+                                        ),
                                         "application": github_project.application.name,
                                         "owner": github_project.owner,
                                         "repository": github_project.repository,
@@ -428,6 +433,7 @@ def main() -> None:
             root_logger.removeHandler(handler)
 
             job_id = job.id
+            job_priority = job.priority
             job_application = job.application
             job_module = job.module
             owner = job.owner
@@ -467,6 +473,7 @@ def main() -> None:
                             owner,
                             repository,
                             job_id,
+                            job_priority,
                             job_module,
                             job_application,
                             job.event_name,
