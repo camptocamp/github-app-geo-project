@@ -23,7 +23,7 @@ from github_app_geo_project.module import utils as module_utils
 _LOGGER = logging.getLogger(__name__)
 
 
-class Version(module.Module[dict[str, None]]):
+class Versions(module.Module[dict[str, None]]):
     """
     The version module.
 
@@ -49,11 +49,13 @@ class Version(module.Module[dict[str, None]]):
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        return [
-            module.Action(
-                data={"step": 1},
-            )
-        ]
+        if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
+            return [
+                module.Action(
+                    data={"step": 1},
+                )
+            ]
+        return []
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module configuration."""
