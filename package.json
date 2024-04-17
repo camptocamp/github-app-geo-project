@@ -4,6 +4,7 @@
   "description": "",
   "author": "",
   "dependencies": {
+    "@jamietanna/renovate-graph": "^0.17.0",
     "snyk": "1.1286.4"
   }
 }

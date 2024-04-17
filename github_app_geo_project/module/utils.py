@@ -8,6 +8,7 @@ import shlex
 import subprocess  # nosec
 from typing import Any, Union, cast
 
+import c2cciutils.security
 import github
 import html_sanitizer
 from ansi2html import Ansi2HTMLConverter
@@ -558,3 +559,35 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     _LOGGER.debug(message.to_html(style="collapse"))
 
     return True
+
+
+def get_stabilization_branch(security: c2cciutils.security.Security) -> list[str]:
+    """Get the stabilization versions."""
+    alternate_index = security.headers.index("Alternate Tag") if "Alternate Tag" in security.headers else -1
+    version_index = security.headers.index("Version") if "Version" in security.headers else -1
+    supported_until_index = (
+        security.headers.index("Supported Until") if "Supported Until" in security.headers else -1
+    )
+
+    if version_index < 0:
+        _LOGGER.warning("No Version column in the SECURITY.md")
+        return []
+    if supported_until_index < 0:
+        _LOGGER.warning("No Supported Until column in the SECURITY.md")
+        return []
+
+    alternate = []
+    if alternate_index >= 0:
+        for row in security.data:
+            if row[alternate_index]:
+                alternate.append(row[alternate_index])
+
+    versions = []
+    for row in security.data:
+        if row[supported_until_index] != "Unsupported":
+            if alternate:
+                if row[alternate_index] not in alternate:
+                    versions.append(row[version_index])
+            else:
+                versions.append(row[version_index])
+    return versions

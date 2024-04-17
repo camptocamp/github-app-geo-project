@@ -26,8 +26,8 @@ class Action:
 
     def __init__(
         self,
-        priority: int,
         data: Mapping[str, Any],
+        priority: int = -1,
         title: str = "",
     ) -> None:
         """Create an action."""

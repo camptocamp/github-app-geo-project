@@ -1,4 +1,4 @@
-"""Utility functions for the auto* modules."""
+"""the audit modules."""
 
 import json
 import logging
@@ -52,37 +52,6 @@ def _format_issue_data(issue_data: dict[str, list[str]]) -> str:
     return result
 
 
-def _get_versions(security: c2cciutils.security.Security) -> list[str]:
-    alternate_index = security.headers.index("Alternate Tag") if "Alternate Tag" in security.headers else -1
-    version_index = security.headers.index("Version") if "Version" in security.headers else -1
-    supported_until_index = (
-        security.headers.index("Supported Until") if "Supported Until" in security.headers else -1
-    )
-
-    if version_index < 0:
-        _LOGGER.warning("No Version column in the SECURITY.md")
-        return []
-    if supported_until_index < 0:
-        _LOGGER.warning("No Supported Until column in the SECURITY.md")
-        return []
-
-    alternate = []
-    if alternate_index >= 0:
-        for row in security.data:
-            if row[alternate_index]:
-                alternate.append(row[alternate_index])
-
-    versions = []
-    for row in security.data:
-        if row[supported_until_index] != "Unsupported":
-            if alternate:
-                if row[alternate_index] not in alternate:
-                    versions.append(row[version_index])
-            else:
-                versions.append(row[version_index])
-    return versions
-
-
 def _get_process_output(
     context: module.ProcessContext[configuration.AuditConfiguration],
     issue_check: module_utils.DashboardIssue,
@@ -123,7 +92,7 @@ def _process_outdated(
 
         issue_data[_OUTDATED] = audit_utils.outdated_versions(security)
         # Remove outdated version in the dashboard
-        versions = _get_versions(security)
+        versions = module_utils.get_stabilization_branch(security)
     except github.GithubException as exception:
         if exception.status == 404:
             issue_data[_OUTDATED] = ["No SECURITY.md file in the repository"]
@@ -269,7 +238,7 @@ def _process_snyk_dpkg(
 
 
 class Audit(module.Module[configuration.AuditConfiguration]):
-    """The auto module."""
+    """The audit module."""
 
     def title(self) -> str:
         """Get the title of the module."""
@@ -407,7 +376,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         security_file.decoded_content.decode("utf-8")
                     )
 
-                    versions = _get_versions(security_file)
+                    versions = module_utils.get_stabilization_branch(security_file)
                 else:
                     _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
                     versions = [repo.default_branch]
