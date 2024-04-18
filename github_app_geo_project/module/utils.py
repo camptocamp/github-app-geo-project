@@ -294,18 +294,7 @@ class HtmlMessage(Message):
 
 
 class AnsiMessage(HtmlMessage):
-    """Utility class to convert ANSI messages to HTML/markdown."""
-
-    def __init__(self, ansi_message_str: str, title: str = "") -> None:
-        """Initialize the ANSI message."""
-        ansi_converter = Ansi2HTMLConverter(inline=True)
-        html = ansi_converter.convert(ansi_message_str, full=False)
-        super().__init__(html, title)
-        self.title = title
-
-
-class ProcessMessage(HtmlMessage):
-    """Represent a message from a subprocess."""
+    """Convert ANSI messages to HTML/markdown."""
 
     _ansi_converter = Ansi2HTMLConverter(inline=True)
     _markdown_sanitizer = html_sanitizer.Sanitizer(
@@ -317,6 +306,29 @@ class ProcessMessage(HtmlMessage):
             "keep_typographic_whitespace": True,
         }
     )
+
+    def __init__(self, ansi_message_str: str, title: str = "", _is_html: bool = False) -> None:
+        """Initialize the ANSI message."""
+        html = ansi_message_str
+        if not _is_html:
+            ansi_converter = Ansi2HTMLConverter(inline=True)
+            self.raw_html = ansi_converter.convert(ansi_message_str.strip(), full=False)
+            html = self.raw_html
+        super().__init__(html, title)
+
+    def to_markdown(self, summary: bool = False) -> str:
+        """Convert the ANSI message to markdown."""
+        if summary and self.title:
+            return f"<details><summary>{self.title}</summary>{self._markdown_sanitizer.sanitize(self.raw_html)}</details>"
+        return cast(str, self._markdown_sanitizer.sanitize(self.raw_html))
+
+    def to_plain_text(self) -> str:
+        """Get the process message."""
+        return self.to_markdown()
+
+
+class ProcessMessage(AnsiMessage):
+    """Represent a message from a subprocess."""
 
     def __init__(self, proc: subprocess.CompletedProcess[str]) -> None:
         """Initialize the process message."""
@@ -340,7 +352,7 @@ class ProcessMessage(HtmlMessage):
             message.append("Error:")
             message.append(self.stderr)
 
-        super().__init__("".join([f"<p>{line}</p>" for line in message]))
+        super().__init__("".join([f"<p>{line}</p>" for line in message]), _is_html=True)
 
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the process message to markdown."""
@@ -377,10 +389,6 @@ class ProcessMessage(HtmlMessage):
                 "```",
             ]
         )
-
-    def to_plain_text(self) -> str:
-        """Get the process message."""
-        return self.to_markdown()
 
 
 def ansi_proc_message(proc: subprocess.CompletedProcess[str]) -> Message:
