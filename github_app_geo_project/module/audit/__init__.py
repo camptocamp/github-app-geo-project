@@ -162,7 +162,7 @@ def _process_snyk_dpkg(
                                 break
                 if python_version:
                     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                        ["pipenv", "local", python_version],
+                        ["pyenv", "local", python_version],
                         capture_output=True,
                         encoding="utf-8",
                         timeout=300,
