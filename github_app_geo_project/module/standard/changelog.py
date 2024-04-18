@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple, Union, cast
 
 import github
+import packaging.version
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils
@@ -526,7 +527,13 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             ):
                 return
             tag_str = cast(str, context.event_data["ref"])
-            release = repo.create_git_release(tag_str, tag_str, "")
+            prerelease = False
+            latest_release = repo.get_latest_release()
+            if latest_release is not None:
+                prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
+                    latest_release.tag_name
+                )
+            release = repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
         elif context.module_data.get("type") == "release":
             if context.module_config.get("create-release", changelog_configuration.CREATE_RELEASE_DEFAULT):
                 return
@@ -560,7 +567,13 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             except github.UnknownObjectException as exception:
                 if exception.status == 404:
                     # Create a release
-                    release = repo.create_git_release(tag_str, tag_str, "")
+                    prerelease = False
+                    latest_release = repo.get_latest_release()
+                    if latest_release is not None:
+                        prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
+                            latest_release.tag_name
+                        )
+                    release = repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
                 else:
                     raise
             tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
