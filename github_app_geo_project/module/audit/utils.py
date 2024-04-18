@@ -30,7 +30,10 @@ def snyk(
     result = []
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["git", "ls-files", "requirements.txt", "*/requirements.txt"], capture_output=True, encoding="utf-8"
+        ["git", "ls-files", "requirements.txt", "*/requirements.txt"],
+        capture_output=True,
+        encoding="utf-8",
+        timeout=30,
     )
     if proc.returncode != 0:
         message = utils.ansi_proc_message(proc)
@@ -52,6 +55,7 @@ def snyk(
                 ],
                 capture_output=True,
                 encoding="utf-8",
+                timeout=300,
             )
             message = utils.ansi_proc_message(proc)
             if proc.returncode != 0:
@@ -62,7 +66,7 @@ def snyk(
             _LOGGING.debug(message.to_html(style="collapse"))
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8"
+        ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8", timeout=30
     )
     if proc.returncode != 0:
         message = utils.ansi_proc_message(proc)
@@ -86,6 +90,7 @@ def snyk(
                 cwd=directory,
                 capture_output=True,
                 encoding="utf-8",
+                timeout=300,
             )
             message = utils.ansi_proc_message(proc)
             if proc.returncode != 0:
@@ -105,7 +110,7 @@ def snyk(
         "monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT
     )
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        command, env=env, capture_output=True, encoding="utf-8"
+        command, env=env, capture_output=True, encoding="utf-8", timeout=300
     )
     message = utils.ansi_proc_message(proc)
     if proc.returncode != 0:
@@ -120,7 +125,7 @@ def snyk(
         "test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT
     )
     test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        command, env=env_no_debug, capture_output=True, encoding="utf-8"
+        command, env=env_no_debug, capture_output=True, encoding="utf-8", timeout=300
     )
     lexer = pygments.lexers.JsonLexer()
     formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
@@ -186,7 +191,7 @@ def snyk(
     if error:
         command = ["snyk", "test"] + config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
         test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-            command, env=env, capture_output=True, encoding="utf-8"
+            command, env=env, capture_output=True, encoding="utf-8", timeout=300
         )
         dashboard_message = utils.ansi_proc_message(proc)
         dashboard_message.title = "Error while testing the project"
@@ -199,7 +204,7 @@ def snyk(
 
     command = ["snyk", "fix"] + config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        command, env=env_no_debug, capture_output=True, encoding="utf-8"
+        command, env=env_no_debug, capture_output=True, encoding="utf-8", timeout=300
     )
     snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
     message = utils.ansi_proc_message(snyk_fix_proc)

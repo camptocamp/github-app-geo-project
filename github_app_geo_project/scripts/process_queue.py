@@ -96,6 +96,7 @@ def _process_job(
         _LOGGER.error("Unknown module %s", module_name)
         return False
 
+    new_issue_data = None
     issue_data = ""
     module_config: project_configuration.ModuleConfiguration = {}
     github_project = cast(configuration.GithubProject, None)

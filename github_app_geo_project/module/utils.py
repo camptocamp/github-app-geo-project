@@ -401,7 +401,7 @@ def ansi_proc_message(proc: subprocess.CompletedProcess[str]) -> Message:
 def has_changes() -> bool:
     """Check if there are changes."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["git", "diff", "--exit-code"], capture_output=True, encoding="utf-8"
+        ["git", "diff", "--exit-code"], capture_output=True, encoding="utf-8", timeout=30
     )
     return proc.returncode != 0
 
@@ -409,7 +409,7 @@ def has_changes() -> bool:
 def create_commit(message: str) -> bool:
     """Do a commit."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["git", "add", "--all"], capture_output=True, encoding="utf-8"
+        ["git", "add", "--all"], capture_output=True, encoding="utf-8", timeout=30
     )
     if proc.returncode != 0:
         proc_message = ansi_proc_message(proc)
@@ -417,7 +417,7 @@ def create_commit(message: str) -> bool:
         _LOGGER.warning(proc_message.to_html(style="collapse"))
         return False
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8"
+        ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8", timeout=30
     )
     if proc.returncode != 0:
         proc_message = ansi_proc_message(proc)
@@ -436,6 +436,7 @@ def create_pull_request(
         ["git", "push", "--force", "origin", new_branch],
         capture_output=True,
         encoding="utf-8",
+        timeout=60,
     )
     if proc.returncode != 0:
         proc_message = ansi_proc_message(proc)
@@ -502,6 +503,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
         ],
         capture_output=True,
         encoding="utf-8",
+        timeout=300,
     )
     message = ansi_proc_message(proc)
     if proc.returncode != 0:
@@ -523,6 +525,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
         ],
         capture_output=True,
         encoding="utf-8",
+        timeout=30,
     )
     message = ansi_proc_message(proc)
     if proc.returncode != 0:
@@ -536,6 +539,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
         ["git", "config", "user.name", user.login],
         capture_output=True,
         encoding="utf-8",
+        timeout=30,
     )
     message = ansi_proc_message(proc)
     if proc.returncode != 0:
@@ -549,6 +553,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
         ["git", "config", "gpg.format", "ssh"],
         capture_output=True,
         encoding="utf-8",
+        timeout=30,
     )
     message = ansi_proc_message(proc)
     if proc.returncode != 0:

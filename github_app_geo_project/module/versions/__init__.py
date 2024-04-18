@@ -165,6 +165,7 @@ def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str,
         check=True,
         capture_output=True,
         encoding="utf-8",
+        timeout=30,
     ).stdout.splitlines():
         with open(filename, encoding="utf-8") as file:
             data = toml.load(file)
@@ -176,7 +177,11 @@ def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str,
                 if name:
                     names.setdefault("pypi", []).append(name)
     for filename in subprocess.run(  # nosec
-        ["git", "ls-files", "setup.py", "*/setup.py"], check=True, capture_output=True, encoding="utf-8"
+        ["git", "ls-files", "setup.py", "*/setup.py"],
+        check=True,
+        capture_output=True,
+        encoding="utf-8",
+        timeout=30,
     ).stdout.splitlines():
         with open(filename, encoding="utf-8") as file:
             for line in file:
@@ -198,6 +203,7 @@ def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str,
         check=True,
         capture_output=True,
         encoding="utf-8",
+        timeout=30,
     ).stdout.splitlines():
         with open(filename, encoding="utf-8") as file:
             data = json.load(file)
@@ -227,6 +233,7 @@ def _get_dependencies(
         check=True,
         capture_output=True,
         encoding="utf-8",
+        timeout=300,
     )
 
     lines = proc.stdout.splitlines()

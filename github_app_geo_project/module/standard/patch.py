@@ -125,6 +125,7 @@ class Patch(module.Module[dict[str, Any]]):
                             input=patch_input,
                             encoding="utf-8",
                             capture_output=True,
+                            timeout=30,
                         )
                         message = utils.ansi_proc_message(proc)
                         if proc.returncode != 0:
@@ -146,6 +147,7 @@ class Patch(module.Module[dict[str, Any]]):
                     ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"],
                     capture_output=True,
                     encoding="utf-8",
+                    timeout=60,
                 )
                 if proc.returncode != 0:
                     raise PatchException(f"Failed to push the changes{format_process_output(proc)}")

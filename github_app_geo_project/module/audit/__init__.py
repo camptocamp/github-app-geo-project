@@ -162,7 +162,10 @@ def _process_snyk_dpkg(
                                 break
                 if python_version:
                     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                        ["pipenv", "local", python_version], capture_output=True, encoding="utf-8"
+                        ["pipenv", "local", python_version],
+                        capture_output=True,
+                        encoding="utf-8",
+                        timeout=300,
                     )
                     message = module_utils.ansi_proc_message(proc)
                     if proc.returncode != 0:
@@ -195,11 +198,11 @@ def _process_snyk_dpkg(
                     audit_utils.dpkg(context.module_config.get("dpkg", {}), local_config.get("dpkg", {}))
 
             diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                ["git", "diff", "--quiet"]
+                ["git", "diff", "--quiet"], timeout=30
             )
             if diff_proc.returncode != 0:
                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                    ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8"
+                    ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8", timeout=30
                 )
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_message(proc)
