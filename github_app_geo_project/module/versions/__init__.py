@@ -1,5 +1,6 @@
 """Utility functions for the auto* modules."""
 
+import datetime
 import json
 import logging
 import os
@@ -74,6 +75,7 @@ class Versions(module.Module[dict[str, None]]):
             status = context.transversal_status.setdefault(
                 f"{context.github_project.owner}/{context.github_project.repository}", {}
             )
+            status["updated"] = datetime.datetime.now().isoformat()
             status["versions"] = {}
             repo = context.github_project.github.get_repo(
                 f"{context.github_project.owner}/{context.github_project.repository}"
@@ -92,12 +94,12 @@ class Versions(module.Module[dict[str, None]]):
                     if len(raw) > max(version_index, support_index):
                         branch = raw[version_index]
                         support = raw[support_index]
-                        status["versions"][branch] = support
+                        status["versions"].setdefault(branch, {})["support"] = support
 
             else:
                 _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
                 stabilization_branch = [repo.default_branch]
-                status["versions"][repo.default_branch] = "Best Effort"
+                status["versions"].getdefault(repo.default_branch, {})["support"] = "Best Effort"
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_branch))
 
             versions = status.setdefault("versions", {})
@@ -118,15 +120,15 @@ class Versions(module.Module[dict[str, None]]):
                         "Failed to clone the repository"
                     )
 
-                status = context.transversal_status.setdefault(
-                    f"{context.github_project.owner}/{context.github_project.repository}", {}
-                ).setdefault("versions", {})
-                status.setdefault("names", {})[context.module_data["branch"]] = {}
-                _get_names(context, status.setdefault("names", {})[context.module_data["branch"]], branch)
-                status.setdefault("dependencies", {})[context.module_data["branch"]] = {}
-                _get_dependencies(
-                    context, status.setdefault("dependencies", {})[context.module_data["branch"]]
+                status = (
+                    context.transversal_status.setdefault(
+                        f"{context.github_project.owner}/{context.github_project.repository}", {}
+                    )
+                    .setdefault("versions", {})
+                    .setdefault(context.module_data["branch"], {})
                 )
+                _get_names(context, status.setdefault("names", {}), context.module_data["branch"])
+                _get_dependencies(context, status.setdefault("dependencies", {}))
             return ProcessOutput(transversal_status=status)
         raise Exception("Invalid step")  # pylint: disable=broad-exception-raised
 
