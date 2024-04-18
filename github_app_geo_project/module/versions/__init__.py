@@ -65,6 +65,9 @@ class Versions(module.Module[dict[str, None]]):
             "properties": {},
         }
 
+    def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
+        return module.GitHubApplicationPermissions(permissions={"contents": "read"}, events=set())
+
     def process(self, context: module.ProcessContext[dict[str, None]]) -> module.ProcessOutput | None:
         """
         Process the action.
