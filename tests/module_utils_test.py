@@ -96,3 +96,10 @@ stderr
 message
 ```"""
     )
+
+
+def test_AnsiMessage():
+    ansi_message = utils.AnsiMessage("title\nmessage")
+
+    markdown = ansi_message.to_markdown()
+    assert markdown == "title\nmessage"

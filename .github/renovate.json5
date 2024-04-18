@@ -94,5 +94,11 @@
       matchPackageNames: ['python'],
       enabled: false,
     },
+    /** Don't allows update on ubuntu:mantic-* Docker images */
+    {
+      matchPackageNames: ['ubuntu'],
+      matchVersions: ['^mantic-'],
+      enabled: false,
+    },
   ],
 }
