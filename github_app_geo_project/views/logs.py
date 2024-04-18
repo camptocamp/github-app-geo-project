@@ -48,7 +48,7 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
             "logs": logs,
             "job": job,
             "enumerate": enumerate,
-            "reload": job.status == [models.JobStatus.NEW, models.JobStatus.PENDING],
+            "reload": job.status in [models.JobStatus.NEW, models.JobStatus.PENDING],
             "favicon_postfix": (
                 "red"
                 if job.status == models.JobStatus.ERROR
