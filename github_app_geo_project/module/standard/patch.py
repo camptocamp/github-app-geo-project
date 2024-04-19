@@ -119,7 +119,8 @@ class Patch(module.Module[dict[str, Any]]):
 
                     with diff.open(diff.namelist()[0]) as file:
                         patch_input = file.read().decode("utf-8")
-                        _LOGGER.debug("Apply patch input\n%s", patch_input)
+                        message: utils.Message = utils.HtmlMessage(patch_input, "Applied the patch input")
+                        _LOGGER.debug(message.to_html(style="collapse"))
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                             ["patch", "--strip=1"],
                             input=patch_input,
@@ -135,7 +136,7 @@ class Patch(module.Module[dict[str, Any]]):
                         message.title = f"Applied the diff {artifact.name}"
                         _LOGGER.info(message.to_html(style="collapse"))
 
-                        if utils.has_changes():
+                        if utils.has_changes(include_un_followed=True):
                             success = utils.create_commit(
                                 f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
                             )

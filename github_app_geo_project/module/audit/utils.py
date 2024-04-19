@@ -298,7 +298,7 @@ def _get_packages_version(
 def dpkg(config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration) -> None:
     """Update the version of packages in the file ci/dpkg-versions.yaml."""
     if not os.path.exists("ci/dpkg-versions.yaml"):
-        _LOGGING.error("The file ci/dpkg-versions.yaml does not exist")
+        _LOGGING.warning("The file ci/dpkg-versions.yaml does not exist")
 
     with open("ci/dpkg-versions.yaml", encoding="utf-8") as versions_file:
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)

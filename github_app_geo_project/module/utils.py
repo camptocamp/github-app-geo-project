@@ -406,8 +406,13 @@ def ansi_proc_message(proc: subprocess.CompletedProcess[str]) -> Message:
     return ProcessMessage(proc)
 
 
-def has_changes() -> bool:
+def has_changes(include_un_followed: bool = False) -> bool:
     """Check if there are changes."""
+    if include_un_followed:
+        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+            ["git", "status", "--porcelain"], capture_output=True, encoding="utf-8", timeout=30
+        )
+        return bool(proc.stdout)
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "diff", "--exit-code"], capture_output=True, encoding="utf-8", timeout=30
     )
