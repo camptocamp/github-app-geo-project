@@ -39,11 +39,6 @@ DPKG_SOURCES_DEFAULT = {
             "distribution": "jammy-updates",
             "components": ["main", "restricted", "universe", "multiverse"],
         },
-        {
-            "url": "http://security.ubuntu.com/ubuntu",
-            "distribution": "jammy-backports",
-            "components": ["main", "restricted", "universe", "multiverse"],
-        },
     ],
     "ubuntu_24_04": [
         {
@@ -59,11 +54,6 @@ DPKG_SOURCES_DEFAULT = {
         {
             "url": "http://security.ubuntu.com/ubuntu",
             "distribution": "noble-updates",
-            "components": ["main", "restricted", "universe", "multiverse"],
-        },
-        {
-            "url": "http://security.ubuntu.com/ubuntu",
-            "distribution": "noble-backports",
             "components": ["main", "restricted", "universe", "multiverse"],
         },
     ],
@@ -182,13 +172,6 @@ class DpkgConfiguration(TypedDict, total=False):
         - multiverse
         distribution: jammy-updates
         url: http://security.ubuntu.com/ubuntu
-      - components:
-        - main
-        - restricted
-        - universe
-        - multiverse
-        distribution: jammy-backports
-        url: http://security.ubuntu.com/ubuntu
       ubuntu_24_04:
       - components:
         - main
@@ -210,13 +193,6 @@ class DpkgConfiguration(TypedDict, total=False):
         - universe
         - multiverse
         distribution: noble-updates
-        url: http://security.ubuntu.com/ubuntu
-      - components:
-        - main
-        - restricted
-        - universe
-        - multiverse
-        distribution: noble-backports
         url: http://security.ubuntu.com/ubuntu
     """
 

@@ -107,11 +107,6 @@
                     "url": "http://security.ubuntu.com/ubuntu",
                     "distribution": "jammy-updates",
                     "components": ["main", "restricted", "universe", "multiverse"]
-                  },
-                  {
-                    "url": "http://security.ubuntu.com/ubuntu",
-                    "distribution": "jammy-backports",
-                    "components": ["main", "restricted", "universe", "multiverse"]
                   }
                 ],
                 "ubuntu_24_04": [
@@ -128,11 +123,6 @@
                   {
                     "url": "http://security.ubuntu.com/ubuntu",
                     "distribution": "noble-updates",
-                    "components": ["main", "restricted", "universe", "multiverse"]
-                  },
-                  {
-                    "url": "http://security.ubuntu.com/ubuntu",
-                    "distribution": "noble-backports",
                     "components": ["main", "restricted", "universe", "multiverse"]
                   }
                 ],
