@@ -8,6 +8,7 @@ from collections.abc import Callable
 from typing import Any, NamedTuple, Union, cast
 
 import github
+import packaging.version
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils
@@ -266,6 +267,71 @@ def get_release(tag: github.Tag.Tag) -> github.GitRelease.GitRelease | None:
     return None
 
 
+def _get_discussion_url(repo: github.Repository.Repository, tag: str) -> str | None:
+    requester = repo._requester  # pylint: disable=protected-access
+    _, categories = requester.requestJsonAndCheck(
+        "POST",
+        requester.graphql_url,
+        input={
+            "query": """
+        query DiscussionCategories($owner: String!, $name: String!) {
+            repository(owner: $owner, name: $name) {
+                discussionCategories(first: 10) {
+                    nodes {
+                        name
+                        id
+                    }
+                }
+            }
+        }
+        """,
+            "variables": {
+                "owner": repo.owner.login,
+                "name": repo.name,
+            },
+        },
+    )
+
+    category = [
+        c
+        for c in categories.get("data", {})
+        .get("repository", {})
+        .get("discussionCategories", {})
+        .get("nodes", [])
+        if c.get("name") == "Announcements"
+    ]
+    if not category:
+        return None
+    _, discussions = requester.requestJsonAndCheck(
+        "POST",
+        requester.graphql_url,
+        input={
+            "query": """
+        query Discussion($owner: String!, $name: String!, $category: ID!) {
+            repository(owner: $owner, name: $name) {
+                discussions(first: 10, categoryId: $category) {
+                    nodes {
+                        title
+                        url
+                    }
+                }
+            }
+        }
+        """,
+            "variables": {
+                "owner": repo.owner.login,
+                "name": repo.name,
+                "category": category[0]["id"],
+            },
+        },
+    )
+    discussions = discussions.get("data", {}).get("repository", {}).get("discussions", {}).get("nodes", [])
+    discussion = [d for d in discussions if tag in d.get("title", "").split()]
+    if not discussion:
+        return None
+    return cast(str, discussion[0]["url"])
+
+
 def generate_changelog(
     github_application: github.Github,
     configuration: changelog_configuration.Changelog,
@@ -275,6 +341,8 @@ def generate_changelog(
 ) -> str:
     """Generate the changelog for a tag."""
     repo = github_application.get_repo(repository)
+
+    discussion_url = _get_discussion_url(repo, tag_str)
 
     tags: dict[Tag, Tag] = {}
     for tag_s in repo.get_tags():
@@ -356,6 +424,12 @@ def generate_changelog(
 
     created = tag.tag.commit.commit.author.date
     result = [f"# {tag.major}.{tag.minor}.{tag.patch} ({created:%Y-%m-%d})", ""]
+    if discussion_url:
+        result.append(f"[See announcement]({discussion_url})")
+        result.append("")
+    if milestone.description:
+        result.append(milestone.description)
+        result.append("")
     for section_config in configuration["sections"]:
         if section_config["name"] not in sections:
             continue
@@ -417,6 +491,10 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             and event_data.get("pull_request", {}).get("milestone")
         ):
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "pull_request"})]
+        if event_data.get("action") == "created" and event_data.get("milestone"):
+            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "milestone"})]
+        if event_data.get("action") == "edited" and event_data.get("discussion"):
+            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "discussion"})]
 
         return []
 
@@ -449,12 +527,38 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             ):
                 return
             tag_str = cast(str, context.event_data["ref"])
-            release = repo.create_git_release(tag_str, tag_str, "")
+            prerelease = False
+            latest_release = repo.get_latest_release()
+            if latest_release is not None:
+                prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
+                    latest_release.tag_name
+                )
+            release = repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
         elif context.module_data.get("type") == "release":
             if context.module_config.get("create-release", changelog_configuration.CREATE_RELEASE_DEFAULT):
                 return
             tag_str = context.event_data.get("release", {}).get("tag_name")
             release = repo.get_release(tag_str)
+        elif context.module_data.get("type") == "milestone":
+            tag_str = context.event_data.get("milestone", {}).get("title")
+            tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
+            if tag is None:
+                _LOGGER.info(
+                    "No tag found via for milestone %s on repository %s",
+                    context.event_data.get("milestone", {}).get("title"),
+                    repository,
+                )
+                return
+        elif context.module_data.get("type") == "discussion":
+            tag_str = context.event_data.get("discussion", {}).get("title")
+            tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
+            if tag is None:
+                _LOGGER.info(
+                    "No tag found via for discussion %s on repository %s",
+                    context.event_data.get("discussion", {}).get("title"),
+                    repository,
+                )
+                return
         elif context.module_data.get("type") == "pull_request":
             # Get the milestone
             tag_str = context.event_data.get("pull_request", {}).get("milestone", {}).get("title")
@@ -463,7 +567,13 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             except github.UnknownObjectException as exception:
                 if exception.status == 404:
                     # Create a release
-                    release = repo.create_git_release(tag_str, tag_str, "")
+                    prerelease = False
+                    latest_release = repo.get_latest_release()
+                    if latest_release is not None:
+                        prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
+                            latest_release.tag_name
+                        )
+                    release = repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
                 else:
                     raise
             tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
@@ -506,6 +616,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                 "contents": "read",
                 "pull_requests": "write",
                 "issues": "write",
+                "discussions": "read",
             },
-            {"create", "pull_request", "release"},
+            {"create", "pull_request", "release", "milestone"},
         )
