@@ -24,6 +24,10 @@ from github_app_geo_project.module import utils as module_utils
 _LOGGER = logging.getLogger(__name__)
 
 
+class VersionException(Exception):
+    """Error while updating the versions."""
+
+
 class Versions(module.Module[dict[str, None]]):
     """
     The version module.
@@ -124,9 +128,7 @@ class Versions(module.Module[dict[str, None]]):
                 os.chdir(tmpdirname)
                 success = module_utils.git_clone(context.github_project, context.module_data["branch"])
                 if not success:
-                    raise Exception(  # pylint: disable=broad-exception-raised
-                        "Failed to clone the repository"
-                    )
+                    raise VersionException("Failed to clone the repository")
 
                 status = (
                     context.transversal_status.setdefault(
@@ -138,7 +140,7 @@ class Versions(module.Module[dict[str, None]]):
                 _get_names(context, status.setdefault("names", {}), context.module_data["branch"])
                 _get_dependencies(context, status.setdefault("dependencies", {}))
             return ProcessOutput(transversal_status=status)
-        raise Exception("Invalid step")  # pylint: disable=broad-exception-raised
+        raise VersionException("Invalid step")
 
     def has_transversal_dashboard(self) -> bool:
         """Return True if the module has a transversal dashboard."""
@@ -248,9 +250,9 @@ def _get_dependencies(
     if proc.returncode != 0:
         message.title = "Failed to get the dependencies"
         _LOGGER.error(message.to_html(style="collapse"))
-    else:
-        message.title = "Got the dependencies"
-        _LOGGER.debug(message.to_html(style="collapse"))
+        raise VersionException(message.title)
+    message.title = "Got the dependencies"
+    _LOGGER.debug(message.to_html(style="collapse"))
 
     lines = proc.stdout.splitlines()
     lines = [line for line in lines if line.startswith("  ")]
