@@ -83,8 +83,13 @@ class Versions(module.Module[dict[str, None]]):
             repo = context.github_project.github.get_repo(
                 f"{context.github_project.owner}/{context.github_project.repository}"
             )
-            security_file = repo.get_contents("SECURITY.md")
             stabilization_branch = []
+            security_file = None
+            try:
+                security_file = repo.get_contents("SECURITY.md")
+            except github.GithubException as exc:
+                if exc.status != 404:
+                    raise
             if security_file is not None:
                 assert isinstance(security_file, github.ContentFile.ContentFile)
                 security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
@@ -224,7 +229,7 @@ def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str,
 def _get_dependencies(
     context: module.ProcessContext[dict[str, None]], result: dict[str, dict[str, Any]]
 ) -> None:
-    proc = subprocess.run(  # nosec
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         [
             "node",
             "renovate-graph",
@@ -235,11 +240,17 @@ def _get_dependencies(
             "RG_LOCAL_ORGANISATION": context.github_project.owner,
             "RG_LOCAL_REPO": context.github_project.repository,
         },
-        check=True,
         capture_output=True,
         encoding="utf-8",
         timeout=300,
     )
+    message = module_utils.ansi_proc_message(proc)
+    if proc.returncode != 0:
+        message.title = "Failed to get the dependencies"
+        _LOGGER.error(message.to_html(style="collapse"))
+    else:
+        message.title = "Got the dependencies"
+        _LOGGER.debug(message.to_html(style="collapse"))
 
     lines = proc.stdout.splitlines()
     lines = [line for line in lines if line.startswith("  ")]
