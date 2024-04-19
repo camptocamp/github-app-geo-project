@@ -270,6 +270,10 @@ class HtmlMessage(Message):
             markdown = f"#### {self.title}\n{markdown}"
         return markdown
 
+    def __str__(self) -> str:
+        """Get the string representation."""
+        return self.to_plain_text()
+
     def to_plain_text(self) -> str:
         """Get the ANSI message."""
         sanitizer = html_sanitizer.Sanitizer(
@@ -330,7 +334,7 @@ class AnsiMessage(HtmlMessage):
 class ProcessMessage(AnsiMessage):
     """Represent a message from a subprocess."""
 
-    def __init__(self, proc: subprocess.CompletedProcess[str]) -> None:
+    def __init__(self, proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError) -> None:
         """Initialize the process message."""
         self.args = []
 
@@ -391,7 +395,7 @@ class ProcessMessage(AnsiMessage):
         )
 
 
-def ansi_proc_message(proc: subprocess.CompletedProcess[str]) -> Message:
+def ansi_proc_message(proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError) -> Message:
     """
     Process the output of a subprocess for the dashboard (markdown)/HTML.
 
