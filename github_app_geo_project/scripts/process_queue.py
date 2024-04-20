@@ -7,6 +7,7 @@ import datetime
 import json
 import logging
 import os
+import subprocess  # nosec
 import time
 from typing import Any, cast
 
@@ -32,6 +33,8 @@ class _Handler(logging.Handler):
         self.results: list[logging.LogRecord] = []
 
     def emit(self, record: logging.LogRecord) -> None:
+        if isinstance(record.msg, module_utils.Message):
+            record.msg = record.msg.to_html(style="collapse")
         self.results.append(record)
 
 
@@ -182,6 +185,13 @@ def _process_job(
                 exception.message,
                 exception.status,
             )
+            raise
+        except subprocess.CalledProcessError as proc_error:
+            print(proc_error.stdout, proc_error.stderr)
+            message = module_utils.ansi_proc_message(proc_error)
+            message.title = f"Error process job '{job_id}' on module: {module_name}"
+            _LOGGER.exception(message)
+            root_logger.removeHandler(handler)
             raise
         except Exception:
             _LOGGER.exception("Failed to process job id: %s on module: %s", job_id, module_name)
