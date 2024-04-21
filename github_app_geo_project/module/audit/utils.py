@@ -193,7 +193,7 @@ def snyk(
         test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
             command, env=env, capture_output=True, encoding="utf-8", timeout=300
         )
-        dashboard_message = utils.ansi_proc_message(proc)
+        dashboard_message = utils.ansi_proc_message(test_proc)
         dashboard_message.title = "Error while testing the project"
         _LOGGING.error(dashboard_message.to_html(style="collapse"))
 
