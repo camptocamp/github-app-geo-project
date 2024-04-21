@@ -528,11 +528,15 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                 return
             tag_str = cast(str, context.event_data["ref"])
             prerelease = False
-            latest_release = repo.get_latest_release()
-            if latest_release is not None:
-                prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
-                    latest_release.tag_name
-                )
+            try:
+                latest_release = repo.get_latest_release()
+                if latest_release is not None:
+                    prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
+                        latest_release.tag_name
+                    )
+            except github.UnknownObjectException as exception:
+                if exception.status != 404:
+                    raise
             release = repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
         elif context.module_data.get("type") == "release":
             if context.module_config.get("create-release", changelog_configuration.CREATE_RELEASE_DEFAULT):
