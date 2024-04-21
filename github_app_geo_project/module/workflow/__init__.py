@@ -28,6 +28,14 @@ class Workflow(module.Module[None]):
     def documentation_url(self) -> str:
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Workflow"
 
+    def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
+        return module.GitHubApplicationPermissions(
+            {
+                "workflows": "read",
+            },
+            {"workflow_run"},
+        )
+
     def get_json_schema(self) -> dict[str, Any]:
         return {
             "type": "object",
