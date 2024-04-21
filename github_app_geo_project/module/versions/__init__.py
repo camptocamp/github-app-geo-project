@@ -82,9 +82,9 @@ class Versions(module.Module[dict[str, None]]):
             status = context.transversal_status.setdefault(
                 f"{context.github_project.owner}/{context.github_project.repository}", {}
             )
-            status["updated"] = datetime.datetime.now().isoformat()
 
-            for other_repo in context.module_data:
+            status["updated"] = datetime.datetime.now().isoformat()
+            for other_repo in list(context.module_data.keys()):
                 if "updated" not in context.module_data[other_repo] or datetime.datetime.fromisoformat(
                     context.module_data[other_repo]["updated"]
                 ) < datetime.datetime.now() - datetime.timedelta(days=2):
