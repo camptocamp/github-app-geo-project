@@ -57,10 +57,11 @@ class Workflow(module.Module[None]):
         repo_data = context.module_data.setdefault(
             context.github_project.owner + "/" + context.github_project.repository, {}
         )
+
         repo_data.setdefault(f"{context.github_project.owner}/{context.github_project.repository}", {})[
             "updated"
         ] = datetime.datetime.now().isoformat()
-        for other_repo in context.module_data:
+        for other_repo in list(context.module_data.keys()):
             if "updated" not in context.module_data[other_repo] or datetime.datetime.fromisoformat(
                 context.module_data[other_repo]["updated"]
             ) < datetime.datetime.now() - datetime.timedelta(days=30):
