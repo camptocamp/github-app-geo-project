@@ -83,6 +83,13 @@ class Versions(module.Module[dict[str, None]]):
                 f"{context.github_project.owner}/{context.github_project.repository}", {}
             )
             status["updated"] = datetime.datetime.now().isoformat()
+
+            for other_repo in context.module_data:
+                if "updated" not in context.module_data[other_repo] or datetime.datetime.fromisoformat(
+                    context.module_data[other_repo]["updated"]
+                ) < datetime.datetime.now() - datetime.timedelta(days=2):
+                    del context.module_data[other_repo]
+
             status["versions"] = {}
             repo = context.github_project.github.get_repo(
                 f"{context.github_project.owner}/{context.github_project.repository}"

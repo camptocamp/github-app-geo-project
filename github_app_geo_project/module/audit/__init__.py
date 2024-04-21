@@ -1,5 +1,6 @@
 """the audit modules."""
 
+import datetime
 import json
 import logging
 import os
@@ -323,8 +324,16 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         repo = context.github_project.github.get_repo(
             f"{context.github_project.owner}/{context.github_project.repository}"
         )
+        context.module_data.setdefault(
+            f"{context.github_project.owner}/{context.github_project.repository}", {}
+        )["updated"] = datetime.datetime.now().isoformat()
+        for other_repo in context.module_data:
+            if "updated" not in context.module_data[other_repo] or datetime.datetime.fromisoformat(
+                context.module_data[other_repo]["updated"]
+            ) < datetime.datetime.now() - datetime.timedelta(days=2):
+                del context.module_data[other_repo]
 
-        # if no SECURITY.md apply on main branch
+        # If no SECURITY.md apply on main branch
         key_starts = []
         security_file = None
         try:
