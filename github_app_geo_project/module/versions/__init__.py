@@ -230,11 +230,7 @@ def _get_dependencies(
     context: module.ProcessContext[dict[str, None]], result: dict[str, dict[str, Any]]
 ) -> None:
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        [
-            "node",
-            "renovate-graph",
-            "--platform=local",
-        ],
+        ["renovate-graph", "--platform=local"],
         env={
             "RG_LOCAL_PLATFORM": "github",
             "RG_LOCAL_ORGANISATION": context.github_project.owner,
