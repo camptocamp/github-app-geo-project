@@ -402,7 +402,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         del issue_data[key]
 
                 priority = (
-                    module.PRIORITY_STANDARD if context.module_data["is_dashboard"] else module.PRIORITY_CRON
+                    module.PRIORITY_STANDARD
+                    if context.module_data.get("is_dashboard", False)
+                    else module.PRIORITY_CRON
                 )
                 actions = []
                 for version in versions:
