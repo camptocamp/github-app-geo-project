@@ -44,10 +44,8 @@ class Workflow(module.Module[None]):
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
         if (
-            context.event_data.get("action") != "completed"
-            and "workflow_run" in context.event_data
-            and "event" in context.event_data["workflow_run"]
-            and context.event_data["workflow_run"]["event"] != "pull_request"
+            context.event_data.get("action") == "completed"
+            and context.event_data.get("workflow_run", {}).get("event", "pull_request") != "pull_request"
         ):
             return [module.Action({})]
         return []
