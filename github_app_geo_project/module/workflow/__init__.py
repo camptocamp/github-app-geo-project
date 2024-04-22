@@ -84,7 +84,7 @@ class Workflow(module.Module[None]):
             _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
             stabilization_branches = [repo.default_branch]
 
-        for key in repo_data:
+        for key in list(repo_data.keys()):
             if key not in stabilization_branches:
                 del repo_data[key]
 
