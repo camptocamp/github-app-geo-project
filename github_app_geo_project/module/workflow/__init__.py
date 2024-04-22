@@ -94,7 +94,7 @@ class Workflow(module.Module[None]):
             del branch_data[context.event_data.get("workflow", {}).get("name", "-")]
             if not branch_data:
                 del repo_data[context.event_data.get("workflow_run", {}).get("head_branch")]
-            return module.ProcessOutput(repo_data)
+            return module.ProcessOutput(transversal_status=context.module_data)
 
         workflow_data = {
             "url": context.event_data.get("workflow_run", {}).get("html_url"),
@@ -110,7 +110,7 @@ class Workflow(module.Module[None]):
             if job.conclusion != "success":
                 workflow_data["jobs"].append({"name": job.name, "run_url": job.html_url})
 
-        return super().process(context)
+        return module.ProcessOutput(transversal_status=context.module_data)
 
     def has_transversal_dashboard(self) -> bool:
         return True
