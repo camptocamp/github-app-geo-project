@@ -553,6 +553,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                     repository,
                 )
                 return
+            release = repo.get_release(tag_str)
         elif context.module_data.get("type") == "discussion":
             tag_str = context.event_data.get("discussion", {}).get("title")
             tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
@@ -563,6 +564,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                     repository,
                 )
                 return
+            release = repo.get_release(tag_str)
         elif context.module_data.get("type") == "pull_request":
             # Get the milestone
             tag_str = context.event_data.get("pull_request", {}).get("milestone", {}).get("title")
