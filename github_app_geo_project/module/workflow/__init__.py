@@ -1,6 +1,5 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
-import datetime
 import json
 import logging
 from typing import Any
@@ -58,14 +57,11 @@ class Workflow(module.Module[None]):
             context.github_project.owner + "/" + context.github_project.repository, {}
         )
 
-        repo_data.setdefault(f"{context.github_project.owner}/{context.github_project.repository}", {})[
-            "updated"
-        ] = datetime.datetime.now().isoformat()
-        for other_repo in list(context.module_data.keys()):
-            if "updated" not in context.module_data[other_repo] or datetime.datetime.fromisoformat(
-                context.module_data[other_repo]["updated"]
-            ) < datetime.datetime.now() - datetime.timedelta(days=30):
-                del context.module_data[other_repo]
+        module_utils.manage_updated(
+            context.module_data,
+            f"{context.github_project.owner}/{context.github_project.repository}",
+            days_old=30,
+        )
 
         repo = context.github_project.github.get_repo(
             context.github_project.owner + "/" + context.github_project.repository
@@ -88,7 +84,7 @@ class Workflow(module.Module[None]):
             _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
             stabilization_branches = [repo.default_branch]
 
-        for key in repo_data:
+        for key in list(repo_data.keys()):
             if key not in stabilization_branches:
                 del repo_data[key]
 

@@ -1,6 +1,5 @@
 """the audit modules."""
 
-import datetime
 import json
 import logging
 import os
@@ -325,14 +324,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             f"{context.github_project.owner}/{context.github_project.repository}"
         )
 
-        context.module_data.setdefault(
-            f"{context.github_project.owner}/{context.github_project.repository}", {}
-        )["updated"] = datetime.datetime.now().isoformat()
-        for other_repo in list(context.module_data.keys()):
-            if "updated" not in context.module_data[other_repo] or datetime.datetime.fromisoformat(
-                context.module_data[other_repo]["updated"]
-            ) < datetime.datetime.now() - datetime.timedelta(days=2):
-                del context.module_data[other_repo]
+        module_utils.manage_updated(
+            context.module_data, f"{context.github_project.owner}/{context.github_project.repository}"
+        )
 
         # If no SECURITY.md apply on main branch
         key_starts = []
@@ -408,7 +402,9 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         del issue_data[key]
 
                 priority = (
-                    module.PRIORITY_STANDARD if context.module_data["is_dashboard"] else module.PRIORITY_CRON
+                    module.PRIORITY_STANDARD
+                    if context.module_data.get("is_dashboard", False)
+                    else module.PRIORITY_CRON
                 )
                 actions = []
                 for version in versions:

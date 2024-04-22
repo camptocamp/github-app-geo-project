@@ -613,3 +613,20 @@ def get_stabilization_branch(security: c2cciutils.security.Security) -> list[str
             else:
                 versions.append(row[version_index])
     return versions
+
+
+def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
+    """
+    Manage the updated status.
+
+    Add an updated field to the status and remove the old status.
+    """
+    status.setdefault(key, {})["updated"] = datetime.datetime.now().isoformat()
+    for other_key in list(status.keys()):
+        if (
+            not isinstance(status[other_key], dict)
+            or "updated" not in status[other_key]
+            or datetime.datetime.fromisoformat(status[other_key]["updated"])
+            < datetime.datetime.now() - datetime.timedelta(days=days_old)
+        ):
+            del status[other_key]

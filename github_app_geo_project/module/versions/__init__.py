@@ -1,6 +1,5 @@
 """Utility functions for the auto* modules."""
 
-import datetime
 import json
 import logging
 import os
@@ -83,12 +82,9 @@ class Versions(module.Module[dict[str, None]]):
                 f"{context.github_project.owner}/{context.github_project.repository}", {}
             )
 
-            status["updated"] = datetime.datetime.now().isoformat()
-            for other_repo in list(context.module_data.keys()):
-                if "updated" not in context.module_data[other_repo] or datetime.datetime.fromisoformat(
-                    context.module_data[other_repo]["updated"]
-                ) < datetime.datetime.now() - datetime.timedelta(days=2):
-                    del context.module_data[other_repo]
+            module_utils.manage_updated(
+                context.module_data, f"{context.github_project.owner}/{context.github_project.repository}"
+            )
 
             status["versions"] = {}
             repo = context.github_project.github.get_repo(
