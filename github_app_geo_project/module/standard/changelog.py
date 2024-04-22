@@ -545,25 +545,28 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             release = repo.get_release(tag_str)
         elif context.module_data.get("type") == "milestone":
             tag_str = context.event_data.get("milestone", {}).get("title")
-            tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
-            if tag is None:
+            tags = [tag for tag in repo.get_tags() if tag.name == tag_str]
+            if not tags:
                 _LOGGER.info(
                     "No tag found via for milestone %s on repository %s",
                     context.event_data.get("milestone", {}).get("title"),
                     repository,
                 )
                 return
+            tag = tags[0]
             release = repo.get_release(tag_str)
         elif context.module_data.get("type") == "discussion":
-            tag_str = context.event_data.get("discussion", {}).get("title")
-            tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
-            if tag is None:
+            title = context.event_data.get("discussion", {}).get("title", "").split()
+            tags = [tag for tag in repo.get_tags() if tag.name in title]
+            if not tags:
                 _LOGGER.info(
                     "No tag found via for discussion %s on repository %s",
                     context.event_data.get("discussion", {}).get("title"),
                     repository,
                 )
                 return
+            tag = tags[0]
+            tag_str = tag.name
             release = repo.get_release(tag_str)
         elif context.module_data.get("type") == "pull_request":
             # Get the milestone
@@ -624,5 +627,5 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                 "issues": "write",
                 "discussions": "read",
             },
-            {"create", "pull_request", "release", "milestone"},
+            {"create", "pull_request", "release", "milestone", "discussion"},
         )
