@@ -491,9 +491,9 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
             and event_data.get("pull_request", {}).get("milestone")
         ):
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "pull_request"})]
-        if event_data.get("action") == "created" and event_data.get("milestone"):
+        if event_data.get("action") == "edited" and "milestone" in event_data:
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "milestone"})]
-        if event_data.get("action") == "edited" and event_data.get("discussion"):
+        if event_data.get("action") == "created" and "discussion" in event_data:
             return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "discussion"})]
 
         return []
