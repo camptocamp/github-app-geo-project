@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/project-schema.json",
+  "type": "object",
+  "title": "Pull request checks configuration",
+  "additionalProperties": false,
+
+  "properties": {
+    "codespell": {
+      "title": "Codespell",
+      "description": "The codespell check configuration",
+      "type": "object",
+      "properties": {
+        "internal-dictionaries": {
+          "title": "codespell dictionaries",
+          "description": "List of argument that will be added to the codespell command",
+          "default": ["clear", "rare", "informal", "code", "names", "en-GB_to_en-US"],
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "arguments": {
+          "title": "codespell arguments",
+          "description": "List of argument that will be added to the codespell command",
+          "default": ["--quiet-level=2", "--check-filenames", "--ignore-words-list=ro"],
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "ignore-re": {
+          "title": "codespell ignore regular expression",
+          "description": "List of regular expression that should be ignored",
+          "default": ["(.*/)?poetry\\.lock", "(.*/)?package-lock\\.json"],
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+
+    "commits-messages": {
+      "title": "pull request checks commits messages",
+      "description": "Check the pull request commits messages",
+      "oneOf": [
+        {
+          "title": "pull request checks commits messages configuration",
+          "description": "The commit message check configuration",
+          "type": "object",
+          "properties": {
+            "check-fixup": {
+              "title": "pull request checks commits messages fixup",
+              "description": "Check that we don't have one fixup commit in the pull request",
+              "default": true,
+              "type": "boolean"
+            },
+            "check-squash": {
+              "title": "pull request checks commits messages squash",
+              "description": "Check that we don't have one squash commit in the pull request",
+              "default": true,
+              "type": "boolean"
+            },
+            "check-first-capital": {
+              "title": "pull request checks commits messages first capital",
+              "description": "Check that the all the commits message starts with a capital letter",
+              "default": true,
+              "type": "boolean"
+            },
+            "min-head-length": {
+              "title": "pull request checks commits messages min head length",
+              "description": "Check that the commits message head is at least this long, use 0 to disable",
+              "default": 5,
+              "type": "integer"
+            },
+            "check-no-merge-commits": {
+              "title": "pull request checks commits messages no merge commits",
+              "description": "Check that we don't have merge commits in the pull request",
+              "default": true,
+              "type": "boolean"
+            },
+            "check-no-own-revert": {
+              "title": "pull request checks commits messages no own revert",
+              "description": "Check that we don't have reverted one of our commits in the pull request",
+              "default": true,
+              "type": "boolean"
+            }
+          }
+        },
+        { "type": "boolean" }
+      ]
+    },
+    "commits-spell": {
+      "title": "pull request checks commits spelling",
+      "oneOf": [
+        {
+          "title": "pull request checks commits spelling configuration",
+          "description": "Configuration used to check the spelling of the commits",
+          "type": "object",
+          "properties": {
+            "only-head": {
+              "title": "pull request checks commits messages only head",
+              "default": true,
+              "type": "boolean"
+            }
+          }
+        },
+        { "type": "boolean" }
+      ]
+    },
+    "pull-request-spell": {
+      "title": "pull request checks pull request spelling",
+      "oneOf": [
+        {
+          "title": "pull request checks pull request spelling configuration",
+          "description": "Configuration used to check the spelling of the title and body of the pull request",
+          "type": "object",
+          "properties": {
+            "only-head": {
+              "title": "pull request checks only head",
+              "default": true,
+              "type": "boolean"
+            }
+          }
+        },
+        { "type": "boolean" }
+      ]
+    }
+  }
+}
