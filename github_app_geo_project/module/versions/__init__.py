@@ -125,7 +125,7 @@ class Versions(module.Module[dict[str, None]]):
             actions = []
             for branch in stabilization_branch:
                 actions.append(module.Action(data={"step": 2, "branch": branch}))
-            return ProcessOutput(actions=actions, transversal_status=status)
+            return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
         if context.module_data.get("step") == 2:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 os.chdir(tmpdirname)
@@ -142,7 +142,7 @@ class Versions(module.Module[dict[str, None]]):
                 )
                 _get_names(context, status.setdefault("names", {}), context.module_data["branch"])
                 _get_dependencies(context, status.setdefault("dependencies", {}))
-            return ProcessOutput(transversal_status=status)
+            return ProcessOutput(transversal_status=context.transversal_status)
         raise VersionException("Invalid step")
 
     def has_transversal_dashboard(self) -> bool:

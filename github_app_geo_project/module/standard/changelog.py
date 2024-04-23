@@ -425,7 +425,7 @@ def generate_changelog(
     created = tag.tag.commit.commit.author.date
     result = [f"# {tag.major}.{tag.minor}.{tag.patch} ({created:%Y-%m-%d})", ""]
     if discussion_url:
-        result.append(f"[See announcement]({discussion_url})")
+        result.append(f"[See announcement]({discussion_url}).")
         result.append("")
     if milestone.description:
         result.append(milestone.description)
