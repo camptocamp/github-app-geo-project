@@ -1,2 +1,14 @@
 <h2>${title}</h2>
+
+%for branch_name, branch_values in data_json.items():
+<h3>${branch_name}</h3>
+%for workflow_name, workflow_value in branch_values.items():
+<p><a href="${workflow_value['url']}">${workflow_name}</a></p>
+<ul>
+  %for job_value in workflow_value['jobs']:
+  <li><a href="${job_value['run_url']}">${job_value['name']}</a>.</li>
+  %endfor
+</ul>
+%endfor
+
 <p>${data|sanitizer, n}</p>

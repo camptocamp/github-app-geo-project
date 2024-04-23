@@ -132,6 +132,7 @@ class Workflow(module.Module[None]):
                 renderer="github_app_geo_project:module/workflow/repository.html",
                 data={
                     "title": self.title() + " - " + context.params["repository"],
+                    "data_json": context.status.get(context.params["repository"], {}),
                     "data": data,
                 },
             )
