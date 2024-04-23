@@ -114,7 +114,7 @@ class Versions(module.Module[dict[str, None]]):
             else:
                 _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
                 stabilization_branch = [repo.default_branch]
-                status["versions"].getdefault(repo.default_branch, {})["support"] = "Best Effort"
+                status["versions"].setdefault(repo.default_branch, {})["support"] = "Best Effort"
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_branch))
 
             versions = status.setdefault("versions", {})
@@ -207,11 +207,12 @@ def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str,
     if os.path.exists("ci/config.yaml"):
         with open("ci/config.yaml", encoding="utf-8") as file:
             data = yaml.load(file, Loader=yaml.SafeLoader)
-            for conf in data.get("publish", {}).get("docker", {}).get("images", []):
-                for tag in conf.get("tags", ["{version}"]):
-                    names.setdefault("docker", {}).setdefault(conf["name"], []).append(
-                        tag.format(version=branch)
-                    )
+            if data.get("publish", {}).get("docker", {}):
+                for conf in data.get("publish", {}).get("docker", {}).get("images", []):
+                    for tag in conf.get("tags", ["{version}"]):
+                        names.setdefault("docker", {}).setdefault(conf["name"], []).append(
+                            tag.format(version=branch)
+                        )
 
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "package.json", "*/package.json"],
@@ -237,6 +238,7 @@ def _get_dependencies(
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["renovate-graph", "--platform=local"],
         env={
+            **os.environ,
             "RG_LOCAL_PLATFORM": "github",
             "RG_LOCAL_ORGANISATION": context.github_project.owner,
             "RG_LOCAL_REPO": context.github_project.repository,

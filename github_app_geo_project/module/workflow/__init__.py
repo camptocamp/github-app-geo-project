@@ -90,7 +90,10 @@ class Workflow(module.Module[None]):
             return None
 
         branch_data = repo_data.setdefault(context.event_data.get("workflow_run", {}).get("head_branch"), {})
-        if context.event_data.get("workflow_run", {}).get("conclusion") == "success":
+        if (
+            context.event_data.get("workflow_run", {}).get("conclusion") == "success"
+            and context.event_data.get("workflow", {}).get("name", "-") in branch_data
+        ):
             del branch_data[context.event_data.get("workflow", {}).get("name", "-")]
             if not branch_data:
                 del repo_data[context.event_data.get("workflow_run", {}).get("head_branch")]
