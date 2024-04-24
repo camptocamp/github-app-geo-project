@@ -1,2 +1,21 @@
 <h2>${title}</h2>
+
+%for version, dependencies in data.items():
+<h3>${version}</h3>
+<table>
+  <tr>
+    <th>Dependency</th>
+    <th>Version</th>
+    <th>Supported</th>
+  </tr>
+  %for dependency in dependencies:
+  <tr>
+    <td><a href="?repository=${dependency['name']}">${dependency['name']}</a></td>
+    <td>${dependency['version']}</td>
+    <td style="background-color: var(${dependency[ 'color']})">${dependency['supported']}</td>
+  </tr>
+  %endfor
+</table>
+%endfor
+
 <p>${data|sanitizer, n}</p>

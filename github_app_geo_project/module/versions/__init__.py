@@ -1,5 +1,6 @@
 """Utility functions for the auto* modules."""
 
+import datetime
 import json
 import logging
 import os
@@ -13,6 +14,7 @@ import c2cciutils.security
 import github
 import pygments.formatters
 import pygments.lexers
+import requests
 import toml
 import yaml
 
@@ -78,12 +80,15 @@ class Versions(module.Module[dict[str, None]]):
         Note that this method is called in the queue consuming Pod
         """
         if context.module_data.get("step") == 1:
+            _update_upstream_versions(context)
+
             status = context.transversal_status.setdefault(
                 f"{context.github_project.owner}/{context.github_project.repository}", {}
             )
 
             module_utils.manage_updated(
-                context.module_data, f"{context.github_project.owner}/{context.github_project.repository}"
+                context.transversal_status,
+                f"{context.github_project.owner}/{context.github_project.repository}",
             )
 
             status["versions"] = {}
@@ -153,6 +158,49 @@ class Versions(module.Module[dict[str, None]]):
         self, context: module.TransversalDashboardContext
     ) -> module.TransversalDashboardOutput:
         if "repository" in context.params:
+            names: dict[str, dict[str, list[dict[str, str]]]] = {}
+            for repo_data in context.status.values():
+                for branch_data in repo_data.get("versions", {}).values():
+                    for version_type, version_data in branch_data.get("names", {}).items():
+                        for name, versions in version_data.items():
+                            names.setdefault(version_type, {}).setdefault(name, [])[versions] = (
+                                branch_data.get("support")
+                            )
+
+            reverse_dependencies: dict[str, list[dict[str, str]]] = {}
+            for version, version_data in (
+                context.status.get(context.params["repository"], {}).get("versions", {}).items()
+            ):
+                for dependency_type, dependency_data in version_data.get("dependencies", {}).items():
+                    for dependency_name, versions in dependency_data.items():
+                        for version in versions:
+                            dependency_versions = names.get(dependency_type, {}).get(dependency_name, [])
+                            if not dependency_versions:
+                                continue
+                            if version not in dependency_versions:
+                                reverse_dependencies.setdefault(version, []).append(
+                                    {
+                                        "name": dependency_name,
+                                        "versions": version,
+                                        "support": "Unsupported",
+                                        "color": "--bs-danger",
+                                    }
+                                )
+                            else:
+                                is_supported = _is_supported(
+                                    version_data["support"], dependency_versions[version]
+                                )
+                                reverse_dependencies.setdefault(version, []).append(
+                                    {
+                                        "name": dependency_name,
+                                        "versions": version,
+                                        "support": dependency_versions[version],
+                                        "color": "--bs-body-bg" if is_supported else "--bs-danger",
+                                    }
+                                )
+
+            context.status.get(context.params["repository"], {})
+
             lexer = pygments.lexers.JsonLexer()
             formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
             data = pygments.highlight(
@@ -163,6 +211,7 @@ class Versions(module.Module[dict[str, None]]):
                 renderer="github_app_geo_project:module/versions/repository.html",
                 data={
                     "title": self.title() + " - " + context.params["repository"],
+                    "reverse_dependencies": reverse_dependencies,
                     "data": data,
                 },
             )
@@ -186,11 +235,11 @@ def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str,
             data = toml.load(file)
             name = data.get("project", {}).get("name")
             if name:
-                names.setdefault("pypi", []).append(name)
+                names.setdefault("pypi", {}).setdefault(name, []).append(branch)
             else:
                 name = data.get("tool", {}).get("poetry", {}).get("name")
                 if name:
-                    names.setdefault("pypi", []).append(name)
+                    names.setdefault("pypi", {}).setdefault(name, []).append(branch)
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "setup.py", "*/setup.py"],
         check=True,
@@ -202,7 +251,7 @@ def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str,
             for line in file:
                 match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
                 if match:
-                    names.setdefault("pypi", []).append(match.group(1))
+                    names.setdefault("pypi", {}).setdefault(match.group(1), []).append(branch)
 
     if os.path.exists("ci/config.yaml"):
         with open("ci/config.yaml", encoding="utf-8") as file:
@@ -225,7 +274,7 @@ def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str,
             data = json.load(file)
             name = data.get("name")
             if name:
-                names.setdefault("npm", {}).setdefault(name, []).append(filename)
+                names.setdefault("npm", {}).setdefault(name, []).append(branch)
 
     names.setdefault("github", {}).setdefault(
         f"{context.github_project.owner}/{context.github_project.repository}", []
@@ -271,6 +320,8 @@ def _get_dependencies(
     for values in data.get("packageFiles", {}).values():
         for value in values:
             for dep in value.get("deps", []):
+                if "currentValue" not in dep:
+                    continue
                 result.setdefault(dep.get("datasource", "-"), {}).setdefault(
                     dep.get("depName", "-"), set()
                 ).add(dep.get("currentValue"))
@@ -278,3 +329,83 @@ def _get_dependencies(
     for datasource_value in result.values():
         for dep, dep_value in datasource_value.items():
             datasource_value[dep] = list(dep_value)
+
+
+def _update_upstream_versions(context: module.ProcessContext[dict[str, None]]) -> None:
+    module_utils.manage_updated(context.transversal_status, "upstream-updated")
+    upstream_versions = context.transversal_status.setdefault("upstream-updated", {})
+    if "upstream-updated" in upstream_versions and datetime.datetime.fromisoformat(
+        upstream_versions["upstream-updated"]
+    ) > datetime.datetime.now() - datetime.timedelta(days=30):
+        return
+
+    for package, version_type in {
+        "python": "pypi",
+        "ubuntu": "docker",
+        "debian": "docker",
+        "node": "node-version",
+    }.items():
+
+        module_utils.manage_updated(context.transversal_status, package)
+        python_status = context.transversal_status.setdefault("python", {})
+        for cycle in requests.get(f"https://endoflife.date/{package}.json", timeout=10).json():
+            python_status.setdefault("versions", {})[cycle["version"]] = {
+                "support": cycle["eol"],
+                "names": {
+                    version_type: {
+                        package: [cycle["version"]],
+                    },
+                },
+            }
+
+    module_utils.manage_updated(context.transversal_status, "camptocamp/postgres")
+    postgres_status = context.transversal_status.setdefault("camptocamp/postgres", {})
+    for cycle in requests.get("https://endoflife.date/postgresql.json", timeout=30).json():
+        tag = {
+            "12": "12-postgis-3",
+            "13": "13-postgis-3",
+            "14": "14-postgis-3",
+            "15": "15-postgis-3",
+            "16": "16-postgis-3",
+        }
+        postgres_status.setdefault("versions", {})[cycle["version"]] = {
+            "support": cycle["eol"],
+            "names": {
+                "docker": {
+                    "camptocamp/postgres": [tag[cycle["version"]]],
+                },
+            },
+        }
+
+    module_utils.manage_updated(context.transversal_status, "osgeo/gdal")
+    gdal_status = context.transversal_status.setdefault("osgeo/gdal", {})
+    gdal_status.update(
+        {
+            "versions": {
+                "3.3": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.3"]}}},
+                "3.4": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.4"]}}},
+                "3.5": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.5"]}}},
+                "3.6": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.6"]}}},
+                "3.7": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.7"]}}},
+                "3.8": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.8"]}}},
+            }
+        }
+    )
+
+
+def _is_supported(support: str, dependency_support: str) -> bool:
+    if support == dependency_support:
+        return True
+    if support == "Unsupported":
+        return True
+    if dependency_support == "Unsupported":
+        return False
+    if support == "Best effort":
+        return True
+    if dependency_support == "Best effort":
+        return False
+    if support == "To be defined":
+        return True
+    if dependency_support == "To be defined":
+        return False
+    return datetime.datetime.fromisoformat(support) < datetime.datetime.fromisoformat(dependency_support)

@@ -325,7 +325,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
         )
 
         module_utils.manage_updated(
-            context.module_data, f"{context.github_project.owner}/{context.github_project.repository}"
+            context.transversal_status, f"{context.github_project.owner}/{context.github_project.repository}"
         )
 
         # If no SECURITY.md apply on main branch
