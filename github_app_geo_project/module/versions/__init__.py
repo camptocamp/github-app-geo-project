@@ -158,12 +158,12 @@ class Versions(module.Module[dict[str, None]]):
         self, context: module.TransversalDashboardContext
     ) -> module.TransversalDashboardOutput:
         if "repository" in context.params:
-            names: dict[str, dict[str, list[dict[str, str]]]] = {}
+            names: dict[str, dict[str, dict[str, str]]] = {}
             for repo_data in context.status.values():
                 for branch_data in repo_data.get("versions", {}).values():
                     for version_type, version_data in branch_data.get("names", {}).items():
                         for name, versions in version_data.items():
-                            names.setdefault(version_type, {}).setdefault(name, [])[versions] = (
+                            names.setdefault(version_type, {}).setdefault(name, {})[versions] = (
                                 branch_data.get("support")
                             )
 
@@ -174,7 +174,7 @@ class Versions(module.Module[dict[str, None]]):
                 for dependency_type, dependency_data in version_data.get("dependencies", {}).items():
                     for dependency_name, versions in dependency_data.items():
                         for version in versions:
-                            dependency_versions = names.get(dependency_type, {}).get(dependency_name, [])
+                            dependency_versions = names.get(dependency_type, {}).get(dependency_name, {})
                             if not dependency_versions:
                                 continue
                             if version not in dependency_versions:
