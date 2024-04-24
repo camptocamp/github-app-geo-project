@@ -158,14 +158,22 @@ class Versions(module.Module[dict[str, None]]):
         self, context: module.TransversalDashboardContext
     ) -> module.TransversalDashboardOutput:
         if "repository" in context.params:
+            lexer = pygments.lexers.JsonLexer()
+            formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
+
             names: dict[str, dict[str, dict[str, str]]] = {}
             for repo_data in context.status.values():
-                for branch_data in repo_data.get("versions", {}).values():
+                for branch, branch_data in repo_data.get("versions", {}).items():
                     for version_type, version_data in branch_data.get("names", {}).items():
                         for name, versions in version_data.items():
-                            names.setdefault(version_type, {}).setdefault(name, {})[versions] = (
-                                branch_data.get("support")
+                            names.setdefault(version_type, {}).setdefault(name, {})[branch] = branch_data.get(
+                                "support"
                             )
+
+            formatted = pygments.highlight(json.dumps(names, indent=4), lexer, formatter)
+            message = module_utils.HtmlMessage(formatted)
+            message.title = "Names:"
+            _LOGGER.debug(message)
 
             reverse_dependencies: dict[str, list[dict[str, str]]] = {}
             for version, version_data in (
@@ -198,6 +206,11 @@ class Versions(module.Module[dict[str, None]]):
                                         "color": "--bs-body-bg" if is_supported else "--bs-danger",
                                     }
                                 )
+
+            formatted = pygments.highlight(json.dumps(reverse_dependencies, indent=4), lexer, formatter)
+            message = module_utils.HtmlMessage(formatted)
+            message.title = "Reverse dependencies:"
+            _LOGGER.debug(message)
 
             context.status.get(context.params["repository"], {})
 
