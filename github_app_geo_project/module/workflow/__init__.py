@@ -51,12 +51,12 @@ class Workflow(module.Module[None]):
         return []
 
     def process(self, context: module.ProcessContext[None]) -> module.ProcessOutput | None:
-        repo_data = context.module_data.setdefault(
+        repo_data = context.transversal_status.setdefault(
             context.github_project.owner + "/" + context.github_project.repository, {}
         )
 
         module_utils.manage_updated(
-            context.module_data,
+            context.transversal_status,
             f"{context.github_project.owner}/{context.github_project.repository}",
             days_old=30,
         )
@@ -97,7 +97,7 @@ class Workflow(module.Module[None]):
             del branch_data[context.event_data.get("workflow", {}).get("name", "-")]
             if not branch_data:
                 del repo_data[context.event_data.get("workflow_run", {}).get("head_branch")]
-            return module.ProcessOutput(transversal_status=context.module_data)
+            return module.ProcessOutput(transversal_status=context.transversal_status)
 
         workflow_data = {
             "url": context.event_data.get("workflow_run", {}).get("html_url"),
@@ -113,7 +113,7 @@ class Workflow(module.Module[None]):
             if job.conclusion != "success":
                 workflow_data["jobs"].append({"name": job.name, "run_url": job.html_url})
 
-        return module.ProcessOutput(transversal_status=context.module_data)
+        return module.ProcessOutput(transversal_status=context.transversal_status)
 
     def has_transversal_dashboard(self) -> bool:
         return True
