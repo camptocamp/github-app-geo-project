@@ -21,3 +21,7 @@ generate:
     destination: github_app_geo_project/module/standard/auto_configuration.py
   - source: github_app_geo_project/module/audit/schema.json
     destination: github_app_geo_project/module/audit/configuration.py
+  - source: github_app_geo_project/module/pull_request/checks-schema.json
+    destination: github_app_geo_project/module/pull_request/checks_configuration.py
+  - source: github_app_geo_project/module/pull_request/links-schema.json
+    destination: github_app_geo_project/module/pull_request/links_configuration.py

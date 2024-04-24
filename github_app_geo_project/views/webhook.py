@@ -26,13 +26,18 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
         "Webhook received for %s on%s", request.headers.get("X-GitHub-Event", "undefined"), application
     )
 
+    application_object = None
     try:
         application_object = configuration.get_github_application(request.registry.settings, application)
         if data.get("sender", {}).get("login") == application_object.integration.get_app().slug + "[bot]":
             _LOGGER.info("Ignoring event from the application itself")
             return {}
     except Exception:  # pylint: disable=broad-except
-        _LOGGER.exception("Application not found: %s", application)
+        del configuration.GITHUB_APPLICATIONS[application]
+        application_object = configuration.get_github_application(request.registry.settings, application)
+        if data.get("sender", {}).get("login") == application_object.integration.get_app().slug + "[bot]":
+            _LOGGER.info("Ignoring event from the application itself")
+            return {}
 
     if "account" in data.get("installation", {}):
         if "repositories" in data:
@@ -86,6 +91,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 event_name=request.headers.get("X-GitHub-Event", "undefined"),
                 event_data=data,
                 session=session,
+                github_application=application_object,
             )
         )
         session.commit()
@@ -95,20 +101,22 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
 class ProcessContext(NamedTuple):
     """The context of the process."""
 
-    # The GitHub project owner
     owner: str
-    # The GitHub project repository
+    """The GitHub project owner"""
     repository: str
-    # The application configuration
+    """The GitHub project repository"""
     config: dict[str, Any]
-    # The application name
+    """The application configuration"""
     application: str
-    # The event name present in the X-GitHub-Event header
+    """The application name"""
     event_name: str
-    # The event data
+    """The event name present in the X-GitHub-Event header"""
     event_data: dict[str, Any]
-    # The session to be used
+    """The event data"""
     session: sqlalchemy.orm.Session
+    """The session to be used"""
+    github_application: configuration.GithubApplication
+    """The github application."""
 
 
 def process_event(context: ProcessContext) -> None:
@@ -133,6 +141,7 @@ def process_event(context: ProcessContext) -> None:
                     event_data=context.event_data,
                     owner=context.owner,
                     repository=context.repository,
+                    github_application=context.github_application,
                 )
             ):
                 context.session.execute(

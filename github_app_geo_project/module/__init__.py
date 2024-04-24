@@ -61,6 +61,8 @@ class GetActionContext(NamedTuple):
     """The owner of the event."""
     repository: str
     """The repository of the event."""
+    github_application: configuration.GithubApplication
+    """The github application."""
 
 
 class CleanupContext(NamedTuple):

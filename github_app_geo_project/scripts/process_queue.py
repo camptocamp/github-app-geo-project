@@ -257,6 +257,7 @@ def _process_event(
                     event_name="event",
                     event_data=event_data,
                     session=session,
+                    github_application=None,  # type: ignore[arg-type]
                 )
             )
         else:
@@ -272,6 +273,7 @@ def _process_event(
                             event_name="event",
                             event_data=event_data,
                             session=session,
+                            github_application=github_application,
                         )
                     )
 
@@ -331,6 +333,7 @@ def _process_dashboard_issue(
                                 },
                                 owner=github_project.owner,
                                 repository=github_project.repository,
+                                github_application=github_project.application,
                             )
                         ):
                             session.execute(
