@@ -127,42 +127,49 @@ repos:
           - --pre-commit
           - github_app_geo_project/project-schema.json
           - PROJECT-CONFIG.md
-  - repo: https://github.com/sbrunner/jsonschema2md
-    rev: 1.2.0
-    hooks:
       - id: jsonschema2md
         files: ^github_app_geo_project/application-schema\.json$
         args:
           - --pre-commit
           - github_app_geo_project/application-schema.json
           - APPLICATION-CONFIG.md
-  - repo: https://github.com/sbrunner/jsonschema2md
-    rev: 1.2.0
-    hooks:
       - id: jsonschema2md
         files: ^github_app_geo_project/module/standard/changelog-schema\.json$
         args:
           - --pre-commit
           - github_app_geo_project/module/standard/changelog-schema.json
           - CHANGELOG-CONFIG.md
-  - repo: https://github.com/sbrunner/jsonschema2md
-    rev: 1.2.0
-    hooks:
       - id: jsonschema2md
         files: ^github_app_geo_project/module/standard/auto-schema\.json$
         args:
           - --pre-commit
           - github_app_geo_project/module/standard/auto-schema.json
           - AUTO-CONFIG.md
-  - repo: https://github.com/sbrunner/jsonschema2md
-    rev: 1.2.0
-    hooks:
       - id: jsonschema2md
         files: ^github_app_geo_project/module/audit/schema\.json$
         args:
           - --pre-commit
           - github_app_geo_project/module/audit/schema.json
           - AUDIT-CONFIG.md
+      - id: jsonschema2md
+        files: ^github_app_geo_project/module/pull_request/checks-schema\.json$
+        args:
+          - --pre-commit
+          - github_app_geo_project/module/pull_request/checks-schema.json
+          - PULL-REQUEST-CHECKS-CONFIG.md
+      - id: jsonschema2md
+        files: ^github_app_geo_project/module/pull_request/links-schema\.json$
+        args:
+          - --pre-commit
+          - github_app_geo_project/module/pull_request/links-schema.json
+          - PULL-REQUEST-LINKS-CONFIG.md
+      - id: jsonschema2md
+        files: ^github_app_geo_project/module/delete_old_workflow_runs/schema\.json$
+        args:
+          - --pre-commit
+          - github_app_geo_project/module/delete_old_workflow_runs/schema.json
+          - DELETE-OLD-WORKFLOW-RUN-CONFIG.md
+
   - repo: https://github.com/sbrunner/jsonschema-validator
     rev: 0.1.0
     hooks:
