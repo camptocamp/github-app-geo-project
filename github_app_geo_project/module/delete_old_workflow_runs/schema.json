@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "Delete old workflow runs configuration",
+  "properties": {
+    "rules": {
+      "type": "array",
+      "items": {
+        "title": "Rule",
+        "description": "A rule to filter the list of workflow runs",
+        "type": "object",
+        "properties": {
+          "older-than-days": {
+            "type": "integer"
+          },
+          "workflow": {
+            "type": "string"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "event": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": ["older-than-days"]
+      }
+    }
+  }
+}
