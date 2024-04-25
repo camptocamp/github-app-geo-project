@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/versions/schema.json",
+  "type": "object",
+  "title": "Versions configuration",
+  "additionalProperties": false,
+
+  "properties": {
+    "external-packages": {
+      "type": "array",
+      "examples": [
+        {
+          "package": "python",
+          "datasource": "pypi"
+        },
+        {
+          "package": "ubuntu",
+          "datasource": "docker"
+        },
+        {
+          "package": "debian",
+          "datasource": "docker"
+        },
+        {
+          "package": "node",
+          "datasource": "node-version"
+        },
+        {
+          "package": "java",
+          "datasource": "package"
+        },
+        {
+          "package": "redis",
+          "datasource": "package"
+        },
+        {
+          "package": "haproxy",
+          "datasource": "package"
+        },
+        {
+          "package": "kubernetes",
+          "datasource": "package"
+        },
+        {
+          "package": "tomcat",
+          "datasource": "package"
+        },
+        {
+          "package": "postgres",
+          "datasource": "package"
+        }
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "package": {
+            "type": "string",
+            "description": "The name of the package from https://endoflife.date"
+          },
+          "datasource": {
+            "type": "string",
+            "description": "The datasource of the dependencies"
+          }
+        },
+        "required": ["package", "datasource"]
+      }
+    },
+    "package-extractor": {
+      "description": "The package extractor by version type",
+      "type": "object",
+      "additionalProperties": {
+        "description": "The package extractor by package name",
+        "type": "object",
+        "additionalProperties": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "version-extractor": {
+                "type": "string",
+                "description": "The regular expression used to extract value from the package version"
+              },
+              "datasource": {
+                "type": "string",
+                "description": "The type of datasource"
+              },
+              "requires": {
+                "type": "array",
+                "description": "The list of the required values to do the correspondence",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "package": {
+                "type": "string",
+                "description": "The name of the package that can be build from the extracted values"
+              },
+              "version": {
+                "type": "string",
+                "description": "The version of the package that can be build from the extracted values"
+              }
+            },
+            "required": ["type", "package", "version"]
+          }
+        }
+      }
+    }
+  }
+}
