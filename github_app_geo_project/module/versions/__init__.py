@@ -161,20 +161,22 @@ class Versions(module.Module[dict[str, None]]):
             lexer = pygments.lexers.JsonLexer()
             formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
 
+            # type.package.minor_version = support
             names: dict[str, dict[str, dict[str, str]]] = {}
             for repo_data in context.status.values():
                 for branch, branch_data in repo_data.get("versions", {}).items():
                     for version_type, version_data in branch_data.get("names", {}).items():
                         for name, versions in version_data.items():
-                            names.setdefault(version_type, {}).setdefault(name, {})[branch] = branch_data.get(
-                                "support"
-                            )
+                            names.setdefault(version_type, {}).setdefault(name, {})[
+                                _canonical_minor_version(version_type, branch)
+                            ] = branch_data.get("support")
 
             formatted = pygments.highlight(json.dumps(names, indent=4), lexer, formatter)
             message = module_utils.HtmlMessage(formatted)
             message.title = "Names:"
             _LOGGER.debug(message)
 
+            # branch = list of dependencies
             reverse_dependencies: dict[str, list[dict[str, str]]] = {}
             for version, version_data in (
                 context.status.get(context.params["repository"], {}).get("versions", {}).items()
@@ -182,14 +184,15 @@ class Versions(module.Module[dict[str, None]]):
                 for dependency_type, dependency_data in version_data.get("dependencies", {}).items():
                     for dependency_name, versions in dependency_data.items():
                         for version in versions:
+                            canonical_version = _canonical_minor_version(dependency_name, version)
                             dependency_versions = names.get(dependency_type, {}).get(dependency_name, {})
                             if not dependency_versions:
                                 continue
-                            if version not in dependency_versions:
+                            if canonical_version not in dependency_versions:
                                 reverse_dependencies.setdefault(version, []).append(
                                     {
                                         "name": dependency_name,
-                                        "versions": version,
+                                        "version": version,
                                         "support": "Unsupported",
                                         "color": "--bs-danger",
                                     }
@@ -234,6 +237,19 @@ class Versions(module.Module[dict[str, None]]):
             renderer="github_app_geo_project:module/versions/dashboard.html",
             data={"repositories": context.status.keys()},
         )
+
+
+_MINOR_VERSION_RE = re.compile(r"^v?(\d+\.\d+)(\..+)?$")
+
+
+def _canonical_minor_version(version_type: str, version: str) -> str:
+    if version_type == "docker":
+        return version
+
+    match = _MINOR_VERSION_RE.match(version)
+    if match:
+        return match.group(1)
+    return version
 
 
 def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str, Any], branch: str) -> None:
@@ -351,59 +367,41 @@ def _update_upstream_versions(context: module.ProcessContext[dict[str, None]]) -
         upstream_versions["upstream-updated"]
     ) > datetime.datetime.now() - datetime.timedelta(days=30):
         return
+    context.transversal_status["upstream-updated"]["upstream-updated"] = datetime.datetime.now().isoformat()
 
     for package, version_type in {
         "python": "pypi",
         "ubuntu": "docker",
         "debian": "docker",
         "node": "node-version",
+        "java": "package",
+        "redis": "package",
+        "haproxy": "package",
+        "kubernetes": "package",
+        "tomcat": "package",
+        "postgres": "package",
     }.items():
 
         module_utils.manage_updated(context.transversal_status, package)
-        python_status = context.transversal_status.setdefault("python", {})
-        for cycle in requests.get(f"https://endoflife.date/{package}.json", timeout=10).json():
-            python_status.setdefault("versions", {})[cycle["version"]] = {
+        package_status = context.transversal_status.setdefault(package, {})
+        package_status["url"] = f"https://endoflife.date/{package}"
+        response = requests.get(f"https://endoflife.date/api/{package}.json", timeout=10)
+        if not response.ok:
+            _LOGGER.error("Failed to get the data for %s", package)
+            if "upstream-updated" in context.transversal_status["upstream-updated"]:
+                del context.transversal_status["upstream-updated"]["upstream-updated"]
+            return
+        for cycle in response.json():
+            if datetime.datetime.fromisoformat(cycle["eol"]) < datetime.datetime.now():
+                continue
+            package_status.setdefault("versions", {})[cycle["cycle"]] = {
                 "support": cycle["eol"],
                 "names": {
                     version_type: {
-                        package: [cycle["version"]],
+                        package: [cycle["latest"]],
                     },
                 },
             }
-
-    module_utils.manage_updated(context.transversal_status, "camptocamp/postgres")
-    postgres_status = context.transversal_status.setdefault("camptocamp/postgres", {})
-    for cycle in requests.get("https://endoflife.date/postgresql.json", timeout=30).json():
-        tag = {
-            "12": "12-postgis-3",
-            "13": "13-postgis-3",
-            "14": "14-postgis-3",
-            "15": "15-postgis-3",
-            "16": "16-postgis-3",
-        }
-        postgres_status.setdefault("versions", {})[cycle["version"]] = {
-            "support": cycle["eol"],
-            "names": {
-                "docker": {
-                    "camptocamp/postgres": [tag[cycle["version"]]],
-                },
-            },
-        }
-
-    module_utils.manage_updated(context.transversal_status, "osgeo/gdal")
-    gdal_status = context.transversal_status.setdefault("osgeo/gdal", {})
-    gdal_status.update(
-        {
-            "versions": {
-                "3.3": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.3"]}}},
-                "3.4": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.4"]}}},
-                "3.5": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.5"]}}},
-                "3.6": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.6"]}}},
-                "3.7": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.7"]}}},
-                "3.8": {"support": "Best effort", "names": {"docker": {"osgeo/gdal": ["3.8"]}}},
-            }
-        }
-    )
 
 
 def _is_supported(support: str, dependency_support: str) -> bool:
