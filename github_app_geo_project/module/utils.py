@@ -629,4 +629,10 @@ def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
             or datetime.datetime.fromisoformat(other_object["updated"])
             < datetime.datetime.now() - datetime.timedelta(days=days_old)
         ):
+            _LOGGER.debug(
+                "Remove old status %s (%s < %s)",
+                other_key,
+                other_object.get("updated", "-"),
+                datetime.datetime.now() - datetime.timedelta(days=days_old),
+            )
             del status[other_key]

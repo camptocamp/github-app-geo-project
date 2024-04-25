@@ -64,13 +64,12 @@ def _get_process_output(
             del issue_data[key]
 
     module_status = context.transversal_status
+    repo_key = f"{context.github_project.owner}/{context.github_project.repository}"
     if issue_data:
-        module_status[f"{context.github_project.owner}/{context.github_project.repository}"] = {
-            k: [markdown.markdown(v) for v in vl] for k, vl in issue_data.items()
-        }
+        module_status[repo_key] = {k: [markdown.markdown(v) for v in vl] for k, vl in issue_data.items()}
     else:
-        if f"{context.github_project.owner}/{context.github_project.repository}" in module_status:
-            del module_status[f"{context.github_project.owner}/{context.github_project.repository}"]
+        if repo_key in module_status:
+            del module_status[repo_key]
 
     return module.ProcessOutput(
         dashboard="\n<!---->\n".join([issue_check.to_string(), _format_issue_data(issue_data)]),
