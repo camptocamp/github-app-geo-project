@@ -31,6 +31,13 @@ def _add_issue_link(
         "head-branch": pull_request.head.ref,
     }
 
+    for uppercase_key in config.get("uppercase", []):
+        if uppercase_key in values:
+            values[uppercase_key] = values[uppercase_key].upper()
+    for lowercase_key in config.get("lowercase", []):
+        if lowercase_key in values:
+            values[lowercase_key] = values[lowercase_key].lower()
+
     for pattern in config.get("branch-patterns", []):
         re_ = re.compile(pattern)
         match = re_.match(pull_request.head.ref)
@@ -42,13 +49,6 @@ def _add_issue_link(
                     break
             if valid:
                 values.update(match.groupdict())
-
-    for uppercase_key in config.get("uppercase", []):
-        if uppercase_key in values:
-            values[uppercase_key] = values[uppercase_key].upper()
-    for lowercase_key in config.get("lowercase", []):
-        if lowercase_key in values:
-            values[lowercase_key] = values[lowercase_key].lower()
 
     result = ["", "<!-- pull request links -->"]
     for link in content:
@@ -110,7 +110,7 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
     def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
         """Get the actions to execute."""
         if (
-            context.event_data.get("action") in ("opened", "synchronized")
+            context.event_data.get("action") in ("opened", "reopened", "synchronize")
             and "pull_request" in context.event_data
         ):
             full_name = context.event_data.get("repository", {}).get("full_name")

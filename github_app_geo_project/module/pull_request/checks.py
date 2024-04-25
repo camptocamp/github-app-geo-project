@@ -221,7 +221,7 @@ class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration])
     def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
         """Get the actions to execute."""
         if (
-            context.event_data.get("action") in ("opened", "synchronized")
+            context.event_data.get("action") in ("opened", "reopened", "synchronize")
             and "pull_request" in context.event_data
         ):
             full_name = context.event_data.get("repository", {}).get("full_name")
