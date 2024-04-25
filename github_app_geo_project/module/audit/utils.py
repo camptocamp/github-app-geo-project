@@ -55,7 +55,7 @@ def snyk(
                 ],
                 capture_output=True,
                 encoding="utf-8",
-                timeout=300,
+                timeout=600,
             )
             message = utils.ansi_proc_message(proc)
             if proc.returncode != 0:
