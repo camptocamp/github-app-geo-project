@@ -10,6 +10,7 @@ import os
 import subprocess  # nosec
 import sys
 import time
+import urllib.parse
 from typing import Any, cast
 
 import c2cwsgiutils.loader
@@ -21,7 +22,7 @@ import sqlalchemy.orm
 from github_app_geo_project import configuration, models, module, project_configuration, utils
 from github_app_geo_project.module import modules
 from github_app_geo_project.module import utils as module_utils
-from github_app_geo_project.views import webhook
+from github_app_geo_project.views import output, webhook
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,23 +93,28 @@ def _process_job(
     event_name: str,
     root_logger: logging.Logger,
     handler: _Handler,
+    job: models.Queue,
 ) -> bool:
     current_module = modules.MODULES.get(module_name)
     if current_module is None:
         _LOGGER.error("Unknown module %s", module_name)
         return False
 
+    logs_url = config["service-url"]
+    logs_url = logs_url if logs_url.endswith("/") else logs_url + "/"
+    logs_url = urllib.parse.urljoin(logs_url, "logs/")
+    logs_url = urllib.parse.urljoin(logs_url, str(job.id))
+
     new_issue_data = None
     issue_data = ""
     module_config: project_configuration.ModuleConfiguration = {}
-    github_project = cast(configuration.GithubProject, None)
+    github_project: configuration.GithubProject | None = None
     if "TEST_APPLICATION" not in os.environ:
         github_application = configuration.get_github_application(config, application)
         github_project = configuration.get_github_project(config, github_application, owner, repository)
 
         if current_module.required_issue_dashboard():
-            repository_full = f"{owner}/{repository}"
-            repo = github_project.github.get_repo(repository_full)
+            repo = github_project.repo
             dashboard_issue = _get_dashboard_issue(github_application, repo)
             if dashboard_issue:
                 issue_full_data = dashboard_issue.body
@@ -128,13 +134,28 @@ def _process_job(
         if module_status is None:
             module_status = models.ModuleStatus(module=module_name, data={})
             session.add(module_status)
+
+        if github_project is not None:
+            if job.check_run_id is None:
+                webhook.create_checks(
+                    job,
+                    session,
+                    current_module,
+                    github_project.repo,
+                    event_data,
+                    config["service-url"],
+                )
+            else:
+                check_run = repo.get_check_run(job.check_run_id)
+                check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
+
         try:
             root_logger.addHandler(handler)
 
             result = current_module.process(
                 module.ProcessContext(
                     session=session,
-                    github_project=github_project,
+                    github_project=github_project,  # type: ignore[arg-type]
                     event_name=event_name,
                     event_data=event_data,
                     module_config=module_config,
@@ -145,6 +166,25 @@ def _process_job(
                     service_url=config["service-url"],
                 )
             )
+
+            if github_project is not None:
+                check_output = {
+                    "title": current_module.title(),
+                    "summary": (
+                        "Module executed successfully"
+                        if result is None or result.success
+                        else "Module failed"
+                    ),
+                }
+                if result is not None and not result.success:
+                    check_output["text"] = f"[See logs for more details]({logs_url})"
+                if result is not None and result.output:
+                    check_output.update(result.output)
+                check_run.edit(
+                    status="completed",
+                    conclusion="success" if result is None or result.success else "failure",
+                    output=check_output,
+                )
 
             root_logger.removeHandler(handler)
 
@@ -184,6 +224,14 @@ def _process_job(
                 exception.message,
                 exception.status,
             )
+            check_run.edit(
+                status="completed",
+                conclusion="failure",
+                output={
+                    "title": current_module.title(),
+                    "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
+                },
+            )
             raise
         except subprocess.CalledProcessError as proc_error:
             print(proc_error.stdout, proc_error.stderr)
@@ -191,6 +239,14 @@ def _process_job(
             message.title = f"Error process job '{job_id}' on module: {module_name}"
             _LOGGER.exception(message)
             root_logger.removeHandler(handler)
+            check_run.edit(
+                status="completed",
+                conclusion="failure",
+                output={
+                    "title": current_module.title(),
+                    "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url}))",
+                },
+            )
             raise
         except Exception:
             _LOGGER.exception("Failed to process job id: %s on module: %s", job_id, module_name)
@@ -201,7 +257,7 @@ def _process_job(
         try:
             current_module.cleanup(
                 module.CleanupContext(
-                    github_project=github_project,
+                    github_project=github_project,  # type: ignore[arg-type]
                     event_name="event",
                     event_data=event_data,
                     module_data=module_data,
@@ -257,6 +313,7 @@ def _process_event(
                     event_data=event_data,
                     session=session,
                     github_application=None,  # type: ignore[arg-type]
+                    service_url=config["service-url"],
                 )
             )
         else:
@@ -273,6 +330,7 @@ def _process_event(
                             event_data=event_data,
                             session=session,
                             github_application=github_application,
+                            service_url=config["service-url"],
                         )
                     )
 
@@ -303,8 +361,7 @@ def _process_dashboard_issue(
     github_project = configuration.get_github_project(config, github_application, owner, repository)
 
     if event_data["issue"]["user"]["login"] == github_application.integration.get_app().slug + "[bot]":
-        repository_full = f"{owner}/{repository}"
-        repo = github_project.github.get_repo(repository_full)
+        repo = github_project.repo
         dashboard_issue = _get_dashboard_issue(github_application, repo)
 
         if dashboard_issue and dashboard_issue.number == event_data["issue"]["number"]:
@@ -335,28 +392,28 @@ def _process_dashboard_issue(
                                 github_application=github_project.application,
                             )
                         ):
-                            session.execute(
-                                sqlalchemy.insert(models.Queue).values(
-                                    {
-                                        "priority": (
-                                            action.priority
-                                            if action.priority >= 0
-                                            else module.PRIORITY_DASHBOARD
-                                        ),
-                                        "application": github_project.application.name,
-                                        "owner": github_project.owner,
-                                        "repository": github_project.repository,
-                                        "event_name": action.title or "dashboard",
-                                        "event_data": {
-                                            "type": "dashboard",
-                                            "old_data": module_old,
-                                            "new_data": module_new,
-                                        },
-                                        "module": name,
-                                        "module_data": action.data,
-                                    }
-                                )
+                            job = models.Queue()
+                            job.priority = (
+                                action.priority if action.priority >= 0 else module.PRIORITY_DASHBOARD
                             )
+                            job.application = github_project.application.name
+                            job.owner = github_project.owner
+                            job.repository = github_project.repository
+                            job.event_name = action.title or "dashboard"
+                            job.event_data = {
+                                "type": "dashboard",
+                                "old_data": module_old,
+                                "new_data": module_new,
+                            }
+                            job.module = name
+                            job.module_data = action.data  # type: ignore[assignment]
+                            session.add(job)
+                            session.flush()
+                            if action.checks:
+                                webhook.create_checks(
+                                    job, session, current_module, repo, {}, config["service-url"]
+                                )
+                            session.commit()
     else:
         _LOGGER.debug(
             "Dashboard event ignored %s!=%s",
@@ -405,7 +462,6 @@ def _process_one_job(
             )
             session.commit()
 
-            _LOGGER.error("222")
             return True
 
         job.status = models.JobStatus.PENDING
@@ -413,7 +469,6 @@ def _process_one_job(
         session.commit()
         if make_pending:
             _LOGGER.info("Make job ID %s pending", job.id)
-            _LOGGER.error("333")
             return False
 
         # Force get job
@@ -482,6 +537,7 @@ def _process_one_job(
                         job.event_name,
                         root_logger,
                         handler,
+                        job,
                     )
 
             session.execute(

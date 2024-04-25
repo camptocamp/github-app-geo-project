@@ -60,6 +60,7 @@ class Queue(Base):
     module: Mapped[str] = mapped_column(Unicode, nullable=True)
     module_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)
     log: Mapped[str] = mapped_column(Unicode, nullable=True)
+    check_run_id: Mapped[int] = mapped_column(Integer, nullable=True)
 
     def __repr__(self) -> str:
         """Return the representation of the job."""
