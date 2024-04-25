@@ -622,11 +622,11 @@ def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
     Add an updated field to the status and remove the old status.
     """
     status.setdefault(key, {})["updated"] = datetime.datetime.now().isoformat()
-    for other_key in list(status.keys()):
+    for other_key, other_object in list(status.items()):
         if (
-            not isinstance(status[other_key], dict)
-            or "updated" not in status[other_key]
-            or datetime.datetime.fromisoformat(status[other_key]["updated"])
+            not isinstance(other_object, dict)
+            or "updated" not in other_object
+            or datetime.datetime.fromisoformat(other_object["updated"])
             < datetime.datetime.now() - datetime.timedelta(days=days_old)
         ):
             del status[other_key]
