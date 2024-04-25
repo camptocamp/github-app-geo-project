@@ -21,6 +21,7 @@ import yaml
 from github_app_geo_project import module
 from github_app_geo_project.module import ProcessOutput
 from github_app_geo_project.module import utils as module_utils
+from github_app_geo_project.module.versions import configuration
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ class VersionException(Exception):
     """Error while updating the versions."""
 
 
-class Versions(module.Module[dict[str, None]]):
+class Versions(module.Module[configuration.VersionsConfiguration]):
     """
     The version module.
 
@@ -65,15 +66,20 @@ class Versions(module.Module[dict[str, None]]):
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module configuration."""
-        return {
-            "type": "object",
-            "properties": {},
-        }
+        with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
+            schema = json.loads(schema_file.read())
+            for key in ("$schema", "$id"):
+                if key in schema:
+                    del schema[key]
+            return schema  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
+        """Get the GitHub application permissions needed by the module."""
         return module.GitHubApplicationPermissions(permissions={"contents": "read"}, events=set())
 
-    def process(self, context: module.ProcessContext[dict[str, None]]) -> module.ProcessOutput | None:
+    def process(
+        self, context: module.ProcessContext[configuration.VersionsConfiguration]
+    ) -> module.ProcessOutput | None:
         """
         Process the action.
 
@@ -157,18 +163,19 @@ class Versions(module.Module[dict[str, None]]):
     def get_transversal_dashboard(
         self, context: module.TransversalDashboardContext
     ) -> module.TransversalDashboardOutput:
+        """Get the dashboard data."""
         if "repository" in context.params:
             lexer = pygments.lexers.JsonLexer()
             formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
 
-            # type.package.minor_version = support
+            # datasource.package.minor_version = support
             names: dict[str, dict[str, dict[str, str]]] = {}
             for repo_data in context.status.values():
                 for branch, branch_data in repo_data.get("versions", {}).items():
-                    for version_type, version_data in branch_data.get("names", {}).items():
-                        for name, versions in version_data.items():
-                            names.setdefault(version_type, {}).setdefault(name, {})[
-                                _canonical_minor_version(version_type, branch)
+                    for datasource, datasource_data in branch_data.get("names", {}).items():
+                        for name, versions in datasource_data.items():
+                            names.setdefault(datasource, {}).setdefault(name, {})[
+                                _canonical_minor_version(datasource, branch)
                             ] = branch_data.get("support")
 
             formatted = pygments.highlight(json.dumps(names, indent=4), lexer, formatter)
@@ -178,20 +185,20 @@ class Versions(module.Module[dict[str, None]]):
 
             # branch = list of dependencies
             reverse_dependencies: dict[str, list[dict[str, str]]] = {}
-            for version, version_data in (
+            for version, datasource_data in (
                 context.status.get(context.params["repository"], {}).get("versions", {}).items()
             ):
-                for dependency_type, dependency_data in version_data.get("dependencies", {}).items():
-                    for dependency_name, versions in dependency_data.items():
+                for datasource, datasource_data in datasource_data.get("dependencies", {}).items():
+                    for package, versions in datasource_data.items():
                         for version in versions:
-                            canonical_version = _canonical_minor_version(dependency_name, version)
-                            dependency_versions = names.get(dependency_type, {}).get(dependency_name, {})
+                            canonical_version = _canonical_minor_version(package, version)
+                            dependency_versions = names.get(datasource, {}).get(package, {})
                             if not dependency_versions:
                                 continue
                             if canonical_version not in dependency_versions:
                                 reverse_dependencies.setdefault(version, []).append(
                                     {
-                                        "name": dependency_name,
+                                        "name": package,
                                         "version": version,
                                         "support": "Unsupported",
                                         "color": "--bs-danger",
@@ -199,11 +206,11 @@ class Versions(module.Module[dict[str, None]]):
                                 )
                             else:
                                 is_supported = _is_supported(
-                                    version_data["support"], dependency_versions[version]
+                                    datasource_data["support"], dependency_versions[version]
                                 )
                                 reverse_dependencies.setdefault(version, []).append(
                                     {
-                                        "name": dependency_name,
+                                        "name": package,
                                         "versions": version,
                                         "support": dependency_versions[version],
                                         "color": "--bs-body-bg" if is_supported else "--bs-danger",
@@ -242,8 +249,8 @@ class Versions(module.Module[dict[str, None]]):
 _MINOR_VERSION_RE = re.compile(r"^v?(\d+\.\d+)(\..+)?$")
 
 
-def _canonical_minor_version(version_type: str, version: str) -> str:
-    if version_type == "docker":
+def _canonical_minor_version(datasource: str, version: str) -> str:
+    if datasource == "docker":
         return version
 
     match = _MINOR_VERSION_RE.match(version)
@@ -252,7 +259,9 @@ def _canonical_minor_version(version_type: str, version: str) -> str:
     return version
 
 
-def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str, Any], branch: str) -> None:
+def _get_names(
+    context: module.ProcessContext[configuration.VersionsConfiguration], names: dict[str, Any], branch: str
+) -> None:
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "pyproject.toml", "*/pyproject.toml"],
         check=True,
@@ -311,7 +320,7 @@ def _get_names(context: module.ProcessContext[dict[str, None]], names: dict[str,
 
 
 def _get_dependencies(
-    context: module.ProcessContext[dict[str, None]], result: dict[str, dict[str, Any]]
+    context: module.ProcessContext[configuration.VersionsConfiguration], result: dict[str, dict[str, Any]]
 ) -> None:
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["renovate-graph", "--platform=local"],
@@ -351,39 +360,60 @@ def _get_dependencies(
             for dep in value.get("deps", []):
                 if "currentValue" not in dep:
                     continue
-                result.setdefault(dep.get("datasource", "-"), {}).setdefault(
-                    dep.get("depName", "-"), set()
-                ).add(dep.get("currentValue"))
+                for dependency, datasource, version in _dependency_extractor(
+                    context, dep["depName"], dep["depdatasourceType"], dep["currentValue"]
+                ):
+                    result.setdefault(datasource, {}).setdefault(dependency, set()).add(version)
 
     for datasource_value in result.values():
         for dep, dep_value in datasource_value.items():
             datasource_value[dep] = list(dep_value)
 
 
-def _update_upstream_versions(context: module.ProcessContext[dict[str, None]]) -> None:
-    module_utils.manage_updated(context.transversal_status, "upstream-updated")
-    upstream_versions = context.transversal_status.setdefault("upstream-updated", {})
-    if "upstream-updated" in upstream_versions and datetime.datetime.fromisoformat(
-        upstream_versions["upstream-updated"]
-    ) > datetime.datetime.now() - datetime.timedelta(days=30):
-        return
-    context.transversal_status["upstream-updated"]["upstream-updated"] = datetime.datetime.now().isoformat()
+def _dependency_extractor(
+    context: module.ProcessContext[configuration.VersionsConfiguration],
+    dependency: str,
+    datasource: str,
+    version: str,
+) -> list[tuple[str, str, str]]:
+    result = [(dependency, datasource, version)]
 
-    for package, version_type in {
-        "python": "pypi",
-        "ubuntu": "docker",
-        "debian": "docker",
-        "node": "node-version",
-        "java": "package",
-        "redis": "package",
-        "haproxy": "package",
-        "kubernetes": "package",
-        "tomcat": "package",
-        "postgres": "package",
-    }.items():
+    for extractor_config in (
+        context.module_config.get("package-extractor", {}).get(datasource, {}).get(dependency, [])
+    ):
+        extractor_re = re.compile(extractor_config.get("version-extractor", ""))
+        match = extractor_re.match(version)
+        if match:
+            values = match.groupdict()
+            do_extraction = True
+            for key in extractor_config.get("requires", []):
+                if key not in values:
+                    do_extraction = False
+                    break
+            if not do_extraction:
+                continue
+            new_datasource = extractor_config["datasource"]
+            new_package = extractor_config["package"].format(**values)
+            new_version = extractor_config["version"].format(**values)
+            result.append((new_package, new_datasource, new_version))
+    return result
+
+
+def _update_upstream_versions(context: module.ProcessContext[configuration.VersionsConfiguration]) -> None:
+    for external_config in context.module_config.get("external-packages", []):
+        package = external_config["package"]
+        datasource = external_config["datasource"]
+        package_status = context.transversal_status.setdefault(package, {})
 
         module_utils.manage_updated(context.transversal_status, package)
-        package_status = context.transversal_status.setdefault(package, {})
+        if "upstream-updated" in package_status and datetime.datetime.fromisoformat(
+            package_status["upstream-updated"]
+        ) > datetime.datetime.now() - datetime.timedelta(days=30):
+            return
+        context.transversal_status["upstream-updated"][
+            "upstream-updated"
+        ] = datetime.datetime.now().isoformat()
+
         package_status["url"] = f"https://endoflife.date/{package}"
         response = requests.get(f"https://endoflife.date/api/{package}.json", timeout=10)
         if not response.ok:
@@ -397,7 +427,7 @@ def _update_upstream_versions(context: module.ProcessContext[dict[str, None]]) -
             package_status.setdefault("versions", {})[cycle["cycle"]] = {
                 "support": cycle["eol"],
                 "names": {
-                    version_type: {
+                    datasource: {
                         package: [cycle["latest"]],
                     },
                 },

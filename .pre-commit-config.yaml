@@ -169,6 +169,12 @@ repos:
           - --pre-commit
           - github_app_geo_project/module/delete_old_workflow_runs/schema.json
           - DELETE-OLD-WORKFLOW-RUN-CONFIG.md
+      - id: jsonschema2md
+        files: ^github_app_geo_project/module/versions/schema\.json$
+        args:
+          - --pre-commit
+          - github_app_geo_project/module/versions/schema.json
+          - VERSIONS-CONFIG.md
 
   - repo: https://github.com/sbrunner/jsonschema-validator
     rev: 0.1.0
