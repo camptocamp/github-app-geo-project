@@ -97,7 +97,7 @@
     /** Don't allows update on ubuntu:mantic-* Docker images */
     {
       matchPackageNames: ['ubuntu'],
-      matchVersions: ['^mantic-'],
+      matchNewValue: '^mantic-',
       enabled: false,
     },
   ],
