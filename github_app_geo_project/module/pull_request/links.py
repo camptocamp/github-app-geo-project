@@ -77,7 +77,7 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
 
     def title(self) -> str:
         """Get the title."""
-        return "Pull request checks"
+        return "Pull request links"
 
     def description(self) -> str:
         """Get the description."""
@@ -85,9 +85,7 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
 
     def documentation_url(self) -> str:
         """Get the documentation URL."""
-        return (
-            "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Pull-request-checks"
-        )
+        return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Pull-request-links"
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the GitHub application permissions needed by the module."""
@@ -120,7 +118,7 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
             github_project = configuration.get_github_project({}, context.github_application, owner, repo)
             repo = github_project.github.get_repo(full_name)
             check_run = repo.create_check_run(
-                "Pull request checks",
+                "Pull request links",
                 context.event_data.get("pull_request", {}).get("head", {}).get("sha"),
             )
             return [
@@ -141,9 +139,6 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
             context.github_project.owner + "/" + context.github_project.repository
         )
 
-        pull_request = repo.get_pull(number=context.module_data["pull-request-number"])
-        _add_issue_link(context.module_config, pull_request)
-
         service_url = context.service_url
         service_url = service_url if service_url.endswith("/") else service_url + "/"
         service_url = urllib.parse.urljoin(service_url, "logs/")
@@ -152,9 +147,12 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
         check_run = repo.get_check_run(context.module_data["check-run-id"])
         check_run.edit(status="in_progress", details_url=service_url)
 
+        pull_request = repo.get_pull(number=context.module_data["pull-request-number"])
+        _add_issue_link(context.module_config, pull_request)
+
         check_run.edit(
             status="completed",
-            conclusion="skipped",
+            conclusion="completed",
         )
 
         return module.ProcessOutput(transversal_status=context.module_data)
