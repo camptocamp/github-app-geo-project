@@ -67,7 +67,9 @@ def _add_issue_link(
         else:
             result.append(title)
 
-    pull_request.edit(body=pull_request.body + "\n".join(result))
+    pull_request.edit(
+        body=(pull_request.body + "\n".join(result)) if pull_request.body is not None else "\n".join(result)
+    )
 
 
 class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration]):
