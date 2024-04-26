@@ -4,7 +4,6 @@ Process the jobs present in the database queue.
 
 import argparse
 import datetime
-import json
 import logging
 import os
 import subprocess  # nosec
@@ -15,8 +14,6 @@ import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
 import github
 import plaster
-import pygments.formatters
-import pygments.lexers
 import sqlalchemy.orm
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
@@ -433,11 +430,8 @@ def main() -> None:
             handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
             root_logger.addHandler(handler)
 
-            lexer = pygments.lexers.JsonLexer()
-            formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
-
-            module_data_formated = pygments.highlight(json.dumps(job.module_data, indent=4), lexer, formatter)
-            event_data_formated = pygments.highlight(json.dumps(job.event_data, indent=4), lexer, formatter)
+            module_data_formated = utils.format_json(job.module_data)
+            event_data_formated = utils.format_json(job.event_data)
             message = module_utils.HtmlMessage(
                 f"<p>module data:</p>{module_data_formated}<p>event data:</p>{event_data_formated}"
             )

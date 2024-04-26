@@ -1,11 +1,21 @@
 """Application utility module."""
 
+import json
 from typing import Any
+
+import pygments.formatters
+import pygments.lexers
+import yaml
 
 from github_app_geo_project import module
 
 _ISSUE_START = "<!-- START {} -->"
 _ISSUE_END = "<!-- END {} -->"
+
+
+_JSON_LEXER = pygments.lexers.JsonLexer()
+_YAML_LEXER = pygments.lexers.YamlLexer()
+_HTML_FORMATTER = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
 
 
 def get_dashboard_issue_module(text: str, current_module: str) -> str:
@@ -48,3 +58,20 @@ def update_dashboard_issue_module(
         return text[:start] + issue_data + text[end:]
     else:
         return f"{text}{issue_data}"
+
+
+def format_json(json_data: dict[str, Any]) -> str:
+    """Format a JSON data to a HTML string."""
+    return format_json_str(json.dumps(json_data, indent=4))
+
+
+def format_json_str(json_str: str) -> str:
+    """Format a JSON data to a HTML string."""
+    return pygments.highlight(json_str, _JSON_LEXER, _HTML_FORMATTER)  # type: ignore[no-any-return]
+
+
+def format_yaml(yaml_data: dict[str, Any]) -> str:
+    """Format a YAML data to a HTML string."""
+    return pygments.highlight(  # type: ignore[no-any-return]
+        yaml.dump(yaml_data, default_flow_style=False), _YAML_LEXER, _HTML_FORMATTER
+    )

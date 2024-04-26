@@ -12,13 +12,11 @@ from typing import Any
 
 import c2cciutils.security
 import github
-import pygments.formatters
-import pygments.lexers
 import requests
 import toml
 import yaml
 
-from github_app_geo_project import module
+from github_app_geo_project import module, utils
 from github_app_geo_project.module import ProcessOutput
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.versions import configuration
@@ -165,9 +163,6 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
     ) -> module.TransversalDashboardOutput:
         """Get the dashboard data."""
         if "repository" in context.params:
-            lexer = pygments.lexers.JsonLexer()
-            formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
-
             # datasource.package.minor_version = support
             names: dict[str, dict[str, dict[str, str]]] = {}
             for repo_data in context.status.values():
@@ -178,8 +173,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                                 _canonical_minor_version(datasource, branch)
                             ] = branch_data.get("support")
 
-            formatted = pygments.highlight(json.dumps(names, indent=4), lexer, formatter)
-            message = module_utils.HtmlMessage(formatted)
+            message = module_utils.HtmlMessage(utils.format_json(names))
             message.title = "Names:"
             _LOGGER.debug(message)
 
@@ -217,25 +211,18 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                                     }
                                 )
 
-            formatted = pygments.highlight(json.dumps(reverse_dependencies, indent=4), lexer, formatter)
-            message = module_utils.HtmlMessage(formatted)
+            message = module_utils.HtmlMessage(utils.format_json(reverse_dependencies))
             message.title = "Reverse dependencies:"
             _LOGGER.debug(message)
 
             context.status.get(context.params["repository"], {})
-
-            lexer = pygments.lexers.JsonLexer()
-            formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
-            data = pygments.highlight(
-                json.dumps(context.status.get(context.params["repository"], {}), indent=4), lexer, formatter
-            )
 
             return module.TransversalDashboardOutput(
                 renderer="github_app_geo_project:module/versions/repository.html",
                 data={
                     "title": self.title() + " - " + context.params["repository"],
                     "reverse_dependencies": reverse_dependencies,
-                    "data": data,
+                    "data": utils.format_json(context.status.get(context.params["repository"], {})),
                 },
             )
 
@@ -354,14 +341,18 @@ def _get_dependencies(
         lines = lines[index:]
 
     json_str = "{\n" + "".join(lines) + "}\n"
+    message = module_utils.HtmlMessage(utils.format_json_str(json_str))
+    message.title = "Read dependencies from"
+    _LOGGER.debug(message)
     data = json.loads(json_str)
+
     for values in data.get("packageFiles", {}).values():
         for value in values:
             for dep in value.get("deps", []):
                 if "currentValue" not in dep:
                     continue
                 for dependency, datasource, version in _dependency_extractor(
-                    context, dep["depName"], dep["depdatasourceType"], dep["currentValue"]
+                    context, dep["depName"], dep["datasource"], dep["currentValue"]
                 ):
                     result.setdefault(datasource, {}).setdefault(dependency, set()).add(version)
 
