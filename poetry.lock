@@ -1756,13 +1756,13 @@ with-vulture = ["vulture (>=1.5)"]
 
 [[package]]
 name = "prospector-profile-duplicated"
-version = "1.3.0"
+version = "1.5.0"
 description = "Profile that can be used to disable the duplicated or conflict rules between Prospector and other tools"
 optional = false
 python-versions = "*"
 files = [
-    {file = "prospector_profile_duplicated-1.3.0-py2.py3-none-any.whl", hash = "sha256:8e52064f5c7de69b8a78a805abc2d2667b3846c6cb0109c60e822935b8e9a987"},
-    {file = "prospector_profile_duplicated-1.3.0.tar.gz", hash = "sha256:482db70d6e477df262026f87d13f7ad0fab94302944af80166a330b8eb9a6c75"},
+    {file = "prospector_profile_duplicated-1.5.0-py2.py3-none-any.whl", hash = "sha256:fd4d3272ff6b5ceead036f4a60da6dd7aa5317057f66c735994b75542c9a0815"},
+    {file = "prospector_profile_duplicated-1.5.0.tar.gz", hash = "sha256:c1d6074ebb44fd3ea6a7b85e96d58a27f6e525687b019ef94924a9c8d2ccd5d5"},
 ]
 
 [[package]]
@@ -2974,13 +2974,13 @@ urllib3 = ">=2"
 
 [[package]]
 name = "types-setuptools"
-version = "69.2.0.20240317"
+version = "69.5.0.20240423"
 description = "Typing stubs for setuptools"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "types-setuptools-69.2.0.20240317.tar.gz", hash = "sha256:b607c4c48842ef3ee49dc0c7fe9c1bad75700b071e1018bb4d7e3ac492d47048"},
-    {file = "types_setuptools-69.2.0.20240317-py3-none-any.whl", hash = "sha256:cf91ff7c87ab7bf0625c3f0d4d90427c9da68561f3b0feab77977aaf0bbf7531"},
+    {file = "types-setuptools-69.5.0.20240423.tar.gz", hash = "sha256:a7ba908f1746c4337d13f027fa0f4a5bcad6d1d92048219ba792b3295c58586d"},
+    {file = "types_setuptools-69.5.0.20240423-py3-none-any.whl", hash = "sha256:a4381e041510755a6c9210e26ad55b1629bc10237aeb9cb8b6bd24996b73db48"},
 ]
 
 [[package]]
@@ -3350,4 +3350,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.12"
-content-hash = "13f1c83b32eb4f2372e9cc4c46ad08983cff2cefc38e64e3de6dbcd702287639"
+content-hash = "6d7fd22f6ee024638b37bf4f92a4be63189023b8b5e8e1c83f635f2abd9db236"
