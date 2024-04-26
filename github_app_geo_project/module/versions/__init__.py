@@ -361,7 +361,7 @@ def _get_dependencies(
                 if "currentValue" not in dep:
                     continue
                 for dependency, datasource, version in _dependency_extractor(
-                    context, dep["depName"], dep["depdatasourceType"], dep["currentValue"]
+                    context, dep["depName"], dep["datasource"], dep["currentValue"]
                 ):
                     result.setdefault(datasource, {}).setdefault(dependency, set()).add(version)
 
