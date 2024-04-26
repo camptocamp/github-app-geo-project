@@ -11,11 +11,10 @@ import subprocess  # nosec
 import apt_repo
 import c2cciutils.security
 import debian_inspector.version
-import pygments.formatters
-import pygments.lexers
 import yaml  # nosec
 
-from github_app_geo_project.module import utils
+from github_app_geo_project import utils
+from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
 
 _LOGGING = logging.getLogger(__name__)
@@ -23,7 +22,7 @@ _LOGGING = logging.getLogger(__name__)
 
 def snyk(
     branch: str, config: configuration.SnykConfiguration, local_config: configuration.SnykConfiguration
-) -> tuple[list[utils.Message], utils.Message]:
+) -> tuple[list[module_utils.Message], module_utils.Message]:
     """
     Audit the code with Snyk.
     """
@@ -36,7 +35,7 @@ def snyk(
         timeout=30,
     )
     if proc.returncode != 0:
-        message = utils.ansi_proc_message(proc)
+        message = module_utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
         _LOGGING.warning(message.to_html(style="collapse"))
         result.append(message)
@@ -57,7 +56,7 @@ def snyk(
                 encoding="utf-8",
                 timeout=300,
             )
-            message = utils.ansi_proc_message(proc)
+            message = module_utils.ansi_proc_message(proc)
             if proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message.to_html(style="collapse"))
@@ -69,7 +68,7 @@ def snyk(
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8", timeout=30
     )
     if proc.returncode != 0:
-        message = utils.ansi_proc_message(proc)
+        message = module_utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
         _LOGGING.warning(message.to_html(style="collapse"))
         result.append(message)
@@ -92,7 +91,7 @@ def snyk(
                 encoding="utf-8",
                 timeout=300,
             )
-            message = utils.ansi_proc_message(proc)
+            message = module_utils.ansi_proc_message(proc)
             if proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message.to_html(style="collapse"))
@@ -112,7 +111,7 @@ def snyk(
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env, capture_output=True, encoding="utf-8", timeout=300
     )
-    message = utils.ansi_proc_message(proc)
+    message = module_utils.ansi_proc_message(proc)
     if proc.returncode != 0:
         message.title = "Error while monitoring the project"
         _LOGGING.warning(message.to_html(style="collapse"))
@@ -127,11 +126,9 @@ def snyk(
     test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env_no_debug, capture_output=True, encoding="utf-8", timeout=300
     )
-    lexer = pygments.lexers.JsonLexer()
-    formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
 
     test_json = json.loads(test_proc.stdout)
-    message = utils.HtmlMessage(pygments.highlight(json.dumps(test_json, indent=4), lexer, formatter))
+    message = module_utils.HtmlMessage(utils.format_json(test_json))
     message.title = "Snyk test output"
     _LOGGING.debug(message.to_html(style="collapse"))
 
@@ -151,7 +148,7 @@ def snyk(
                 continue
 
             result.append(
-                utils.HtmlMessage(
+                module_utils.HtmlMessage(
                     f"<p>Package manager: {row.get('packageManager', '-')}</p>"
                     f"<p>Target file: {row.get('targetFile', '-')}</p>"
                     f"<p>Project path: {row.get('projectPath', '-')}</p>"
@@ -167,7 +164,7 @@ def snyk(
                 if vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):
                     vulnerabilities = True
                 result.append(
-                    utils.HtmlMessage(
+                    module_utils.HtmlMessage(
                         "\n".join(
                             [
                                 vuln["id"],
@@ -193,12 +190,12 @@ def snyk(
         test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
             command, env=env, capture_output=True, encoding="utf-8", timeout=300
         )
-        dashboard_message = utils.ansi_proc_message(test_proc)
+        dashboard_message = module_utils.ansi_proc_message(test_proc)
         dashboard_message.title = "Error while testing the project"
         _LOGGING.error(dashboard_message.to_html(style="collapse"))
 
     if vulnerabilities:
-        message = utils.HtmlMessage(" ".join(m.to_html() for m in result))
+        message = module_utils.HtmlMessage(" ".join(m.to_html() for m in result))
         message.title = "Vulnerabilities found"
         _LOGGING.warning(message.to_html(style="collapse"))
 
@@ -206,8 +203,8 @@ def snyk(
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         command, env=env_no_debug, capture_output=True, encoding="utf-8", timeout=300
     )
-    snyk_fix_message = utils.AnsiMessage(snyk_fix_proc.stdout.strip())
-    message = utils.ansi_proc_message(snyk_fix_proc)
+    snyk_fix_message = module_utils.AnsiMessage(snyk_fix_proc.stdout.strip())
+    message = module_utils.ansi_proc_message(snyk_fix_proc)
     if snyk_fix_proc.returncode != 0:
         message.title = "Error while fixing the project"
         _LOGGING.warning(message.to_html(style="collapse"))
@@ -216,7 +213,7 @@ def snyk(
         _LOGGING.debug(message.to_html(style="collapse"))
 
     if snyk_fix_proc.returncode != 0 and vulnerabilities:
-        result.append(utils.ansi_proc_message(snyk_fix_proc))
+        result.append(module_utils.ansi_proc_message(snyk_fix_proc))
 
     return result, snyk_fix_message
 

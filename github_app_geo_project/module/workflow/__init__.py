@@ -1,15 +1,12 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
-import json
 import logging
 from typing import Any
 
 import c2cciutils
 import github
-import pygments.formatters
-import pygments.lexers
 
-from github_app_geo_project import module
+from github_app_geo_project import module, utils
 from github_app_geo_project.module import utils as module_utils
 
 _LOGGER = logging.getLogger(__name__)
@@ -122,11 +119,7 @@ class Workflow(module.Module[None]):
         self, context: module.TransversalDashboardContext
     ) -> module.TransversalDashboardOutput:
         if "repository" in context.params:
-            lexer = pygments.lexers.JsonLexer()
-            formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
-            data = pygments.highlight(
-                json.dumps(context.status.get(context.params["repository"], {}), indent=4), lexer, formatter
-            )
+            data = utils.format_json(context.status.get(context.params["repository"], {}))
 
             return module.TransversalDashboardOutput(
                 renderer="github_app_geo_project:module/workflow/repository.html",

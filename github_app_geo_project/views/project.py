@@ -5,8 +5,6 @@ import logging
 import os
 from typing import Any
 
-import pygments.formatters
-import pygments.lexers
 import pyramid.httpexceptions
 import pyramid.request
 import pyramid.response
@@ -15,7 +13,7 @@ import sqlalchemy
 import yaml
 from pyramid.view import view_config
 
-from github_app_geo_project import configuration, models, project_configuration
+from github_app_geo_project import configuration, models, project_configuration, utils
 from github_app_geo_project.module import modules
 from github_app_geo_project.templates import pprint_duration, pprint_full_date, pprint_short_date
 
@@ -66,9 +64,6 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     config: project_configuration.GithubApplicationProjectConfiguration = {}
 
     _LOGGER.debug("Configuration: %s", config)
-
-    lexer = pygments.lexers.YamlLexer()
-    formatter = pygments.formatters.HtmlFormatter(style="github-dark")
 
     select_output = (
         sqlalchemy.select(models.Output.id, models.Output.title)
@@ -148,16 +143,14 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                 "title": module.title(),
                 "description": module.description(),
                 "documentation_url": module.documentation_url(),
-                "configuration": pygments.highlight(
-                    yaml.dump(config.get(module_name, {}), default_flow_style=False), lexer, formatter
-                ),
+                "configuration": utils.format_yaml(config.get(module_name, {})),  # type: ignore[arg-type]
             }
         )
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
     with engine.connect() as session:
         return {
-            "styles": formatter.get_style_defs(),
+            "styles": "",
             "repository": f"{owner}/{repository}",
             "output": session.execute(select_output.limit(10)).all(),
             "jobs": session.execute(select_job.limit(20)).all(),

@@ -1,15 +1,12 @@
-import json
 import logging
 import os
 import subprocess
 from typing import Any
 
-import pygments.formatters
-import pygments.lexers
 import yaml
 
-from github_app_geo_project import models, module
-from github_app_geo_project.module import utils
+from github_app_geo_project import models, module, utils
+from github_app_geo_project.module import utils as module_utils
 
 _LOGGER = logging.getLogger(__name__)
 _ConfigType = dict[str, Any]
@@ -73,10 +70,10 @@ class TestModule(module.Module[_ConfigType]):
                 raise Exception("Exception")  # pylint: disable=broad-exception-raised
 
             if type_ == "success":
-                result["output-multi-line-id"] = utils.add_output(
+                result["output-multi-line-id"] = module_utils.add_output(
                     context, "Test", ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}]
                 )
-                result["output-error-id"] = utils.add_output(
+                result["output-error-id"] = module_utils.add_output(
                     context, "Test", ["Test error"], status=models.OutputStatus.ERROR
                 )
 
@@ -90,7 +87,7 @@ class TestModule(module.Module[_ConfigType]):
                     encoding="utf-8",
                     check=True,
                 )
-                message = utils.ansi_proc_message(proc)
+                message = module_utils.ansi_proc_message(proc)
                 _LOGGER.info(message.to_html())
                 proc = subprocess.run(
                     ["echo", "-e", r"plain \e[0;31mRED MESSAGE\e[0m reset"],
@@ -98,19 +95,12 @@ class TestModule(module.Module[_ConfigType]):
                     encoding="utf-8",
                     check=True,
                 )
-                message = utils.ansi_proc_message(proc)
+                message = module_utils.ansi_proc_message(proc)
                 message.title = "Command with title"
                 _LOGGER.info(message.to_html(style="collapse"))
 
             if type_ == "log-json":
-                lexer = pygments.lexers.JsonLexer()
-                formatter = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
-                _LOGGER.info(
-                    "JSON output:\n%s",
-                    pygments.highlight(
-                        json.dumps({"test1": "value", "test2": "value"}, indent=4), lexer, formatter
-                    ),
-                )
+                _LOGGER.info("JSON output:\n%s", utils.format_json({"test1": "value", "test2": "value"}))
 
             with open("/tmp/test-result.yaml", "w", encoding="utf-8") as file:
                 yaml.dump(result, file)
