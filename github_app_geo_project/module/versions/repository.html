@@ -1,6 +1,6 @@
 <h2>${title}</h2>
 
-%for version, dependencies in data.items():
+%for version, dependencies in reverse_dependencies.items():
 <h3>${version}</h3>
 <table>
   <tr>
