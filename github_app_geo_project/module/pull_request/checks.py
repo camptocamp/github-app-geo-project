@@ -5,7 +5,6 @@ import logging
 import os
 import re
 import subprocess  # nosec
-import urllib
 from tempfile import NamedTemporaryFile
 from typing import Any
 
@@ -47,7 +46,7 @@ def _get_codespell_command(config: checks_configuration.PullRequestChecksConfigu
 def _commits_messages(
     config: checks_configuration.PullRequestChecksConfiguration,
     commits: list[github.Commit.Commit],
-) -> bool:
+) -> tuple[bool, list[str]]:
     """
     Check the commits messages.
 
@@ -57,9 +56,10 @@ def _commits_messages(
     - They should not be a merge commit.
     - They should not be a revert commit.
     """
+    messages = []
     commit_message_config = config.get("commits-messages", {})
     if commit_message_config is False:
-        return True
+        return True, []
     if commit_message_config is True:
         commit_message_config = {}
     success = True
@@ -73,12 +73,18 @@ def _commits_messages(
             "check-fixup", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_FIXUP_DEFAULT
         ) and head.startswith("fixup! "):
             _LOGGER.warning("Fixup message not allowed")
+            messages.append(f"[ ] Fixup message not allowed in commit {commit.sha}")
             success = False
+        else:
+            messages.append(f"[x] commit {commit.sha} is not a fixup commit")
         if commit_message_config.get(
             "check-squash", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_SQUASH_DEFAULT
         ) and head.startswith("squash! "):
             _LOGGER.warning("Squash message not allowed")
+            messages.append(f"[ ] Squash message not allowed in commit {commit.sha}")
             success = False
+        else:
+            messages.append(f"[x] commit {commit.sha} is not a squash commit")
         if (
             commit_message_config.get(
                 "check-first-capital",
@@ -87,14 +93,26 @@ def _commits_messages(
             and first_capital.match(head) is None
         ):
             _LOGGER.warning("The first letter of message head should be a capital")
+            messages.append(
+                f"[ ] The first letter of message head should be a capital in commit {commit.sha}"
+            )
             success = False
+        else:
+            messages.append(f"[x] The first letter of message head in commit {commit.sha} is a capital")
         min_length = commit_message_config.get(
             "min-head-length",
             checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_MIN_HEAD_LENGTH_DEFAULT,
         )
         if min_length > 0 and len(head) < min_length:
             _LOGGER.warning("The message head should be at least %i characters long", min_length)
+            messages.append(
+                f"[ ] The message head should be at least {min_length} characters long in commit {commit.sha}"
+            )
             success = False
+        else:
+            messages.append(
+                f"[x] The message head in commit {commit.sha} is at least {min_length} characters long"
+            )
         if (
             commit_message_config.get(
                 "check-no-merge-commits",
@@ -103,7 +121,10 @@ def _commits_messages(
             and len(commit.parents) != 1
         ):
             _LOGGER.warning("The merge commit are not allowed")
+            messages.append(f"[ ] The merge commit are not allowed in commit {commit.sha}")
             success = False
+        else:
+            messages.append(f"[x] The commit {commit.sha} is not a merge commit")
         if commit_message_config.get(
             "check-no-own-revert",
             checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_NO_OWN_REVERT_DEFAULT,
@@ -115,18 +136,22 @@ def _commits_messages(
             revert_commit_hash = message_lines[2][len("This reverts commit ") : -1]
             if revert_commit_hash in commit_hash:
                 _LOGGER.warning("Revert own commits is not allowed (%s)", revert_commit_hash)
+                messages.append(f"[x] Revert own commits is not allowed in commit {commit.sha}")
                 success = False
                 continue
-    return success
+            else:
+                messages.append(f"[x] The commit {commit.sha} is not an own revert commit")
+    return success, messages
 
 
 def _commits_spell(
     config: checks_configuration.PullRequestChecksConfiguration,
     commits: list[github.Commit.Commit],
-) -> bool:
+) -> tuple[bool, list[str]]:
     """Check the spelling of the commits body."""
     spellcheck_cmd = _get_codespell_command(config)
 
+    messages = []
     success = True
     for commit in commits:
         with NamedTemporaryFile("w+t", encoding="utf-8", suffix=".yaml") as temp_file:
@@ -146,17 +171,21 @@ def _commits_spell(
                 message.title = f"Code spell error in commit {commit.sha}"
                 _LOGGER.warning(message)
                 success = False
+                messages.append("[ ] " + message.to_markdown())
+            else:
+                messages.append(f"[x] Code spell on commit {commit.sha} are correct")
             message.title = f"Code spell in commit {commit.sha}"
             _LOGGER.debug(message)
-    return success
+    return success, messages
 
 
 def _pull_request_spell(
     config: checks_configuration.PullRequestChecksConfiguration, pull_request: github.PullRequest.PullRequest
-) -> bool:
+) -> tuple[bool, list[str]]:
     """Check the spelling of the pull request title and message."""
     spellcheck_cmd = _get_codespell_command(config)
 
+    messages = []
     with NamedTemporaryFile("w+t") as temp_file:
         temp_file.write(pull_request.title)
         temp_file.write("\n")
@@ -175,10 +204,18 @@ def _pull_request_spell(
         if spell.returncode != 0:
             message.title = "Code spell error in pull request"
             _LOGGER.warning(message)
-            return False
+            messages.append("[ ] " + message.to_markdown())
+            return False, messages
+        else:
+            messages.append(
+                "[x] pull request title are correct"
+                if config.get("only_head", checks_configuration.PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT)
+                else "[x] pull request title and body are correct"
+            )
+
         message.title = "Code spell in pull request"
         _LOGGER.debug(message)
-    return True
+    return True, messages
 
 
 class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration]):
@@ -201,9 +238,7 @@ class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration])
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the GitHub application permissions needed by the module."""
         return module.GitHubApplicationPermissions(
-            {
-                "checks": "write",
-            },
+            {},
             {"pull_request"},
         )
 
@@ -224,20 +259,12 @@ class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration])
             context.event_data.get("action") in ("opened", "reopened", "synchronize")
             and "pull_request" in context.event_data
         ):
-            full_name = context.event_data.get("repository", {}).get("full_name")
-            owner, repo = full_name.split("/")
-            github_project = configuration.get_github_project({}, context.github_application, owner, repo)
-            repo = github_project.github.get_repo(full_name)
-            check_run = repo.create_check_run(
-                "Pull request checks",
-                context.event_data.get("pull_request", {}).get("head", {}).get("sha"),
-            )
             return [
                 module.Action(
                     {
                         "pull-request-number": context.event_data.get("pull_request", {}).get("number"),
-                        "check-run-id": check_run.id,
-                    }
+                    },
+                    checks=True,
                 )
             ]
         return []
@@ -250,29 +277,20 @@ class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration])
             context.github_project.owner + "/" + context.github_project.repository
         )
 
-        service_url = context.service_url
-        service_url = service_url if service_url.endswith("/") else service_url + "/"
-        service_url = urllib.parse.urljoin(service_url, "logs/")
-        service_url = urllib.parse.urljoin(service_url, str(context.job_id))
-
-        check_run = repo.get_check_run(context.module_data["check-run-id"])
-        check_run.edit(status="in_progress", details_url=service_url)
-
         pull_request = repo.get_pull(number=context.module_data["pull-request-number"])
         commits = [  # pylint: disable=unnecessary-comprehension
             commit for commit in pull_request.get_commits()
         ]
 
-        success = _commits_messages(context.module_config, commits)
-        success &= _commits_spell(context.module_config, commits)
-        success &= _pull_request_spell(context.module_config, pull_request)
+        success_1, messages_1 = _commits_messages(context.module_config, commits)
+        success_2, messages_2 = _commits_spell(context.module_config, commits)
+        success_3, messages_3 = _pull_request_spell(context.module_config, pull_request)
+        success = success_1 and success_2 and success_3
+        message = "\n".join([*messages_1, *messages_2, *messages_3])
 
-        check_run.edit(
-            status="completed",
-            conclusion="success" if success else "failure",
+        return module.ProcessOutput(
+            transversal_status=context.module_data, success=success, output={"summary": message}
         )
-
-        return module.ProcessOutput(transversal_status=context.module_data)
 
     def cleanup(self, context: module.CleanupContext) -> None:
         """Cleanup the module."""

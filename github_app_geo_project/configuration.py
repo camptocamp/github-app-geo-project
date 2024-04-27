@@ -5,6 +5,7 @@ import os
 from typing import Any, NamedTuple, cast
 
 import github
+import github as github_lib
 import jsonmerge
 import yaml
 
@@ -49,11 +50,11 @@ _LOGGER.debug("Configuration loaded: %s", APPLICATION_CONFIGURATION)
 class GithubApplication(NamedTuple):
     """The Github authentication objects."""
 
-    # Alias of integration.auth
     auth: github.Auth.AppAuth
+    """Alias of integration.auth"""
     integration: github.GithubIntegration
-    # The application name
     name: str
+    """The application name"""
 
 
 class GithubProject(NamedTuple):
@@ -62,10 +63,11 @@ class GithubProject(NamedTuple):
     application: GithubApplication
     token: str
     github: github.Github
-    # The owner and repository
     owner: str
-    # The repository name
+    """The owner of the repository"""
     repository: str
+    """The repository name"""
+    repo: github_lib.Repository.Repository
 
 
 GITHUB_APPLICATIONS: dict[str, GithubApplication] = {}
@@ -108,8 +110,9 @@ def get_github_project(
         objects.integration.get_installation(owner, repository).id
     ).token
     github_application = github.Github(login_or_token=token)
+    repo = github_application.get_repo(f"{owner}/{repository}")
 
-    return GithubProject(objects, token, github_application, owner, repository)
+    return GithubProject(objects, token, github_application, owner, repository, repo)
 
 
 def get_configuration(

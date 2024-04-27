@@ -3,7 +3,6 @@
 import json
 import os
 import re
-import urllib.parse
 from typing import Any
 
 import github
@@ -15,15 +14,15 @@ from github_app_geo_project.module.pull_request import links_configuration
 
 def _add_issue_link(
     config: links_configuration.PullRequestAddLinksConfiguration, pull_request: github.PullRequest.PullRequest
-) -> None:
+) -> str:
     """Add a comment with the link to Jira if needed."""
     body = pull_request.body or ""
     if "<!-- pull request links -->" in body.upper():
-        return
+        return "Pull request links already added."
 
     content = config.get("content", [])
     if not content:
-        return
+        return "Empty configuration."
 
     blacklist = config.get("blacklist", {})
     values: dict[str, str] = {
@@ -67,9 +66,13 @@ def _add_issue_link(
         else:
             result.append(title)
 
+    if len(result) == 2:
+        return "Nothing to add."
+
     pull_request.edit(
         body=(pull_request.body + "\n".join(result)) if pull_request.body is not None else "\n".join(result)
     )
+    return "Pull request descriptions updated."
 
 
 class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration]):
@@ -113,19 +116,10 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
             context.event_data.get("action") in ("opened", "reopened", "synchronize")
             and "pull_request" in context.event_data
         ):
-            full_name = context.event_data.get("repository", {}).get("full_name")
-            owner, repo = full_name.split("/")
-            github_project = configuration.get_github_project({}, context.github_application, owner, repo)
-            repo = github_project.github.get_repo(full_name)
-            check_run = repo.create_check_run(
-                "Pull request links",
-                context.event_data.get("pull_request", {}).get("head", {}).get("sha"),
-            )
             return [
                 module.Action(
                     {
                         "pull-request-number": context.event_data.get("pull_request", {}).get("number"),
-                        "check-run-id": check_run.id,
                     }
                 )
             ]
@@ -135,35 +129,7 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
         self, context: module.ProcessContext[links_configuration.PullRequestAddLinksConfiguration]
     ) -> module.ProcessOutput | None:
         """Process the module."""
-        repo = context.github_project.github.get_repo(
-            context.github_project.owner + "/" + context.github_project.repository
-        )
-
-        service_url = context.service_url
-        service_url = service_url if service_url.endswith("/") else service_url + "/"
-        service_url = urllib.parse.urljoin(service_url, "logs/")
-        service_url = urllib.parse.urljoin(service_url, str(context.job_id))
-
-        check_run = repo.get_check_run(context.module_data["check-run-id"])
-        check_run.edit(status="in_progress", details_url=service_url)
-
+        repo = context.github_project.repo
         pull_request = repo.get_pull(number=context.module_data["pull-request-number"])
-        _add_issue_link(context.module_config, pull_request)
-
-        check_run.edit(
-            status="completed",
-            conclusion="completed",
-        )
-
-        return module.ProcessOutput(transversal_status=context.module_data)
-
-    def cleanup(self, context: module.CleanupContext) -> None:
-        """Cleanup the module."""
-        repo = context.github_project.github.get_repo(
-            context.github_project.owner + "/" + context.github_project.repository
-        )
-        check_run = repo.get_check_run(context.module_data["check-run-id"])
-        check_run.edit(
-            status="completed",
-            conclusion="skipped",
-        )
+        message = _add_issue_link(context.module_config, pull_request)
+        return module.ProcessOutput(output={"summary": message})

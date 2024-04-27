@@ -23,17 +23,21 @@ class Action:
     """
     data: Mapping[str, Any]
     """Some data to be used by the process method"""
+    checks: bool | None
+    """If the action should add a pull request status"""
 
     def __init__(
         self,
         data: Mapping[str, Any],
         priority: int = -1,
         title: str = "",
+        checks: bool | None = None,
     ) -> None:
         """Create an action."""
         self.title = title
         self.priority = priority
         self.data = data
+        self.checks = checks
 
 
 PRIORITY_HIGH = 0
@@ -261,17 +265,24 @@ class ProcessOutput:
     """The transversal status of the module."""
     actions: list[Action]
     """The new actions that should be done."""
+    success: bool
+    """The success of the process."""
+    output: dict[str, Any] | None
 
     def __init__(
         self,
         dashboard: str | None = None,
         transversal_status: dict[str, Any] | None = None,
         actions: list[Action] | None = None,
+        success: bool = True,
+        output: dict[str, Any] | None = None,
     ) -> None:
         """Create the output of the process method."""
         self.dashboard = dashboard
         self.transversal_status = transversal_status
         self.actions = actions or []
+        self.success = success
+        self.output = output
 
 
 class TransversalDashboardContext(NamedTuple):
