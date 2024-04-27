@@ -66,8 +66,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     owner, repository = data["repository"]["full_name"].split("/")
 
     session_factory = request.registry["dbsession_factory"]
-    engine = session_factory.rw_engine
-    with engine.connect() as session:
+    with session_factory() as session:
         if data.get("action") == "requested" and data.get("check_suite", {}).get("id"):
             if application_object is not None:
                 try:
