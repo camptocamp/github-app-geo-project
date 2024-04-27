@@ -3,10 +3,12 @@ Process the jobs present in the database queue.
 """
 
 import argparse
+import asyncio
 import datetime
 import logging
 import os
 import subprocess  # nosec
+import sys
 import time
 from typing import Any, cast
 
@@ -363,7 +365,196 @@ def _process_dashboard_issue(
         )
 
 
-def main() -> None:
+# Where 2147483647 is the PostgreSQL max int, see: https://www.postgresql.org/docs/current/datatype-numeric.html
+def _process_one_job(
+    config: dict[str, Any],
+    Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
+        sqlalchemy.orm.Session
+    ],
+    no_steal_long_pending: bool = False,
+    make_pending: bool = False,
+    max_priority: int = 2147483647,
+) -> bool:
+    with Session() as session:
+        job = (
+            session.query(models.Queue)
+            .filter(
+                models.Queue.status == models.JobStatus.NEW,
+                models.Queue.priority <= max_priority,
+            )
+            .order_by(
+                models.Queue.priority.desc(),
+                models.Queue.created_at.asc(),
+            )
+            .with_for_update(of=models.Queue, skip_locked=True)
+            .first()
+        )
+        if job is None:
+            if no_steal_long_pending:
+                return True
+            # Get too old pending jobs
+            session.execute(
+                sqlalchemy.update(models.Queue)
+                .where(
+                    models.Queue.status == models.JobStatus.PENDING,
+                    models.Queue.started_at
+                    < datetime.datetime.now(tz=datetime.timezone.utc)
+                    - datetime.timedelta(seconds=int(os.environ.get("JOB_TIMEOUT", 3600)) + 60),
+                )
+                .values(status=models.JobStatus.NEW)
+            )
+            session.commit()
+
+            _LOGGER.error("222")
+            return True
+
+        job.status = models.JobStatus.PENDING
+        job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
+        session.commit()
+        if make_pending:
+            _LOGGER.info("Make job ID %s pending", job.id)
+            _LOGGER.error("333")
+            return False
+
+        # Force get job
+        job_id = job.id
+
+        # Capture_logs
+        root_logger = logging.getLogger()
+        handler = _Handler()
+        handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
+        root_logger.addHandler(handler)
+
+        module_data_formatted = utils.format_json(job.module_data)
+        event_data_formatted = utils.format_json(job.event_data)
+        message = module_utils.HtmlMessage(
+            f"<p>module data:</p>{module_data_formatted}<p>event data:</p>{event_data_formatted}"
+        )
+        message.title = f"Start process job '{job.event_name}' id: {job_id}, on {job.owner}/{job.repository} on module: {job.module}, on application {job.application}"
+        _LOGGER.info(message.to_html(style="collapse"))
+
+        root_logger.removeHandler(handler)
+
+        job_id = job.id
+        job_priority = job.priority
+        job_application = job.application
+        job_module = job.module
+        owner = job.owner
+        repository = job.repository
+        event_data = job.event_data
+        event_name = job.event_name
+        module_data = job.module_data
+
+        try:
+            success = True
+            if not job.module:
+                if event_data.get("type") == "event":
+                    _process_event(config, event_data, session)
+                elif event_name == "dashboard":
+                    success = _validate_job(config, job_application, event_data)
+                    if success:
+                        _LOGGER.info("Process dashboard issue %i", job_id)
+                        _process_dashboard_issue(
+                            config,
+                            session,
+                            event_data,
+                            job_application,
+                            owner,
+                            repository,
+                        )
+                else:
+                    _LOGGER.error("Unknown event name: %s", event_name)
+                    success = False
+            else:
+                success = _validate_job(config, job_application, event_data)
+                if success:
+                    success = _process_job(
+                        config,
+                        session,
+                        event_data,
+                        module_data,
+                        owner,
+                        repository,
+                        job_id,
+                        job_priority,
+                        job_module,
+                        job_application,
+                        job.event_name,
+                        root_logger,
+                        handler,
+                    )
+
+            session.execute(
+                sqlalchemy.update(models.Queue)
+                .where(models.Queue.id == job_id)
+                .values(
+                    status=models.JobStatus.DONE if success else models.JobStatus.ERROR,
+                    finished_at=datetime.datetime.now(tz=datetime.timezone.utc),
+                )
+            )
+            session.commit()
+
+        except Exception:  # pylint: disable=broad-exception-caught
+            _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module or "-")
+            root_logger.removeHandler(handler)
+            with Session() as session:
+                session.execute(
+                    sqlalchemy.update(models.Queue)
+                    .where(models.Queue.id == job_id)
+                    .values(
+                        status=models.JobStatus.ERROR,
+                        finished_at=datetime.datetime.now(tz=datetime.timezone.utc),
+                        log="\n".join([handler.format(msg) for msg in handler.results]),
+                    )
+                )
+                session.commit()
+        finally:
+            root_logger.removeHandler(handler)
+
+        return False
+
+
+class _Run:
+    def __init__(
+        self,
+        config: dict[str, Any],
+        Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
+            sqlalchemy.orm.Session
+        ],
+        return_when_empty: bool,
+        max_priority: int,
+    ):
+        self.config = config
+        self.Session = Session  # pylint: disable=invalid-name
+        self.end_when_empty = return_when_empty
+        self.max_priority = max_priority
+
+    async def __call__(self, *args: Any, **kwds: Any) -> Any:
+        job_timeout = int(os.environ.get("JOB_TIMEOUT", 3600))
+        empty_thread_sleep = int(os.environ.get("EMPTY_THREAD_SLEEP", 10))
+
+        while True:
+            empty = True
+            try:
+                async with asyncio.timeout(job_timeout):
+                    empty = _process_one_job(
+                        self.config,
+                        self.Session,
+                        no_steal_long_pending=self.end_when_empty,
+                        max_priority=self.max_priority,
+                    )
+                    if self.end_when_empty and empty:
+                        return
+            except asyncio.TimeoutError:
+                _LOGGER.exception("Timeout")
+            except Exception:  # pylint: disable=broad-exception-caught
+                _LOGGER.exception("Failed to process job")
+
+            if empty:
+                time.sleep(empty_thread_sleep)
+
+
+async def _async_main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--exit-when-empty", action="store_true", help="Exit when the queue is empty")
@@ -371,152 +562,47 @@ def main() -> None:
     parser.add_argument("--make-pending", action="store_true", help="Make one job in pending")
     c2cwsgiutils.setup_process.fill_arguments(parser)
     args = parser.parse_args()
-
     c2cwsgiutils.setup_process.init(args.config_uri)
     loader = plaster.get_loader(args.config_uri)
     config = loader.get_settings("app:app")
     engine = sqlalchemy.engine_from_config(config, "sqlalchemy.")
     Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
-
     # Create tables if they do not exist
     models.Base.metadata.create_all(engine)
+    if args.only_one:
+        _process_one_job(
+            config, Session, no_steal_long_pending=args.exit_when_empty, make_pending=args.make_pending
+        )
+        sys.exit(0)
+    if args.make_pending:
+        _process_one_job(config, Session, no_steal_long_pending=args.exit_when_empty, make_pending=True)
+        sys.exit(0)
 
-    while True:
-        with Session() as session:
-            job = (
-                session.query(models.Queue)
-                .filter(
-                    models.Queue.status == models.JobStatus.NEW,
-                )
-                .order_by(
-                    models.Queue.priority.desc(),
-                    models.Queue.created_at.asc(),
-                )
-                .with_for_update(of=models.Queue, skip_locked=True)
-                .first()
-            )
-            if job is None:
-                if args.exit_when_empty:
-                    break
-                # Get too old pending jobs
-                session.execute(
-                    sqlalchemy.update(models.Queue)
-                    .where(
-                        models.Queue.status == models.JobStatus.PENDING,
-                        models.Queue.started_at
-                        < datetime.datetime.now(tz=datetime.timezone.utc)
-                        - datetime.timedelta(seconds=int(os.environ.get("JOB_TIMEOUT", 3600))),
-                    )
-                    .values(status=models.JobStatus.NEW)
-                )
-                session.commit()
+    high_priority_thread_number = int(os.environ.get("HIGH_PRIORITY_THREAD_NUMBER", 1))
+    status_priority_thread_number = int(os.environ.get("STATUS_PRIORITY_THREAD_NUMBER", 1))
+    dashboard_priority_thread_number = int(os.environ.get("DASHBOARD_PRIORITY_THREAD_NUMBER", 1))
+    standard_priority_thread_number = int(os.environ.get("STANDARD_PRIORITY_THREAD_NUMBER", 1))
+    cron_priority_thread_number = int(os.environ.get("CRON_PRIORITY_THREAD_NUMBER", 1))
+    lower_priority_thread_number = int(os.environ.get("LOWER_PRIORITY_THREAD_NUMBER", 1))
 
-                time.sleep(1)
-                continue
+    threads_call = []
+    for number, priority in [
+        (high_priority_thread_number, module.PRIORITY_HIGH),
+        (status_priority_thread_number, module.PRIORITY_STATUS),
+        (dashboard_priority_thread_number, module.PRIORITY_DASHBOARD),
+        (standard_priority_thread_number, module.PRIORITY_STANDARD),
+        (cron_priority_thread_number, module.PRIORITY_CRON),
+        (lower_priority_thread_number, 2147483647),
+    ]:
+        for _ in range(number):
+            threads_call.append(_Run(config, Session, args.exit_when_empty, priority)())
+    await asyncio.gather(*threads_call)
 
-            job.status = models.JobStatus.PENDING
-            job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
-            session.commit()
-            if args.make_pending:
-                _LOGGER.info("Make job %s pending", args.make_pending)
-                break
 
-            # Force get job
-            job_id = job.id
-
-            # Capture_logs
-            root_logger = logging.getLogger()
-            handler = _Handler()
-            handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
-            root_logger.addHandler(handler)
-
-            module_data_formated = utils.format_json(job.module_data)
-            event_data_formated = utils.format_json(job.event_data)
-            message = module_utils.HtmlMessage(
-                f"<p>module data:</p>{module_data_formated}<p>event data:</p>{event_data_formated}"
-            )
-            message.title = f"Start process job '{job.event_name}' id: {job_id}, on {job.owner}/{job.repository} on module: {job.module}, on application {job.application}"
-            _LOGGER.info(message.to_html(style="collapse"))
-
-            root_logger.removeHandler(handler)
-
-            job_id = job.id
-            job_priority = job.priority
-            job_application = job.application
-            job_module = job.module
-            owner = job.owner
-            repository = job.repository
-            event_data = job.event_data
-            event_name = job.event_name
-            module_data = job.module_data
-
-            try:
-                success = True
-                if not job.module:
-                    if event_data.get("type") == "event":
-                        _process_event(config, event_data, session)
-                    elif event_name == "dashboard":
-                        success = _validate_job(config, job_application, event_data)
-                        if success:
-                            _LOGGER.info("Process dashboard issue %i", job_id)
-                            _process_dashboard_issue(
-                                config,
-                                session,
-                                event_data,
-                                job_application,
-                                owner,
-                                repository,
-                            )
-                    else:
-                        _LOGGER.error("Unknown event name: %s", event_name)
-                        success = False
-                else:
-                    success = _validate_job(config, job_application, event_data)
-                    if success:
-                        success = _process_job(
-                            config,
-                            session,
-                            event_data,
-                            module_data,
-                            owner,
-                            repository,
-                            job_id,
-                            job_priority,
-                            job_module,
-                            job_application,
-                            job.event_name,
-                            root_logger,
-                            handler,
-                        )
-
-                session.execute(
-                    sqlalchemy.update(models.Queue)
-                    .where(models.Queue.id == job_id)
-                    .values(
-                        status=models.JobStatus.DONE if success else models.JobStatus.ERROR,
-                        finished_at=datetime.datetime.now(tz=datetime.timezone.utc),
-                    )
-                )
-                session.commit()
-
-            except Exception:  # pylint: disable=broad-exception-caught
-                _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module or "-")
-                root_logger.removeHandler(handler)
-                with Session() as session:
-                    session.execute(
-                        sqlalchemy.update(models.Queue)
-                        .where(models.Queue.id == job_id)
-                        .values(
-                            status=models.JobStatus.ERROR,
-                            finished_at=datetime.datetime.now(tz=datetime.timezone.utc),
-                            log="\n".join([handler.format(msg) for msg in handler.results]),
-                        )
-                    )
-                    session.commit()
-            finally:
-                root_logger.removeHandler(handler)
-        if args.only_one:
-            break
+def main() -> None:
+    """Process the jobs present in the database queue."""
+    with asyncio.Runner() as runner:
+        runner.run(_async_main())
 
 
 if __name__ == "__main__":
