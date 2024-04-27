@@ -37,7 +37,7 @@ def snyk(
     if proc.returncode != 0:
         message = module_utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
-        _LOGGING.warning(message.to_html(style="collapse"))
+        _LOGGING.warning(message)
         result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -59,10 +59,10 @@ def snyk(
             message = module_utils.ansi_proc_message(proc)
             if proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
-                _LOGGING.warning(message.to_html(style="collapse"))
+                _LOGGING.warning(message)
                 result.append(message)
             message.title = f"Dependencies installed from {file}"
-            _LOGGING.debug(message.to_html(style="collapse"))
+            _LOGGING.debug(message)
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8", timeout=30
@@ -70,7 +70,7 @@ def snyk(
     if proc.returncode != 0:
         message = module_utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
-        _LOGGING.warning(message.to_html(style="collapse"))
+        _LOGGING.warning(message)
         result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -94,11 +94,11 @@ def snyk(
             message = module_utils.ansi_proc_message(proc)
             if proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
-                _LOGGING.warning(message.to_html(style="collapse"))
+                _LOGGING.warning(message)
                 result.append(message)
             else:
                 message.title = f"Dependencies installed from {file}"
-                _LOGGING.debug(message.to_html(style="collapse"))
+                _LOGGING.debug(message)
 
     env = {**os.environ}
     env["FORCE_COLOR"] = "true"
@@ -114,11 +114,11 @@ def snyk(
     message = module_utils.ansi_proc_message(proc)
     if proc.returncode != 0:
         message.title = "Error while monitoring the project"
-        _LOGGING.warning(message.to_html(style="collapse"))
+        _LOGGING.warning(message)
         result.append(message)
     else:
         message.title = "Project monitored"
-        _LOGGING.debug(message.to_html(style="collapse"))
+        _LOGGING.debug(message)
 
     command = ["snyk", "test", "--json"] + config.get(
         "test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT
@@ -130,7 +130,7 @@ def snyk(
     test_json = json.loads(test_proc.stdout)
     message = module_utils.HtmlMessage(utils.format_json(test_json))
     message.title = "Snyk test output"
-    _LOGGING.debug(message.to_html(style="collapse"))
+    _LOGGING.debug(message)
 
     if not isinstance(test_json, list):
         test_json = [test_json]
@@ -192,12 +192,12 @@ def snyk(
         )
         dashboard_message = module_utils.ansi_proc_message(test_proc)
         dashboard_message.title = "Error while testing the project"
-        _LOGGING.error(dashboard_message.to_html(style="collapse"))
+        _LOGGING.error(dashboard_message)
 
     if vulnerabilities:
         message = module_utils.HtmlMessage(" ".join(m.to_html() for m in result))
         message.title = "Vulnerabilities found"
-        _LOGGING.warning(message.to_html(style="collapse"))
+        _LOGGING.warning(message)
 
     command = ["snyk", "fix"] + config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
     snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -207,10 +207,10 @@ def snyk(
     message = module_utils.ansi_proc_message(snyk_fix_proc)
     if snyk_fix_proc.returncode != 0:
         message.title = "Error while fixing the project"
-        _LOGGING.warning(message.to_html(style="collapse"))
+        _LOGGING.warning(message)
     else:
         message.title = "Snyk fix applied"
-        _LOGGING.debug(message.to_html(style="collapse"))
+        _LOGGING.debug(message)
 
     if snyk_fix_proc.returncode != 0 and vulnerabilities:
         result.append(module_utils.ansi_proc_message(snyk_fix_proc))
@@ -280,8 +280,9 @@ def _get_packages_version(
         sources = _get_sources(dist, config, local_config)
         versions = sorted(
             [
-                debian_inspector.version.Version.from_string(package.version)
-                for package in sources.get_packages_by_name(pkg)
+                debian_inspector.version.Version.from_string(apt_package.version)
+                for apt_package in sources.get_packages_by_name(pkg)
+                if apt_package.version
             ]
         )
         if not versions:
