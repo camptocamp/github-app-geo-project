@@ -1,5 +1,6 @@
 # GitHub application geospatial project
 
+test
 This application will manage:
 
 - The Changelog in the release
