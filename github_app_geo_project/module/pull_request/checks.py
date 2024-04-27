@@ -67,7 +67,7 @@ def _commits_messages(
     commit_hash = set()
     for commit in commits:
         commit_hash.add(commit.sha)
-        message_lines = commit.raw_data.get("message", "").split("\n")
+        message_lines = commit.commit.message.split("\n")
         head = message_lines[0]
         if commit_message_config.get(
             "check-fixup", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_FIXUP_DEFAULT
@@ -133,10 +133,10 @@ def _commits_spell(
             if config.get(
                 "only-head", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_ONLY_HEAD_DEFAULT
             ):
-                head = commit.raw_data["message"].split("\n")[0]
+                head = commit.commit.message.split("\n")[0]
                 temp_file.write(head)
             else:
-                temp_file.write(commit.raw_data["message"])
+                temp_file.write(commit.commit.message)
             temp_file.flush()
             spell = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 spellcheck_cmd + [temp_file.name], capture_output=True, encoding="utf-8"
