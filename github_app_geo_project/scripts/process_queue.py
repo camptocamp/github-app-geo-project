@@ -112,9 +112,9 @@ def _process_job(
     if "TEST_APPLICATION" not in os.environ:
         github_application = configuration.get_github_application(config, application)
         github_project = configuration.get_github_project(config, github_application, owner, repository)
+        repo = github_project.repo
 
         if current_module.required_issue_dashboard():
-            repo = github_project.repo
             dashboard_issue = _get_dashboard_issue(github_application, repo)
             if dashboard_issue:
                 issue_full_data = dashboard_issue.body
@@ -124,8 +124,8 @@ def _process_job(
             project_configuration.ModuleConfiguration,
             configuration.get_configuration(config, owner, repository, application).get(module_name, {}),
         )
-    if job.check_run_id is not None:
-        check_run = repo.get_check_run(job.check_run_id)
+        if job.check_run_id is not None:
+            check_run = repo.get_check_run(job.check_run_id)
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         module_status = (
             session.query(models.ModuleStatus)
@@ -137,7 +137,7 @@ def _process_job(
             module_status = models.ModuleStatus(module=module_name, data={})
             session.add(module_status)
 
-        if github_project is not None:
+        if "TEST_APPLICATION" not in os.environ:
             if job.check_run_id is None:
                 check_run = webhook.create_checks(
                     job,
@@ -188,32 +188,22 @@ def _process_job(
                 )
 
             root_logger.removeHandler(handler)
-
-            session.execute(
-                sqlalchemy.update(models.Queue)
-                .where(models.Queue.id == job_id)
-                .values(log="\n".join([handler.format(msg) for msg in handler.results]))
-            )
-            session.commit()
+            job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and result.transversal_status is not None:
                 module_status.data = result.transversal_status
-                session.commit()
             if result is not None:
                 for action in result.actions:
-                    session.execute(
-                        sqlalchemy.insert(models.Queue).values(
-                            {
-                                "priority": action.priority if action.priority >= 0 else job_priority,
-                                "application": application,
-                                "owner": owner,
-                                "repository": repository,
-                                "event_name": action.title or event_name,
-                                "event_data": event_data,
-                                "module": module_name,
-                                "module_data": action.data,
-                            }
-                        )
-                    )
+                    new_job = models.Queue()
+                    new_job.priority = action.priority if action.priority >= 0 else job_priority
+                    new_job.application = application
+                    new_job.owner = owner
+                    new_job.repository = repository
+                    new_job.event_name = action.title or event_name
+                    new_job.event_data = event_data
+                    new_job.module = module_name
+                    new_job.module_data = action.data  # type: ignore[assignment]
+                    session.add(new_job)
+            session.commit()
             new_issue_data = result.dashboard if result is not None else None
         except github.GithubException as exception:
             _LOGGER.exception(
@@ -481,6 +471,7 @@ def _process_one_job(
         job.status = models.JobStatus.PENDING
         job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
         session.commit()
+
         if make_pending:
             _LOGGER.info("Make job ID %s pending", job.id)
             return False
@@ -554,30 +545,17 @@ def _process_one_job(
                         job,
                     )
 
-            session.execute(
-                sqlalchemy.update(models.Queue)
-                .where(models.Queue.id == job_id)
-                .values(
-                    status=models.JobStatus.DONE if success else models.JobStatus.ERROR,
-                    finished_at=datetime.datetime.now(tz=datetime.timezone.utc),
-                )
-            )
+            job.status = models.JobStatus.DONE if success else models.JobStatus.ERROR
+            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
 
         except Exception:  # pylint: disable=broad-exception-caught
             _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module or "-")
             root_logger.removeHandler(handler)
-            with Session() as session:
-                session.execute(
-                    sqlalchemy.update(models.Queue)
-                    .where(models.Queue.id == job_id)
-                    .values(
-                        status=models.JobStatus.ERROR,
-                        finished_at=datetime.datetime.now(tz=datetime.timezone.utc),
-                        log="\n".join([handler.format(msg) for msg in handler.results]),
-                    )
-                )
-                session.commit()
+            job.status = models.JobStatus.ERROR
+            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            job.log = "\n".join([handler.format(msg) for msg in handler.results])
+            session.commit()
         finally:
             root_logger.removeHandler(handler)
 
