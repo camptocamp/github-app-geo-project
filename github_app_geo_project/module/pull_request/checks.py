@@ -291,14 +291,3 @@ class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration])
         return module.ProcessOutput(
             transversal_status=context.module_data, success=success, output={"summary": message}
         )
-
-    def cleanup(self, context: module.CleanupContext) -> None:
-        """Cleanup the module."""
-        repo = context.github_project.github.get_repo(
-            context.github_project.owner + "/" + context.github_project.repository
-        )
-        check_run = repo.get_check_run(context.module_data["check-run-id"])
-        check_run.edit(
-            status="completed",
-            conclusion="skipped",
-        )

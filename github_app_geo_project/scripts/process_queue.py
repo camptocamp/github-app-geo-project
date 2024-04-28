@@ -124,6 +124,8 @@ def _process_job(
             project_configuration.ModuleConfiguration,
             configuration.get_configuration(config, owner, repository, application).get(module_name, {}),
         )
+    if job.check_run_id is not None:
+        check_run = repo.get_check_run(job.check_run_id)
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         module_status = (
             session.query(models.ModuleStatus)
@@ -137,7 +139,7 @@ def _process_job(
 
         if github_project is not None:
             if job.check_run_id is None:
-                webhook.create_checks(
+                check_run = webhook.create_checks(
                     job,
                     session,
                     current_module,
@@ -146,7 +148,6 @@ def _process_job(
                     config["service-url"],
                 )
             else:
-                check_run = repo.get_check_run(job.check_run_id)
                 check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
 
         try:
@@ -254,6 +255,11 @@ def _process_job(
             raise
     else:
         _LOGGER.info("Module %s is disabled", module_name)
+        if check_run is not None:
+            check_run.edit(
+                status="completed",
+                conclusion="skipped",
+            )
         try:
             current_module.cleanup(
                 module.CleanupContext(
