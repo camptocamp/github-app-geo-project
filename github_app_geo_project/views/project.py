@@ -26,11 +26,11 @@ def _pprint_date(date: datetime.datetime) -> str:
     return f"{short_date} ({full_date})"
 
 
-def _date_tooltip(job: list[datetime.datetime]) -> str:
+def _date_tooltip(job: models.Queue) -> str:
     """Get the tooltip for the date."""
-    created = job[4]
-    started = job[5]
-    finished = job[7]
+    created = job.created_at
+    started = job.started_at
+    finished = job.finished_at
     if started is None:
         return f"created:&nbsp;{_pprint_date(created)}<br>not started yet"
     if finished is None:
@@ -64,36 +64,6 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     config: project_configuration.GithubApplicationProjectConfiguration = {}
 
     _LOGGER.debug("Configuration: %s", config)
-
-    select_output = (
-        sqlalchemy.select(models.Output.id, models.Output.title)
-        .where(
-            models.Output.owner == owner,
-            models.Output.repository == repository,
-        )
-        .order_by(models.Output.created_at.desc())
-    )
-    if "only_error" in request.params:
-        select_output = select_output.where(models.Output.status == models.OutputStatus.ERROR)
-
-    select_job = (
-        sqlalchemy.select(
-            models.Queue.id,
-            models.Queue.status,
-            models.Queue.application,
-            models.Queue.module,
-            models.Queue.created_at,
-            models.Queue.started_at,
-            models.Queue.event_name,
-            models.Queue.finished_at,
-            models.Queue.log,
-        )
-        .where(
-            models.Queue.owner == owner,
-            models.Queue.repository == repository,
-        )
-        .order_by(models.Queue.created_at.desc())
-    )
 
     module_names = set()
     applications: dict[str, dict[str, Any]] = {}
@@ -148,12 +118,33 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         )
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
-    with engine.connect() as session:
+    SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
+    with SessionMaker() as session:
+        select_output = (
+            session.query(models.Output.id, models.Output.title)
+            .where(
+                models.Output.owner == owner,
+                models.Output.repository == repository,
+            )
+            .order_by(models.Output.created_at.desc())
+        )
+        if "only_error" in request.params:
+            select_output = select_output.where(models.Output.status == models.OutputStatus.ERROR)
+
+        select_job = (
+            session.query(models.Queue)
+            .where(
+                models.Queue.owner == owner,
+                models.Queue.repository == repository,
+            )
+            .order_by(models.Queue.created_at.desc())
+        )
+
         return {
             "styles": "",
             "repository": f"{owner}/{repository}",
-            "output": session.execute(select_output.limit(10)).all(),
-            "jobs": session.execute(select_job.limit(20)).all(),
+            "output": select_output.limit(10).all(),
+            "jobs": select_job.limit(20).all(),
             "error": None,
             "applications": applications,
             "module_configuration": module_config,

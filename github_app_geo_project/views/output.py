@@ -19,15 +19,14 @@ _LOGGER = logging.getLogger(__name__)
 def output(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
     title = request.matchdict["id"]
-    data = ["Element not found"]
+    data: list[str | models.OutputData] = ["Element not found"]
     has_access = True
 
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
-    with engine.connect() as session:
-        out = session.execute(
-            sqlalchemy.select(models.Output).where(models.Output.id == request.matchdict["id"])
-        ).first()
+    SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
+    with SessionMaker() as session:
+        out = session.query(models.Output).where(models.Output.id == request.matchdict["id"]).first()
         if out is not None:
             full_repository = f"{out.owner}/{out.repository}"
             permission = request.has_permission(

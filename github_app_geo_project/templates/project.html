@@ -127,11 +127,11 @@
     <h2>Last thread events</h2>
     %for job in jobs:
     <!---->
-    %if job[1].value == 'error':
+    %if job.status.value == 'error':
     <div class="alert alert-danger event" role="alert">
       %else:
       <!---->
-      %if job[1].value == 'done':
+      %if job.status.value == 'done':
       <div class="alert alert-secondary event" role="alert">
         %else:
         <div class="alert alert-primary event" role="alert">
@@ -140,19 +140,19 @@
           %endif
           <!---->
           <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Status"
-            >[${job[1].value}]</a
+            >[${job.status.value}]</a
           >
           <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Event name"
-            >${job[6]}</a
+            >${job.event_name}</a
           >
           <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Application"
-            >${job[2]}</a
+            >${job.application}</a
           >:<b
             ><a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Module"
-              >${job[3] or '-'}</a
+              >${job.module or '-'}</a
             ></b
           >
-          (<a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Job id">${job[0]}</a>)
+          (<a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Job id">${job.id}</a>)
           -
           <a
             href="#"
@@ -161,21 +161,21 @@
             data-bs-html="true"
             data-bs-title="${date_tooltip(job)}"
           >
-            %if job[7]:
+            %if job.finished_at:
             <!---->
-            ${job[7] - job[5]|pprint_duration}</a
+            ${job.finished_at - job.started_at|pprint_duration}</a
           >,
           <!---->
           %else:
           <!---->
-          %if job[5]:
+          %if job.started_at:
           <!-- for Prettier -->
           %if False:
           <a>
             <!---->
             %endif
             <!---->
-            started&nbsp;${job[5]|pprint_date}</a
+            started&nbsp;${job.started_at|pprint_date}</a
           >,
           <!---->
           %else:
@@ -185,17 +185,17 @@
             <!---->
             %endif
             <!---->
-            created&nbsp;${job[4]|pprint_date}</a
+            created&nbsp;${job.created_at|pprint_date}</a
           >,
           <!---->
           %endif
           <!---->
           %endif
           <!---->
-          %if job[8]:
-          <a href="${request.route_url('logs', id=job[0])}">Logs</a>
+          %if job.log:
+          <a href="${request.route_url('logs', id=job.id)}">Logs</a>
           %else:
-          <a href="${request.route_url('logs', id=job[0])}">Status</a>
+          <a href="${request.route_url('logs', id=job.id)}">Status</a>
           %endif
         </div>
         <!-- for Prettier -->
