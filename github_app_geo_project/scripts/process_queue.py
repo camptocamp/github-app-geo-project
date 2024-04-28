@@ -249,9 +249,17 @@ def _process_job(
                 },
             )
             raise
-        except Exception:
+        except Exception as exception:
             _LOGGER.exception("Failed to process job id: %s on module: %s", job_id, module_name)
             root_logger.removeHandler(handler)
+            check_run.edit(
+                status="completed",
+                conclusion="failure",
+                output={
+                    "title": current_module.title(),
+                    "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
+                },
+            )
             raise
     else:
         _LOGGER.info("Module %s is disabled", module_name)
