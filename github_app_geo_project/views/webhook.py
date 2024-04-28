@@ -201,11 +201,11 @@ def process_event(context: ProcessContext) -> None:
                             should_create_checks = True
                             break
                 if should_create_checks:
-                    webhook.create_checks(
+                    create_checks(
                         job,
                         context.session,
                         current_module,
-                        repo,
+                        repo,  # type: ignore[arg-type]
                         context.event_data,
                         context.service_url,
                     )
