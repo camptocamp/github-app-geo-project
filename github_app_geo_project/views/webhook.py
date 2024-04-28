@@ -66,7 +66,9 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     owner, repository = data["repository"]["full_name"].split("/")
 
     session_factory = request.registry["dbsession_factory"]
-    with session_factory(request) as session:
+    engine = session_factory.rw_engine
+    SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
+    with SessionMaker() as session:
         if data.get("action") == "requested" and data.get("check_suite", {}).get("id"):
             if application_object is not None:
                 try:

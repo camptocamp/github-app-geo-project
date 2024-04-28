@@ -38,10 +38,12 @@ def dashboard(request: pyramid.request.Request) -> dict[str, Any]:
 
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
-    with engine.connect() as session:
+    SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
+    with SessionMaker() as session:
         module_status = session.execute(
             sqlalchemy.sql.select(models.ModuleStatus.data).where(models.ModuleStatus.module == module_name)
         ).scalar()
+        assert module_status is not None
         output = module_instance.get_transversal_dashboard(
             module.TransversalDashboardContext(module_status, dict(request.params))
         )

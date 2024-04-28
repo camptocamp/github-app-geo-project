@@ -19,15 +19,14 @@ _LOGGER = logging.getLogger(__name__)
 def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the logs of a job."""
     title = f"Logs of job {request.matchdict['id']}"
-    logs = ["Element not found"]
+    logs = "Element not found"
     has_access = True
 
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine
-    with engine.connect() as session:
-        job = session.execute(
-            sqlalchemy.select(models.Queue).where(models.Queue.id == request.matchdict["id"])
-        ).first()
+    SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
+    with SessionMaker() as session:
+        job = session.query(models.Queue).where(models.Queue.id == request.matchdict["id"]).first()
         if job is not None:
             full_repository = f"{job.owner}/{job.repository}"
             permission = request.has_permission(
@@ -39,19 +38,19 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
                 logs = job.log
             else:
                 request.response.status = 302
-                logs = ["Access Denied"]
+                logs = "Access Denied"
+            return {
+                "title": title,
+                "logs": logs,
+                "job": job,
+                "enumerate": enumerate,
+                "reload": job.status in [models.JobStatus.NEW, models.JobStatus.PENDING],
+                "favicon_postfix": (
+                    "red"
+                    if job.status == models.JobStatus.ERROR
+                    else ("green" if job.status == models.JobStatus.DONE else "blue")
+                ),
+            }
         else:
             request.response.status = 404
-
-        return {
-            "title": title,
-            "logs": logs,
-            "job": job,
-            "enumerate": enumerate,
-            "reload": job.status in [models.JobStatus.NEW, models.JobStatus.PENDING],
-            "favicon_postfix": (
-                "red"
-                if job.status == models.JobStatus.ERROR
-                else ("green" if job.status == models.JobStatus.DONE else "blue")
-            ),
-        }
+            return {}
