@@ -249,7 +249,6 @@ def create_checks(
         head_sha=sha,
         details_url=service_url,
         external_id=str(job.id),
-        status="in_progress",
     )
     job.check_run_id = check_run.id
     session.commit()

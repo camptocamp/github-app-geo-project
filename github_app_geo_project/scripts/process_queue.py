@@ -82,22 +82,13 @@ def _validate_job(config: dict[str, Any], application: str, event_data: dict[str
 def _process_job(
     config: dict[str, str],
     session: sqlalchemy.orm.Session,
-    event_data: dict[str, Any],
-    module_data: dict[str, Any],
-    owner: str,
-    repository: str,
-    job_id: int,
-    job_priority: int,
-    module_name: str,
-    application: str,
-    event_name: str,
     root_logger: logging.Logger,
     handler: _Handler,
     job: models.Queue,
 ) -> bool:
-    current_module = modules.MODULES.get(module_name)
+    current_module = modules.MODULES.get(job.module)
     if current_module is None:
-        _LOGGER.error("Unknown module %s", module_name)
+        _LOGGER.error("Unknown module %s", job.module)
         return False
 
     logs_url = config["service-url"]
@@ -110,31 +101,35 @@ def _process_job(
     module_config: project_configuration.ModuleConfiguration = {}
     github_project: configuration.GithubProject | None = None
     if "TEST_APPLICATION" not in os.environ:
-        github_application = configuration.get_github_application(config, application)
-        github_project = configuration.get_github_project(config, github_application, owner, repository)
+        github_application = configuration.get_github_application(config, job.application)
+        github_project = configuration.get_github_project(
+            config, github_application, job.owner, job.repository
+        )
         repo = github_project.repo
 
         if current_module.required_issue_dashboard():
             dashboard_issue = _get_dashboard_issue(github_application, repo)
             if dashboard_issue:
                 issue_full_data = dashboard_issue.body
-                issue_data = utils.get_dashboard_issue_module(issue_full_data, module_name)
+                issue_data = utils.get_dashboard_issue_module(issue_full_data, job.module)
 
         module_config = cast(
             project_configuration.ModuleConfiguration,
-            configuration.get_configuration(config, owner, repository, application).get(module_name, {}),
+            configuration.get_configuration(config, job.owner, job.repository, job.application).get(
+                job.module, {}
+            ),
         )
         if job.check_run_id is not None:
             check_run = repo.get_check_run(job.check_run_id)
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         module_status = (
             session.query(models.ModuleStatus)
-            .filter(models.ModuleStatus.module == module_name)
+            .filter(models.ModuleStatus.module == job.module)
             .with_for_update(of=models.ModuleStatus)
             .one_or_none()
         )
         if module_status is None:
-            module_status = models.ModuleStatus(module=module_name, data={})
+            module_status = models.ModuleStatus(module=job.module, data={})
             session.add(module_status)
 
         if "TEST_APPLICATION" not in os.environ:
@@ -144,29 +139,34 @@ def _process_job(
                     session,
                     current_module,
                     github_project.repo,
-                    event_data,
+                    job.event_data,
                     config["service-url"],
                 )
-            else:
-                check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
+
+            check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
+
+        job.status = models.JobStatus.PENDING
+        job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
+        session.commit()
 
         try:
-            root_logger.addHandler(handler)
-
-            result = current_module.process(
-                module.ProcessContext(
-                    session=session,
-                    github_project=github_project,  # type: ignore[arg-type]
-                    event_name=event_name,
-                    event_data=event_data,
-                    module_config=module_config,
-                    module_data=module_data,
-                    issue_data=issue_data,
-                    transversal_status=module_status.data or {},
-                    job_id=job_id,
-                    service_url=config["service-url"],
-                )
+            context = module.ProcessContext(
+                session=session,
+                github_project=github_project,  # type: ignore[arg-type]
+                event_name=job.event_name,
+                event_data=job.event_data,
+                module_config=module_config,
+                module_data=job.module_data,
+                issue_data=issue_data,
+                transversal_status=module_status.data or {},
+                job_id=job.id,
+                service_url=config["service-url"],
             )
+            root_logger.addHandler(handler)
+            try:
+                result = current_module.process(context)
+            finally:
+                root_logger.removeHandler(handler)
 
             if github_project is not None:
                 check_output = {
@@ -186,21 +186,21 @@ def _process_job(
                     conclusion="success" if result is None or result.success else "failure",
                     output=check_output,
                 )
+            job.status = models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
 
-            root_logger.removeHandler(handler)
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and result.transversal_status is not None:
                 module_status.data = result.transversal_status
             if result is not None:
                 for action in result.actions:
                     new_job = models.Queue()
-                    new_job.priority = action.priority if action.priority >= 0 else job_priority
-                    new_job.application = application
-                    new_job.owner = owner
-                    new_job.repository = repository
-                    new_job.event_name = action.title or event_name
-                    new_job.event_data = event_data
-                    new_job.module = module_name
+                    new_job.priority = action.priority if action.priority >= 0 else job.priority
+                    new_job.application = job.application
+                    new_job.owner = job.owner
+                    new_job.repository = job.repository
+                    new_job.event_name = action.title or job.event_name
+                    new_job.event_data = job.event_data
+                    new_job.module = job.module
                     new_job.module_data = action.data  # type: ignore[assignment]
                     session.add(new_job)
             session.commit()
@@ -208,8 +208,8 @@ def _process_job(
         except github.GithubException as exception:
             _LOGGER.exception(
                 "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
-                job_id,
-                module_name,
+                job.id,
+                job.module,
                 exception.data,
                 ("\n".join(f"{k}: {v}" for k, v in exception.headers.items()) if exception.headers else ""),
                 exception.message,
@@ -223,11 +223,13 @@ def _process_job(
                     "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
                 },
             )
+            job.status = models.JobStatus.ERROR
             raise
         except subprocess.CalledProcessError as proc_error:
             print(proc_error.stdout, proc_error.stderr)
             message = module_utils.ansi_proc_message(proc_error)
-            message.title = f"Error process job '{job_id}' on module: {module_name}"
+            message.title = f"Error process job '{job.id}' on module: {job.module}"
+            root_logger.addHandler(handler)
             _LOGGER.exception(message)
             root_logger.removeHandler(handler)
             check_run.edit(
@@ -238,42 +240,47 @@ def _process_job(
                     "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url}))",
                 },
             )
+            job.status = models.JobStatus.ERROR
             raise
         except Exception as exception:
-            _LOGGER.exception("Failed to process job id: %s on module: %s", job_id, module_name)
+            root_logger.addHandler(handler)
+            _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
             root_logger.removeHandler(handler)
-            check_run.edit(
-                status="completed",
-                conclusion="failure",
-                output={
-                    "title": current_module.title(),
-                    "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
-                },
-            )
+            if "TEST_APPLICATION" not in os.environ:
+                check_run.edit(
+                    status="completed",
+                    conclusion="failure",
+                    output={
+                        "title": current_module.title(),
+                        "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
+                    },
+                )
+            job.status = models.JobStatus.ERROR
             raise
     else:
-        _LOGGER.info("Module %s is disabled", module_name)
-        if check_run is not None:
+        _LOGGER.info("Module %s is disabled", job.module)
+        if "TEST_APPLICATION" not in os.environ:
             check_run.edit(
                 status="completed",
                 conclusion="skipped",
             )
+        job.status = models.JobStatus.SKIPPED
         try:
             current_module.cleanup(
                 module.CleanupContext(
                     github_project=github_project,  # type: ignore[arg-type]
                     event_name="event",
-                    event_data=event_data,
-                    module_data=module_data,
+                    event_data=job.event_data,
+                    module_data=job.module_data,
                 )
             )
         except Exception:
             _LOGGER.exception(
                 "Failed to cleanup job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
-                job_id,
-                module_name,
-                module_data,
-                event_data,
+                job.id,
+                job.module,
+                job.module_data,
+                job.event_data,
             )
             raise
 
@@ -282,14 +289,14 @@ def _process_job(
 
         if dashboard_issue:
             issue_full_data = utils.update_dashboard_issue_module(
-                dashboard_issue.body, module_name, current_module, new_issue_data
+                dashboard_issue.body, job.module, current_module, new_issue_data
             )
             _LOGGER.debug("Update issue %s, with:\n%s", dashboard_issue.number, issue_full_data)
             dashboard_issue.edit(body=issue_full_data)
         elif new_issue_data:
             issue_full_data = utils.update_dashboard_issue_module(
-                f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{owner}/{repository})\n\n",
-                module_name,
+                f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{job.owner}/{job.repository})\n\n",
+                job.module,
                 current_module,
                 new_issue_data,
             )
@@ -468,96 +475,76 @@ def _process_one_job(
 
             return True
 
-        job.status = models.JobStatus.PENDING
-        job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
-        session.commit()
-
-        if make_pending:
-            _LOGGER.info("Make job ID %s pending", job.id)
-            return False
-
         # Force get job
         job_id = job.id
+        del job_id
 
         # Capture_logs
         root_logger = logging.getLogger()
         handler = _Handler()
         handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
-        root_logger.addHandler(handler)
 
         module_data_formatted = utils.format_json(job.module_data)
         event_data_formatted = utils.format_json(job.event_data)
         message = module_utils.HtmlMessage(
             f"<p>module data:</p>{module_data_formatted}<p>event data:</p>{event_data_formatted}"
         )
-        message.title = f"Start process job '{job.event_name}' id: {job_id}, on {job.owner}/{job.repository} on module: {job.module}, on application {job.application}"
-        _LOGGER.info(message.to_html(style="collapse"))
-
+        message.title = f"Start process job '{job.event_name}' id: {job.id}, on {job.owner}/{job.repository} on module: {job.module}, on application {job.application}"
+        root_logger.addHandler(handler)
+        _LOGGER.info(message)
         root_logger.removeHandler(handler)
 
-        job_id = job.id
-        job_priority = job.priority
-        job_application = job.application
-        job_module = job.module
-        owner = job.owner
-        repository = job.repository
-        event_data = job.event_data
-        event_name = job.event_name
-        module_data = job.module_data
+        if make_pending:
+            _LOGGER.info("Make job ID %s pending", job.id)
+            job.status = models.JobStatus.PENDING
+            session.commit()
+            return False
 
         try:
+            job.status = models.JobStatus.PENDING
+            session.commit()
+
             success = True
             if not job.module:
-                if event_data.get("type") == "event":
-                    _process_event(config, event_data, session)
-                elif event_name == "dashboard":
-                    success = _validate_job(config, job_application, event_data)
+                if job.event_data.get("type") == "event":
+                    _process_event(config, job.event_data, session)
+                    job.status = models.JobStatus.DONE
+                elif job.event_name == "dashboard":
+                    success = _validate_job(config, job.application, job.event_data)
                     if success:
-                        _LOGGER.info("Process dashboard issue %i", job_id)
+                        _LOGGER.info("Process dashboard issue %i", job.id)
                         _process_dashboard_issue(
                             config,
                             session,
-                            event_data,
-                            job_application,
-                            owner,
-                            repository,
+                            job.event_data,
+                            job.application,
+                            job.owner,
+                            job.repository,
                         )
+                        job.status = models.JobStatus.DONE
+                    job.status = models.JobStatus.ERROR
                 else:
-                    _LOGGER.error("Unknown event name: %s", event_name)
+                    _LOGGER.error("Unknown event name: %s", job.event_name)
+                    job.status = models.JobStatus.ERROR
                     success = False
             else:
-                success = _validate_job(config, job_application, event_data)
+                success = _validate_job(config, job.application, job.event_data)
                 if success:
                     success = _process_job(
                         config,
                         session,
-                        event_data,
-                        module_data,
-                        owner,
-                        repository,
-                        job_id,
-                        job_priority,
-                        job_module,
-                        job_application,
-                        job.event_name,
                         root_logger,
                         handler,
                         job,
                     )
 
-            job.status = models.JobStatus.DONE if success else models.JobStatus.ERROR
-            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
-            session.commit()
-
         except Exception:  # pylint: disable=broad-exception-caught
-            _LOGGER.exception("Failed to process job id: %s on module: %s.", job_id, job_module or "-")
-            root_logger.removeHandler(handler)
-            job.status = models.JobStatus.ERROR
-            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            _LOGGER.exception("Failed to process job id: %s on module: %s.", job.id, job.module or "-")
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
-            session.commit()
         finally:
-            root_logger.removeHandler(handler)
+            assert job.status != models.JobStatus.PENDING
+            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            session.commit()
 
         return False
 

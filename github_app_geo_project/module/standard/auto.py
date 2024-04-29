@@ -54,7 +54,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
             event_data.get("action") in ("opened", "reopened")
             and event_data.get("pull_request", {}).get("state") == "open"
         ):
-            return [module.Action(priority=module.PRIORITY_STANDARD, data={})]
+            return [module.Action(priority=module.PRIORITY_STANDARD, data={}, checks=False)]
 
         return []
 
