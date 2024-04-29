@@ -43,7 +43,6 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
                 "title": title,
                 "logs": logs,
                 "job": job,
-                "enumerate": enumerate,
                 "reload": job.status in [models.JobStatus.NEW, models.JobStatus.PENDING],
                 "favicon_postfix": (
                     "red"
@@ -53,4 +52,9 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
             }
         else:
             request.response.status = 404
-            return {}
+            return {
+                "title": title,
+                "logs": logs,
+                "reload": False,
+                "favicon_postfix": "red",
+            }
