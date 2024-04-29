@@ -289,7 +289,7 @@ class HtmlMessage(Message):
         )
         message = cast(
             str,
-            sanitizer.sanitize(self.html.replace("\n", " ").replace("<p>", "\n<p>").replace("<br>", "\n")),
+            sanitizer.sanitize(self.html.replace("<p>", "\n<p>").replace("<br>", "\n")),
         ).strip()
 
         if self.title:
