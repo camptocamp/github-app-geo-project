@@ -135,10 +135,11 @@ async def snyk(
         await test_proc.communicate()
 
     assert test_proc.stdout is not None
-    test_json = json.loads((await test_proc.stdout.read()).decode())
-    message = module_utils.HtmlMessage(utils.format_json(test_json))
+    test_json_str = (await test_proc.stdout.read()).decode()
+    message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
     message.title = "Snyk test output"
     _LOGGING.debug(message)
+    test_json = json.loads(test_json_str)
 
     if not isinstance(test_json, list):
         test_json = [test_json]
