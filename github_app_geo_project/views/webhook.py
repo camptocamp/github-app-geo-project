@@ -27,7 +27,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     data = request.json
 
     _LOGGER.debug(
-        "Webhook received for %s on%s", request.headers.get("X-GitHub-Event", "undefined"), application
+        "Webhook received for %s on %s", request.headers.get("X-GitHub-Event", "undefined"), application
     )
 
     application_object = None
@@ -69,30 +69,49 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     engine = session_factory.rw_engine
     SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
     with SessionMaker() as session:
-        if data.get("action") == "requested" and data.get("check_suite", {}).get("id"):
-            if application_object is not None:
+        if data.get("action") == "rerequested" and data.get("check_suite", {}).get("id"):
+            if "TEST_APPLICATION" in os.environ:
                 try:
                     project_github = configuration.get_github_project(
                         request.registry.settings, application, owner, repository
                     )
                     check_suite = project_github.repo.get_check_suite(data["check_suite"]["id"])
                     for check_run in check_suite.get_check_runs():
+                        _LOGGER.info(
+                            "Rerequest the check run %s from check suite %s", check_run.id, check_suite.id
+                        )
                         session.execute(
                             sqlalchemy.update(models.Queue)
                             .where(models.Queue.check_run_id == check_run.id)
                             .values({"priority": module.PRIORITY_HIGH, "status": models.JobStatus.NEW})
                         )
+                        session.commit()
+                        check_run.edit(status="queued")
                 except github.GithubException as exception:
                     if exception.status == 404:
                         _LOGGER.error("Repository not found: %s/%s", owner, repository)
                     else:
                         _LOGGER.exception("Error while getting check suite")
-        if data.get("action") == "requested" and data.get("check_run", {}).get("id"):
+
+        if data.get("action") == "rerequested" and data.get("check_run", {}).get("id"):
+            _LOGGER.info("Rerequest the check run %s", data["check_run"]["id"])
             session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(models.Queue.check_run_id == data["check_run"]["id"])
                 .values({"priority": module.PRIORITY_HIGH, "status": models.JobStatus.NEW})
             )
+            if "TEST_APPLICATION" in os.environ:
+                try:
+                    project_github = configuration.get_github_project(
+                        request.registry.settings, application, owner, repository
+                    )
+                    project_github.repo.get_check_run(data["check_run"]["id"]).edit(status="queued")
+                except github.GithubException as exception:
+                    if exception.status == 404:
+                        _LOGGER.error("Repository not found: %s/%s", owner, repository)
+                    else:
+                        _LOGGER.exception("Error while getting check run")
+
         if data.get("action") == "edited" and "issue" in data:
             if "dashboard" in data["issue"]["title"].lower().split():
                 session.execute(

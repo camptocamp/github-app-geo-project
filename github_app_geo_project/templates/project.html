@@ -161,7 +161,7 @@
             data-bs-html="true"
             data-bs-title="${date_tooltip(job)}"
           >
-            %if job.finished_at:
+            %if job.finished_at and job.started_at:
             <!---->
             ${job.finished_at - job.started_at|pprint_duration}</a
           >,
