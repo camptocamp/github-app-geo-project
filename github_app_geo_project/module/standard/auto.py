@@ -66,7 +66,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
     ) -> None:
         """Process the action, called it the conditions match."""
 
-    def process(self, context: module.ProcessContext[auto_configuration.AutoPullRequest]) -> None:
+    async def process(self, context: module.ProcessContext[auto_configuration.AutoPullRequest]) -> None:
         """
         Process the action.
 

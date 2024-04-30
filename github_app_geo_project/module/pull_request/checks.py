@@ -269,7 +269,7 @@ class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration])
             ]
         return []
 
-    def process(
+    async def process(
         self, context: module.ProcessContext[checks_configuration.PullRequestChecksConfiguration]
     ) -> module.ProcessOutput | None:
         """Process the module."""

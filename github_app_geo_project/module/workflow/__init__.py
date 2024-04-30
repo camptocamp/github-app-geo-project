@@ -47,7 +47,7 @@ class Workflow(module.Module[None]):
             return [module.Action({})]
         return []
 
-    def process(self, context: module.ProcessContext[None]) -> module.ProcessOutput | None:
+    async def process(self, context: module.ProcessContext[None]) -> module.ProcessOutput | None:
         repo_data = context.transversal_status.setdefault(
             context.github_project.owner + "/" + context.github_project.repository, {}
         )

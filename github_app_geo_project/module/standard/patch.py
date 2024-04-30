@@ -59,7 +59,7 @@ class Patch(module.Module[dict[str, Any]]):
             return [module.Action(priority=module.PRIORITY_CRON, data={})]
         return []
 
-    def process(self, context: module.ProcessContext[dict[str, Any]]) -> module.ProcessOutput | None:
+    async def process(self, context: module.ProcessContext[dict[str, Any]]) -> module.ProcessOutput | None:
         """
         Process the action.
 

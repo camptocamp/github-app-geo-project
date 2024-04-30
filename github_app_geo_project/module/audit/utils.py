@@ -2,6 +2,7 @@
 The auditing functions.
 """
 
+import asyncio
 import datetime
 import json
 import logging
@@ -20,7 +21,7 @@ from github_app_geo_project.module.audit import configuration
 _LOGGING = logging.getLogger(__name__)
 
 
-def snyk(
+async def snyk(
     branch: str, config: configuration.SnykConfiguration, local_config: configuration.SnykConfiguration
 ) -> tuple[list[module_utils.Message], module_utils.Message]:
     """
@@ -45,19 +46,19 @@ def snyk(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                [
+            async with asyncio.timeout(600):
+                command = [
                     "pip",
                     "install",
                     *local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
                     f"--requirement={file}",
-                ],
-                capture_output=True,
-                encoding="utf-8",
-                timeout=600,
-            )
-            message = module_utils.ansi_proc_message(proc)
-            if proc.returncode != 0:
+                ]
+                async_proc = await asyncio.create_subprocess_exec(
+                    *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                )
+                await async_proc.communicate()
+                message = await module_utils.ansi_async_proc_message(command, async_proc)
+            if async_proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message)
                 result.append(message)
@@ -80,19 +81,21 @@ def snyk(
                 continue
             directory = os.path.dirname(os.path.abspath(file))
 
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                [
+            async with asyncio.timeout(300):
+                command = [
                     "pipenv",
-                    "sync",
+                    "install",
                     *local_config.get("pipenv-sync-arguments", config.get("pipenv-sync-arguments", [])),
-                ],
-                cwd=directory,
-                capture_output=True,
-                encoding="utf-8",
-                timeout=300,
-            )
-            message = module_utils.ansi_proc_message(proc)
-            if proc.returncode != 0:
+                ]
+                async_proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    cwd=directory,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                await async_proc.communicate()
+                message = await module_utils.ansi_async_proc_message(command, async_proc)
+            if async_proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message)
                 result.append(message)
@@ -108,11 +111,13 @@ def snyk(
     command = ["snyk", "monitor", f"--target-reference={branch}"] + config.get(
         "monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT
     )
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        command, env=env, capture_output=True, encoding="utf-8", timeout=300
-    )
-    message = module_utils.ansi_proc_message(proc)
-    if proc.returncode != 0:
+    async with asyncio.timeout(300):
+        async_proc = await asyncio.create_subprocess_exec(
+            *command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        await async_proc.communicate()
+        message = await module_utils.ansi_async_proc_message(command, async_proc)
+    if async_proc.returncode != 0:
         message.title = "Error while monitoring the project"
         _LOGGING.warning(message)
         result.append(message)
@@ -123,11 +128,14 @@ def snyk(
     command = ["snyk", "test", "--json"] + config.get(
         "test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT
     )
-    test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        command, env=env_no_debug, capture_output=True, encoding="utf-8", timeout=300
-    )
+    async with asyncio.timeout(300):
+        test_proc = await asyncio.create_subprocess_exec(
+            *command, env=env_no_debug, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        await test_proc.communicate()
 
-    test_json = json.loads(test_proc.stdout)
+    assert test_proc.stdout is not None
+    test_json = json.loads((await test_proc.stdout.read()).decode())
     message = module_utils.HtmlMessage(utils.format_json(test_json))
     message.title = "Snyk test output"
     _LOGGING.debug(message)
@@ -187,10 +195,12 @@ def snyk(
 
     if error:
         command = ["snyk", "test"] + config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
-        test_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-            command, env=env, capture_output=True, encoding="utf-8", timeout=300
-        )
-        dashboard_message = module_utils.ansi_proc_message(test_proc)
+        async with asyncio.timeout(300):
+            test_proc = await asyncio.create_subprocess_exec(
+                *command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            await test_proc.communicate()
+            dashboard_message = await module_utils.ansi_async_proc_message(command, test_proc)
         dashboard_message.title = "Error while testing the project"
         _LOGGING.error(dashboard_message)
 
@@ -200,11 +210,14 @@ def snyk(
         _LOGGING.warning(message)
 
     command = ["snyk", "fix"] + config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
-    snyk_fix_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        command, env=env_no_debug, capture_output=True, encoding="utf-8", timeout=300
-    )
-    snyk_fix_message = module_utils.AnsiMessage(snyk_fix_proc.stdout.strip())
-    message = module_utils.ansi_proc_message(snyk_fix_proc)
+    async with asyncio.timeout(300):
+        snyk_fix_proc = await asyncio.create_subprocess_exec(
+            *command, env=env_no_debug, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
+        await snyk_fix_proc.communicate()
+        assert snyk_fix_proc.stdout is not None
+        snyk_fix_message = module_utils.AnsiMessage((await snyk_fix_proc.stdout.read()).decode().strip())
+        message = await module_utils.ansi_async_proc_message(command, snyk_fix_proc)
     if snyk_fix_proc.returncode != 0:
         message.title = "Error while fixing the project"
         _LOGGING.warning(message)
@@ -213,7 +226,7 @@ def snyk(
         _LOGGING.debug(message)
 
     if snyk_fix_proc.returncode != 0 and vulnerabilities:
-        result.append(module_utils.ansi_proc_message(snyk_fix_proc))
+        result.append(await module_utils.ansi_async_proc_message(command, snyk_fix_proc))
 
     return result, snyk_fix_message
 

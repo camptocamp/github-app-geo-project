@@ -78,7 +78,7 @@ def _validate_job(config: dict[str, Any], application: str, event_data: dict[str
     return True
 
 
-def _process_job(
+async def _process_job(
     config: dict[str, str],
     session: sqlalchemy.orm.Session,
     root_logger: logging.Logger,
@@ -163,7 +163,7 @@ def _process_job(
             )
             root_logger.addHandler(handler)
             try:
-                result = current_module.process(context)
+                result = await current_module.process(context)
             finally:
                 root_logger.removeHandler(handler)
 
@@ -432,18 +432,23 @@ def _process_dashboard_issue(
         )
 
 
-def _process_one_job(
+# Where 2147483647 is the PostgreSQL max int, see: https://www.postgresql.org/docs/current/datatype-numeric.html
+async def _process_one_job(
     config: dict[str, Any],
     Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
         sqlalchemy.orm.Session
     ],
     no_steal_long_pending: bool = False,
     make_pending: bool = False,
+    max_priority: int = 2147483647,
 ) -> bool:
     with Session() as session:
         job = (
             session.query(models.Queue)
-            .filter(models.Queue.status == models.JobStatus.NEW)
+            .filter(
+                models.Queue.status == models.JobStatus.NEW,
+                models.Queue.priority <= max_priority,
+            )
             .order_by(
                 models.Queue.priority.desc(),
                 models.Queue.created_at.asc(),
@@ -469,7 +474,7 @@ def _process_one_job(
 
             return True
 
-        # To capture_logs
+        # Capture_logs
         root_logger = logging.getLogger()
         handler = _Handler()
         handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
@@ -520,7 +525,7 @@ def _process_one_job(
             else:
                 success = _validate_job(config, job.application, job.event_data)
                 if success:
-                    success = _process_job(
+                    success = await _process_job(
                         config,
                         session,
                         root_logger,
@@ -539,31 +544,44 @@ def _process_one_job(
         return False
 
 
-async def _run(
-    config: dict[str, Any],
-    Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
-        sqlalchemy.orm.Session
-    ],
-    return_when_empty: bool,
-) -> None:
+class _Run:
+    def __init__(
+        self,
+        config: dict[str, Any],
+        Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
+            sqlalchemy.orm.Session
+        ],
+        return_when_empty: bool,
+        max_priority: int,
+    ):
+        self.config = config
+        self.Session = Session  # pylint: disable=invalid-name
+        self.end_when_empty = return_when_empty
+        self.max_priority = max_priority
 
-    job_timeout = int(os.environ.get("JOB_TIMEOUT", 3600))
-    empty_thread_sleep = int(os.environ.get("EMPTY_THREAD_SLEEP", 10))
+    async def __call__(self, *args: Any, **kwds: Any) -> Any:
+        job_timeout = int(os.environ.get("JOB_TIMEOUT", 3600))
+        empty_thread_sleep = int(os.environ.get("EMPTY_THREAD_SLEEP", 10))
 
-    while True:
-        empty = True
-        try:
-            async with asyncio.timeout(job_timeout):
-                empty = _process_one_job(config, Session, no_steal_long_pending=return_when_empty)
-                if return_when_empty and empty:
-                    return
-        except asyncio.TimeoutError:
-            _LOGGER.exception("Timeout")
-        except Exception:  # pylint: disable=broad-exception-caught
-            _LOGGER.exception("Failed to process job")
+        while True:
+            empty = True
+            try:
+                async with asyncio.timeout(job_timeout):
+                    empty = await _process_one_job(
+                        self.config,
+                        self.Session,
+                        no_steal_long_pending=self.end_when_empty,
+                        max_priority=self.max_priority,
+                    )
+                    if self.end_when_empty and empty:
+                        return
+            except asyncio.TimeoutError:
+                _LOGGER.exception("Timeout")
+            except Exception:  # pylint: disable=broad-exception-caught
+                _LOGGER.exception("Failed to process job")
 
-        if empty:
-            await asyncio.sleep(empty_thread_sleep)
+            if empty:
+                await asyncio.sleep(empty_thread_sleep)
 
 
 async def _async_main() -> None:
@@ -582,15 +600,20 @@ async def _async_main() -> None:
     # Create tables if they do not exist
     models.Base.metadata.create_all(engine)
     if args.only_one:
-        _process_one_job(
+        await _process_one_job(
             config, Session, no_steal_long_pending=args.exit_when_empty, make_pending=args.make_pending
         )
         sys.exit(0)
     if args.make_pending:
-        _process_one_job(config, Session, no_steal_long_pending=args.exit_when_empty, make_pending=True)
+        await _process_one_job(config, Session, no_steal_long_pending=args.exit_when_empty, make_pending=True)
         sys.exit(0)
 
-    await _run(config, Session, args.exit_when_empty)
+    priority_groups = [int(e) for e in os.environ.get("GHCI_PRIORITY_GROUPS", "2147483647").split(",")]
+
+    threads_call = []
+    for priority in priority_groups:
+        threads_call.append(_Run(config, Session, args.exit_when_empty, priority)())
+    await asyncio.gather(*threads_call)
 
 
 def main() -> None:

@@ -1,5 +1,6 @@
 """Module utility functions for the modules."""
 
+import asyncio
 import datetime
 import logging
 import os
@@ -331,24 +332,24 @@ class AnsiMessage(HtmlMessage):
         return self.to_markdown()
 
 
-class ProcessMessage(AnsiMessage):
+class _CommonProcessMessage(AnsiMessage):
     """Represent a message from a subprocess."""
 
-    def __init__(self, proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError) -> None:
+    def __init__(self, args: list[str], returncode: int, stdout: str, stderr: str) -> None:
         """Initialize the process message."""
-        self.args = []
+        self.args: list[str] = []
 
-        for arg in proc.args:
+        for arg in args:
             if "x-access-token" in arg:
                 self.args.append(re.sub(r"x-access-token:[0-9a-zA-Z_]*", "x-access-token:***", arg))
             else:
                 self.args.append(arg)
 
-        self.returncode = proc.returncode
-        self.stdout = self._ansi_converter.convert(proc.stdout, full=False)
-        self.stderr = self._ansi_converter.convert(proc.stderr, full=False)
+        self.returncode = returncode
+        self.stdout = self._ansi_converter.convert(stdout, full=False)
+        self.stderr = self._ansi_converter.convert(stderr, full=False)
 
-        message = [f"Command: {shlex.join(self.args)}", f"Return code: {proc.returncode}"]
+        message = [f"Command: {shlex.join(self.args)}", f"Return code: {returncode}"]
         if self.stdout:
             message.append("Output:")
             message.append(self.stdout)
@@ -395,6 +396,14 @@ class ProcessMessage(AnsiMessage):
         )
 
 
+class ProcessMessage(_CommonProcessMessage):
+    """Represent a message from a subprocess."""
+
+    def __init__(self, proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError) -> None:
+        """Initialize the process message."""
+        super().__init__(cast(list[str], proc.args), proc.returncode, proc.stdout, proc.stderr)
+
+
 def ansi_proc_message(proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError) -> Message:
     """
     Process the output of a subprocess for the dashboard (markdown)/HTML.
@@ -408,6 +417,27 @@ def ansi_proc_message(proc: subprocess.CompletedProcess[str] | subprocess.Called
     The dashboard message, the simple error message, the style
     """
     return ProcessMessage(proc)
+
+
+async def ansi_async_proc_message(args: list[str], proc: asyncio.subprocess.Process) -> Message:
+    """
+    Process the output of a subprocess for the dashboard (markdown)/HTML.
+
+    Arguments:
+    ---------
+    args: The subprocess arguments
+    proc: The subprocess result
+
+    Return:
+    ------
+    The dashboard message, the simple error message, the style
+    """
+    assert proc.returncode is not None
+    assert proc.stdout is not None
+    assert proc.stderr is not None
+    return _CommonProcessMessage(
+        args, proc.returncode, (await proc.stdout.read()).decode(), (await proc.stderr.read()).decode()
+    )
 
 
 def has_changes(include_un_followed: bool = False) -> bool:

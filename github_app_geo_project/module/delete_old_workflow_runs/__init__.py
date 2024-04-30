@@ -52,7 +52,7 @@ class DeleteOldWorkflowRuns(module.Module[configuration.DeleteOldWorkflowRunsCon
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         return module.GitHubApplicationPermissions(permissions={"workflows": "write"}, events=set())
 
-    def process(  # pylint: disable=useless-return
+    async def process(
         self, context: module.ProcessContext[configuration.DeleteOldWorkflowRunsConfiguration]
     ) -> module.ProcessOutput | None:
         """

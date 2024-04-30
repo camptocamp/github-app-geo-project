@@ -111,7 +111,7 @@ def _process_outdated(
             del issue_data[key]
 
 
-def _process_snyk_dpkg(
+async def _process_snyk_dpkg(
     context: module.ProcessContext[configuration.AuditConfiguration],
     issue_data: dict[str, list[str]],
 ) -> None:
@@ -175,7 +175,7 @@ def _process_snyk_dpkg(
                         message.title = "Setting the Python version"
                         _LOGGER.debug(message.to_html(style="collapse"))
 
-                result, body = audit_utils.snyk(
+                result, body = await audit_utils.snyk(
                     branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
                 )
                 # if create_issue and result:
@@ -306,7 +306,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
             )
         return results
 
-    def process(
+    async def process(
         self, context: module.ProcessContext[configuration.AuditConfiguration]
     ) -> module.ProcessOutput | None:
         """
@@ -425,7 +425,7 @@ class Audit(module.Module[configuration.AuditConfiguration]):
                         )
                 return ProcessOutput(actions=actions)
             else:
-                _process_snyk_dpkg(context, issue_data)
+                await _process_snyk_dpkg(context, issue_data)
 
         return _get_process_output(context, issue_check, issue_data)
 
