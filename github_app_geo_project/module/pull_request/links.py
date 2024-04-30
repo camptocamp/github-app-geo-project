@@ -17,18 +17,23 @@ def _add_issue_link(
 ) -> str:
     """Add a comment with the link to Jira if needed."""
     body = pull_request.body or ""
-    if "<!-- pull request links -->" in body.upper():
+    if "<!-- pull request links -->" in body:
         return "Pull request links already added."
 
     content = config.get("content", [])
     if not content:
         return "Empty configuration."
 
-    blacklist = config.get("blacklist", {})
     values: dict[str, str] = {
-        "pull-request-number": f"{pull_request.number}",
-        "head-branch": pull_request.head.ref,
+        "pull_request_number": f"{pull_request.number}",
+        "head_branch": pull_request.head.ref,
     }
+
+    for pattern in config.get("branch-patterns", []):
+        re_ = re.compile(pattern)
+        match = re_.match(pull_request.head.ref)
+        if match and match.groupdict():
+            values.update(match.groupdict())
 
     for uppercase_key in config.get("uppercase", []):
         if uppercase_key in values:
@@ -37,17 +42,10 @@ def _add_issue_link(
         if lowercase_key in values:
             values[lowercase_key] = values[lowercase_key].lower()
 
-    for pattern in config.get("branch-patterns", []):
-        re_ = re.compile(pattern)
-        match = re_.match(pull_request.head.ref)
-        if match and match.groupdict():
-            valid = True
-            for key, value in match.groupdict().items():
-                if key in blacklist and value in blacklist[key]:
-                    valid = False
-                    break
-            if valid:
-                values.update(match.groupdict())
+    blacklist = config.get("blacklist", {})
+    for key, value in list(values.items()):
+        if key in blacklist and value in blacklist[key]:
+            del values[key]
 
     result = ["", "<!-- pull request links -->"]
     for link in content:
