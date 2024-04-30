@@ -9,7 +9,6 @@ import logging
 import os
 import subprocess  # nosec
 import sys
-import time
 import urllib.parse
 from typing import Any, cast
 
@@ -433,7 +432,6 @@ def _process_dashboard_issue(
         )
 
 
-# Where 2147483647 is the PostgreSQL max int, see: https://www.postgresql.org/docs/current/datatype-numeric.html
 def _process_one_job(
     config: dict[str, Any],
     Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
@@ -441,15 +439,11 @@ def _process_one_job(
     ],
     no_steal_long_pending: bool = False,
     make_pending: bool = False,
-    max_priority: int = 2147483647,
 ) -> bool:
     with Session() as session:
         job = (
             session.query(models.Queue)
-            .filter(
-                models.Queue.status == models.JobStatus.NEW,
-                models.Queue.priority <= max_priority,
-            )
+            .filter(models.Queue.status == models.JobStatus.NEW)
             .order_by(
                 models.Queue.priority.desc(),
                 models.Queue.created_at.asc(),
@@ -475,11 +469,7 @@ def _process_one_job(
 
             return True
 
-        # Force get job
-        job_id = job.id
-        del job_id
-
-        # Capture_logs
+        # To capture_logs
         root_logger = logging.getLogger()
         handler = _Handler()
         handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
@@ -549,44 +539,31 @@ def _process_one_job(
         return False
 
 
-class _Run:
-    def __init__(
-        self,
-        config: dict[str, Any],
-        Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
-            sqlalchemy.orm.Session
-        ],
-        return_when_empty: bool,
-        max_priority: int,
-    ):
-        self.config = config
-        self.Session = Session  # pylint: disable=invalid-name
-        self.end_when_empty = return_when_empty
-        self.max_priority = max_priority
+async def _run(
+    config: dict[str, Any],
+    Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
+        sqlalchemy.orm.Session
+    ],
+    return_when_empty: bool,
+) -> None:
 
-    async def __call__(self, *args: Any, **kwds: Any) -> Any:
-        job_timeout = int(os.environ.get("JOB_TIMEOUT", 3600))
-        empty_thread_sleep = int(os.environ.get("EMPTY_THREAD_SLEEP", 10))
+    job_timeout = int(os.environ.get("JOB_TIMEOUT", 3600))
+    empty_thread_sleep = int(os.environ.get("EMPTY_THREAD_SLEEP", 10))
 
-        while True:
-            empty = True
-            try:
-                async with asyncio.timeout(job_timeout):
-                    empty = _process_one_job(
-                        self.config,
-                        self.Session,
-                        no_steal_long_pending=self.end_when_empty,
-                        max_priority=self.max_priority,
-                    )
-                    if self.end_when_empty and empty:
-                        return
-            except asyncio.TimeoutError:
-                _LOGGER.exception("Timeout")
-            except Exception:  # pylint: disable=broad-exception-caught
-                _LOGGER.exception("Failed to process job")
+    while True:
+        empty = True
+        try:
+            async with asyncio.timeout(job_timeout):
+                empty = _process_one_job(config, Session, no_steal_long_pending=return_when_empty)
+                if return_when_empty and empty:
+                    return
+        except asyncio.TimeoutError:
+            _LOGGER.exception("Timeout")
+        except Exception:  # pylint: disable=broad-exception-caught
+            _LOGGER.exception("Failed to process job")
 
-            if empty:
-                time.sleep(empty_thread_sleep)
+        if empty:
+            await asyncio.sleep(empty_thread_sleep)
 
 
 async def _async_main() -> None:
@@ -613,25 +590,7 @@ async def _async_main() -> None:
         _process_one_job(config, Session, no_steal_long_pending=args.exit_when_empty, make_pending=True)
         sys.exit(0)
 
-    high_priority_thread_number = int(os.environ.get("HIGH_PRIORITY_THREAD_NUMBER", 1))
-    status_priority_thread_number = int(os.environ.get("STATUS_PRIORITY_THREAD_NUMBER", 1))
-    dashboard_priority_thread_number = int(os.environ.get("DASHBOARD_PRIORITY_THREAD_NUMBER", 1))
-    standard_priority_thread_number = int(os.environ.get("STANDARD_PRIORITY_THREAD_NUMBER", 1))
-    cron_priority_thread_number = int(os.environ.get("CRON_PRIORITY_THREAD_NUMBER", 1))
-    lower_priority_thread_number = int(os.environ.get("LOWER_PRIORITY_THREAD_NUMBER", 1))
-
-    threads_call = []
-    for number, priority in [
-        (high_priority_thread_number, module.PRIORITY_HIGH),
-        (status_priority_thread_number, module.PRIORITY_STATUS),
-        (dashboard_priority_thread_number, module.PRIORITY_DASHBOARD),
-        (standard_priority_thread_number, module.PRIORITY_STANDARD),
-        (cron_priority_thread_number, module.PRIORITY_CRON),
-        (lower_priority_thread_number, 2147483647),
-    ]:
-        for _ in range(number):
-            threads_call.append(_Run(config, Session, args.exit_when_empty, priority)())
-    await asyncio.gather(*threads_call)
+    await _run(config, Session, args.exit_when_empty)
 
 
 def main() -> None:
