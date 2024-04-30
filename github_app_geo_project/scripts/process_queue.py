@@ -121,34 +121,34 @@ async def _process_job(
         if job.check_run_id is not None:
             check_run = repo.get_check_run(job.check_run_id)
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
-        module_status = (
-            session.query(models.ModuleStatus)
-            .filter(models.ModuleStatus.module == job.module)
-            .with_for_update(of=models.ModuleStatus)
-            .one_or_none()
-        )
-        if module_status is None:
-            module_status = models.ModuleStatus(module=job.module, data={})
-            session.add(module_status)
-
-        if "TEST_APPLICATION" not in os.environ:
-            if job.check_run_id is None:
-                check_run = webhook.create_checks(
-                    job,
-                    session,
-                    current_module,
-                    github_project.repo,
-                    job.event_data,
-                    config["service-url"],
-                )
-
-            check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
-
-        job.status = models.JobStatus.PENDING
-        job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
-        session.commit()
-
         try:
+            module_status = (
+                session.query(models.ModuleStatus)
+                .filter(models.ModuleStatus.module == job.module)
+                .with_for_update(of=models.ModuleStatus)
+                .one_or_none()
+            )
+            if module_status is None:
+                module_status = models.ModuleStatus(module=job.module, data={})
+                session.add(module_status)
+
+            if "TEST_APPLICATION" not in os.environ:
+                if job.check_run_id is None:
+                    check_run = webhook.create_checks(
+                        job,
+                        session,
+                        current_module,
+                        github_project.repo,
+                        job.event_data,
+                        config["service-url"],
+                    )
+
+                check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
+
+            job.status = models.JobStatus.PENDING
+            job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            session.commit()
+
             context = module.ProcessContext(
                 session=session,
                 github_project=github_project,  # type: ignore[arg-type]
@@ -205,6 +205,7 @@ async def _process_job(
             session.commit()
             new_issue_data = result.dashboard if result is not None else None
         except github.GithubException as exception:
+            job.status = models.JobStatus.ERROR
             _LOGGER.exception(
                 "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
                 job.id,
@@ -222,10 +223,9 @@ async def _process_job(
                     "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
                 },
             )
-            job.status = models.JobStatus.ERROR
             raise
         except subprocess.CalledProcessError as proc_error:
-            print(proc_error.stdout, proc_error.stderr)
+            job.status = models.JobStatus.ERROR
             message = module_utils.ansi_proc_message(proc_error)
             message.title = f"Error process job '{job.id}' on module: {job.module}"
             root_logger.addHandler(handler)
@@ -239,9 +239,9 @@ async def _process_job(
                     "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url}))",
                 },
             )
-            job.status = models.JobStatus.ERROR
             raise
         except Exception as exception:
+            job.status = models.JobStatus.ERROR
             root_logger.addHandler(handler)
             _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
             root_logger.removeHandler(handler)
@@ -254,17 +254,17 @@ async def _process_job(
                         "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
                     },
                 )
-            job.status = models.JobStatus.ERROR
             raise
     else:
-        _LOGGER.info("Module %s is disabled", job.module)
-        if "TEST_APPLICATION" not in os.environ:
-            check_run.edit(
-                status="completed",
-                conclusion="skipped",
-            )
-        job.status = models.JobStatus.SKIPPED
         try:
+            _LOGGER.info("Module %s is disabled", job.module)
+            job.status = models.JobStatus.SKIPPED
+            if check_run is not None:
+                check_run.edit(
+                    status="completed",
+                    conclusion="skipped",
+                )
+
             current_module.cleanup(
                 module.CleanupContext(
                     github_project=github_project,  # type: ignore[arg-type]
@@ -580,8 +580,7 @@ class _Run:
             except Exception:  # pylint: disable=broad-exception-caught
                 _LOGGER.exception("Failed to process job")
 
-            if empty:
-                await asyncio.sleep(empty_thread_sleep)
+            await asyncio.sleep(empty_thread_sleep if empty else 0)
 
 
 async def _async_main() -> None:

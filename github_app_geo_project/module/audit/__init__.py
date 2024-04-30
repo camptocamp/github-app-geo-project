@@ -169,11 +169,11 @@ async def _process_snyk_dpkg(
                     message = module_utils.ansi_proc_message(proc)
                     if proc.returncode != 0:
                         message.title = "Error while setting the Python version"
-                        _LOGGER.warning(message.to_html(style="collapse"))
+                        _LOGGER.warning(message)
                         issue_data[key].append(message.to_markdown().split("\n", maxsplit=1)[0])
                     else:
                         message.title = "Setting the Python version"
-                        _LOGGER.debug(message.to_html(style="collapse"))
+                        _LOGGER.debug(message)
 
                 result, body = await audit_utils.snyk(
                     branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
@@ -206,7 +206,7 @@ async def _process_snyk_dpkg(
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_message(proc)
                     message.title = "Error while creating the new branch"
-                    _LOGGER.warning(message.to_html(style="collapse"))
+                    _LOGGER.warning(message)
                     issue_data[key].append(message.to_markdown().split("\n", maxsplit=1)[0])
 
                 else:
