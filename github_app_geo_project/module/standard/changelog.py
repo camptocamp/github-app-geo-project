@@ -498,7 +498,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
 
         return []
 
-    def process(self, context: module.ProcessContext[changelog_configuration.Changelog]) -> None:
+    async def process(self, context: module.ProcessContext[changelog_configuration.Changelog]) -> None:
         """
         Process the action.
 

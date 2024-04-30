@@ -41,7 +41,7 @@ class TestModule(module.Module[_ConfigType]):
             module.Action(priority=module.PRIORITY_STATUS, data={"type": "log-json"}),
         ]
 
-    def process(self, context: module.ProcessContext[_ConfigType]) -> module.ProcessOutput | None:
+    async def process(self, context: module.ProcessContext[_ConfigType]) -> module.ProcessOutput | None:
         """
         Process the action.
 
@@ -97,7 +97,7 @@ class TestModule(module.Module[_ConfigType]):
                 )
                 message = module_utils.ansi_proc_message(proc)
                 message.title = "Command with title"
-                _LOGGER.info(message.to_html(style="collapse"))
+                _LOGGER.info(message)
 
             if type_ == "log-json":
                 _LOGGER.info("JSON output:\n%s", utils.format_json({"test1": "value", "test2": "value"}))

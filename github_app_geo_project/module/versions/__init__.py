@@ -75,7 +75,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
         """Get the GitHub application permissions needed by the module."""
         return module.GitHubApplicationPermissions(permissions={"contents": "read"}, events=set())
 
-    def process(
+    async def process(
         self, context: module.ProcessContext[configuration.VersionsConfiguration]
     ) -> module.ProcessOutput | None:
         """

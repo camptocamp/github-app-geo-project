@@ -324,7 +324,7 @@ class Module(Generic[T]):
         """
 
     @abstractmethod
-    def process(self, context: ProcessContext[T]) -> ProcessOutput | None:
+    async def process(self, context: ProcessContext[T]) -> ProcessOutput | None:
         """
         Process the action.
 

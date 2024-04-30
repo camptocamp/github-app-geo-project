@@ -123,7 +123,7 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
             ]
         return []
 
-    def process(
+    async def process(
         self, context: module.ProcessContext[links_configuration.PullRequestAddLinksConfiguration]
     ) -> module.ProcessOutput | None:
         """Process the module."""
