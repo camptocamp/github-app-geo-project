@@ -17,7 +17,11 @@ import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
 import github
 import plaster
+import prometheus_client
 import sqlalchemy.orm
+from c2cwsgiutils import prometheus
+from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+from prometheus_client.exposition import make_wsgi_app
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
 from github_app_geo_project.module import modules
@@ -25,6 +29,8 @@ from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.views import output, webhook
 
 _LOGGER = logging.getLogger(__name__)
+
+_NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
 
 
 class _Handler(logging.Handler):
@@ -596,6 +602,26 @@ class _Run:
             await asyncio.sleep(empty_thread_sleep if empty else 0)
 
 
+class _UpdateCounter:
+    def __init__(
+        self,
+        Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
+            sqlalchemy.orm.Session
+        ],
+    ):
+        self.Session = Session  # pylint: disable=invalid-name
+
+    async def __call__(self, *args: Any, **kwds: Any) -> Any:
+        while True:
+            with self.Session() as session:
+                for status in models.JobStatus:
+                    _NB_JOBS.labels(status.name).set(
+                        session.query(models.Queue).filter(models.Queue.status == status).count()
+                    )
+                    await asyncio.sleep(0)
+            await asyncio.sleep(10)
+
+
 async def _async_main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -620,9 +646,15 @@ async def _async_main() -> None:
         await _process_one_job(config, Session, no_steal_long_pending=args.exit_when_empty, make_pending=True)
         sys.exit(0)
 
+    if not args.exit_when_empty and "C2C_PROMETHEUS_PORT" in os.environ:
+        prometheus_client.start_http_server(int(os.environ["C2C_PROMETHEUS_PORT"]))
+
     priority_groups = [int(e) for e in os.environ.get("GHCI_PRIORITY_GROUPS", "2147483647").split(",")]
 
     threads_call = []
+    if not args.exit_when_empty:
+        threads_call.append(_UpdateCounter(Session)())
+
     for priority in priority_groups:
         threads_call.append(_Run(config, Session, args.exit_when_empty, priority)())
     await asyncio.gather(*threads_call)
