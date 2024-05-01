@@ -80,7 +80,7 @@ class Workflow(module.Module[None]):
             stabilization_branches = [repo.default_branch]
 
         for key in list(repo_data.keys()):
-            if key not in stabilization_branches:
+            if key not in stabilization_branches or key == "updated":
                 del repo_data[key]
 
         if context.event_data.get("workflow_run", {}).get("head_branch") not in stabilization_branches:
@@ -94,6 +94,10 @@ class Workflow(module.Module[None]):
             del branch_data[context.event_data.get("workflow", {}).get("name", "-")]
             if not branch_data:
                 del repo_data[context.event_data.get("workflow_run", {}).get("head_branch")]
+            if repo_data.keys() == ["updated"]:
+                del context.transversal_status[
+                    context.github_project.owner + "/" + context.github_project.repository
+                ]
             return module.ProcessOutput(transversal_status=context.transversal_status)
 
         workflow_data = {
@@ -110,6 +114,10 @@ class Workflow(module.Module[None]):
             if job.conclusion != "success":
                 workflow_data["jobs"].append({"name": job.name, "run_url": job.html_url})
 
+        if repo_data.keys() == ["updated"]:
+            del context.transversal_status[
+                context.github_project.owner + "/" + context.github_project.repository
+            ]
         return module.ProcessOutput(transversal_status=context.transversal_status)
 
     def has_transversal_dashboard(self) -> bool:
