@@ -145,6 +145,7 @@ async def _process_job(
                         config["service-url"],
                     )
 
+                assert check_run is not None
                 check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
 
             job.status = models.JobStatus.PENDING
@@ -182,6 +183,7 @@ async def _process_job(
                     check_output["text"] = f"[See logs for more details]({logs_url})"
                 if result is not None and result.output:
                     check_output.update(result.output)
+                assert check_run is not None
                 check_run.edit(
                     status="completed",
                     conclusion="success" if result is None or result.success else "failure",
@@ -217,6 +219,7 @@ async def _process_job(
                 exception.message,
                 exception.status,
             )
+            assert check_run is not None
             check_run.edit(
                 status="completed",
                 conclusion="failure",
@@ -233,6 +236,7 @@ async def _process_job(
             root_logger.addHandler(handler)
             _LOGGER.exception(message)
             root_logger.removeHandler(handler)
+            assert check_run is not None
             check_run.edit(
                 status="completed",
                 conclusion="failure",
@@ -248,6 +252,7 @@ async def _process_job(
             _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
             root_logger.removeHandler(handler)
             if "TEST_APPLICATION" not in os.environ:
+                assert check_run is not None
                 check_run.edit(
                     status="completed",
                     conclusion="failure",
