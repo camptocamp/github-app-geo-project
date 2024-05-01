@@ -148,10 +148,6 @@ async def _process_job(
                 assert check_run is not None
                 check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
 
-            job.status = models.JobStatus.PENDING
-            job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
-            session.commit()
-
             context = module.ProcessContext(
                 session=session,
                 github_project=github_project,  # type: ignore[arg-type]
@@ -190,6 +186,7 @@ async def _process_job(
                     output=check_output,
                 )
             job.status = models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
+            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
 
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and result.transversal_status is not None:
@@ -210,6 +207,7 @@ async def _process_job(
             new_issue_data = result.dashboard if result is not None else None
         except github.GithubException as exception:
             job.status = models.JobStatus.ERROR
+            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             _LOGGER.exception(
                 "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
                 job.id,
@@ -231,6 +229,7 @@ async def _process_job(
             raise
         except subprocess.CalledProcessError as proc_error:
             job.status = models.JobStatus.ERROR
+            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             message = module_utils.ansi_proc_message(proc_error)
             message.title = f"Error process job '{job.id}' on module: {job.module}"
             root_logger.addHandler(handler)
@@ -248,6 +247,7 @@ async def _process_job(
             raise
         except Exception as exception:
             job.status = models.JobStatus.ERROR
+            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             root_logger.addHandler(handler)
             _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
             root_logger.removeHandler(handler)
@@ -499,11 +499,13 @@ async def _process_one_job(
         if make_pending:
             _LOGGER.info("Make job ID %s pending", job.id)
             job.status = models.JobStatus.PENDING
+            job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
             return False
 
         try:
             job.status = models.JobStatus.PENDING
+            job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
 
             success = True
@@ -511,6 +513,7 @@ async def _process_one_job(
                 if job.event_data.get("type") == "event":
                     _process_event(config, job.event_data, session)
                     job.status = models.JobStatus.DONE
+                    job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
                 elif job.event_name == "dashboard":
                     success = _validate_job(config, job.application, job.event_data)
                     if success:
@@ -524,10 +527,13 @@ async def _process_one_job(
                             job.repository,
                         )
                         job.status = models.JobStatus.DONE
-                    job.status = models.JobStatus.ERROR
+                    else:
+                        job.status = models.JobStatus.ERROR
+                    job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
                 else:
                     _LOGGER.error("Unknown event name: %s", job.event_name)
                     job.status = models.JobStatus.ERROR
+                    job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
                     success = False
             else:
                 success = _validate_job(config, job.application, job.event_data)
