@@ -1,6 +1,5 @@
 """Module utility functions for the modules."""
 
-import asyncio
 import datetime
 import logging
 import os
@@ -332,7 +331,7 @@ class AnsiMessage(HtmlMessage):
         return self.to_markdown()
 
 
-class _CommonProcessMessage(AnsiMessage):
+class AnsiProcessMessage(AnsiMessage):
     """Represent a message from a subprocess."""
 
     def __init__(self, args: list[str], returncode: int, stdout: str, stderr: str) -> None:
@@ -395,13 +394,12 @@ class _CommonProcessMessage(AnsiMessage):
             ]
         )
 
-
-class ProcessMessage(_CommonProcessMessage):
-    """Represent a message from a subprocess."""
-
-    def __init__(self, proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError) -> None:
-        """Initialize the process message."""
-        super().__init__(cast(list[str], proc.args), proc.returncode, proc.stdout, proc.stderr)
+    @staticmethod
+    def from_process(
+        proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError,
+    ) -> "AnsiProcessMessage":
+        """Create a process message from a subprocess."""
+        return AnsiProcessMessage(cast(list[str], proc.args), proc.returncode, proc.stdout, proc.stderr)
 
 
 def ansi_proc_message(proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError) -> Message:
@@ -416,28 +414,7 @@ def ansi_proc_message(proc: subprocess.CompletedProcess[str] | subprocess.Called
     ------
     The dashboard message, the simple error message, the style
     """
-    return ProcessMessage(proc)
-
-
-async def ansi_async_proc_message(args: list[str], proc: asyncio.subprocess.Process) -> Message:
-    """
-    Process the output of a subprocess for the dashboard (markdown)/HTML.
-
-    Arguments:
-    ---------
-    args: The subprocess arguments
-    proc: The subprocess result
-
-    Return:
-    ------
-    The dashboard message, the simple error message, the style
-    """
-    assert proc.returncode is not None
-    assert proc.stdout is not None
-    assert proc.stderr is not None
-    return _CommonProcessMessage(
-        args, proc.returncode, (await proc.stdout.read()).decode(), (await proc.stderr.read()).decode()
-    )
+    return AnsiProcessMessage.from_process(proc)
 
 
 def has_changes(include_un_followed: bool = False) -> bool:

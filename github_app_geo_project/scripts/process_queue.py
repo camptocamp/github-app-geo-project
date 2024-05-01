@@ -7,6 +7,7 @@ import asyncio
 import datetime
 import logging
 import os
+import socket
 import subprocess  # nosec
 import sys
 import urllib.parse
@@ -99,6 +100,7 @@ async def _process_job(
     issue_data = ""
     module_config: project_configuration.ModuleConfiguration = {}
     github_project: configuration.GithubProject | None = None
+    check_run: github.CheckRun.CheckRun | None = None
     if "TEST_APPLICATION" not in os.environ:
         github_application = configuration.get_github_application(config, job.application)
         github_project = configuration.get_github_project(
@@ -143,6 +145,7 @@ async def _process_job(
                         config["service-url"],
                     )
 
+                assert check_run is not None
                 check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
 
             job.status = models.JobStatus.PENDING
@@ -180,6 +183,7 @@ async def _process_job(
                     check_output["text"] = f"[See logs for more details]({logs_url})"
                 if result is not None and result.output:
                     check_output.update(result.output)
+                assert check_run is not None
                 check_run.edit(
                     status="completed",
                     conclusion="success" if result is None or result.success else "failure",
@@ -215,6 +219,7 @@ async def _process_job(
                 exception.message,
                 exception.status,
             )
+            assert check_run is not None
             check_run.edit(
                 status="completed",
                 conclusion="failure",
@@ -231,6 +236,7 @@ async def _process_job(
             root_logger.addHandler(handler)
             _LOGGER.exception(message)
             root_logger.removeHandler(handler)
+            assert check_run is not None
             check_run.edit(
                 status="completed",
                 conclusion="failure",
@@ -246,6 +252,7 @@ async def _process_job(
             _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
             root_logger.removeHandler(handler)
             if "TEST_APPLICATION" not in os.environ:
+                assert check_run is not None
                 check_run.edit(
                     status="completed",
                     conclusion="failure",
@@ -617,6 +624,7 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Process the jobs present in the database queue."""
+    socket.setdefaulttimeout(int(os.environ.get("GHCI_SOCKET_TIMEOUT", 120)))
     with asyncio.Runner() as runner:
         runner.run(_async_main())
 

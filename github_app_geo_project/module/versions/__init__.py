@@ -142,13 +142,10 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                 if not success:
                     raise VersionException("Failed to clone the repository")
 
-                status = (
-                    context.transversal_status.setdefault(
-                        f"{context.github_project.owner}/{context.github_project.repository}", {}
-                    )
-                    .setdefault("versions", {})
-                    .setdefault(context.module_data["branch"], {})
-                )
+                status = {}
+                context.transversal_status.setdefault(
+                    f"{context.github_project.owner}/{context.github_project.repository}", {}
+                ).setdefault("versions", {})[context.module_data["branch"]] = status
                 _get_names(context, status.setdefault("names", {}), context.module_data["branch"])
                 _get_dependencies(context, status.setdefault("dependencies", {}))
             return ProcessOutput(transversal_status=context.transversal_status)
