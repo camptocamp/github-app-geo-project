@@ -86,6 +86,10 @@ class DeleteOldWorkflowRuns(module.Module[configuration.DeleteOldWorkflowRunsCon
             if status:
                 arguments["status"] = status
 
+            _LOGGER.info(
+                "Deleting workflow runs with arguments:\n%s",
+                "\n".join([": ".join(a) for a in arguments.items()]),
+            )
             workflow_runs = repo.get_workflow_runs(**arguments)  # type: ignore[arg-type]
             for workflow_run in workflow_runs:
                 if not workflow or workflow_run.name == workflow:
