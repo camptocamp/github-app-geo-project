@@ -56,8 +56,11 @@ async def snyk(
                 async_proc = await asyncio.create_subprocess_exec(
                     *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
                 )
-                await async_proc.communicate()
-                message = await module_utils.ansi_async_proc_message(command, async_proc)
+                stdout, stderr = await async_proc.communicate()
+                assert async_proc.returncode is not None
+                message = module_utils.AnsiProcessMessage(
+                    command, async_proc.returncode, stdout.decode(), stderr.decode()
+                )
             if async_proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message)
@@ -93,8 +96,11 @@ async def snyk(
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                await async_proc.communicate()
-                message = await module_utils.ansi_async_proc_message(command, async_proc)
+                stdout, stderr = await async_proc.communicate()
+                assert async_proc.returncode is not None
+                message = module_utils.AnsiProcessMessage(
+                    command, async_proc.returncode, stdout.decode(), stderr.decode()
+                )
             if async_proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGING.warning(message)
@@ -115,8 +121,11 @@ async def snyk(
         async_proc = await asyncio.create_subprocess_exec(
             *command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        await async_proc.communicate()
-        message = await module_utils.ansi_async_proc_message(command, async_proc)
+        stdout, stderr = await async_proc.communicate()
+        assert async_proc.returncode is not None
+        message = module_utils.AnsiProcessMessage(
+            command, async_proc.returncode, stdout.decode(), stderr.decode()
+        )
     if async_proc.returncode != 0:
         message.title = "Error while monitoring the project"
         _LOGGING.warning(message)
@@ -132,10 +141,9 @@ async def snyk(
         test_proc = await asyncio.create_subprocess_exec(
             *command, env=env_no_debug, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        await test_proc.communicate()
+        stdout, stderr = await test_proc.communicate()
 
-    assert test_proc.stdout is not None
-    test_json_str = (await test_proc.stdout.read()).decode()
+    test_json_str = stdout.decode()
     message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
     message.title = "Snyk test output"
     _LOGGING.debug(message)
@@ -200,8 +208,11 @@ async def snyk(
             test_proc = await asyncio.create_subprocess_exec(
                 *command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-            await test_proc.communicate()
-            dashboard_message = await module_utils.ansi_async_proc_message(command, test_proc)
+            stdout, stderr = await test_proc.communicate()
+            assert test_proc.returncode is not None
+            dashboard_message = module_utils.AnsiProcessMessage(
+                command, test_proc.returncode, stdout.decode(), stderr.decode()
+            )
         dashboard_message.title = "Error while testing the project"
         _LOGGING.error(dashboard_message)
 
@@ -215,10 +226,12 @@ async def snyk(
         snyk_fix_proc = await asyncio.create_subprocess_exec(
             *command, env=env_no_debug, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        await snyk_fix_proc.communicate()
-        assert snyk_fix_proc.stdout is not None
-        snyk_fix_message = module_utils.AnsiMessage((await snyk_fix_proc.stdout.read()).decode().strip())
-        message = await module_utils.ansi_async_proc_message(command, snyk_fix_proc)
+        stdout, stderr = await snyk_fix_proc.communicate()
+        assert snyk_fix_proc.returncode is not None
+        snyk_fix_message = module_utils.AnsiMessage(stdout.decode().strip())
+        message = module_utils.AnsiProcessMessage(
+            command, snyk_fix_proc.returncode, stdout.decode(), stderr.decode()
+        )
     if snyk_fix_proc.returncode != 0:
         message.title = "Error while fixing the project"
         _LOGGING.warning(message)
@@ -227,7 +240,11 @@ async def snyk(
         _LOGGING.debug(message)
 
     if snyk_fix_proc.returncode != 0 and vulnerabilities:
-        result.append(await module_utils.ansi_async_proc_message(command, snyk_fix_proc))
+        result.append(
+            module_utils.AnsiProcessMessage(
+                command, snyk_fix_proc.returncode, stdout.decode(), stderr.decode()
+            )
+        )
 
     return result, snyk_fix_message
 

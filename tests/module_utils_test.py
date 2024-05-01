@@ -72,7 +72,7 @@ def test_ProcMessage():
     proc.returncode = 0
     proc.stdout = "stdout\nmessage"
     proc.stderr = "stderr\nmessage"
-    proc_message = utils.ProcessMessage(proc)
+    proc_message = utils.AnsiProcessMessage.from_process(proc)
 
     assert proc_message.args == ["command", "arg1", "arg2", "x-access-token:***"]
     assert proc_message.returncode == 0

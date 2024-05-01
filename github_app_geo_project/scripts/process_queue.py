@@ -7,6 +7,7 @@ import asyncio
 import datetime
 import logging
 import os
+import socket
 import subprocess  # nosec
 import sys
 import urllib.parse
@@ -617,6 +618,7 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Process the jobs present in the database queue."""
+    socket.setdefaulttimeout(int(os.environ.get("GHCI_SOCKET_TIMEOUT", 120)))
     with asyncio.Runner() as runner:
         runner.run(_async_main())
 
