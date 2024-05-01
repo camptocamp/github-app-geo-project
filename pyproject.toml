@@ -76,7 +76,7 @@ c2cwsgiutils = { version = "6.0.8",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma"], version = "1.10.3" }
 prospector-profile-duplicated = "1.5.0"
 prospector-profile-utils = "1.7.2"
-pytest = "8.1.2"
+pytest = "8.2.0"
 WebTest = "3.0.0"
 types-pyyaml = "6.0.12.20240311"
 types-setuptools = "69.5.0.20240423"
