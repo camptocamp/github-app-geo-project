@@ -473,7 +473,7 @@ async def _process_one_job(
                     models.Queue.status == models.JobStatus.PENDING,
                     models.Queue.started_at
                     < datetime.datetime.now(tz=datetime.timezone.utc)
-                    - datetime.timedelta(seconds=int(os.environ.get("JOB_TIMEOUT", 3600)) + 60),
+                    - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", 3600)) + 60),
                 )
                 .values(status=models.JobStatus.NEW)
             )
@@ -567,8 +567,8 @@ class _Run:
         self.max_priority = max_priority
 
     async def __call__(self, *args: Any, **kwds: Any) -> Any:
-        job_timeout = int(os.environ.get("JOB_TIMEOUT", 3600))
-        empty_thread_sleep = int(os.environ.get("EMPTY_THREAD_SLEEP", 10))
+        job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", 3600))
+        empty_thread_sleep = int(os.environ.get("GHCI_EMPTY_THREAD_SLEEP", 10))
 
         while True:
             empty = True
