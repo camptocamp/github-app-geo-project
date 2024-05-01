@@ -100,6 +100,7 @@ async def _process_job(
     issue_data = ""
     module_config: project_configuration.ModuleConfiguration = {}
     github_project: configuration.GithubProject | None = None
+    check_run: github.CheckRun.CheckRun | None = None
     if "TEST_APPLICATION" not in os.environ:
         github_application = configuration.get_github_application(config, job.application)
         github_project = configuration.get_github_project(
