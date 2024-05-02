@@ -12,7 +12,7 @@
   <tr>
     <td><a href="?repository=${dependency['name']}">${dependency['name']}</a></td>
     <td>${dependency['version']}</td>
-    <td style="background-color: var(${dependency[ 'color']})">${dependency['supported']}</td>
+    <td style="background-color: var(${dependency[ 'color']})">${dependency.get('supported')}</td>
   </tr>
   %endfor
 </table>
