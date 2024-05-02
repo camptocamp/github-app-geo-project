@@ -569,6 +569,9 @@ async def _process_one_job(
             job.status = models.JobStatus.PENDING
             job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
+            _NB_JOBS.labels(models.JobStatus.PENDING).set(
+                session.query(models.Queue).filter(models.Queue.status == models.JobStatus.PENDING).count()
+            )
 
             success = True
             if not job.module:
