@@ -50,7 +50,7 @@ class DeleteOldWorkflowRuns(module.Module[configuration.DeleteOldWorkflowRunsCon
             return schema  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
-        return module.GitHubApplicationPermissions(permissions={"workflows": "write"}, events=set())
+        return module.GitHubApplicationPermissions(permissions={"actions": "write"}, events=set())
 
     async def process(
         self, context: module.ProcessContext[configuration.DeleteOldWorkflowRunsConfiguration]

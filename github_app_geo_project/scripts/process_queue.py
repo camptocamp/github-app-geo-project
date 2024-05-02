@@ -186,11 +186,26 @@ async def _process_job(
                 if result is not None and result.output:
                     check_output.update(result.output)
                 assert check_run is not None
-                check_run.edit(
-                    status="completed",
-                    conclusion="success" if result is None or result.success else "failure",
-                    output=check_output,
-                )
+                try:
+                    check_run.edit(
+                        status="completed",
+                        conclusion="success" if result is None or result.success else "failure",
+                        output=check_output,
+                    )
+                except github.GithubException as exception:
+                    _LOGGER.exception(
+                        "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                        job.check_run_id,
+                        exception.data,
+                        (
+                            "\n".join(f"{k}: {v}" for k, v in exception.headers.items())
+                            if exception.headers
+                            else ""
+                        ),
+                        exception.message,
+                        exception.status,
+                    )
+                    raise
             job.status = models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
 
@@ -224,14 +239,28 @@ async def _process_job(
                 exception.status,
             )
             assert check_run is not None
-            check_run.edit(
-                status="completed",
-                conclusion="failure",
-                output={
-                    "title": current_module.title(),
-                    "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
-                },
-            )
+            try:
+                check_run.edit(
+                    status="completed",
+                    conclusion="failure",
+                    output={
+                        "title": current_module.title(),
+                        "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
+                    },
+                )
+            except github.GithubException as github_exception:
+                _LOGGER.exception(
+                    "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                    job.check_run_id,
+                    github_exception.data,
+                    (
+                        "\n".join(f"{k}: {v}" for k, v in github_exception.headers.items())
+                        if github_exception.headers
+                        else ""
+                    ),
+                    github_exception.message,
+                    github_exception.status,
+                )
             raise
         except subprocess.CalledProcessError as proc_error:
             job.status = models.JobStatus.ERROR
@@ -242,14 +271,28 @@ async def _process_job(
             _LOGGER.exception(message)
             root_logger.removeHandler(handler)
             assert check_run is not None
-            check_run.edit(
-                status="completed",
-                conclusion="failure",
-                output={
-                    "title": current_module.title(),
-                    "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url}))",
-                },
-            )
+            try:
+                check_run.edit(
+                    status="completed",
+                    conclusion="failure",
+                    output={
+                        "title": current_module.title(),
+                        "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url}))",
+                    },
+                )
+            except github.GithubException as exception:
+                _LOGGER.exception(
+                    "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                    job.check_run_id,
+                    exception.data,
+                    (
+                        "\n".join(f"{k}: {v}" for k, v in exception.headers.items())
+                        if exception.headers
+                        else ""
+                    ),
+                    exception.message,
+                    exception.status,
+                )
             raise
         except Exception as exception:
             job.status = models.JobStatus.ERROR
@@ -257,16 +300,29 @@ async def _process_job(
             root_logger.addHandler(handler)
             _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
             root_logger.removeHandler(handler)
-            if "TEST_APPLICATION" not in os.environ:
-                assert check_run is not None
-                check_run.edit(
-                    status="completed",
-                    conclusion="failure",
-                    output={
-                        "title": current_module.title(),
-                        "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
-                    },
-                )
+            if check_run is not None:
+                try:
+                    check_run.edit(
+                        status="completed",
+                        conclusion="failure",
+                        output={
+                            "title": current_module.title(),
+                            "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
+                        },
+                    )
+                except github.GithubException as github_exception:
+                    _LOGGER.exception(
+                        "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                        job.check_run_id,
+                        github_exception.data,
+                        (
+                            "\n".join(f"{k}: {v}" for k, v in github_exception.headers.items())
+                            if github_exception.headers
+                            else ""
+                        ),
+                        github_exception.message,
+                        github_exception.status,
+                    )
             raise
     else:
         try:
@@ -513,6 +569,9 @@ async def _process_one_job(
             job.status = models.JobStatus.PENDING
             job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
+            _NB_JOBS.labels(models.JobStatus.PENDING).set(
+                session.query(models.Queue).filter(models.Queue.status == models.JobStatus.PENDING).count()
+            )
 
             success = True
             if not job.module:

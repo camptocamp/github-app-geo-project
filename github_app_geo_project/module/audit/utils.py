@@ -146,8 +146,11 @@ async def snyk(
     test_json_str = stdout.decode()
     message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
     message.title = "Snyk test output"
-    _LOGGING.debug(message)
-    test_json = json.loads(test_json_str)
+    if test_json_str:
+        _LOGGING.debug(message)
+    else:
+        _LOGGING.error("Snyk test returned nothing on project %s branch %s", os.getcwd(), branch)
+    test_json = json.loads(test_json_str) if test_json_str else []
 
     if not isinstance(test_json, list):
         test_json = [test_json]
@@ -308,6 +311,9 @@ def _get_packages_version(
     """Get the version of the package."""
     if package not in _PACKAGE_VERSION:
         dist, pkg = package.split("/")
+        if pkg is None:
+            _LOGGING.warning("No package found in %s", package)
+            return None
         sources = _get_sources(dist, config, local_config)
         versions = sorted(
             [
