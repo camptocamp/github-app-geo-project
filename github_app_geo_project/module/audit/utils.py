@@ -308,6 +308,9 @@ def _get_packages_version(
     """Get the version of the package."""
     if package not in _PACKAGE_VERSION:
         dist, pkg = package.split("/")
+        if pkg is None:
+            _LOGGING.warning("No package found in %s", package)
+            return None
         sources = _get_sources(dist, config, local_config)
         versions = sorted(
             [
