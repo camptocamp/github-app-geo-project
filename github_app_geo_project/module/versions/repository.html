@@ -1,5 +1,12 @@
 <h2>${title}</h2>
 
+<style>
+  th,
+  td {
+    padding: 0 1em;
+  }
+</style>
+
 %for version, dependencies in reverse_dependencies.items():
 <h3>${version}</h3>
 <table>

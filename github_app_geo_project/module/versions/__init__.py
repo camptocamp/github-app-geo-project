@@ -165,7 +165,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
             for repo_data in context.status.values():
                 for branch, branch_data in repo_data.get("versions", {}).items():
                     for datasource, datasource_data in branch_data.get("names", {}).items():
-                        for name, versions in datasource_data.items():
+                        for name, dependency_versions in datasource_data.items():
                             names.setdefault(datasource, {}).setdefault(name, {})[
                                 _canonical_minor_version(datasource, branch)
                             ] = branch_data.get("support")
@@ -176,34 +176,38 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
 
             # branch = list of dependencies
             reverse_dependencies: dict[str, list[dict[str, str]]] = {}
-            for version, datasource_data in (
+            for version, version_data in (
                 context.status.get(context.params["repository"], {}).get("versions", {}).items()
             ):
-                for datasource, datasource_data in datasource_data.get("dependencies", {}).items():
-                    for package, versions in datasource_data.items():
-                        for version in versions:
-                            canonical_version = _canonical_minor_version(package, version)
-                            dependency_versions = names.get(datasource, {}).get(package, {})
-                            if not dependency_versions:
+                for datasource, datasource_data in version_data.get("dependencies", {}).items():
+                    for dependency, dependency_versions in datasource_data.items():
+                        for dependency_version in dependency_versions:
+                            if dependency_version.startswith("=="):
+                                dependency_version = dependency_version[2:]
+                            canonical_dependency_version = _canonical_minor_version(
+                                dependency, dependency_version
+                            )
+                            versions_of_dependency = names.get(datasource, {}).get(dependency, {})
+                            if not versions_of_dependency:
                                 continue
-                            if canonical_version not in dependency_versions:
+                            if canonical_dependency_version not in versions_of_dependency:
                                 reverse_dependencies.setdefault(version, []).append(
                                     {
-                                        "name": package,
-                                        "version": version,
+                                        "name": dependency,
+                                        "version": dependency_version,
                                         "support": "Unsupported",
                                         "color": "--bs-danger",
                                     }
                                 )
                             else:
                                 is_supported = _is_supported(
-                                    datasource_data["support"], dependency_versions[version]
+                                    datasource_data["support"], versions_of_dependency[version]
                                 )
                                 reverse_dependencies.setdefault(version, []).append(
                                     {
-                                        "name": package,
-                                        "versions": version,
-                                        "support": dependency_versions[version],
+                                        "name": dependency,
+                                        "versions": dependency_version,
+                                        "support": versions_of_dependency[version],
                                         "color": "--bs-body-bg" if is_supported else "--bs-danger",
                                     }
                                 )
