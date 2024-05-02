@@ -17,7 +17,7 @@
   </tr>
   %for dependency in dependencies:
   <tr>
-    <td><a href="?repository=${dependency['name']}">${dependency['name']}</a></td>
+    <td><a href="?repository=${dependency.get('repo')}">${dependency['name']}</a></td>
     <td>${dependency['version']}</td>
     <td style="background-color: var(${dependency[ 'color']})">${dependency.get('supported')}</td>
   </tr>
