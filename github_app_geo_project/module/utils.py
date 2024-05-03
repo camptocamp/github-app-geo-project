@@ -247,7 +247,39 @@ class HtmlMessage(Message):
                 )
             else:
                 html = "\n".join([f"<{style}>{self.title}</{style}>", html])
-        return html
+
+        sanitizer = html_sanitizer.Sanitizer(
+            {
+                "tags": {*html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"], "span", "div", "pre", "code"},
+                "attributes": {
+                    "a": (
+                        "href",
+                        "name",
+                        "target",
+                        "title",
+                        "rel",
+                        "class",
+                        "data-bs-toggle",
+                        "role",
+                        "aria-expanded",
+                        "aria-controls",
+                    ),
+                    "span": ("class", "style"),
+                    "p": ("class", "style"),
+                    "div": ("class", "style", "id"),
+                    "em": ("class", "style"),
+                },
+                "separate": {
+                    *html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"],
+                    "span",
+                    "div",
+                    "pre",
+                    "code",
+                },
+                "keep_typographic_whitespace": True,
+            }
+        )
+        return cast(str, sanitizer.sanitize(html))
 
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the ANSI message to markdown."""
