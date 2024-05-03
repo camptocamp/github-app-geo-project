@@ -348,11 +348,7 @@ class AnsiProcessMessage(AnsiMessage):
         self.stdout = self._ansi_converter.convert(stdout, full=False)
         self.stderr = self._ansi_converter.convert(stderr, full=False)
 
-        message = [
-            f"Command: {shlex.join(self.args)}",
-            f"Return code: {returncode}",
-            f"Working directory: {os.getcwd()}",
-        ]
+        message = [f"Command: {shlex.join(self.args)}", f"Return code: {returncode}"]
         if self.stdout:
             message.append("Output:")
             message.append(self.stdout)
