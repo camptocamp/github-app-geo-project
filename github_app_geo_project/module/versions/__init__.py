@@ -179,7 +179,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                 version_status = _TransversalStatusVersion(support="Best Effort", names={}, dependencies={})
 
                 transversal_status = _TransversalStatus(**context.transversal_status)
-                transversal_status.__pydentic_extra__.setdefault(  # type: ignore[attr-defined]
+                transversal_status.__pydantic_extra__.setdefault(  # type: ignore[attr-defined]
                     f"{context.github_project.owner}/{context.github_project.repository}",
                     _TransversalStatusRepo(updated=datetime.datetime.now(), versions={}),
                 ).versions[context.module_data["branch"]] = version_status
@@ -201,7 +201,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
         if "repository" in context.params:
             # datasource.package.minor_version = support
             names: dict[str, dict[str, _Dependency]] = {}
-            for repo, repo_data in transversal_status.__pydentic_extra__.items():  # type: ignore[attr-defined]
+            for repo, repo_data in transversal_status.__pydantic_extra__.items():  # type: ignore[attr-defined]
                 for branch, branch_data in repo_data.versions.items():
                     for datasource, datasource_data in branch_data.names.items():
                         for name, dependency_versions in datasource_data.items():
@@ -217,7 +217,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
             # branch = list of dependencies
             reverse_dependencies: dict[str, list[dict[str, str]]] = {}
             for version, version_data in (
-                transversal_status.__pydentic_extra__.get(context.params["repository"], {})  # type: ignore[attr-defined]
+                transversal_status.__pydantic_extra__.get(context.params["repository"], {})  # type: ignore[attr-defined]
                 .get("versions", {})
                 .items()
             ):
@@ -268,7 +268,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
             message.title = "Reverse dependencies:"
             _LOGGER.debug(message)
 
-            transversal_status.__pydentic_extra__.get(context.params["repository"], {})  # type: ignore[attr-defined]
+            transversal_status.__pydantic_extra__.get(context.params["repository"], {})  # type: ignore[attr-defined]
 
             return module.TransversalDashboardOutput(
                 renderer="github_app_geo_project:module/versions/repository.html",
@@ -276,7 +276,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                     "title": self.title() + " - " + context.params["repository"],
                     "reverse_dependencies": reverse_dependencies,
                     "data": utils.format_json(
-                        transversal_status.__pydentic_extra__.get(context.params["repository"], {})  # type: ignore[attr-defined]
+                        transversal_status.__pydantic_extra__.get(context.params["repository"], {})  # type: ignore[attr-defined]
                     ),
                 },
             )
@@ -284,7 +284,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
         return module.TransversalDashboardOutput(
             # template="dashboard.html",
             renderer="github_app_geo_project:module/versions/dashboard.html",
-            data={"repositories": transversal_status.__pydentic_extra__.keys()},  # type: ignore[attr-defined]
+            data={"repositories": transversal_status.__pydantic_extra__.keys()},  # type: ignore[attr-defined]
         )
 
 
@@ -460,7 +460,7 @@ def _update_upstream_versions(
         module_utils.manage_updated(transversal_status_dict, package)
         transversal_status = _TransversalStatus(**transversal_status_dict)
 
-        package_status: _TransversalStatusRepo = transversal_status.__pydentic_extra__.setdefault(package, {})  # type: ignore[attr-defined]
+        package_status: _TransversalStatusRepo = transversal_status.__pydantic_extra__.setdefault(package, {})  # type: ignore[attr-defined]
 
         if package_status.upstream_updated and (
             package_status.upstream_updated > datetime.datetime.now() - datetime.timedelta(days=30)
