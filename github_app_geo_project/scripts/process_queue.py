@@ -4,6 +4,7 @@ Process the jobs present in the database queue.
 
 import argparse
 import asyncio
+import contextvars
 import datetime
 import logging
 import os
@@ -34,11 +35,17 @@ _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
 
 
 class _Handler(logging.Handler):
-    def __init__(self) -> None:
+    context_var: contextvars.ContextVar[int] = contextvars.ContextVar("job_id")
+
+    def __init__(self, job_id: int) -> None:
         super().__init__()
         self.results: list[logging.LogRecord] = []
+        self.job_id = job_id
+        self.context_var.set(job_id)
 
     def emit(self, record: logging.LogRecord) -> None:
+        if self.context_var.get() != self.job_id:
+            return
         if isinstance(record.msg, module_utils.Message):
             record.msg = record.msg.to_html(style="collapse")
         self.results.append(record)
@@ -545,7 +552,7 @@ async def _process_one_job(
 
         # Capture_logs
         root_logger = logging.getLogger()
-        handler = _Handler()
+        handler = _Handler(job.id)
         handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
 
         module_data_formatted = utils.format_json(job.module_data)
