@@ -103,3 +103,15 @@ def test_AnsiMessage():
 
     markdown = ansi_message.to_markdown()
     assert markdown == "title\nmessage"
+
+
+def test_html_to_markdown():
+    html = """<span style="font-weight: bold">bold</span>
+<span style="font-style: italic">italic</span></p>
+<span style="font-weight: bold; color: rgb(0, 0, 255)">blue</span>
+<span style="font-style: italic; color: rgb(255, 0, 0)">red</span>"""
+    expected = """**bold**
+*italic*
+**blue**
+*red*"""
+    assert utils._html_to_markdown(html) == expected
