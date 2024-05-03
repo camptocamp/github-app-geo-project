@@ -35,14 +35,14 @@ def equals_if_defined(reference: str | None, value: str) -> bool:
     return reference == value
 
 
-class Auto(module.Module[auto_configuration.AutoPullRequest]):
+class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any]]):
     """The auto module."""
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Auto-review-merge-close"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
@@ -61,12 +61,15 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
     @abstractmethod
     def do_action(
         self,
-        context: module.ProcessContext[auto_configuration.AutoPullRequest],
+        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any]],
         pull_request: github.PullRequest.PullRequest,
     ) -> None:
         """Process the action, called it the conditions match."""
 
-    async def process(self, context: module.ProcessContext[auto_configuration.AutoPullRequest]) -> None:
+    async def process(
+        self,
+        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any]],
+    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """
         Process the action.
 
@@ -86,7 +89,8 @@ class Auto(module.Module[auto_configuration.AutoPullRequest]):
                 )
                 pull_request = repository.get_pull(context.event_data["pull_request"]["number"])
                 self.do_action(context, pull_request)
-                return
+                return module.ProcessOutput()
+        return module.ProcessOutput()
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""

@@ -31,7 +31,7 @@ def format_process_output(output: subprocess.CompletedProcess[str]) -> str:
     return ""
 
 
-class Patch(module.Module[dict[str, Any]]):
+class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
     """Module that apply the patch present in the artifact on the branch of the pull request."""
 
     def title(self) -> str:
@@ -44,7 +44,7 @@ class Patch(module.Module[dict[str, Any]]):
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Patch-module"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
@@ -59,7 +59,9 @@ class Patch(module.Module[dict[str, Any]]):
             return [module.Action(priority=module.PRIORITY_CRON, data={})]
         return []
 
-    async def process(self, context: module.ProcessContext[dict[str, Any]]) -> module.ProcessOutput | None:
+    async def process(
+        self, context: module.ProcessContext[dict[str, Any], dict[str, Any], dict[str, Any]]
+    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """
         Process the action.
 
@@ -71,7 +73,7 @@ class Patch(module.Module[dict[str, Any]]):
         workflow_run = repo.get_workflow_run(cast(int, context.event_data["workflow_run"]["id"]))
         if not workflow_run.get_artifacts():
             _LOGGER.debug("No artifacts found")
-            return None
+            return module.ProcessOutput()
 
         should_push = False
 
@@ -152,7 +154,7 @@ class Patch(module.Module[dict[str, Any]]):
                 )
                 if proc.returncode != 0:
                     raise PatchException(f"Failed to push the changes{format_process_output(proc)}")
-        return None
+        return module.ProcessOutput()
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""

@@ -59,7 +59,7 @@ class VersionException(Exception):
     """Error while updating the versions."""
 
 
-class Versions(module.Module[configuration.VersionsConfiguration]):
+class Versions(module.Module[configuration.VersionsConfiguration, dict[str, Any], dict[str, Any]]):
     """
     The version module.
 
@@ -78,7 +78,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Versions"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
@@ -107,14 +107,15 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
         return module.GitHubApplicationPermissions(permissions={"contents": "read"}, events=set())
 
     async def process(
-        self, context: module.ProcessContext[configuration.VersionsConfiguration]
-    ) -> module.ProcessOutput | None:
+        self,
+        context: module.ProcessContext[configuration.VersionsConfiguration, dict[str, Any], dict[str, Any]],
+    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
         """
-        if context.module_data.get("step") == 1:
+        if context.module_event_data.get("step") == 1:
             key = f"{context.github_project.owner}/{context.github_project.repository}"
             module_utils.manage_updated(context.transversal_status, key)
             context.transversal_status[key].setdefault("versions", {})
@@ -169,10 +170,10 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
             for branch in stabilization_branch:
                 actions.append(module.Action(data={"step": 2, "branch": branch}))
             return ProcessOutput(actions=actions, transversal_status=transversal_status.model_dump())
-        if context.module_data.get("step") == 2:
+        if context.module_event_data.get("step") == 2:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 os.chdir(tmpdirname)
-                success = module_utils.git_clone(context.github_project, context.module_data["branch"])
+                success = module_utils.git_clone(context.github_project, context.module_event_data["branch"])
                 if not success:
                     raise VersionException("Failed to clone the repository")
 
@@ -182,8 +183,8 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                 transversal_status.__pydantic_extra__.setdefault(  # pylint: disable=no-member
                     f"{context.github_project.owner}/{context.github_project.repository}",
                     _TransversalStatusRepo(updated=datetime.datetime.now()),
-                ).versions[context.module_data["branch"]] = version_status
-                _get_names(context, version_status.names, context.module_data["branch"])
+                ).versions[context.module_event_data["branch"]] = version_status
+                _get_names(context, version_status.names, context.module_event_data["branch"])
                 _get_dependencies(context, version_status.dependencies)
             return ProcessOutput(transversal_status=transversal_status.model_dump())
         raise VersionException("Invalid step")
@@ -193,7 +194,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
         return True
 
     def get_transversal_dashboard(
-        self, context: module.TransversalDashboardContext
+        self, context: module.TransversalDashboardContext[dict[str, Any]]
     ) -> module.TransversalDashboardOutput:
         """Get the dashboard data."""
         transversal_status = _TransversalStatus(**context.status)
@@ -302,7 +303,7 @@ def _canonical_minor_version(datasource: str, version: str) -> str:
 
 
 def _get_names(
-    context: module.ProcessContext[configuration.VersionsConfiguration],
+    context: module.ProcessContext[configuration.VersionsConfiguration, dict[str, Any], dict[str, Any]],
     names: dict[str, dict[str, list[str]]],
     branch: str,
 ) -> None:
@@ -364,7 +365,7 @@ def _get_names(
 
 
 def _get_dependencies(
-    context: module.ProcessContext[configuration.VersionsConfiguration],
+    context: module.ProcessContext[configuration.VersionsConfiguration, dict[str, Any], dict[str, Any]],
     result: dict[str, dict[str, list[str]]],
 ) -> None:
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -420,7 +421,7 @@ def _get_dependencies(
 
 
 def _dependency_extractor(
-    context: module.ProcessContext[configuration.VersionsConfiguration],
+    context: module.ProcessContext[configuration.VersionsConfiguration, dict[str, Any], dict[str, Any]],
     dependency: str,
     datasource: str,
     version: str,
@@ -449,7 +450,7 @@ def _dependency_extractor(
 
 
 def _update_upstream_versions(
-    context: module.ProcessContext[configuration.VersionsConfiguration],
+    context: module.ProcessContext[configuration.VersionsConfiguration, dict[str, Any], dict[str, Any]],
     transversal_status: _TransversalStatus,
 ) -> _TransversalStatus:
     for external_config in context.module_config.get("external-packages", []):

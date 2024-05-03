@@ -453,7 +453,7 @@ def generate_changelog(
     return "\n".join(result)
 
 
-class Changelog(module.Module[changelog_configuration.Changelog]):
+class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any], dict[str, Any]]):
     """The changelog module."""
 
     def title(self) -> str:
@@ -468,7 +468,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Changelog"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
@@ -498,7 +498,10 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
 
         return []
 
-    async def process(self, context: module.ProcessContext[changelog_configuration.Changelog]) -> None:
+    async def process(
+        self,
+        context: module.ProcessContext[changelog_configuration.Changelog, dict[str, Any], dict[str, Any]],
+    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """
         Process the action.
 
@@ -521,11 +524,11 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
         tag_str = ""
         milestone = None
         release = None
-        if context.module_data.get("type") == "tag":
+        if context.module_event_data.get("type") == "tag":
             if not context.module_config.get(
                 "create-release", changelog_configuration.CREATE_RELEASE_DEFAULT
             ):
-                return
+                return module.ProcessOutput()
             tag_str = cast(str, context.event_data["ref"])
             prerelease = False
             try:
@@ -538,12 +541,12 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                 if exception.status != 404:
                     raise
             release = repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
-        elif context.module_data.get("type") == "release":
+        elif context.module_event_data.get("type") == "release":
             if context.module_config.get("create-release", changelog_configuration.CREATE_RELEASE_DEFAULT):
-                return
+                return module.ProcessOutput()
             tag_str = context.event_data.get("release", {}).get("tag_name")
             release = repo.get_release(tag_str)
-        elif context.module_data.get("type") == "milestone":
+        elif context.module_event_data.get("type") == "milestone":
             tag_str = context.event_data.get("milestone", {}).get("title")
             tags = [tag for tag in repo.get_tags() if tag.name == tag_str]
             if not tags:
@@ -552,10 +555,10 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                     context.event_data.get("milestone", {}).get("title"),
                     repository,
                 )
-                return
+                return module.ProcessOutput()
             tag = tags[0]
             release = repo.get_release(tag_str)
-        elif context.module_data.get("type") == "discussion":
+        elif context.module_event_data.get("type") == "discussion":
             title = context.event_data.get("discussion", {}).get("title", "").split()
             tags = [tag for tag in repo.get_tags() if tag.name in title]
             if not tags:
@@ -564,11 +567,11 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                     context.event_data.get("discussion", {}).get("title"),
                     repository,
                 )
-                return
+                return module.ProcessOutput()
             tag = tags[0]
             tag_str = tag.name
             release = repo.get_release(tag_str)
-        elif context.module_data.get("type") == "pull_request":
+        elif context.module_event_data.get("type") == "pull_request":
             # Get the milestone
             tag_str = context.event_data.get("pull_request", {}).get("milestone", {}).get("title")
             try:
@@ -592,7 +595,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                     context.event_data.get("pull_request", {}).get("number"),
                     repository,
                 )
-                return
+                return module.ProcessOutput()
 
         if milestone is None:
             milestones = [m for m in repo.get_milestones() if m.title == tag_str]
@@ -609,6 +612,7 @@ class Changelog(module.Module[changelog_configuration.Changelog]):
                 context.github_project.github, context.module_config, repository, tag_str, milestone
             ),
         )
+        return module.ProcessOutput()
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""

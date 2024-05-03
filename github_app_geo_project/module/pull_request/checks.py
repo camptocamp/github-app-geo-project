@@ -218,7 +218,9 @@ def _pull_request_spell(
     return True, messages
 
 
-class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration]):
+class Checks(
+    module.Module[checks_configuration.PullRequestChecksConfiguration, dict[str, Any], dict[str, Any]]
+):
     """Module to check the pull request message and commits."""
 
     def title(self) -> str:
@@ -253,7 +255,7 @@ class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration])
                     del schema[key]
             return schema  # type: ignore[no-any-return]
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """Get the actions to execute."""
         if (
             context.event_data.get("action") in ("opened", "reopened", "synchronize")
@@ -270,14 +272,17 @@ class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration])
         return []
 
     async def process(
-        self, context: module.ProcessContext[checks_configuration.PullRequestChecksConfiguration]
-    ) -> module.ProcessOutput | None:
+        self,
+        context: module.ProcessContext[
+            checks_configuration.PullRequestChecksConfiguration, dict[str, Any], dict[str, Any]
+        ],
+    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """Process the module."""
         repo = context.github_project.github.get_repo(
             context.github_project.owner + "/" + context.github_project.repository
         )
 
-        pull_request = repo.get_pull(number=context.module_data["pull-request-number"])
+        pull_request = repo.get_pull(number=context.module_event_data["pull-request-number"])
         commits = [  # pylint: disable=unnecessary-comprehension
             commit for commit in pull_request.get_commits()
         ]
@@ -289,5 +294,5 @@ class Checks(module.Module[checks_configuration.PullRequestChecksConfiguration])
         message = "\n".join([*messages_1, *messages_2, *messages_3])
 
         return module.ProcessOutput(
-            transversal_status=context.module_data, success=success, output={"summary": message}
+            transversal_status=context.module_event_data, success=success, output={"summary": message}
         )

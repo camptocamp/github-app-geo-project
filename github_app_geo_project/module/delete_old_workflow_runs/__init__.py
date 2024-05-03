@@ -14,7 +14,9 @@ from github_app_geo_project.module.delete_old_workflow_runs import configuration
 _LOGGER = logging.getLogger(__name__)
 
 
-class DeleteOldWorkflowRuns(module.Module[configuration.DeleteOldWorkflowRunsConfiguration]):
+class DeleteOldWorkflowRuns(
+    module.Module[configuration.DeleteOldWorkflowRunsConfiguration, dict[str, Any], dict[str, Any]]
+):
     """Delete old workflow jobs."""
 
     def title(self) -> str:
@@ -29,7 +31,7 @@ class DeleteOldWorkflowRuns(module.Module[configuration.DeleteOldWorkflowRunsCon
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Delete-Old-Workflow-Job"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
@@ -53,8 +55,11 @@ class DeleteOldWorkflowRuns(module.Module[configuration.DeleteOldWorkflowRunsCon
         return module.GitHubApplicationPermissions(permissions={"actions": "write"}, events=set())
 
     async def process(
-        self, context: module.ProcessContext[configuration.DeleteOldWorkflowRunsConfiguration]
-    ) -> module.ProcessOutput | None:
+        self,
+        context: module.ProcessContext[
+            configuration.DeleteOldWorkflowRunsConfiguration, dict[str, Any], dict[str, Any]
+        ],
+    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """
         Process the action.
 
@@ -98,4 +103,4 @@ class DeleteOldWorkflowRuns(module.Module[configuration.DeleteOldWorkflowRunsCon
 
         _LOGGER.info("Deleted %i workflow runs", deleted_number)
 
-        return None
+        return module.ProcessOutput()

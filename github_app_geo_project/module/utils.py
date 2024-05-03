@@ -20,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def add_output(
-    context: module.ProcessContext[Any],
+    context: module.ProcessContext[Any, Any, Any],
     title: str,
     data: list[str | models.OutputData],
     status: models.OutputStatus = models.OutputStatus.SUCCESS,

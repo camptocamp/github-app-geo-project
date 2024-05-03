@@ -34,7 +34,7 @@ def get_dashboard_issue_module(text: str, current_module: str) -> str:
 
 
 def update_dashboard_issue_module(
-    text: str, module_name: str, current_module: module.Module[Any], data: str
+    text: str, module_name: str, current_module: module.Module[Any, Any, Any], data: str
 ) -> str:
     """Update the issue data (text) of a module with his new data."""
     start_tag = _ISSUE_START.format(module_name)

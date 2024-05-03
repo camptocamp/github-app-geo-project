@@ -4,6 +4,7 @@ import subprocess
 from typing import Any
 
 import yaml
+from pydantic import BaseModel
 
 from github_app_geo_project import models, module, utils
 from github_app_geo_project.module import utils as module_utils
@@ -12,7 +13,11 @@ _LOGGER = logging.getLogger(__name__)
 _ConfigType = dict[str, Any]
 
 
-class TestModule(module.Module[_ConfigType]):
+class _EventData(BaseModel):
+    type: str
+
+
+class TestModule(module.Module[_ConfigType, _EventData, None]):
     def title(self) -> str:
         """Get the title of the module."""
         return "Test Module"
@@ -25,7 +30,7 @@ class TestModule(module.Module[_ConfigType]):
         """Get the URL to the documentation page of the module."""
         return ""
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_EventData]]:
         """
         Get the action related to the module and the event.
 
@@ -34,14 +39,16 @@ class TestModule(module.Module[_ConfigType]):
         """
         del context
         return [
-            module.Action(priority=module.PRIORITY_STATUS, data={"type": "success"}),
-            module.Action(priority=module.PRIORITY_STATUS, data={"type": "error"}),
-            module.Action(priority=module.PRIORITY_STATUS, data={"type": "log-multiline"}),
-            module.Action(priority=module.PRIORITY_STATUS, data={"type": "log-command"}),
-            module.Action(priority=module.PRIORITY_STATUS, data={"type": "log-json"}),
+            module.Action(priority=module.PRIORITY_STATUS, data=_EventData(type="success")),
+            module.Action(priority=module.PRIORITY_STATUS, data=_EventData(type="error")),
+            module.Action(priority=module.PRIORITY_STATUS, data=_EventData(type="log-multiline")),
+            module.Action(priority=module.PRIORITY_STATUS, data=_EventData(type="log-command")),
+            module.Action(priority=module.PRIORITY_STATUS, data=_EventData(type="log-json")),
         ]
 
-    async def process(self, context: module.ProcessContext[_ConfigType]) -> module.ProcessOutput | None:
+    async def process(
+        self, context: module.ProcessContext[_ConfigType, _EventData, None]
+    ) -> module.ProcessOutput[_EventData, None]:
         """
         Process the action.
 
@@ -55,7 +62,7 @@ class TestModule(module.Module[_ConfigType]):
                 with open("/tmp/test-result.yaml", encoding="utf-8") as file:
                     result = yaml.load(file, Loader=yaml.SafeLoader)
 
-            type_ = context.module_data.get("type", "-")
+            type_ = context.module_event_data.type
             result[f"{type_}-job-id"] = context.job_id
 
             if type_ == "error":
@@ -104,7 +111,7 @@ class TestModule(module.Module[_ConfigType]):
 
             with open("/tmp/test-result.yaml", "w", encoding="utf-8") as file:
                 yaml.dump(result, file)
-            return None
+            return module.ProcessOutput()
         finally:
             with open("/results/test-result.yaml", "w", encoding="utf-8") as file:
                 file.write(yaml.dump(result))
