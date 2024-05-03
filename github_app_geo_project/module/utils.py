@@ -11,6 +11,7 @@ from typing import Any, Union, cast
 import c2cciutils.security
 import github
 import html_sanitizer
+import markdownify
 from ansi2html import Ansi2HTMLConverter
 
 from github_app_geo_project import configuration, models, module
@@ -196,6 +197,15 @@ class Message:
 
 _suffix = 0  # pylint: disable=invalid-name
 
+_BOLD_RE = re.compile(r'<span style="font-weight: bold(;[^"]*)?">([^<]*)</span>')
+_ITALIC_RE = re.compile(r'<span style="font-style: italic(;[^"]*)?">([^<]*)</span>')
+
+
+def _html_to_markdown(html: str) -> str:
+    html = _BOLD_RE.sub(r"<b>\2</b>", html)
+    html = _ITALIC_RE.sub(r"<i>\2</i>", html)
+    return cast(str, markdownify.markdownify(html))
+
 
 class HtmlMessage(Message):
     """Utility class to convert HTML messages to HTML/markdown."""
@@ -241,19 +251,7 @@ class HtmlMessage(Message):
 
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the ANSI message to markdown."""
-        sanitizer = html_sanitizer.Sanitizer(
-            {
-                "tags": {"blockquote", "br"},
-                "attributes": {},
-                "empty": {"br"},
-                "separate": set(),
-                "keep_typographic_whitespace": True,
-            }
-        )
-        markdown = cast(
-            str,
-            sanitizer.sanitize(self.html.replace("\n", " ").replace("<p>", "\n\n<p>").replace("<br>", "\n")),
-        ).strip()
+        markdown = _html_to_markdown(self.html)
         if summary:
             markdown = markdown.split("\n", 1)[0]
 
@@ -301,15 +299,6 @@ class AnsiMessage(HtmlMessage):
     """Convert ANSI messages to HTML/markdown."""
 
     _ansi_converter = Ansi2HTMLConverter(inline=True)
-    _markdown_sanitizer = html_sanitizer.Sanitizer(
-        {
-            "tags": {"unexisting"},
-            "attributes": {},
-            "empty": set(),
-            "separate": set(),
-            "keep_typographic_whitespace": True,
-        }
-    )
 
     def __init__(self, ansi_message_str: str, title: str = "", _is_html: bool = False) -> None:
         """Initialize the ANSI message."""
@@ -323,8 +312,8 @@ class AnsiMessage(HtmlMessage):
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the ANSI message to markdown."""
         if summary and self.title:
-            return f"<details><summary>{self.title}</summary>{self._markdown_sanitizer.sanitize(self.raw_html)}</details>"
-        return cast(str, self._markdown_sanitizer.sanitize(self.raw_html))
+            return f"<details><summary>{self.title}</summary>{_html_to_markdown(self.raw_html)}</details>"
+        return _html_to_markdown(self.raw_html)
 
     def to_plain_text(self) -> str:
         """Get the process message."""
@@ -368,12 +357,12 @@ class AnsiProcessMessage(AnsiMessage):
                 f"Return code: {self.returncode}",
                 "Output:",
                 "```",
-                self._markdown_sanitizer.sanitize(self.stdout).strip(),
+                _html_to_markdown(self.stdout.strip()),
                 "```",
                 "",
                 "Error:",
                 "```",
-                self._markdown_sanitizer.sanitize(self.stderr).strip(),
+                _html_to_markdown(self.stderr.strip()),
                 "```",
                 "</details>",
             ]
@@ -384,12 +373,12 @@ class AnsiProcessMessage(AnsiMessage):
                 f"Return code: {self.returncode}",
                 "Output:",
                 "```",
-                self._markdown_sanitizer.sanitize(self.stdout).strip(),
+                _html_to_markdown(self.stdout.strip()),
                 "```",
                 "",
                 "Error:",
                 "```",
-                self._markdown_sanitizer.sanitize(self.stderr).strip(),
+                _html_to_markdown(self.stderr.strip()),
                 "```",
             ]
         )
