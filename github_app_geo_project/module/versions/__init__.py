@@ -8,7 +8,7 @@ import os.path
 import re
 import subprocess  # nosec
 import tempfile
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 import c2cciutils.security
 import github
@@ -29,22 +29,22 @@ class _Dependency(TypedDict):
     """Dependency."""
 
     versions: dict[str, str]
-    repo: str | None
+    repo: NotRequired[str]
 
 
 class _TransversalStatusVersion(BaseModel):
     support: str
-    names: dict[str, dict[str, list[str]]]
+    names: dict[str, dict[str, list[str]]] = {}
     """Datasource.name.branch[]"""
-    dependencies: dict[str, dict[str, list[str]]]
+    dependencies: dict[str, dict[str, list[str]]] = {}
     """Datasource.name.versions[]"""
 
 
 class _TransversalStatusRepo(BaseModel):
     """Transversal dashboard repo."""
 
-    updated: datetime.datetime
-    versions: dict[str, _TransversalStatusVersion]
+    updated: datetime.datetime | None = None
+    versions: dict[str, _TransversalStatusVersion] = {}
     upstream_updated: datetime.datetime | None = None
     url: str | None = None
     support: str | None = None
@@ -148,7 +148,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                         branch = raw[version_index]
                         support = raw[support_index]
                         status.versions.setdefault(
-                            branch, _TransversalStatusVersion(support=support, names={}, dependencies={})
+                            branch, _TransversalStatusVersion(support=support)
                         ).support = support
 
             else:
@@ -156,7 +156,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                 stabilization_branch = [repo.default_branch]
                 status.versions.setdefault(
                     repo.default_branch,
-                    _TransversalStatusVersion(support="Best Effort", names={}, dependencies={}),
+                    _TransversalStatusVersion(support="Best Effort"),
                 ).support = "Best Effort"
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_branch))
 
@@ -176,12 +176,12 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                 if not success:
                     raise VersionException("Failed to clone the repository")
 
-                version_status = _TransversalStatusVersion(support="Best Effort", names={}, dependencies={})
+                version_status = _TransversalStatusVersion(support="Best Effort")
 
                 transversal_status = _TransversalStatus(**context.transversal_status)
-                transversal_status.__pydantic_extra__.setdefault(  # type: ignore[attr-defined]
+                transversal_status.__pydantic_extra__.setdefault(  # pylint: disable=no-member
                     f"{context.github_project.owner}/{context.github_project.repository}",
-                    _TransversalStatusRepo(updated=datetime.datetime.now(), versions={}),
+                    _TransversalStatusRepo(updated=datetime.datetime.now()),
                 ).versions[context.module_data["branch"]] = version_status
                 _get_names(context, version_status.names, context.module_data["branch"])
                 _get_dependencies(context, version_status.dependencies)
@@ -201,14 +201,14 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
         if "repository" in context.params:
             # datasource.package.minor_version = support
             names: dict[str, dict[str, _Dependency]] = {}
-            for repo, repo_data in transversal_status.__pydantic_extra__.items():  # type: ignore[attr-defined]
+            for repo, repo_data in transversal_status.__pydantic_extra__.items():  # pylint: disable=no-member
                 for branch, branch_data in repo_data.versions.items():
                     for datasource, datasource_data in branch_data.names.items():
                         for name, dependency_versions in datasource_data.items():
                             names.setdefault(datasource, {}).setdefault(name, {"repo": repo, "versions": {}})
                             names[datasource][name]["versions"][
                                 _canonical_minor_version(datasource, branch)
-                            ] = branch_data.get("support")
+                            ] = branch_data.support
 
             message = module_utils.HtmlMessage(utils.format_json(names))
             message.title = "Names:"
@@ -216,12 +216,10 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
 
             # branch = list of dependencies
             reverse_dependencies: dict[str, list[dict[str, str]]] = {}
-            for version, version_data in (
-                transversal_status.__pydantic_extra__.get(context.params["repository"], {})  # type: ignore[attr-defined]
-                .get("versions", {})
-                .items()
-            ):
-                for datasource, datasource_data in version_data.get("dependencies", {}).items():
+            for version, version_data in transversal_status.__pydantic_extra__.get(
+                context.params["repository"], _TransversalStatusRepo()
+            ).versions.items():
+                for datasource, datasource_data in version_data.dependencies.items():
                     for dependency, dependency_versions in datasource_data.items():
                         for dependency_version in dependency_versions:
                             if dependency_version.startswith("=="):
@@ -233,11 +231,10 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                                 dependency,
                                 {
                                     "versions": {},
-                                    "repo": None,
                                 },
                             )
                             versions_of_dependency = dependency_definition.get("versions", {})
-                            repo = dependency_definition.get("repo")
+                            repo = dependency_definition.get("repo", "-")
                             if not versions_of_dependency:
                                 continue
                             if canonical_dependency_version not in versions_of_dependency:
@@ -251,8 +248,9 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                                     }
                                 )
                             else:
-                                is_supported = _is_supported(
-                                    datasource_data["support"], versions_of_dependency[version]
+                                is_supported = all(
+                                    _is_supported(support, versions_of_dependency[version])
+                                    for support in datasource_data["support"]
                                 )
                                 reverse_dependencies.setdefault(version, []).append(
                                     {
@@ -268,7 +266,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
             message.title = "Reverse dependencies:"
             _LOGGER.debug(message)
 
-            transversal_status.__pydantic_extra__.get(context.params["repository"], {})  # type: ignore[attr-defined]
+            transversal_status.__pydantic_extra__.get(context.params["repository"], {})
 
             return module.TransversalDashboardOutput(
                 renderer="github_app_geo_project:module/versions/repository.html",
@@ -276,7 +274,9 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
                     "title": self.title() + " - " + context.params["repository"],
                     "reverse_dependencies": reverse_dependencies,
                     "data": utils.format_json(
-                        transversal_status.__pydantic_extra__.get(context.params["repository"], {})  # type: ignore[attr-defined]
+                        transversal_status.__pydantic_extra__.get(
+                            context.params["repository"], _TransversalStatusRepo()
+                        ).model_dump()
                     ),
                 },
             )
@@ -284,7 +284,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
         return module.TransversalDashboardOutput(
             # template="dashboard.html",
             renderer="github_app_geo_project:module/versions/dashboard.html",
-            data={"repositories": transversal_status.__pydantic_extra__.keys()},  # type: ignore[attr-defined]
+            data={"repositories": transversal_status.__pydantic_extra__.keys()},  # pylint: disable=no-member
         )
 
 
@@ -460,7 +460,11 @@ def _update_upstream_versions(
         module_utils.manage_updated(transversal_status_dict, package)
         transversal_status = _TransversalStatus(**transversal_status_dict)
 
-        package_status: _TransversalStatusRepo = transversal_status.__pydantic_extra__.setdefault(package, {})  # type: ignore[attr-defined]
+        package_status: _TransversalStatusRepo = (
+            transversal_status.__pydantic_extra__.setdefault(  # pylint: disable=no-member
+                package, _TransversalStatusRepo()
+            )
+        )
 
         if package_status.upstream_updated and (
             package_status.upstream_updated > datetime.datetime.now() - datetime.timedelta(days=30)
@@ -484,7 +488,6 @@ def _update_upstream_versions(
                         package: [cycle["latest"]],
                     },
                 },
-                dependencies={},
             )
 
     return transversal_status
