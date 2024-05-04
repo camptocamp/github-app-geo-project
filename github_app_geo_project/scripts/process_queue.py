@@ -176,7 +176,7 @@ async def _process_job(
             root_logger.addHandler(handler)
             try:
                 result = await current_module.process(context)
-                if not result.success:
+                if result and not result.success:
                     _LOGGER.warning("Module %s failed", job.module)
             finally:
                 root_logger.removeHandler(handler)
