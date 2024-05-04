@@ -84,6 +84,11 @@ class Workflow(module.Module[None]):
                 del repo_data[key]
 
         if context.event_data.get("workflow_run", {}).get("head_branch") not in stabilization_branches:
+            _LOGGER.info(
+                "The workflow run %s is not on a stabilization branch (%s), skipping",
+                context.event_data.get("workflow_run", {}).get("head_branch"),
+                ", ".join(stabilization_branches),
+            )
             return None
 
         branch_data = repo_data.setdefault(context.event_data.get("workflow_run", {}).get("head_branch"), {})
@@ -98,6 +103,10 @@ class Workflow(module.Module[None]):
                 del context.transversal_status[
                     context.github_project.owner + "/" + context.github_project.repository
                 ]
+            _LOGGER.info(
+                "Workflow %s is successful, removing it from the status",
+                context.event_data.get("workflow", {}).get("name", "-"),
+            )
             return module.ProcessOutput(transversal_status=context.transversal_status)
 
         workflow_data = {
@@ -106,6 +115,10 @@ class Workflow(module.Module[None]):
             "jobs": [],
         }
         branch_data[context.event_data.get("workflow", {}).get("name", "-")] = workflow_data
+        _LOGGER.info(
+            "Workflow %s is not successful, adding it to the status",
+            context.event_data.get("workflow", {}).get("name", "-"),
+        )
 
         workflow_run = repo.get_workflow_run(context.event_data.get("workflow_run", {}).get("id"))
         jobs = workflow_run.jobs()
