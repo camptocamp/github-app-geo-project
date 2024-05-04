@@ -664,3 +664,28 @@ def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
                 datetime.datetime.now() - datetime.timedelta(days=days_old),
             )
             del status[other_key]
+
+
+def manage_updated_separated(
+    updated: dict[str, datetime.datetime], data: dict[str, Any], key: str, days_old: int = 2
+) -> None:
+    """
+    Manage the updated status.
+
+    Add an updated field to the status and remove the old status.
+    """
+    updated[key] = datetime.datetime.now()
+    for other_key, date in list(data.items()):
+        if date < datetime.datetime.now() - datetime.timedelta(days=days_old):
+            _LOGGER.debug(
+                "Remove old date %s (%s < %s)",
+                other_key,
+                date,
+                datetime.datetime.now() - datetime.timedelta(days=days_old),
+            )
+            del data[other_key]
+
+    for other_key in list(updated.keys()):
+        if other_key not in updated:
+            _LOGGER.debug("Remove old status %s", other_key)
+            del data[other_key]
