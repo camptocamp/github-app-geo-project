@@ -14,7 +14,7 @@ PRIORITY_HIGH = 0
 PRIORITY_STATUS = 10
 """Priority used to update the pull request status"""
 PRIORITY_DASHBOARD = 20
-"""Priority used for actions triggered by dashborad issue"""
+"""Priority used for actions triggered by dashboard issue"""
 PRIORITY_STANDARD = 30
 """Standard priority"""
 PRIORITY_CRON = 40

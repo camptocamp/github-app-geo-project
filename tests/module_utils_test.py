@@ -114,4 +114,4 @@ def test_html_to_markdown():
 *italic*
 **blue**
 *red*"""
-    assert utils._html_to_markdown(html) == expected
+    assert utils.html_to_markdown(html) == expected

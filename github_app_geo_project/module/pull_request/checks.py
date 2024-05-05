@@ -6,7 +6,7 @@ import os
 import re
 import subprocess  # nosec
 from tempfile import NamedTemporaryFile
-from typing import Any
+from typing import Any, cast
 
 import github
 import github.Commit
@@ -171,7 +171,12 @@ def _commits_spell(
                 message.title = f"Code spell error in commit {commit.sha}"
                 _LOGGER.warning(message)
                 success = False
-                messages.append("- [ ] " + message.to_markdown())
+                messages.append(
+                    "- [ ] "
+                    + message.title
+                    + "\n"
+                    + module_utils.html_to_markdown(cast(module_utils.AnsiProcessMessage, message).stdout)
+                )
             else:
                 messages.append(f"- [x] Code spell on commit {commit.sha} are correct")
             message.title = f"Code spell in commit {commit.sha}"
