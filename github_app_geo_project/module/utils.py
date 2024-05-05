@@ -201,7 +201,8 @@ _BOLD_RE = re.compile(r'<span style="font-weight: bold(;[^"]*)?">([^<]*)</span>'
 _ITALIC_RE = re.compile(r'<span style="font-style: italic(;[^"]*)?">([^<]*)</span>')
 
 
-def _html_to_markdown(html: str) -> str:
+def html_to_markdown(html: str) -> str:
+    """Convert HTML to markdown."""
     html = _BOLD_RE.sub(r"<b>\2</b>", html)
     html = _ITALIC_RE.sub(r"<i>\2</i>", html)
     return cast(str, markdownify.markdownify(html))
@@ -283,7 +284,7 @@ class HtmlMessage(Message):
 
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the ANSI message to markdown."""
-        markdown = _html_to_markdown(self.html)
+        markdown = html_to_markdown(self.html)
         if summary:
             markdown = markdown.split("\n", 1)[0]
 
@@ -344,8 +345,8 @@ class AnsiMessage(HtmlMessage):
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the ANSI message to markdown."""
         if summary and self.title:
-            return f"<details><summary>{self.title}</summary>{_html_to_markdown(self.raw_html)}</details>"
-        return _html_to_markdown(self.raw_html)
+            return f"<details><summary>{self.title}</summary>{html_to_markdown(self.raw_html)}</details>"
+        return html_to_markdown(self.raw_html)
 
     def to_plain_text(self) -> str:
         """Get the process message."""
@@ -389,12 +390,12 @@ class AnsiProcessMessage(AnsiMessage):
                 f"Return code: {self.returncode}",
                 "Output:",
                 "```",
-                _html_to_markdown(self.stdout.strip()),
+                html_to_markdown(self.stdout.strip()),
                 "```",
                 "",
                 "Error:",
                 "```",
-                _html_to_markdown(self.stderr.strip()),
+                html_to_markdown(self.stderr.strip()),
                 "```",
                 "</details>",
             ]
@@ -405,12 +406,12 @@ class AnsiProcessMessage(AnsiMessage):
                 f"Return code: {self.returncode}",
                 "Output:",
                 "```",
-                _html_to_markdown(self.stdout.strip()),
+                html_to_markdown(self.stdout.strip()),
                 "```",
                 "",
                 "Error:",
                 "```",
-                _html_to_markdown(self.stderr.strip()),
+                html_to_markdown(self.stderr.strip()),
                 "```",
             ]
         )

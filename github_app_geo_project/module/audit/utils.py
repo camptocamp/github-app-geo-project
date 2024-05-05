@@ -46,7 +46,7 @@ async def snyk(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            async with asyncio.timeout(600):
+            async with asyncio.timeout(1200):
                 command = [
                     "pip",
                     "install",
