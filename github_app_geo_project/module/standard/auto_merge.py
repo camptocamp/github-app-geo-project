@@ -1,6 +1,7 @@
 """Module to generate the changelog on a release of a version."""
 
 import logging
+from typing import Any
 
 import github
 
@@ -35,7 +36,7 @@ class AutoMerge(auto.Auto):
 
     def do_action(
         self,
-        context: module.ProcessContext[auto_configuration.AutoPullRequest],
+        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any]],
         pull_request: github.PullRequest.PullRequest,
     ) -> None:
         """

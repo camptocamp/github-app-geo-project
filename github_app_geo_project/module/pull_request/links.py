@@ -73,7 +73,9 @@ def _add_issue_link(
     return "Pull request descriptions updated."
 
 
-class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration]):
+class Links(
+    module.Module[links_configuration.PullRequestAddLinksConfiguration, dict[str, Any], dict[str, Any]]
+):
     """Module to add some links to the pull request message and commits."""
 
     def title(self) -> str:
@@ -108,7 +110,7 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
                     del schema[key]
             return schema  # type: ignore[no-any-return]
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """Get the actions to execute."""
         if (
             context.event_data.get("action") in ("opened", "reopened", "synchronize")
@@ -124,10 +126,13 @@ class Links(module.Module[links_configuration.PullRequestAddLinksConfiguration])
         return []
 
     async def process(
-        self, context: module.ProcessContext[links_configuration.PullRequestAddLinksConfiguration]
-    ) -> module.ProcessOutput | None:
+        self,
+        context: module.ProcessContext[
+            links_configuration.PullRequestAddLinksConfiguration, dict[str, Any], dict[str, Any]
+        ],
+    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """Process the module."""
         repo = context.github_project.repo
-        pull_request = repo.get_pull(number=context.module_data["pull-request-number"])
+        pull_request = repo.get_pull(number=context.module_event_data["pull-request-number"])
         message = _add_issue_link(context.module_config, pull_request)
         return module.ProcessOutput(output={"summary": message})

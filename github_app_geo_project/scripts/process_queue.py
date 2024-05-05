@@ -166,10 +166,10 @@ async def _process_job(
                 github_project=github_project,  # type: ignore[arg-type]
                 event_name=job.event_name,
                 event_data=job.event_data,
-                module_config=module_config,
-                module_data=job.module_data,
+                module_config=current_module.configuration_from_json(cast(dict[str, Any], module_config)),
+                module_event_data=current_module.event_data_from_json(job.module_data),
                 issue_data=issue_data,
-                transversal_status=module_status.data or {},
+                transversal_status=current_module.transversal_status_from_json(module_status.data or {}),
                 job_id=job.id,
                 service_url=config["service-url"],
             )
@@ -220,7 +220,7 @@ async def _process_job(
 
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and result.transversal_status is not None:
-                module_status.data = result.transversal_status
+                module_status.data = current_module.transversal_status_to_json(result.transversal_status)
             if result is not None:
                 for action in result.actions:
                     new_job = models.Queue()
@@ -231,7 +231,7 @@ async def _process_job(
                     new_job.event_name = action.title or job.event_name
                     new_job.event_data = job.event_data
                     new_job.module = job.module
-                    new_job.module_data = action.data  # type: ignore[assignment]
+                    new_job.module_data = current_module.event_data_to_json(action.data)
                     session.add(new_job)
             session.commit()
             new_issue_data = result.dashboard if result is not None else None
@@ -510,7 +510,7 @@ def _process_dashboard_issue(
                                 "new_data": module_new,
                             }
                             job.module = name
-                            job.module_data = action.data  # type: ignore[assignment]
+                            job.module_data = current_module.event_data_to_json(action.data)
                             session.add(job)
                             session.flush()
                             if action.checks:

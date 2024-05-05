@@ -7,9 +7,7 @@ LABEL maintainer Camptocamp "info@camptocamp.com"
 # Print commands and their arguments as they are executed.
 SHELL ["/bin/bash", "-o", "pipefail", "-cux"]
 
-RUN --mount=type=cache,target=/var/lib/apt/lists \
-    --mount=type=cache,target=/var/cache,sharing=locked \
-    apt-get update \
+RUN apt-get update \
     && apt-get upgrade --assume-yes \
     && apt-get install --assume-yes --no-install-recommends python3-pip postgresql-client docker.io libmagic1 git curl gnupg zlib1g libpq5
 

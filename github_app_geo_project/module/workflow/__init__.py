@@ -12,7 +12,7 @@ from github_app_geo_project.module import utils as module_utils
 _LOGGER = logging.getLogger(__name__)
 
 
-class Workflow(module.Module[None]):
+class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
     """Module to display the status of the workflows in the transversal dashboard."""
 
     def title(self) -> str:
@@ -39,7 +39,7 @@ class Workflow(module.Module[None]):
             "additionalProperties": False,
         }
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         if (
             context.event_data.get("action") == "completed"
             and context.event_data.get("workflow_run", {}).get("event", "pull_request") != "pull_request"
@@ -47,7 +47,9 @@ class Workflow(module.Module[None]):
             return [module.Action({})]
         return []
 
-    async def process(self, context: module.ProcessContext[None]) -> module.ProcessOutput | None:
+    async def process(
+        self, context: module.ProcessContext[None, dict[str, Any], dict[str, Any]]
+    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         repo_data = context.transversal_status.setdefault(
             context.github_project.owner + "/" + context.github_project.repository, {}
         )
@@ -89,7 +91,7 @@ class Workflow(module.Module[None]):
                 context.event_data.get("workflow_run", {}).get("head_branch"),
                 ", ".join(stabilization_branches),
             )
-            return None
+            return module.ProcessOutput()
 
         branch_data = repo_data.setdefault(context.event_data.get("workflow_run", {}).get("head_branch"), {})
         if (
@@ -137,7 +139,7 @@ class Workflow(module.Module[None]):
         return True
 
     def get_transversal_dashboard(
-        self, context: module.TransversalDashboardContext
+        self, context: module.TransversalDashboardContext[dict[str, Any]]
     ) -> module.TransversalDashboardOutput:
         if "repository" in context.params:
             data = utils.format_json(context.status.get(context.params["repository"], {}))

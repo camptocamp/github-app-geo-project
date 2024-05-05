@@ -1,44 +1,13 @@
 """The base class of the modules."""
 
 from abc import abstractmethod
-from collections.abc import Mapping
+from types import GenericAlias
 from typing import Any, Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar
 
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from github_app_geo_project import configuration
-
-
-class Action:
-    """The action to be done by the module."""
-
-    title: str
-    """Title"""
-    priority: int
-    """
-    The action priority usually
-    10 for updating pull request status
-    20 for standard action
-    30 for actions triggered by a cron event
-    """
-    data: Mapping[str, Any]
-    """Some data to be used by the process method"""
-    checks: bool | None
-    """If the action should add a pull request status"""
-
-    def __init__(
-        self,
-        data: Mapping[str, Any],
-        priority: int = -1,
-        title: str = "",
-        checks: bool | None = None,
-    ) -> None:
-        """Create an action."""
-        self.title = title
-        self.priority = priority
-        self.data = data
-        self.checks = checks
-
 
 PRIORITY_HIGH = 0
 """Priority used to preprocess the dashboard issue"""
@@ -51,7 +20,41 @@ PRIORITY_STANDARD = 30
 PRIORITY_CRON = 40
 """Priority for an action triggered by a cron"""
 
-T = TypeVar("T")
+_CONFIGURATION = TypeVar("_CONFIGURATION")
+_EVENT_DATA = TypeVar("_EVENT_DATA")  # pylint: disable=invalid-name
+"""The module event data"""
+_TRANSVERSAL_STATUS = TypeVar("_TRANSVERSAL_STATUS")  # pylint: disable=invalid-name
+
+
+class Action(Generic[_EVENT_DATA]):
+    """The action to be done by the module."""
+
+    title: str
+    """Title"""
+    priority: int
+    """
+    The action priority usually
+    10 for updating pull request status
+    20 for standard action
+    30 for actions triggered by a cron event
+    """
+    data: _EVENT_DATA
+    """Some data to be used by the process method"""
+    checks: bool | None
+    """If the action should add a pull request status"""
+
+    def __init__(
+        self,
+        data: _EVENT_DATA,
+        priority: int = -1,
+        title: str = "",
+        checks: bool | None = None,
+    ) -> None:
+        """Create an action."""
+        self.title = title
+        self.priority = priority
+        self.data = data
+        self.checks = checks
 
 
 class GetActionContext(NamedTuple):
@@ -69,7 +72,7 @@ class GetActionContext(NamedTuple):
     """The github application."""
 
 
-class CleanupContext(NamedTuple):
+class CleanupContext(NamedTuple, Generic[_EVENT_DATA]):
     """The context of the cleanup method."""
 
     github_project: configuration.GithubProject
@@ -78,11 +81,11 @@ class CleanupContext(NamedTuple):
     """The event name present in the X-GitHub-Event header."""
     event_data: dict[str, Any]
     """The event data."""
-    module_data: dict[str, Any]
+    module_data: _EVENT_DATA
     """The data given by the get_actions method."""
 
 
-class ProcessContext(NamedTuple, Generic[T]):
+class ProcessContext(NamedTuple, Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
     """The context of the process."""
 
     session: Session
@@ -93,13 +96,13 @@ class ProcessContext(NamedTuple, Generic[T]):
     """The event name present in the X-GitHub-Event header."""
     event_data: dict[str, Any]
     """The event data."""
-    module_config: "T"
+    module_config: _CONFIGURATION
     """The module configuration."""
-    module_data: dict[str, Any]
+    module_event_data: _EVENT_DATA
     """The data given by the get_actions method."""
     issue_data: str
     """The data from the issue dashboard."""
-    transversal_status: dict[str, Any]
+    transversal_status: _TRANSVERSAL_STATUS
     """The module status."""
     job_id: int
     """The job ID."""
@@ -256,14 +259,14 @@ class GitHubApplicationPermissions(NamedTuple):
     ]
 
 
-class ProcessOutput:
+class ProcessOutput(Generic[_EVENT_DATA, _TRANSVERSAL_STATUS]):
     """The output of the process method."""
 
     dashboard: str | None
     """The dashboard issue content."""
-    transversal_status: dict[str, Any] | None
+    transversal_status: _TRANSVERSAL_STATUS | None
     """The transversal status of the module."""
-    actions: list[Action]
+    actions: list[Action[_EVENT_DATA]]
     """The new actions that should be done."""
     success: bool
     """The success of the process."""
@@ -272,8 +275,8 @@ class ProcessOutput:
     def __init__(
         self,
         dashboard: str | None = None,
-        transversal_status: dict[str, Any] | None = None,
-        actions: list[Action] | None = None,
+        transversal_status: _TRANSVERSAL_STATUS | None = None,
+        actions: list[Action[_EVENT_DATA]] | None = None,
         success: bool = True,
         output: dict[str, Any] | None = None,
     ) -> None:
@@ -285,10 +288,10 @@ class ProcessOutput:
         self.output = output
 
 
-class TransversalDashboardContext(NamedTuple):
+class TransversalDashboardContext(NamedTuple, Generic[_TRANSVERSAL_STATUS]):
     """The context of the global dashboard."""
 
-    status: dict[str, Any]
+    status: _TRANSVERSAL_STATUS
     params: dict[str, str]
 
 
@@ -299,7 +302,7 @@ class TransversalDashboardOutput(NamedTuple):
     data: dict[str, Any]
 
 
-class Module(Generic[T]):
+class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
     """The base class of the modules."""
 
     @abstractmethod
@@ -315,7 +318,7 @@ class Module(Generic[T]):
         return ""
 
     @abstractmethod
-    def get_actions(self, context: GetActionContext) -> list[Action]:
+    def get_actions(self, context: GetActionContext) -> list[Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
@@ -324,7 +327,9 @@ class Module(Generic[T]):
         """
 
     @abstractmethod
-    async def process(self, context: ProcessContext[T]) -> ProcessOutput | None:
+    async def process(
+        self, context: ProcessContext[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]
+    ) -> ProcessOutput[_EVENT_DATA, _TRANSVERSAL_STATUS]:
         """
         Process the action.
 
@@ -334,7 +339,7 @@ class Module(Generic[T]):
                  This is taken in account only if the method required_issue_dashboard return True.
         """
 
-    def cleanup(self, context: CleanupContext) -> None:
+    def cleanup(self, context: CleanupContext[_EVENT_DATA]) -> None:
         """
         Cleanup the event.
 
@@ -348,6 +353,45 @@ class Module(Generic[T]):
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
 
+    def configuration_from_json(self, data: dict[str, Any]) -> _CONFIGURATION:
+        """Create the configuration from the JSON data."""
+        super_ = [c for c in self.__class__.__orig_bases__ if c.__origin__ == Module][0]  # type: ignore[attr-defined] # pylint: disable=no-member
+        generic_element = super_.__args__[0]
+        # Is Pydantic BaseModel
+        if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
+            return generic_element(**data)  # type: ignore[no-any-return]
+        return data  # type: ignore[return-value]
+
+    def event_data_from_json(self, data: dict[str, Any]) -> _EVENT_DATA:
+        """Create the module event data from the JSON data."""
+        super_ = [c for c in self.__class__.__orig_bases__ if c.__origin__ == Module][0]  # type: ignore[attr-defined] # pylint: disable=no-member
+        generic_element = super_.__args__[1]
+        # Is Pydantic BaseModel
+        if (not isinstance(generic_element, GenericAlias)) and issubclass(generic_element, BaseModel):
+            return generic_element(**data)  # type: ignore[no-any-return]
+        return data  # type: ignore[return-value]
+
+    def event_data_to_json(self, data: _EVENT_DATA) -> dict[str, Any]:
+        """Create the JSON data from the module event data."""
+        if isinstance(data, BaseModel):
+            return data.model_dump()
+        return data  # type: ignore[return-value]
+
+    def transversal_status_from_json(self, data: dict[str, Any]) -> _TRANSVERSAL_STATUS:
+        """Create the transversal status from the JSON data."""
+        super_ = [c for c in self.__class__.__orig_bases__ if c.__origin__ == Module][0]  # type: ignore[attr-defined] # pylint: disable=no-member
+        generic_element = super_.__args__[2]
+        # Is Pydantic BaseModel
+        if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
+            return generic_element(**data)  # type: ignore[no-any-return]
+        return data  # type: ignore[return-value]
+
+    def transversal_status_to_json(self, transversal_status: _TRANSVERSAL_STATUS) -> dict[str, Any]:
+        """Create the JSON data from the transversal status."""
+        if isinstance(transversal_status, BaseModel):
+            return transversal_status.model_dump()
+        return transversal_status  # type: ignore[return-value]
+
     def required_issue_dashboard(self) -> bool:
         """Return True if the module requires the issue dashboard."""
         return False
@@ -360,7 +404,9 @@ class Module(Generic[T]):
         """Return True if the module has a transversal dashboard."""
         return False
 
-    def get_transversal_dashboard(self, context: TransversalDashboardContext) -> TransversalDashboardOutput:
+    def get_transversal_dashboard(
+        self, context: TransversalDashboardContext[_TRANSVERSAL_STATUS]
+    ) -> TransversalDashboardOutput:
         """Get the transversal dashboard content."""
         del context
         # Basic implementation to avoid to implement the method in the module

@@ -203,7 +203,7 @@ def process_event(context: ProcessContext) -> None:
                 job.event_name = action.title or context.event_name
                 job.event_data = context.event_data
                 job.module = name
-                job.module_data = action.data  # type: ignore[assignment]
+                job.module_data = current_module.event_data_to_json(action.data)
                 context.session.add(job)
                 context.session.flush()
 
@@ -239,7 +239,7 @@ def process_event(context: ProcessContext) -> None:
 def create_checks(
     job: models.Queue,
     session: Session,
-    current_module: module.Module[Any],
+    current_module: module.Module[Any, Any, Any],
     repo: github.Repository.Repository,
     event_data: dict[str, Any],
     service_url: str,
