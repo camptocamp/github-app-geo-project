@@ -117,7 +117,7 @@ class Versions(module.Module[configuration.VersionsConfiguration]):
         if context.module_data.get("step") == 1:
             key = f"{context.github_project.owner}/{context.github_project.repository}"
             module_utils.manage_updated(context.transversal_status, key)
-            context.transversal_status[key].setDefault("versions", {})
+            context.transversal_status[key].setdefault("versions", {})
             transversal_status = _TransversalStatus(**context.transversal_status)
             extra = transversal_status.__pydantic_extra__
             status: _TransversalStatusRepo = extra[key]  # pylint: disable=unsubscriptable-object

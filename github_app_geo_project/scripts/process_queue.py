@@ -4,6 +4,7 @@ Process the jobs present in the database queue.
 
 import argparse
 import asyncio
+import contextvars
 import datetime
 import logging
 import os
@@ -34,11 +35,17 @@ _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
 
 
 class _Handler(logging.Handler):
-    def __init__(self) -> None:
+    context_var: contextvars.ContextVar[int] = contextvars.ContextVar("job_id")
+
+    def __init__(self, job_id: int) -> None:
         super().__init__()
         self.results: list[logging.LogRecord] = []
+        self.job_id = job_id
+        self.context_var.set(job_id)
 
     def emit(self, record: logging.LogRecord) -> None:
+        if self.context_var.get() != self.job_id:
+            return
         if isinstance(record.msg, module_utils.Message):
             record.msg = record.msg.to_html(style="collapse")
         self.results.append(record)
@@ -169,6 +176,8 @@ async def _process_job(
             root_logger.addHandler(handler)
             try:
                 result = await current_module.process(context)
+                if result and not result.success:
+                    _LOGGER.warning("Module %s failed", job.module)
             finally:
                 root_logger.removeHandler(handler)
 
@@ -229,15 +238,23 @@ async def _process_job(
         except github.GithubException as exception:
             job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
-            _LOGGER.exception(
-                "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
-                job.id,
-                job.module,
-                exception.data,
-                ("\n".join(f"{k}: {v}" for k, v in exception.headers.items()) if exception.headers else ""),
-                exception.message,
-                exception.status,
-            )
+            root_logger.addHandler(handler)
+            try:
+                _LOGGER.exception(
+                    "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                    job.id,
+                    job.module,
+                    exception.data,
+                    (
+                        "\n".join(f"{k}: {v}" for k, v in exception.headers.items())
+                        if exception.headers
+                        else ""
+                    ),
+                    exception.message,
+                    exception.status,
+                )
+            finally:
+                root_logger.removeHandler(handler)
             assert check_run is not None
             try:
                 check_run.edit(
@@ -249,18 +266,22 @@ async def _process_job(
                     },
                 )
             except github.GithubException as github_exception:
-                _LOGGER.exception(
-                    "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
-                    job.check_run_id,
-                    github_exception.data,
-                    (
-                        "\n".join(f"{k}: {v}" for k, v in github_exception.headers.items())
-                        if github_exception.headers
-                        else ""
-                    ),
-                    github_exception.message,
-                    github_exception.status,
-                )
+                root_logger.addHandler(handler)
+                try:
+                    _LOGGER.exception(
+                        "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                        job.check_run_id,
+                        github_exception.data,
+                        (
+                            "\n".join(f"{k}: {v}" for k, v in github_exception.headers.items())
+                            if github_exception.headers
+                            else ""
+                        ),
+                        github_exception.message,
+                        github_exception.status,
+                    )
+                finally:
+                    root_logger.removeHandler(handler)
             raise
         except subprocess.CalledProcessError as proc_error:
             job.status = models.JobStatus.ERROR
@@ -268,8 +289,10 @@ async def _process_job(
             message = module_utils.ansi_proc_message(proc_error)
             message.title = f"Error process job '{job.id}' on module: {job.module}"
             root_logger.addHandler(handler)
-            _LOGGER.exception(message)
-            root_logger.removeHandler(handler)
+            try:
+                _LOGGER.exception(message)
+            finally:
+                root_logger.removeHandler(handler)
             assert check_run is not None
             try:
                 check_run.edit(
@@ -298,8 +321,10 @@ async def _process_job(
             job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             root_logger.addHandler(handler)
-            _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
-            root_logger.removeHandler(handler)
+            try:
+                _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
+            finally:
+                root_logger.removeHandler(handler)
             if check_run is not None:
                 try:
                     check_run.edit(
@@ -545,7 +570,7 @@ async def _process_one_job(
 
         # Capture_logs
         root_logger = logging.getLogger()
-        handler = _Handler()
+        handler = _Handler(job.id)
         handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
 
         module_data_formatted = utils.format_json(job.module_data)
