@@ -63,9 +63,9 @@ class _TransversalStatusRepo(BaseModel):
 
 
 class _TransversalStatus(BaseModel):
-    updated: dict[str, datetime.datetime]
+    updated: dict[str, datetime.datetime] = {}
     """Repository updated time"""
-    repositories: dict[str, _TransversalStatusRepo]
+    repositories: dict[str, _TransversalStatusRepo] = {}
 
 
 class _EventData(BaseModel):
