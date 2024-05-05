@@ -374,7 +374,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
     def event_data_to_json(self, data: _EVENT_DATA) -> dict[str, Any]:
         """Create the JSON data from the module event data."""
         if isinstance(data, BaseModel):
-            return data.model_dump()
+            return data.model_dump(exclude_unset=True)
         return data  # type: ignore[return-value]
 
     def transversal_status_from_json(self, data: dict[str, Any]) -> _TRANSVERSAL_STATUS:
@@ -389,7 +389,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
     def transversal_status_to_json(self, transversal_status: _TRANSVERSAL_STATUS) -> dict[str, Any]:
         """Create the JSON data from the transversal status."""
         if isinstance(transversal_status, BaseModel):
-            return transversal_status.model_dump()
+            return transversal_status.model_dump(exclude_unset=True)
         return transversal_status  # type: ignore[return-value]
 
     def required_issue_dashboard(self) -> bool:
