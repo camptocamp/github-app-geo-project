@@ -263,7 +263,7 @@ class Checks(
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """Get the actions to execute."""
         if (
-            context.event_data.get("action") in ("opened", "reopened", "synchronize")
+            context.event_data.get("action") in ("opened", "reopened", "edited", "synchronize")
             and "pull_request" in context.event_data
         ):
             return [
