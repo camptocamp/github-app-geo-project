@@ -66,7 +66,7 @@ def test_dashboard_issue() -> None:
     )
 
 
-def test_ProcMessage():
+def test_ProcMessage() -> None:
     proc = Mock()
     proc.args = ["command", "arg1", "arg2", "x-access-token:123456"]
     proc.returncode = 0
@@ -98,14 +98,14 @@ message
     )
 
 
-def test_AnsiMessage():
+def test_AnsiMessage() -> None:
     ansi_message = utils.AnsiMessage("title\nmessage")
 
     markdown = ansi_message.to_markdown()
     assert markdown == "title\nmessage"
 
 
-def test_html_to_markdown():
+def test_html_to_markdown() -> None:
     html = """<span style="font-weight: bold">bold</span>
 <span style="font-style: italic">italic</span></p>
 <span style="font-weight: bold; color: rgb(0, 0, 255)">blue</span>
@@ -115,3 +115,41 @@ def test_html_to_markdown():
 **blue**
 *red*"""
     assert utils.html_to_markdown(html) == expected
+
+
+def test_ansi_process_message() -> None:
+    ansi_message = utils.AnsiProcessMessage(["command"], 0, "stdout\nmessage", "stderr\nmessage")
+    expected_text = """Command: command
+Return code: 0
+Output:
+```
+stdout
+message
+```
+
+Error:
+```
+stderr
+message
+```"""
+
+    text = str(ansi_message)
+    assert text == expected_text
+
+    text = ansi_message.to_plain_text()
+    assert text == expected_text
+
+    markdown = ansi_message.to_markdown()
+    assert markdown == expected_text
+
+    html = ansi_message.to_html()
+    assert html == (
+        "<p>Command: command</p>"
+        "<p>Return code: 0</p>"
+        "<p>Output:</p>"
+        """<p>stdout
+message</p>"""
+        "<p>Error:</p>"
+        """<p>stderr
+message</p>"""
+    )

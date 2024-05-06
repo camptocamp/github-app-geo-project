@@ -43,9 +43,12 @@ def dashboard(request: pyramid.request.Request) -> dict[str, Any]:
         module_status = session.execute(
             sqlalchemy.sql.select(models.ModuleStatus.data).where(models.ModuleStatus.module == module_name)
         ).scalar()
-        assert module_status is not None
+        if module_status is None:
+            module_status = {}
         output = module_instance.get_transversal_dashboard(
-            module.TransversalDashboardContext(module_status, dict(request.params))
+            module.TransversalDashboardContext(
+                module_instance.transversal_status_from_json(module_status), dict(request.params)
+            )
         )
         data = output.data
 

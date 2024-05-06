@@ -76,7 +76,7 @@ def _commits_messages(
             messages.append(f"- [ ] Fixup message not allowed in commit {commit.sha}")
             success = False
         else:
-            messages.append(f"- [x] commit {commit.sha} is not a fixup commit")
+            messages.append(f"- [x] The commit {commit.sha} is not a fixup commit")
         if commit_message_config.get(
             "check-squash", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_SQUASH_DEFAULT
         ) and head.startswith("squash! "):
@@ -84,7 +84,7 @@ def _commits_messages(
             messages.append(f"- [ ] Squash message not allowed in commit {commit.sha}")
             success = False
         else:
-            messages.append(f"- [x] commit {commit.sha} is not a squash commit")
+            messages.append(f"- [x] The commit {commit.sha} is not a squash commit")
         if (
             commit_message_config.get(
                 "check-first-capital",
@@ -213,9 +213,9 @@ def _pull_request_spell(
             return False, messages
         else:
             messages.append(
-                "- [x] pull request title are correct"
+                "- [x] Pull request title is correct"
                 if config.get("only_head", checks_configuration.PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT)
-                else "- [x] pull request title and body are correct"
+                else "- [x] Pull request title and body are correct"
             )
 
         message.title = "Code spell in pull request"
@@ -263,7 +263,7 @@ class Checks(
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """Get the actions to execute."""
         if (
-            context.event_data.get("action") in ("opened", "reopened", "synchronize")
+            context.event_data.get("action") in ("opened", "reopened", "edited", "synchronize")
             and "pull_request" in context.event_data
         ):
             return [
