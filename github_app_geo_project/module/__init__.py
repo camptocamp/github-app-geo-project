@@ -1,13 +1,16 @@
 """The base class of the modules."""
 
+import logging
 from abc import abstractmethod
 from types import GenericAlias
 from typing import Any, Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from github_app_geo_project import configuration
+
+_LOGGER = logging.getLogger(__name__)
 
 PRIORITY_HIGH = 0
 """Priority used to preprocess the dashboard issue"""
@@ -359,7 +362,12 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         generic_element = super_.__args__[0]
         # Is Pydantic BaseModel
         if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
-            return generic_element(**data)  # type: ignore[no-any-return]
+            try:
+                return generic_element(**data)  # type: ignore[no-any-return]
+            except ValidationError:
+                _LOGGER.error("Invalid configuration, try with empty configuration: %s", data)
+                return generic_element()  # type: ignore[no-any-return]
+
         return data  # type: ignore[return-value]
 
     def event_data_from_json(self, data: dict[str, Any]) -> _EVENT_DATA:
@@ -368,7 +376,11 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         generic_element = super_.__args__[1]
         # Is Pydantic BaseModel
         if (not isinstance(generic_element, GenericAlias)) and issubclass(generic_element, BaseModel):
-            return generic_element(**data)  # type: ignore[no-any-return]
+            try:
+                return generic_element(**data)  # type: ignore[no-any-return]
+            except ValidationError:
+                _LOGGER.error("Invalid event data, try with empty event data: %s", data)
+                return generic_element()  # type: ignore[no-any-return]
         return data  # type: ignore[return-value]
 
     def event_data_to_json(self, data: _EVENT_DATA) -> dict[str, Any]:
@@ -383,7 +395,11 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         generic_element = super_.__args__[2]
         # Is Pydantic BaseModel
         if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
-            return generic_element(**data)  # type: ignore[no-any-return]
+            try:
+                return generic_element(**data)  # type: ignore[no-any-return]
+            except ValidationError:
+                _LOGGER.error("Invalid transversal status, try with empty transversal status: %s", data)
+                return generic_element()  # type: ignore[no-any-return]
         return data  # type: ignore[return-value]
 
     def transversal_status_to_json(self, transversal_status: _TRANSVERSAL_STATUS) -> dict[str, Any]:
