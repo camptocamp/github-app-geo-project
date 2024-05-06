@@ -28,7 +28,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     application = request.matchdict["application"]
     data = request.json
 
-    github_secret = request.registry.settings.get(f"application.{application}.github_app_id")
+    github_secret = request.registry.settings.get(f"application.{application}.github_app_webhook_secret")
     if github_secret:
         dry_run = os.environ.get("GHCI_WEBHOOK_SECRET_DRY_RUN", "false").lower() == "true"
         if "X-Hub-Signature-256" not in request.headers:
