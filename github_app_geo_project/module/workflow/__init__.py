@@ -106,7 +106,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
                     context.github_project.owner + "/" + context.github_project.repository
                 ]
             _LOGGER.info(
-                "Workflow %s is successful, removing it from the status",
+                "Workflow '%s' is successful, removing it from the status",
                 context.event_data.get("workflow", {}).get("name", "-"),
             )
             return module.ProcessOutput(transversal_status=context.transversal_status)
@@ -118,7 +118,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
         }
         branch_data[context.event_data.get("workflow", {}).get("name", "-")] = workflow_data
         _LOGGER.info(
-            "Workflow %s is not successful, adding it to the status",
+            "Workflow '%s' is not successful, adding it to the status",
             context.event_data.get("workflow", {}).get("name", "-"),
         )
 
