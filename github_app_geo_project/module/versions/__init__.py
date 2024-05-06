@@ -8,7 +8,7 @@ import os.path
 import re
 import subprocess  # nosec
 import tempfile
-from typing import Any, NotRequired, TypedDict
+from typing import Any
 
 import c2cciutils.security
 import github
@@ -23,13 +23,6 @@ from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.versions import configuration
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class _Dependency(TypedDict):
-    """Dependency."""
-
-    status_by_version: dict[str, str]
-    repo: NotRequired[str]
 
 
 class _TransversalStatusNameByDatasource(BaseModel):
@@ -214,28 +207,48 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         self, context: module.TransversalDashboardContext[_TransversalStatus]
     ) -> module.TransversalDashboardOutput:
         """Get the dashboard data."""
+
+        class _NamesStatus(BaseModel):
+            status_by_version: dict[str, str] = {}
+            repo: str | None = None
+
+        class _NamesByDataSources(BaseModel):
+            by_package: dict[str, _NamesStatus] = {}
+
+        class _Names(BaseModel):
+            by_datasources: dict[str, _NamesByDataSources] = {}
+
+        class _ReverseDependency(BaseModel):
+            name: str
+            status_by_version: str
+            support: str
+            color: str
+            repo: str
+
+        class _ReverseDependencies(BaseModel):
+            by_branch: dict[str, list[_ReverseDependency]] = {}
+
         transversal_status = context.status
 
         if "repository" in context.params:
-            # datasource.package.minor_version = support
-            names: dict[str, dict[str, _Dependency]] = {}
+            names = _Names()
             for repo, repo_data in transversal_status.repositories.items():
                 for branch, branch_data in repo_data.versions.items():
                     for datasource, datasource_data in branch_data.names_by_datasource.items():
                         for name, _ in datasource_data.names_by_branch.items():
-                            names.setdefault(datasource, {}).setdefault(
-                                name, {"repo": repo, "status_by_version": {}}
-                            )
-                            names[datasource][name]["status_by_version"][
+                            names.by_datasources.setdefault(datasource, _NamesByDataSources()).by_package[
+                                name
+                            ] = _NamesStatus(repo=repo)
+                            names.by_datasources[datasource].by_package[name].status_by_version[
                                 _canonical_minor_version(datasource, branch)
                             ] = branch_data.support
 
-            message = module_utils.HtmlMessage(utils.format_json(names))
+            message = module_utils.HtmlMessage(utils.format_json(names.model_dump()))
             message.title = "Names:"
             _LOGGER.debug(message)
 
             # branch = list of dependencies
-            reverse_dependencies: dict[str, list[dict[str, str]]] = {}
+            reverse_dependencies = _ReverseDependencies()
             for version, version_data in transversal_status.repositories.get(
                 context.params["repository"], _TransversalStatusRepo()
             ).versions.items():
@@ -247,42 +260,44 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                             canonical_dependency_version = _canonical_minor_version(
                                 dependency_name, dependency_version
                             )
-                            dependency_definition: _Dependency = names.get(datasource_name, {}).get(
+                            dependency_definition: _NamesStatus = names.by_datasources.get(
+                                datasource_name, _NamesByDataSources
+                            ).by_package.get(
                                 dependency_name,
-                                {
-                                    "status_by_version": {},
-                                },
+                                _NamesStatus(
+                                    status_by_version={},
+                                ),
                             )
-                            versions_of_dependency = dependency_definition.get("status_by_version", {})
-                            repo = dependency_definition.get("repo", "-")
+                            versions_of_dependency = dependency_definition.status_by_version
+                            repo = dependency_definition.repo or "-"
                             if not versions_of_dependency:
                                 continue
                             if canonical_dependency_version not in versions_of_dependency:
-                                reverse_dependencies.setdefault(version, []).append(
-                                    {
-                                        "name": dependency_name,
-                                        "status_by_version": dependency_version,
-                                        "support": "Unsupported",
-                                        "color": "--bs-danger",
-                                        "repo": repo,
-                                    }
+                                reverse_dependencies.by_branch.setdefault(version, []).append(
+                                    _ReverseDependency(
+                                        name=dependency_name,
+                                        status_by_version=dependency_version,
+                                        support="Unsupported",
+                                        color="--bs-danger",
+                                        repo=repo,
+                                    )
                                 )
                             else:
                                 is_supported = all(
                                     _is_supported(support, versions_of_dependency[version])
                                     for support in dependency_data.versions_by_names
                                 )
-                                reverse_dependencies.setdefault(version, []).append(
-                                    {
-                                        "name": dependency_name,
-                                        "status_by_version": dependency_version,
-                                        "support": versions_of_dependency[version],
-                                        "color": "--bs-body-bg" if is_supported else "--bs-danger",
-                                        "repo": repo,
-                                    }
+                                reverse_dependencies.by_branch.setdefault(version, []).append(
+                                    _ReverseDependency(
+                                        name=dependency_name,
+                                        status_by_version=dependency_version,
+                                        support=versions_of_dependency[version],
+                                        color="--bs-body-bg" if is_supported else "--bs-danger",
+                                        repo=repo,
+                                    )
                                 )
 
-            message = module_utils.HtmlMessage(utils.format_json(reverse_dependencies))
+            message = module_utils.HtmlMessage(utils.format_json(reverse_dependencies.model_dump()))
             message.title = "Reverse dependencies:"
             _LOGGER.debug(message)
 
