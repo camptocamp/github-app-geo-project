@@ -94,17 +94,15 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             return module.ProcessOutput()
 
         branch_data = repo_data.setdefault(context.event_data.get("workflow_run", {}).get("head_branch"), {})
-        if (
-            context.event_data.get("workflow_run", {}).get("conclusion") == "success"
-            and context.event_data.get("workflow", {}).get("name", "-") in branch_data
-        ):
-            del branch_data[context.event_data.get("workflow", {}).get("name", "-")]
-            if not branch_data:
-                del repo_data[context.event_data.get("workflow_run", {}).get("head_branch")]
-            if repo_data.keys() == ["updated"]:
-                del context.transversal_status[
-                    context.github_project.owner + "/" + context.github_project.repository
-                ]
+        if context.event_data.get("workflow_run", {}).get("conclusion") == "success":
+            if context.event_data.get("workflow", {}).get("name", "-") in branch_data:
+                del branch_data[context.event_data.get("workflow", {}).get("name", "-")]
+                if not branch_data:
+                    del repo_data[context.event_data.get("workflow_run", {}).get("head_branch")]
+                if repo_data.keys() == ["updated"]:
+                    del context.transversal_status[
+                        context.github_project.owner + "/" + context.github_project.repository
+                    ]
             _LOGGER.info(
                 "Workflow %s is successful, removing it from the status",
                 context.event_data.get("workflow", {}).get("name", "-"),
