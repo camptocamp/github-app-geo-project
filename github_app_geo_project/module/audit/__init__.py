@@ -13,6 +13,7 @@ import c2cciutils.security
 import github
 import markdown
 import yaml
+from pydantic import BaseModel
 
 from github_app_geo_project import module
 from github_app_geo_project.module import ProcessOutput
@@ -23,6 +24,16 @@ from github_app_geo_project.module.audit import utils as audit_utils
 _LOGGER = logging.getLogger(__name__)
 
 _OUTDATED = "Outdated version"
+
+
+class _EventData(BaseModel):
+    """The event data."""
+
+    type: str | None = None
+    snyk: bool = False
+    dpkg: bool = False
+    is_dashboard: bool = False
+    version: str | None = None
 
 
 def _parse_issue_data(issue_data: str) -> dict[str, list[str]]:
@@ -53,11 +64,12 @@ def _format_issue_data(issue_data: dict[str, list[str]]) -> str:
 
 
 def _get_process_output(
-    context: module.ProcessContext[configuration.AuditConfiguration, dict[str, Any], dict[str, Any]],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, dict[str, Any]],
     issue_check: module_utils.DashboardIssue,
     issue_data: dict[str, list[str]],
-) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
-    issue_check.set_check(context.module_event_data["type"], False)
+) -> module.ProcessOutput[_EventData, dict[str, Any]]:
+    assert context.module_event_data.type is not None
+    issue_check.set_check(context.module_event_data.type, False)
 
     for key in list(issue_data.keys()):
         if not issue_data[key]:
@@ -78,7 +90,7 @@ def _get_process_output(
 
 
 def _process_outdated(
-    context: module.ProcessContext[configuration.AuditConfiguration, dict[str, Any], dict[str, Any]],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, dict[str, Any]],
     issue_data: dict[str, list[str]],
 ) -> None:
     repo = context.github_project.github.get_repo(
@@ -113,18 +125,18 @@ def _process_outdated(
 
 
 async def _process_snyk_dpkg(
-    context: module.ProcessContext[configuration.AuditConfiguration, dict[str, Any], dict[str, Any]],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, dict[str, Any]],
     issue_data: dict[str, list[str]],
 ) -> None:
-    key = f"Undefined {context.module_event_data['version']}"
-    new_branch = f"ghci/audit/{context.module_event_data['type']}/{context.module_event_data['version']}"
-    if context.module_event_data["type"] == "snyk":
-        key = f"Snyk check/fix {context.module_event_data['version']}"
-    if context.module_event_data["type"] == "dpkg":
-        key = f"Dpkg {context.module_event_data['version']}"
+    key = f"Undefined {context.module_event_data.version}"
+    new_branch = f"ghci/audit/{context.module_event_data.type}/{context.module_event_data.version}"
+    if context.module_event_data.type == "snyk":
+        key = f"Snyk check/fix {context.module_event_data.version}"
+    if context.module_event_data.type == "dpkg":
+        key = f"Dpkg {context.module_event_data.version}"
     issue_data[key] = []
     try:
-        branch: str = cast(str, context.module_event_data["version"])
+        branch: str = cast(str, context.module_event_data.version)
         if os.path.exists("ci/config.yaml"):
             with open("ci/config.yaml", encoding="utf-8") as file:
                 ci_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
@@ -147,12 +159,12 @@ async def _process_snyk_dpkg(
             success = module_utils.git_clone(context.github_project, branch)
 
             local_config: configuration.AuditConfiguration = {}
-            if context.module_event_data["type"] in ("snyk", "dpkg"):
+            if context.module_event_data.type in ("snyk", "dpkg"):
                 if os.path.exists(".github/ghci.yaml"):
                     with open(".github/ghci.yaml", encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
 
-            if context.module_event_data["type"] == "snyk":
+            if context.module_event_data.type == "snyk":
                 python_version = ""
                 if os.path.exists(".tool-versions"):
                     with open(".tool-versions", encoding="utf-8") as file:
@@ -191,7 +203,7 @@ async def _process_snyk_dpkg(
                 if result:
                     issue_data[key] += [r.to_markdown(summary=True) for r in result]
 
-            if context.module_event_data["type"] == "dpkg":
+            if context.module_event_data.type == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")
 
                 if os.path.exists("ci/dpkg-versions.yaml"):
@@ -240,7 +252,7 @@ async def _process_snyk_dpkg(
         issue_data[key] = [f"[Logs]({service_url})", "", *issue_data[key]]
 
 
-class Audit(module.Module[configuration.AuditConfiguration, dict[str, Any], dict[str, Any]]):
+class Audit(module.Module[configuration.AuditConfiguration, _EventData, dict[str, Any]]):
     """The audit module."""
 
     def title(self) -> str:
@@ -259,7 +271,7 @@ class Audit(module.Module[configuration.AuditConfiguration, dict[str, Any], dict
         """Check if the module requires an issue dashboard."""
         return True
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_EventData]]:
         """
         Get the action related to the module and the event.
 
@@ -267,8 +279,12 @@ class Audit(module.Module[configuration.AuditConfiguration, dict[str, Any], dict
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
         if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):
-            return [module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"}, title="outdated")]
-        results: list[module.Action[dict[str, Any]]] = []
+            return [
+                module.Action(
+                    priority=module.PRIORITY_CRON, data=_EventData(type="outdated"), title="outdated"
+                )
+            ]
+        results: list[module.Action[_EventData]] = []
         snyk = False
         dpkg = False
         is_dashboard = context.event_name == "dashboard"
@@ -283,7 +299,7 @@ class Audit(module.Module[configuration.AuditConfiguration, dict[str, Any], dict
             if not old_check.is_checked("outdated") and new_check.is_checked("outdated"):
                 results.append(
                     module.Action(
-                        priority=module.PRIORITY_STANDARD, data={"type": "outdated"}, title="outdated"
+                        priority=module.PRIORITY_STANDARD, data=_EventData(type="outdated"), title="outdated"
                     )
                 )
             if not old_check.is_checked("snyk") and new_check.is_checked("snyk"):
@@ -293,7 +309,9 @@ class Audit(module.Module[configuration.AuditConfiguration, dict[str, Any], dict
 
         if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
             results.append(
-                module.Action(priority=module.PRIORITY_CRON, data={"type": "outdated"}, title="outdated")
+                module.Action(
+                    priority=module.PRIORITY_CRON, data=_EventData(type="outdated"), title="outdated"
+                )
             )
             snyk = True
             dpkg = True
@@ -302,14 +320,14 @@ class Audit(module.Module[configuration.AuditConfiguration, dict[str, Any], dict
             results.append(
                 module.Action(
                     priority=module.PRIORITY_HIGH,
-                    data={"snyk": snyk, "dpkg": dpkg, "is_dashboard": is_dashboard},
+                    data=_EventData(snyk=snyk, dpkg=dpkg, is_dashboard=is_dashboard),
                 )
             )
         return results
 
     async def process(
-        self, context: module.ProcessContext[configuration.AuditConfiguration, dict[str, Any], dict[str, Any]]
-    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
+        self, context: module.ProcessContext[configuration.AuditConfiguration, _EventData, dict[str, Any]]
+    ) -> module.ProcessOutput[_EventData, dict[str, Any]]:
         """
         Process the action.
 
@@ -371,10 +389,10 @@ class Audit(module.Module[configuration.AuditConfiguration, dict[str, Any], dict
             if not any(key.startswith(start) for start in key_starts):
                 del issue_data[key]
 
-        if context.module_event_data.get("type") == "outdated":
+        if context.module_event_data.type == "outdated":
             _process_outdated(context, issue_data)
         else:
-            if "version" not in context.module_event_data:
+            if context.module_event_data.version is None:
                 # Creates new jobs with the versions from the SECURITY.md
                 versions = []
                 if security_file is not None:
@@ -404,25 +422,25 @@ class Audit(module.Module[configuration.AuditConfiguration, dict[str, Any], dict
                 # Audit is relay slow than add 15 to the cron priority
                 priority = (
                     module.PRIORITY_STANDARD
-                    if context.module_event_data.get("is_dashboard", False)
+                    if context.module_event_data.is_dashboard
                     else module.PRIORITY_CRON + 15
                 )
                 actions = []
                 for version in versions:
-                    if context.module_event_data.get("snyk", False) and context.module_config.get(
-                        "snyk", {}
-                    ).get("enabled", configuration.ENABLE_SNYK_DEFAULT):
+                    if context.module_event_data.snyk and context.module_config.get("snyk", {}).get(
+                        "enabled", configuration.ENABLE_SNYK_DEFAULT
+                    ):
                         actions.append(
                             module.Action(
-                                priority=priority, data={"type": "snyk", "version": version}, title="snyk"
+                                priority=priority, data=_EventData(type="snyk", version=version), title="snyk"
                             )
                         )
-                    if context.module_event_data.get("dpkg", False) and context.module_config.get(
-                        "dpkg", {}
-                    ).get("enabled", configuration.ENABLE_DPKG_DEFAULT):
+                    if context.module_event_data.dpkg and context.module_config.get("dpkg", {}).get(
+                        "enabled", configuration.ENABLE_DPKG_DEFAULT
+                    ):
                         actions.append(
                             module.Action(
-                                priority=priority, data={"type": "dpkg", "version": version}, title="dpkg"
+                                priority=priority, data=_EventData(type="dpkg", version=version), title="dpkg"
                             )
                         )
                 return ProcessOutput(actions=actions)

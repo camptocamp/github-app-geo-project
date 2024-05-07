@@ -112,7 +112,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Versions"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_EventData]]:
         """
         Get the action related to the module and the event.
 
@@ -122,7 +122,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
             return [
                 module.Action(
-                    data={"step": 1},
+                    data=_EventData(step=1),
                 )
             ]
         return []
