@@ -321,7 +321,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         return ""
 
     @abstractmethod
-    def get_actions(self, context: GetActionContext) -> list[Action[dict[str, Any]]]:
+    def get_actions(self, context: GetActionContext) -> list[Action[_EVENT_DATA]]:
         """
         Get the action related to the module and the event.
 
