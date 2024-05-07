@@ -420,7 +420,7 @@ def generate_changelog(
             )
     message_obj = utils.HtmlMessage("\n".join(message))
     message_obj.title = f"Changelog for {tag.major}.{tag.minor}.{tag.patch}"
-    _LOGGER.debug(message_obj.to_html(style="collapse"))
+    _LOGGER.debug(message_obj)
 
     created = tag.tag.commit.commit.author.date
     result = [f"# {tag.major}.{tag.minor}.{tag.patch} ({created:%Y-%m-%d})", ""]
