@@ -122,7 +122,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                     with diff.open(diff.namelist()[0]) as file:
                         patch_input = file.read().decode("utf-8")
                         message: utils.Message = utils.HtmlMessage(patch_input, "Applied the patch input")
-                        _LOGGER.debug(message.to_html(style="collapse"))
+                        _LOGGER.debug(message)
                         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                             ["patch", "--strip=1"],
                             input=patch_input,
@@ -133,10 +133,10 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                         message = utils.ansi_proc_message(proc)
                         if proc.returncode != 0:
                             message.title = f"Failed to apply the diff {artifact.name}"
-                            _LOGGER.warning(message.to_html(style="collapse"))
+                            _LOGGER.warning(message)
                             raise PatchException("Failed to apply the diff")
                         message.title = f"Applied the diff {artifact.name}"
-                        _LOGGER.info(message.to_html(style="collapse"))
+                        _LOGGER.info(message)
 
                         if utils.has_changes(include_un_followed=True):
                             success = utils.create_commit(

@@ -424,10 +424,10 @@ def _get_dependencies(
     message = module_utils.ansi_proc_message(proc)
     if proc.returncode != 0:
         message.title = "Failed to get the dependencies"
-        _LOGGER.error(message.to_html(style="collapse"))
+        _LOGGER.error(message)
         raise VersionException(message.title)
     message.title = "Got the dependencies"
-    _LOGGER.debug(message.to_html(style="collapse"))
+    _LOGGER.debug(message)
 
     lines = proc.stdout.splitlines()
     lines = [line for line in lines if line.startswith("  ")]

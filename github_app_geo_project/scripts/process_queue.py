@@ -19,6 +19,7 @@ import c2cwsgiutils.setup_process
 import github
 import plaster
 import prometheus_client
+import sentry_sdk
 import sqlalchemy.orm
 from c2cwsgiutils import prometheus
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
@@ -544,7 +545,7 @@ async def _process_one_job(
                 models.Queue.priority <= max_priority,
             )
             .order_by(
-                models.Queue.priority.desc(),
+                models.Queue.priority.asc(),
                 models.Queue.created_at.asc(),
             )
             .with_for_update(of=models.Queue, skip_locked=True)
@@ -567,6 +568,8 @@ async def _process_one_job(
             session.commit()
 
             return True
+
+        sentry_sdk.set_context("job", {"id": job.id, "event": job.event_name, "module": job.module or "-"})
 
         # Capture_logs
         root_logger = logging.getLogger()
@@ -640,6 +643,7 @@ async def _process_one_job(
             _LOGGER.exception("Failed to process job id: %s on module: %s.", job.id, job.module or "-")
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
         finally:
+            sentry_sdk.set_context("job", {})
             assert job.status != models.JobStatus.PENDING
             job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()

@@ -95,7 +95,7 @@ class TestModule(module.Module[_ConfigType, _EventData, None]):
                     check=True,
                 )
                 message = module_utils.ansi_proc_message(proc)
-                _LOGGER.info(message.to_html())
+                _LOGGER.info(message)
                 proc = subprocess.run(
                     ["echo", "-e", r"plain \e[0;31mRED MESSAGE\e[0m reset"],
                     capture_output=True,
