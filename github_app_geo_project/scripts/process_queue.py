@@ -537,7 +537,7 @@ async def _process_one_job(
     make_pending: bool = False,
     max_priority: int = 2147483647,
 ) -> bool:
-    _LOGGER.debug("Process one job: Start")
+    _LOGGER.debug("Process one job (max priority: %i): Start", max_priority)
     with Session() as session:
         job = (
             session.query(models.Queue)
@@ -554,7 +554,7 @@ async def _process_one_job(
         )
         if job is None:
             if no_steal_long_pending:
-                _LOGGER.debug("Process one job: No job to process")
+                _LOGGER.debug("Process one job (max priority: %i): No job to process", max_priority)
                 return True
             # Get too old pending jobs
             session.execute(
@@ -569,7 +569,7 @@ async def _process_one_job(
             )
             session.commit()
 
-            _LOGGER.debug("Process one job: Steal long pending job")
+            _LOGGER.debug("Process one job (max priority: %i): Steal long pending job", max_priority)
             return True
 
         sentry_sdk.set_context("job", {"id": job.id, "event": job.event_name, "module": job.module or "-"})
@@ -594,7 +594,7 @@ async def _process_one_job(
             job.status = models.JobStatus.PENDING
             job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
-            _LOGGER.debug("Process one job: Make pending")
+            _LOGGER.debug("Process one job (max priority: %i): Make pending", max_priority)
             return False
 
         try:
@@ -652,7 +652,7 @@ async def _process_one_job(
             job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
 
-        _LOGGER.debug("Process one job: Done")
+        _LOGGER.debug("Process one job (max priority: %i): Done", max_priority)
         return False
 
 
