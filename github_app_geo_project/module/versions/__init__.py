@@ -301,8 +301,6 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             message.title = "Reverse dependencies:"
             _LOGGER.debug(message)
 
-            transversal_status.repositories.get(context.params["repository"], {})
-
             return module.TransversalDashboardOutput(
                 renderer="github_app_geo_project:module/versions/repository.html",
                 data={
