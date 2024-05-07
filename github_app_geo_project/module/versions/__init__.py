@@ -26,8 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class _TransversalStatusNameByDatasource(BaseModel):
-    names_by_branch: dict[str, list[str]] = {}
-    """support by branch"""
+    names: list[str] = []
 
 
 class _TransversalStatusVersions(BaseModel):
@@ -52,13 +51,37 @@ class _TransversalStatusRepo(BaseModel):
     versions: dict[str, _TransversalStatusVersion] = {}
     upstream_updated: datetime.datetime | None = None
     url: str | None = None
-    support: str | None = None
 
 
 class _TransversalStatus(BaseModel):
     updated: dict[str, datetime.datetime] = {}
     """Repository updated time"""
     repositories: dict[str, _TransversalStatusRepo] = {}
+
+
+class _NamesStatus(BaseModel):
+    status_by_version: dict[str, str] = {}
+    repo: str | None = None
+
+
+class _NamesByDataSources(BaseModel):
+    by_package: dict[str, _NamesStatus] = {}
+
+
+class _Names(BaseModel):
+    by_datasources: dict[str, _NamesByDataSources] = {}
+
+
+class _ReverseDependency(BaseModel):
+    name: str
+    status_by_version: str
+    support: str
+    color: str
+    repo: str
+
+
+class _ReverseDependencies(BaseModel):
+    by_branch: dict[str, list[_ReverseDependency]] = {}
 
 
 class _EventData(BaseModel):
@@ -207,27 +230,6 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         self, context: module.TransversalDashboardContext[_TransversalStatus]
     ) -> module.TransversalDashboardOutput:
         """Get the dashboard data."""
-
-        class _NamesStatus(BaseModel):
-            status_by_version: dict[str, str] = {}
-            repo: str | None = None
-
-        class _NamesByDataSources(BaseModel):
-            by_package: dict[str, _NamesStatus] = {}
-
-        class _Names(BaseModel):
-            by_datasources: dict[str, _NamesByDataSources] = {}
-
-        class _ReverseDependency(BaseModel):
-            name: str
-            status_by_version: str
-            support: str
-            color: str
-            repo: str
-
-        class _ReverseDependencies(BaseModel):
-            by_branch: dict[str, list[_ReverseDependency]] = {}
-
         transversal_status = context.status
 
         if "repository" in context.params:
@@ -235,7 +237,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             for repo, repo_data in transversal_status.repositories.items():
                 for branch, branch_data in repo_data.versions.items():
                     for datasource, datasource_data in branch_data.names_by_datasource.items():
-                        for name, _ in datasource_data.names_by_branch.items():
+                        for name in datasource_data.names:
                             names.by_datasources.setdefault(datasource, _NamesByDataSources()).by_package[
                                 name
                             ] = _NamesStatus(repo=repo)
@@ -284,14 +286,16 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                                 )
                             else:
                                 is_supported = all(
-                                    _is_supported(support, versions_of_dependency[version])
+                                    _is_supported(
+                                        support, versions_of_dependency[canonical_dependency_version]
+                                    )
                                     for support in dependency_data.versions_by_names
                                 )
                                 reverse_dependencies.by_branch.setdefault(version, []).append(
                                     _ReverseDependency(
                                         name=dependency_name,
                                         status_by_version=dependency_version,
-                                        support=versions_of_dependency[version],
+                                        support=versions_of_dependency[canonical_dependency_version],
                                         color="--bs-body-bg" if is_supported else "--bs-danger",
                                         repo=repo,
                                     )
@@ -317,7 +321,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         return module.TransversalDashboardOutput(
             # template="dashboard.html",
             renderer="github_app_geo_project:module/versions/dashboard.html",
-            data={"repositories": transversal_status.repositories.keys()},
+            data={"repositories": list(transversal_status.repositories.keys())},
         )
 
 
@@ -349,15 +353,13 @@ def _get_names(
         with open(filename, encoding="utf-8") as file:
             data = toml.load(file)
             name = data.get("project", {}).get("name")
-            names_by_branch = names_by_datasource.setdefault(
-                "pypi", _TransversalStatusNameByDatasource()
-            ).names_by_branch
+            names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
             if name:
-                names_by_branch.setdefault(branch, []).append(name)
+                names.append(name)
             else:
                 name = data.get("tool", {}).get("poetry", {}).get("name")
                 if name:
-                    names_by_branch.setdefault(branch, []).append(name)
+                    names.append(name)
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "setup.py", "*/setup.py"],
         check=True,
@@ -369,9 +371,9 @@ def _get_names(
             for line in file:
                 match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
                 if match:
-                    names_by_datasource.setdefault(
-                        "pypi", _TransversalStatusNameByDatasource()
-                    ).names_by_branch.setdefault(match.group(1), []).append(branch)
+                    names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names.append(
+                        match.group(1)
+                    )
 
     if os.path.exists("ci/config.yaml"):
         with open("ci/config.yaml", encoding="utf-8") as file:
@@ -381,7 +383,7 @@ def _get_names(
                     for tag in conf.get("tags", ["{version}"]):
                         names_by_datasource.setdefault(
                             "docker", _TransversalStatusNameByDatasource()
-                        ).names_by_branch.setdefault(conf["name"], []).append(tag.format(version=branch))
+                        ).names.append(f"{conf.get('name')}:{tag.format(version=branch)}")
 
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "package.json", "*/package.json"],
@@ -394,13 +396,11 @@ def _get_names(
             data = json.load(file)
             name = data.get("name")
             if name:
-                names_by_datasource.setdefault(
-                    "npm", _TransversalStatusNameByDatasource()
-                ).names_by_branch.setdefault(name, []).append(branch)
+                names_by_datasource.setdefault("npm", _TransversalStatusNameByDatasource()).names.append(name)
 
-    names_by_datasource.setdefault("github", _TransversalStatusNameByDatasource()).names_by_branch.setdefault(
-        f"{context.github_project.owner}/{context.github_project.repository}", []
-    ).append(branch)
+    names_by_datasource.setdefault("github", _TransversalStatusNameByDatasource()).names.append(
+        f"{context.github_project.owner}/{context.github_project.repository}"
+    )
 
 
 def _get_dependencies(
@@ -528,9 +528,7 @@ def _update_upstream_versions(
                 support=cycle["eol"],
                 names_by_datasource={
                     datasource: _TransversalStatusNameByDatasource(
-                        names_by_branch={
-                            cycle["latest"]: [package],
-                        }
+                        names=[package],
                     ),
                 },
             )

@@ -72,6 +72,7 @@ debian-inspector = "31.1.0"
 codespell = "2.2.6"
 pydantic = "2.7.1"
 markdownify = "0.12.1"
+responses = "0.25.0"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.0.8",  extras = ["test-images"] }
