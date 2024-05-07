@@ -56,7 +56,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             # Impossible to remove this permission on GitHub, so we don't check it
             "metadata": "read",
             # Used to create and update the github checks
-            "checks": "write",
+            "actions": "write",
         }
         events = set()
 
