@@ -1,5 +1,6 @@
 """the audit modules."""
 
+import datetime
 import json
 import logging
 import os
@@ -15,7 +16,7 @@ import markdown
 import yaml
 from pydantic import BaseModel
 
-from github_app_geo_project import module
+from github_app_geo_project import models, module
 from github_app_geo_project.module import ProcessOutput
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
@@ -24,6 +25,23 @@ from github_app_geo_project.module.audit import utils as audit_utils
 _LOGGER = logging.getLogger(__name__)
 
 _OUTDATED = "Outdated version"
+
+
+class _TransversalStatusTool(BaseModel):
+    title: str
+    url: str
+
+
+class _TransversalStatusRepo(BaseModel):
+    types: dict[str, _TransversalStatusTool] = {}
+
+
+class _TransversalStatus(BaseModel):
+    """The transversal status."""
+
+    updated: dict[str, datetime.datetime] = {}
+    """Repository updated time"""
+    repositories: dict[str, _TransversalStatusRepo] = {}
 
 
 class _EventData(BaseModel):
@@ -36,97 +54,80 @@ class _EventData(BaseModel):
     version: str | None = None
 
 
-def _parse_issue_data(issue_data: str) -> dict[str, list[str]]:
-    """Parse the issue data."""
-    result: dict[str, list[str]] = {}
-    key = "undefined"
-    for line in issue_data.split("\n"):
-        if line.startswith("### "):
-            key = line[4:]
-        elif line.strip() or result.get(key):
-            result.setdefault(key, []).append(line)
-    for lines in result.values():
-        while not lines[-1].strip():
-            lines.pop()
-    return result
-
-
-def _format_issue_data(issue_data: dict[str, list[str]]) -> str:
-    """Format the issue data."""
-    result = ""
-    for key, value in issue_data.items():
-        if value:
-            result += "\n"
-            result += f"### {key}\n"
-            result += "\n".join(value)
-            result += "\n"
-    return result
-
-
 def _get_process_output(
-    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, dict[str, Any]],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
     issue_check: module_utils.DashboardIssue,
-    issue_data: dict[str, list[str]],
-) -> module.ProcessOutput[_EventData, dict[str, Any]]:
+) -> module.ProcessOutput[_EventData, _TransversalStatus]:
     assert context.module_event_data.type is not None
     issue_check.set_check(context.module_event_data.type, False)
 
-    for key in list(issue_data.keys()):
-        if not issue_data[key]:
-            del issue_data[key]
-
-    module_status = context.transversal_status
-    repo_key = f"{context.github_project.owner}/{context.github_project.repository}"
-    if issue_data:
-        module_status[repo_key] = {k: [markdown.markdown(v) for v in vl] for k, vl in issue_data.items()}
-    else:
-        if repo_key in module_status:
-            del module_status[repo_key]
-
     return module.ProcessOutput(
-        dashboard="\n<!---->\n".join([issue_check.to_string(), _format_issue_data(issue_data)]),
-        transversal_status=module_status,
+        dashboard=issue_check.to_string(),
+        transversal_status=context.transversal_status,
     )
+
+
+def _process_error(
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
+    key: str,
+    error_message: list[str],
+    issue_check: module_utils.DashboardIssue,
+) -> None:
+    full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
+    if error_message:
+        output_id = module_utils.add_output(
+            context,
+            key,
+            [*error_message, f'<a href="{context.service_url}/logs/{context.job_id}">Logs</a>'],
+            models.OutputStatus.ERROR,
+        )
+
+        output_url = urllib.parse.urljoin(context.service_url, f"output/{output_id}")
+        context.transversal_status.repositories.setdefault(
+            full_repo,
+            _TransversalStatusRepo(),
+        ).types[key] = _TransversalStatusTool(
+            title=key,
+            url=output_url,
+        )
+        issue_check.set_title(key, f"{key} ([Error]({output_url}))")
+    else:
+        issue_check.set_title(key, key)
+
+        if (
+            full_repo in context.transversal_status.repositories
+            and key in context.transversal_status.repositories[full_repo].types
+        ):
+            del context.transversal_status.repositories[full_repo].types[key]
+            if not context.transversal_status.repositories[full_repo].types:
+                del context.transversal_status.repositories[full_repo]
 
 
 def _process_outdated(
-    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, dict[str, Any]],
-    issue_data: dict[str, list[str]],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
+    issue_check: module_utils.DashboardIssue,
 ) -> None:
-    repo = context.github_project.github.get_repo(
-        f"{context.github_project.owner}/{context.github_project.repository}"
-    )
-    versions: list[str] = []
+    repo = context.github_project.repo
     try:
         security_file = repo.get_contents("SECURITY.md")
         assert isinstance(security_file, github.ContentFile.ContentFile)
         security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
-        issue_data[_OUTDATED] = audit_utils.outdated_versions(security)
-        # Remove outdated version in the dashboard
-        versions = module_utils.get_stabilization_branch(security)
+        error_message = audit_utils.outdated_versions(security)
+        _process_error(context, _OUTDATED, error_message, issue_check)
     except github.GithubException as exception:
         if exception.status == 404:
-            issue_data[_OUTDATED] = ["No SECURITY.md file in the repository"]
             _LOGGER.debug("No SECURITY.md file in the repository")
+            _process_error(context, _OUTDATED, ["No SECURITY.md file in the repository"], issue_check)
         else:
-            issue_data[_OUTDATED] = [f"Error while getting SECURITY.md: {exception}"]
+            _LOGGER.exception("Error while getting SECURITY.md")
+            _process_error(context, _OUTDATED, ["Error while getting SECURITY.md"], issue_check)
             raise
-
-    keys = [key for key in issue_data if key != _OUTDATED]
-    for key in keys:
-        to_delete = True
-        for version in versions:
-            if key.endswith(f" {version}"):
-                to_delete = False
-                break
-        if to_delete:
-            del issue_data[key]
 
 
 async def _process_snyk_dpkg(
-    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, dict[str, Any]],
-    issue_data: dict[str, list[str]],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
+    issue_check: module_utils.DashboardIssue,
 ) -> None:
     key = f"Undefined {context.module_event_data.version}"
     new_branch = f"ghci/audit/{context.module_event_data.type}/{context.module_event_data.version}"
@@ -134,7 +135,6 @@ async def _process_snyk_dpkg(
         key = f"Snyk check/fix {context.module_event_data.version}"
     if context.module_event_data.type == "dpkg":
         key = f"Dpkg {context.module_event_data.version}"
-    issue_data[key] = []
     try:
         branch: str = cast(str, context.module_event_data.version)
         if os.path.exists("ci/config.yaml"):
@@ -182,8 +182,7 @@ async def _process_snyk_dpkg(
                     message = module_utils.ansi_proc_message(proc)
                     if proc.returncode != 0:
                         message.title = "Error while setting the Python version"
-                        _LOGGER.warning(message)
-                        issue_data[key].append(message.to_markdown().split("\n", maxsplit=1)[0])
+                        _LOGGER.error(message)
                     else:
                         message.title = "Setting the Python version"
                         _LOGGER.debug(message)
@@ -191,17 +190,7 @@ async def _process_snyk_dpkg(
                 result, body = await audit_utils.snyk(
                     branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
                 )
-                # if create_issue and result:
-                #     repo = context.github_project.github.get_repo(
-                #         f"{context.github_project.owner}/{context.github_project.repository}"
-                #     )
-                #     issue = repo.create_issue(
-                #         title=f"Error on running Snyk on {branch}",
-                #         body=body.to_markdown() or "\n".join([r.to_markdown() for r in result]),
-                #     )
-                #     issue_data[key] += [f"Error on running Snyk on {branch}: #{issue.number}", ""]
-                if result:
-                    issue_data[key] += [r.to_markdown(summary=True) for r in result]
+                _process_error(context, key, [m.to_html() for m in result], issue_check)
 
             if context.module_event_data.type == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")
@@ -219,40 +208,24 @@ async def _process_snyk_dpkg(
                 if proc.returncode != 0:
                     message = module_utils.ansi_proc_message(proc)
                     message.title = "Error while creating the new branch"
-                    _LOGGER.warning(message)
-                    issue_data[key].append(message.to_markdown().split("\n", maxsplit=1)[0])
+                    _LOGGER.error(message)
 
                 else:
-                    repo = context.github_project.github.get_repo(
-                        f"{context.github_project.owner}/{context.github_project.repository}"
-                    )
+                    repo = context.github_project.repo
                     success, pull_request = module_utils.create_commit_pull_request(
                         branch, new_branch, f"Audit {key}", body.to_markdown(), repo
                     )
                     if not success:
-                        issue_data[key].append("Error while create commit or pull request")
-
+                        _LOGGER.error("Error while create commit or pull request")
                     else:
                         if pull_request is not None:
-                            issue_data[key] = [
-                                f"Pull request created: {pull_request.html_url}",
-                                "",
-                                *issue_data[key],
-                            ]
+                            issue_check.set_title(key, f"{key} ([Pull request]({pull_request.html_url}))")
 
-    except Exception as exception:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
-        issue_data[key].append(f"Error: {exception}")
-
-    if issue_data[key]:
-        service_url = context.service_url
-        service_url = service_url if service_url.endswith("/") else service_url + "/"
-        service_url = urllib.parse.urljoin(service_url, "logs/")
-        service_url = urllib.parse.urljoin(service_url, str(context.job_id))
-        issue_data[key] = [f"[Logs]({service_url})", "", *issue_data[key]]
 
 
-class Audit(module.Module[configuration.AuditConfiguration, _EventData, dict[str, Any]]):
+class Audit(module.Module[configuration.AuditConfiguration, _EventData, _TransversalStatus]):
     """The audit module."""
 
     def title(self) -> str:
@@ -326,24 +299,20 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, dict[str
         return results
 
     async def process(
-        self, context: module.ProcessContext[configuration.AuditConfiguration, _EventData, dict[str, Any]]
-    ) -> module.ProcessOutput[_EventData, dict[str, Any]]:
+        self, context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus]
+    ) -> module.ProcessOutput[_EventData, _TransversalStatus]:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
         """
-        issue_data_splitted = context.issue_data.split("<!---->")
-        if len(issue_data_splitted) == 1:
-            issue_data_splitted.append("")
-        issue_check = module_utils.DashboardIssue(issue_data_splitted[0])
-        issue_data = _parse_issue_data(issue_data_splitted[1])
-        repo = context.github_project.github.get_repo(
-            f"{context.github_project.owner}/{context.github_project.repository}"
-        )
+        issue_check = module_utils.DashboardIssue(context.issue_data)
+        repo = context.github_project.repo
 
-        module_utils.manage_updated(
-            context.transversal_status, f"{context.github_project.owner}/{context.github_project.repository}"
+        module_utils.manage_updated_separated(
+            context.transversal_status.updated,
+            context.transversal_status.repositories,
+            f"{context.github_project.owner}/{context.github_project.repository}",
         )
 
         # If no SECURITY.md apply on main branch
@@ -385,12 +354,8 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, dict[str
         else:
             issue_check.remove_check("dpkg")
 
-        for key in list(issue_data.keys()):
-            if not any(key.startswith(start) for start in key_starts):
-                del issue_data[key]
-
         if context.module_event_data.type == "outdated":
-            _process_outdated(context, issue_data)
+            _process_outdated(context, issue_check)
         else:
             if context.module_event_data.version is None:
                 # Creates new jobs with the versions from the SECURITY.md
@@ -414,10 +379,6 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, dict[str
                     else:
                         for version in versions:
                             all_key_starts.append(f"{key}{version}")
-
-                for key in list(issue_data.keys()):
-                    if not any(key.startswith(start) for start in all_key_starts):
-                        del issue_data[key]
 
                 # Audit is relay slow than add 15 to the cron priority
                 priority = (
@@ -445,9 +406,9 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, dict[str
                         )
                 return ProcessOutput(actions=actions)
             else:
-                await _process_snyk_dpkg(context, issue_data)
+                await _process_snyk_dpkg(context, issue_check)
 
-        return _get_process_output(context, issue_check, issue_data)
+        return _get_process_output(context, issue_check)
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
@@ -471,26 +432,16 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, dict[str
         return True
 
     def get_transversal_dashboard(
-        self, context: module.TransversalDashboardContext[dict[str, Any]]
+        self, context: module.TransversalDashboardContext[_TransversalStatus]
     ) -> module.TransversalDashboardOutput:
         """Get the transversal dashboard content."""
-        if "repository" in context.params:
-            return module.TransversalDashboardOutput(
-                renderer="github_app_geo_project:module/audit/repository.html",
-                # template="repository.html",
-                data={
-                    "title": self.title() + " - " + context.params["repository"],
-                    "audit": context.status.get(context.params["repository"], {}),
-                },
-            )
-
         result = []
-        for repository, data in context.status.items():
+        for repository, data in context.status.repositories.items():
             if data:
                 result.append(
                     {
                         "repository": repository,
-                        "data": data.keys(),
+                        "data": data,
                     }
                 )
 
