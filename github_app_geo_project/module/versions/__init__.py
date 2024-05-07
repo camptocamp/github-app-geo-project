@@ -133,7 +133,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             )
             status = context.transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
 
-            transversal_status = _update_upstream_versions(context)
+            _update_upstream_versions(context)
 
             repo = context.github_project.github.get_repo(
                 f"{context.github_project.owner}/{context.github_project.repository}"
@@ -178,7 +178,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             actions = []
             for branch in stabilization_branch:
                 actions.append(module.Action(data=_EventData(step=2, branch=branch)))
-            return ProcessOutput(actions=actions, transversal_status=transversal_status)
+            return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
         if context.module_event_data.step == 2:
             assert context.module_event_data.branch is not None
             with tempfile.TemporaryDirectory() as tmpdirname:
@@ -196,7 +196,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 ).versions[context.module_event_data.branch] = version_status
                 _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
                 _get_dependencies(context, version_status.dependencies_by_datasource)
-            return ProcessOutput(transversal_status=transversal_status)
+            return ProcessOutput(transversal_status=context.transversal_status)
         raise VersionException("Invalid step")
 
     def has_transversal_dashboard(self) -> bool:
@@ -497,12 +497,12 @@ def _dependency_extractor(
 
 def _update_upstream_versions(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
-) -> _TransversalStatus:
+) -> None:
+    transversal_status = context.transversal_status
     for external_config in context.module_config.get("external-packages", []):
         package = external_config["package"]
         datasource = external_config["datasource"]
 
-        transversal_status = context.transversal_status
         module_utils.manage_updated_separated(
             transversal_status.updated, transversal_status.repositories, package
         )
@@ -514,7 +514,7 @@ def _update_upstream_versions(
         if package_status.upstream_updated and (
             package_status.upstream_updated > datetime.datetime.now() - datetime.timedelta(days=30)
         ):
-            return transversal_status
+            return
         package_status.upstream_updated = datetime.datetime.now()
 
         package_status.url = f"https://endoflife.date/{package}"
@@ -522,7 +522,7 @@ def _update_upstream_versions(
         if not response.ok:
             _LOGGER.error("Failed to get the data for %s", package)
             package_status.upstream_updated = None
-            return transversal_status
+            return
         for cycle in response.json():
             if datetime.datetime.fromisoformat(cycle["eol"]) < datetime.datetime.now():
                 continue
@@ -536,8 +536,6 @@ def _update_upstream_versions(
                     ),
                 },
             )
-
-    return transversal_status
 
 
 def _is_supported(support: str, dependency_support: str) -> bool:
