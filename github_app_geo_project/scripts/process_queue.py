@@ -545,7 +545,7 @@ async def _process_one_job(
                 models.Queue.priority <= max_priority,
             )
             .order_by(
-                models.Queue.priority.desc(),
+                models.Queue.priority.asc(),
                 models.Queue.created_at.asc(),
             )
             .with_for_update(of=models.Queue, skip_locked=True)
