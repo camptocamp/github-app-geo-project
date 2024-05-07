@@ -401,10 +401,11 @@ class Audit(module.Module[configuration.AuditConfiguration, dict[str, Any], dict
                     if not any(key.startswith(start) for start in all_key_starts):
                         del issue_data[key]
 
+                # Audit is relay slow than add 15 to the cron priority
                 priority = (
                     module.PRIORITY_STANDARD
                     if context.module_event_data.get("is_dashboard", False)
-                    else module.PRIORITY_CRON
+                    else module.PRIORITY_CRON + 15
                 )
                 actions = []
                 for version in versions:
