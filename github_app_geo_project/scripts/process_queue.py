@@ -556,6 +556,17 @@ async def _process_one_job(
             if no_steal_long_pending:
                 _LOGGER.debug("Process one job (max priority: %i): No job to process", max_priority)
                 return True
+            # Very long pending job => error
+            session.execute(
+                sqlalchemy.update(models.Queue)
+                .where(
+                    models.Queue.status == models.JobStatus.PENDING,
+                    models.Queue.created_at
+                    < datetime.datetime.now(tz=datetime.timezone.utc)
+                    - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", 86400))),
+                )
+                .values(status=models.JobStatus.ERROR)
+            )
             # Get too old pending jobs
             session.execute(
                 sqlalchemy.update(models.Queue)
