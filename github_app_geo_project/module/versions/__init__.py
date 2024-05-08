@@ -211,12 +211,12 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     raise VersionException("Failed to clone the repository")
 
                 version_status = _TransversalStatusVersion(support="Best Effort")
-
                 transversal_status = context.transversal_status
                 transversal_status.repositories.setdefault(
                     f"{context.github_project.owner}/{context.github_project.repository}",
                     _TransversalStatusRepo(),
                 ).versions[context.module_event_data.branch] = version_status
+
                 _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
                 _get_dependencies(context, version_status.dependencies_by_datasource)
             return ProcessOutput(transversal_status=context.transversal_status)
@@ -438,12 +438,19 @@ def _get_dependencies(
     if index != -1:
         lines = lines[index:]
 
-    json_str = "{\n" + "".join(lines) + "}\n"
+    json_str = "{\n" + "\n".join(lines) + "}\n"
     message = module_utils.HtmlMessage(utils.format_json_str(json_str))
     message.title = "Read dependencies from"
     _LOGGER.debug(message)
     data = json.loads(json_str)
+    _read_dependencies(context, data, result)
 
+
+def _read_dependencies(
+    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
+    data: dict[str, Any],
+    result: dict[str, _TransversalStatusNameInDatasource],
+) -> None:
     for values in data.get("packageFiles", {}).values():
         for value in values:
             for dep in value.get("deps", []):

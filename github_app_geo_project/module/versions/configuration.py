@@ -32,7 +32,7 @@ VersionsConfiguration = TypedDict(
         #   - datasource: package
         #     package: postgres
         "external-packages": list["_VersionsConfigurationExternalPackagesItem"],
-        # The package extractor by version type
+        # The package extractor by datasource
         "package-extractor": dict[str, "_VersionsConfigurationPackageExtractorAdditionalproperties"],
     },
     total=False,
