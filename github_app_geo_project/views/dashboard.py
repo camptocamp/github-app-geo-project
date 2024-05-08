@@ -47,7 +47,7 @@ def dashboard(request: pyramid.request.Request) -> dict[str, Any]:
             module_status = {}
         output = module_instance.get_transversal_dashboard(
             module.TransversalDashboardContext(
-                module_instance.transversal_status_from_json(module_status), dict(request.params)
+                module_instance.transversal_status_from_json(module_status or {}), dict(request.params)
             )
         )
         data = output.data
