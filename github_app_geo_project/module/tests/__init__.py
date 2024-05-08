@@ -10,14 +10,21 @@ from github_app_geo_project import models, module, utils
 from github_app_geo_project.module import utils as module_utils
 
 _LOGGER = logging.getLogger(__name__)
-_ConfigType = dict[str, Any]
+
+
+class _ConfigType(BaseModel):
+    test: str = "by default"
 
 
 class _EventData(BaseModel):
     type: str
 
 
-class TestModule(module.Module[_ConfigType, _EventData, None]):
+class _TransversalDashboardData(BaseModel):
+    content: str = "content by default"
+
+
+class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardData]):
     def title(self) -> str:
         """Get the title of the module."""
         return "Test Module"
@@ -47,8 +54,8 @@ class TestModule(module.Module[_ConfigType, _EventData, None]):
         ]
 
     async def process(
-        self, context: module.ProcessContext[_ConfigType, _EventData, None]
-    ) -> module.ProcessOutput[_EventData, None]:
+        self, context: module.ProcessContext[_ConfigType, _EventData, _TransversalDashboardData]
+    ) -> module.ProcessOutput[_EventData, _TransversalDashboardData]:
         """
         Process the action.
 
@@ -111,7 +118,10 @@ class TestModule(module.Module[_ConfigType, _EventData, None]):
 
             with open("/tmp/test-result.yaml", "w", encoding="utf-8") as file:
                 yaml.dump(result, file)
-            return module.ProcessOutput()
+            return module.ProcessOutput(
+                transversal_status=_TransversalDashboardData(content="<b>Some content</b>")
+            )
+
         finally:
             with open("/results/test-result.yaml", "w", encoding="utf-8") as file:
                 file.write(yaml.dump(result))
@@ -131,13 +141,9 @@ class TestModule(module.Module[_ConfigType, _EventData, None]):
         return True
 
     def get_transversal_dashboard(
-        self, context: module.TransversalDashboardContext
+        self, context: module.TransversalDashboardContext[_TransversalDashboardData]
     ) -> module.TransversalDashboardOutput:
-        del context
         return module.TransversalDashboardOutput(
             renderer="github_app_geo_project:module/tests/dashboard.html",
-            data={
-                # Content with HTML tag to see if they are escaped
-                "content": "<b>Some content</b>",
-            },
+            data=context.status.model_dump(),
         )
