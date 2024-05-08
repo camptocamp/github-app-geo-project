@@ -305,14 +305,26 @@ def _get_sources(
 _PACKAGE_VERSION: dict[str, str] = {}
 
 
-def _get_versions(sources: apt_repo.APTSources, package: str) -> list[debian_inspector.version.Version]:
-    return sorted(
-        [
-            debian_inspector.version.Version.from_string(apt_package.version)
-            for apt_package in sources.get_packages_by_name(package)
-            if apt_package.version
-        ]
-    )
+def _fill_versions(
+    package: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
+) -> None:
+    if package not in _PACKAGE_VERSION:
+        dist, pkg = package.split("/")
+        if pkg is None:
+            _LOGGING.warning("No package found in %s", package)
+            return
+        sources = _get_sources(dist, config, local_config)
+        versions = sorted(
+            [
+                debian_inspector.version.Version.from_string(apt_package.version)
+                for apt_package in sources.get_packages_by_name(package)
+                if apt_package.version
+            ]
+        )
+        if not versions:
+            _LOGGING.warning("No version found for %s", package)
+        else:
+            _PACKAGE_VERSION[package] = str(versions[-1])
 
 
 async def _get_packages_version(
@@ -320,18 +332,8 @@ async def _get_packages_version(
 ) -> str | None:
     """Get the version of the package."""
     if package not in _PACKAGE_VERSION:
-        dist, pkg = package.split("/")
-        if pkg is None:
-            _LOGGING.warning("No package found in %s", package)
-            return None
-        sources = _get_sources(dist, config, local_config)
-        versions = await asyncio.to_thread(_get_versions, sources, pkg)
-        if not versions:
-            _LOGGING.warning("No version found for %s", package)
-            return None
-        else:
-            _PACKAGE_VERSION[package] = str(versions[-1])
-    return _PACKAGE_VERSION[package]
+        await asyncio.to_thread(_fill_versions, package, config, local_config)
+    return _PACKAGE_VERSION.get(package)
 
 
 async def dpkg(
