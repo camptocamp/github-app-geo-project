@@ -80,7 +80,7 @@
   }
   ```
 
-- **`package-extractor`** _(object)_: The package extractor by version type. Can contain additional properties.
+- **`package-extractor`** _(object)_: The package extractor by datasource. Can contain additional properties.
   - **Additional properties** _(object)_: The package extractor by package name. Can contain additional properties.
     - **Additional properties** _(array)_
       - **Items** _(object)_: Cannot contain additional properties.

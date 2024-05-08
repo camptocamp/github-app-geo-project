@@ -67,7 +67,7 @@
       }
     },
     "package-extractor": {
-      "description": "The package extractor by version type",
+      "description": "The package extractor by datasource",
       "type": "object",
       "additionalProperties": {
         "description": "The package extractor by package name",
