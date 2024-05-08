@@ -196,7 +196,9 @@ async def _process_snyk_dpkg(
                 body = module_utils.HtmlMessage("Update dpkg packages")
 
                 if os.path.exists("ci/dpkg-versions.yaml"):
-                    audit_utils.dpkg(context.module_config.get("dpkg", {}), local_config.get("dpkg", {}))
+                    await audit_utils.dpkg(
+                        context.module_config.get("dpkg", {}), local_config.get("dpkg", {})
+                    )
 
             diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                 ["git", "diff", "--quiet"], timeout=30

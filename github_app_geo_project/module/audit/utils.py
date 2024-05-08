@@ -305,7 +305,17 @@ def _get_sources(
 _PACKAGE_VERSION: dict[str, str] = {}
 
 
-def _get_packages_version(
+def _get_versions(sources: apt_repo.APTSources, package: str) -> list[debian_inspector.version.Version]:
+    return sorted(
+        [
+            debian_inspector.version.Version.from_string(apt_package.version)
+            for apt_package in sources.get_packages_by_name(package)
+            if apt_package.version
+        ]
+    )
+
+
+async def _get_packages_version(
     package: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
 ) -> str | None:
     """Get the version of the package."""
@@ -315,13 +325,7 @@ def _get_packages_version(
             _LOGGING.warning("No package found in %s", package)
             return None
         sources = _get_sources(dist, config, local_config)
-        versions = sorted(
-            [
-                debian_inspector.version.Version.from_string(apt_package.version)
-                for apt_package in sources.get_packages_by_name(pkg)
-                if apt_package.version
-            ]
-        )
+        versions = await asyncio.to_thread(_get_versions, sources, pkg)
         if not versions:
             _LOGGING.warning("No version found for %s", package)
             return None
@@ -330,7 +334,9 @@ def _get_packages_version(
     return _PACKAGE_VERSION[package]
 
 
-def dpkg(config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration) -> None:
+async def dpkg(
+    config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
+) -> None:
     """Update the version of packages in the file ci/dpkg-versions.yaml."""
     if not os.path.exists("ci/dpkg-versions.yaml"):
         _LOGGING.warning("The file ci/dpkg-versions.yaml does not exist")
@@ -339,7 +345,7 @@ def dpkg(config: configuration.DpkgConfiguration, local_config: configuration.Dp
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)
         for versions in versions_config.values():
             for package_full in versions.keys():
-                version = _get_packages_version(package_full, config, local_config)
+                version = await _get_packages_version(package_full, config, local_config)
                 if version:
                     versions[package_full] = version
 
