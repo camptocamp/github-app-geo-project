@@ -657,7 +657,9 @@ async def _process_one_job(
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
         finally:
             sentry_sdk.set_context("job", {})
-            assert job.status != models.JobStatus.PENDING
+            if job.status == models.JobStatus.PENDING:
+                _LOGGER.error("Job %s finished with pending status", job.id)
+                job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
 
