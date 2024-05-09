@@ -218,7 +218,9 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 ).versions[context.module_event_data.branch] = version_status
 
                 _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
+                _LOGGER.debug("Names: %s", version_status.names_by_datasource)
                 _get_dependencies(context, version_status.dependencies_by_datasource)
+                _LOGGER.debug("Dependencies: %s", version_status.dependencies_by_datasource)
             return ProcessOutput(transversal_status=context.transversal_status)
         raise VersionException("Invalid step")
 
