@@ -9,6 +9,7 @@ from typing import Any
 from numpy import number
 
 from github_app_geo_project import module
+from github_app_geo_project.module import utils
 from github_app_geo_project.module.delete_old_workflow_runs import configuration
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,6 +71,7 @@ class DeleteOldWorkflowRuns(
         )
 
         deleted_number = 0
+        deleted_workflows = []
 
         for rule in context.module_config.get("rules", []):
             older_than_days = rule.get("older-than-days", 0)
@@ -98,9 +100,11 @@ class DeleteOldWorkflowRuns(
             workflow_runs = repo.get_workflow_runs(**arguments)  # type: ignore[arg-type]
             for workflow_run in workflow_runs:
                 if not workflow or workflow_run.name == workflow:
+                    deleted_workflows.append(workflow_run.name)
                     workflow_run.delete()
                     deleted_number += 1
-
-        _LOGGER.info("Deleted %i workflow runs", deleted_number)
+        message = utils.HtmlMessage("\n".join(f"<p>{workflow}</p>" for workflow in deleted_workflows))
+        message.title = f"Deleted {deleted_number} workflow runs"
+        _LOGGER.info(message)
 
         return module.ProcessOutput()

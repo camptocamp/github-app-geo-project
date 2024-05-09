@@ -218,7 +218,9 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 ).versions[context.module_event_data.branch] = version_status
 
                 _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
+                _LOGGER.debug("Names: %s", version_status.names_by_datasource)
                 _get_dependencies(context, version_status.dependencies_by_datasource)
+                _LOGGER.debug("Dependencies: %s", version_status.dependencies_by_datasource)
             return ProcessOutput(transversal_status=context.transversal_status)
         raise VersionException("Invalid step")
 
@@ -438,7 +440,7 @@ def _get_dependencies(
     if index != -1:
         lines = lines[index:]
 
-    json_str = "{\n" + "\n".join(lines) + "}\n"
+    json_str = "{\n" + "\n".join(lines) + "\n}"
     message = module_utils.HtmlMessage(utils.format_json_str(json_str))
     message.title = "Read dependencies from"
     _LOGGER.debug(message)

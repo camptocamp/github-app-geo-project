@@ -21,14 +21,12 @@ import plaster
 import prometheus_client
 import sentry_sdk
 import sqlalchemy.orm
-from c2cwsgiutils import prometheus
-from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
-from prometheus_client.exposition import make_wsgi_app
+from prometheus_client import Gauge
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
 from github_app_geo_project.module import modules
 from github_app_geo_project.module import utils as module_utils
-from github_app_geo_project.views import output, webhook
+from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +43,10 @@ class _Handler(logging.Handler):
         self.context_var.set(job_id)
 
     def emit(self, record: logging.LogRecord) -> None:
-        if self.context_var.get() != self.job_id:
+        try:
+            if self.context_var.get() != self.job_id:
+                return
+        except LookupError:
             return
         if isinstance(record.msg, module_utils.Message):
             record.msg = record.msg.to_html(style="collapse")
@@ -659,7 +660,9 @@ async def _process_one_job(
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
         finally:
             sentry_sdk.set_context("job", {})
-            assert job.status != models.JobStatus.PENDING
+            if job.status == models.JobStatus.PENDING:
+                _LOGGER.error("Job %s finished with pending status", job.id)
+                job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
 
