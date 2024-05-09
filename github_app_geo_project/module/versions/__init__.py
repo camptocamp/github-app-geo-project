@@ -438,7 +438,7 @@ def _get_dependencies(
     if index != -1:
         lines = lines[index:]
 
-    json_str = "{\n" + "\n".join(lines) + "}\n"
+    json_str = "{\n" + "\n".join(lines) + "\n}"
     message = module_utils.HtmlMessage(utils.format_json_str(json_str))
     message.title = "Read dependencies from"
     _LOGGER.debug(message)
