@@ -43,7 +43,10 @@ class _Handler(logging.Handler):
         self.context_var.set(job_id)
 
     def emit(self, record: logging.LogRecord) -> None:
-        if self.context_var.get() != self.job_id:
+        try:
+            if self.context_var.get() != self.job_id:
+                return
+        except LookupError:
             return
         if isinstance(record.msg, module_utils.Message):
             record.msg = record.msg.to_html(style="collapse")
