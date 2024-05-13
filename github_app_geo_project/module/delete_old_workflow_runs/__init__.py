@@ -100,10 +100,10 @@ class DeleteOldWorkflowRuns(
             workflow_runs = repo.get_workflow_runs(**arguments)  # type: ignore[arg-type]
             for workflow_run in workflow_runs:
                 if not workflow or workflow_run.name == workflow:
-                    deleted_workflows.append(workflow_run.name)
+                    deleted_workflows.append(f"{workflow_run.name} ({workflow_run.created_at})")
                     workflow_run.delete()
                     deleted_number += 1
-        message = utils.HtmlMessage("\n".join(f"<p>{workflow}</p>" for workflow in deleted_workflows))
+        message = utils.HtmlMessage("<br>\n".join(deleted_workflows))
         message.title = f"Deleted {deleted_number} workflow runs"
         _LOGGER.info(message)
 
