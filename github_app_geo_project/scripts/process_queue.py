@@ -145,9 +145,6 @@ async def _process_job(
                 .with_for_update(of=models.ModuleStatus)
                 .one_or_none()
             )
-            if module_status is None:
-                module_status = models.ModuleStatus(module=job.module, data={})
-                session.add(module_status)
 
             if "TEST_APPLICATION" not in os.environ:
                 if job.check_run_id is None:
@@ -171,7 +168,9 @@ async def _process_job(
                 module_config=current_module.configuration_from_json(cast(dict[str, Any], module_config)),
                 module_event_data=current_module.event_data_from_json(job.module_data),
                 issue_data=issue_data,
-                transversal_status=current_module.transversal_status_from_json(module_status.data or {}),
+                transversal_status=current_module.transversal_status_from_json(
+                    module_status.data if module_status is not None else {}
+                ),
                 job_id=job.id,
                 service_url=config["service-url"],
             )
@@ -222,6 +221,9 @@ async def _process_job(
 
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and result.transversal_status is not None:
+                if module_status is None:
+                    module_status = models.ModuleStatus(module=job.module, data={})
+                    session.add(module_status)
                 module_status.data = current_module.transversal_status_to_json(result.transversal_status)
             if result is not None:
                 for action in result.actions:
