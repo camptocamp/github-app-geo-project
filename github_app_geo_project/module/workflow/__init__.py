@@ -85,24 +85,25 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             if key not in stabilization_branches or key == "updated":
                 del repo_data[key]
 
-        if context.event_data.get("workflow_run", {}).get("head_branch") not in stabilization_branches:
+        head_branch = context.event_data.get("workflow_run", {}).get("head_branch")
+        if head_branch not in stabilization_branches:
             _LOGGER.info(
                 "The workflow run %s is not on a stabilization branch (%s), skipping",
-                context.event_data.get("workflow_run", {}).get("head_branch"),
+                head_branch,
                 ", ".join(stabilization_branches),
             )
             return module.ProcessOutput()
 
-        branch_data = repo_data.setdefault(context.event_data.get("workflow_run", {}).get("head_branch"), {})
+        branch_data = repo_data.setdefault(head_branch, {})
         if context.event_data.get("workflow_run", {}).get("conclusion") == "success":
             if context.event_data.get("workflow", {}).get("name", "-") in branch_data:
                 del branch_data[context.event_data.get("workflow", {}).get("name", "-")]
-                if not branch_data:
-                    del repo_data[context.event_data.get("workflow_run", {}).get("head_branch")]
-                if repo_data.keys() == ["updated"]:
-                    del context.transversal_status[
-                        context.github_project.owner + "/" + context.github_project.repository
-                    ]
+            if not branch_data:
+                del repo_data[head_branch]
+            if repo_data.keys() == ["updated"]:
+                del context.transversal_status[
+                    context.github_project.owner + "/" + context.github_project.repository
+                ]
             _LOGGER.info(
                 "Workflow '%s' is successful, removing it from the status",
                 context.event_data.get("workflow", {}).get("name", "-"),
