@@ -218,12 +218,14 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 ).versions[context.module_event_data.branch] = version_status
 
                 _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
-                message = module_utils.HtmlMessage(utils.format_json(version_status.names_by_datasource))
+                message = module_utils.HtmlMessage(
+                    utils.format_json(version_status.model_dump()["names_by_datasource"])
+                )
                 message.title = "Names:"
                 _LOGGER.debug(message)
                 _get_dependencies(context, version_status.dependencies_by_datasource)
                 message = module_utils.HtmlMessage(
-                    utils.format_json(version_status.dependencies_by_datasource)
+                    utils.format_json(version_status.model_dump()["dependencies_by_datasource"])
                 )
                 message.title = "Dependencies:"
                 _LOGGER.debug(message)
