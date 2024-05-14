@@ -103,7 +103,7 @@ class DeleteOldWorkflowRuns(
                     deleted_workflows.append(f"{workflow_run.name} ({workflow_run.created_at})")
                     workflow_run.delete()
                     deleted_number += 1
-        message = utils.HtmlMessage("<br>\n".join(deleted_workflows))
+        message = utils.HtmlMessage("\n".join(deleted_workflows))
         message.title = f"Deleted {deleted_number} workflow runs"
         _LOGGER.info(message)
 
