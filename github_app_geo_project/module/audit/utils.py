@@ -109,6 +109,46 @@ async def snyk(
                 message.title = f"Dependencies installed from {file}"
                 _LOGGING.debug(message)
 
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["git", "ls-files", "poetry.lock", "*/poetry.lock"],
+        capture_output=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    if proc.returncode != 0:
+        message = module_utils.ansi_proc_message(proc)
+        message.title = "Error in ls-files"
+        _LOGGING.warning(message)
+        result.append(message)
+    else:
+        for file in proc.stdout.strip().split("\n"):
+            if not file:
+                continue
+            if file in local_config.get("files-no-install", config.get("files-no-install", [])):
+                continue
+            async with asyncio.timeout(1200):
+                command = [
+                    "poetry",
+                    "install",
+                ]
+                async_proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    cwd=os.path.dirname(os.path.abspath(file)),
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await async_proc.communicate()
+                assert async_proc.returncode is not None
+                message = module_utils.AnsiProcessMessage(
+                    command, async_proc.returncode, stdout.decode(), stderr.decode()
+                )
+            if async_proc.returncode != 0:
+                message.title = f"Error while installing the dependencies from {file}"
+                _LOGGING.warning(message)
+                result.append(message)
+            message.title = f"Dependencies installed from {file}"
+            _LOGGING.debug(message)
+
     env = {**os.environ}
     env["FORCE_COLOR"] = "true"
     env_no_debug = {**env}
