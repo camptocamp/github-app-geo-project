@@ -18,11 +18,14 @@ from github_app_geo_project import utils
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
 
-_LOGGING = logging.getLogger(__name__)
+_LOGGER = logging.getLogger(__name__)
 
 
 async def snyk(
-    branch: str, config: configuration.SnykConfiguration, local_config: configuration.SnykConfiguration
+    branch: str,
+    python_version: str,
+    config: configuration.SnykConfiguration,
+    local_config: configuration.SnykConfiguration,
 ) -> tuple[list[module_utils.Message], module_utils.Message]:
     """
     Audit the code with Snyk.
@@ -38,7 +41,7 @@ async def snyk(
     if proc.returncode != 0:
         message = module_utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
-        _LOGGING.warning(message)
+        _LOGGER.warning(message)
         result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -63,10 +66,10 @@ async def snyk(
                 )
             if async_proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
-                _LOGGING.warning(message)
+                _LOGGER.warning(message)
                 result.append(message)
             message.title = f"Dependencies installed from {file}"
-            _LOGGING.debug(message)
+            _LOGGER.debug(message)
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8", timeout=30
@@ -74,7 +77,7 @@ async def snyk(
     if proc.returncode != 0:
         message = module_utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
-        _LOGGING.warning(message)
+        _LOGGER.warning(message)
         result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -103,11 +106,11 @@ async def snyk(
                 )
             if async_proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
-                _LOGGING.warning(message)
+                _LOGGER.warning(message)
                 result.append(message)
             else:
                 message.title = f"Dependencies installed from {file}"
-                _LOGGING.debug(message)
+                _LOGGER.debug(message)
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "poetry.lock", "*/poetry.lock"],
@@ -118,7 +121,7 @@ async def snyk(
     if proc.returncode != 0:
         message = module_utils.ansi_proc_message(proc)
         message.title = "Error in ls-files"
-        _LOGGING.warning(message)
+        _LOGGER.warning(message)
         result.append(message)
     else:
         for file in proc.stdout.strip().split("\n"):
@@ -127,13 +130,31 @@ async def snyk(
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
             async with asyncio.timeout(1200):
+                cwd = os.path.dirname(os.path.abspath(file))
+
+                if python_version:
+                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                        ["pyenv", "local", python_version],
+                        cwd=cwd,
+                        capture_output=True,
+                        encoding="utf-8",
+                        timeout=300,
+                    )
+                    message = module_utils.ansi_proc_message(proc)
+                    if proc.returncode != 0:
+                        message.title = "Error while setting the Python version"
+                        _LOGGER.error(message)
+                    else:
+                        message.title = "Setting the Python version"
+                        _LOGGER.debug(message)
+
                 command = [
                     "poetry",
                     "install",
                 ]
                 async_proc = await asyncio.create_subprocess_exec(
                     *command,
-                    cwd=os.path.dirname(os.path.abspath(file)),
+                    cwd=cwd,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -144,10 +165,10 @@ async def snyk(
                 )
             if async_proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
-                _LOGGING.warning(message)
+                _LOGGER.warning(message)
                 result.append(message)
             message.title = f"Dependencies installed from {file}"
-            _LOGGING.debug(message)
+            _LOGGER.debug(message)
 
     env = {**os.environ}
     env["FORCE_COLOR"] = "true"
@@ -168,11 +189,11 @@ async def snyk(
         )
     if async_proc.returncode != 0:
         message.title = "Error while monitoring the project"
-        _LOGGING.warning(message)
+        _LOGGER.warning(message)
         result.append(message)
     else:
         message.title = "Project monitored"
-        _LOGGING.debug(message)
+        _LOGGER.debug(message)
 
     command = ["snyk", "test", "--json"] + config.get(
         "test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT
@@ -187,9 +208,9 @@ async def snyk(
     message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
     message.title = "Snyk test output"
     if test_json_str:
-        _LOGGING.debug(message)
+        _LOGGER.debug(message)
     else:
-        _LOGGING.error("Snyk test returned nothing on project %s branch %s", os.getcwd(), branch)
+        _LOGGER.error("Snyk test returned nothing on project %s branch %s", os.getcwd(), branch)
     test_json = json.loads(test_json_str) if test_json_str else []
 
     if not isinstance(test_json, list):
@@ -199,7 +220,7 @@ async def snyk(
     error = False
     for row in test_json:
         if row.get("ok", True) is False:
-            _LOGGING.warning("Error on file %s: %s", row.get("targetFile", "-"), row.get("error"))
+            _LOGGER.warning("Error on file %s: %s", row.get("targetFile", "-"), row.get("error"))
             error = True
             continue
 
@@ -257,12 +278,12 @@ async def snyk(
                 command, test_proc.returncode, stdout.decode(), stderr.decode()
             )
         dashboard_message.title = "Error while testing the project"
-        _LOGGING.error(dashboard_message)
+        _LOGGER.error(dashboard_message)
 
     if vulnerabilities:
         message = module_utils.HtmlMessage(" ".join(m.to_html() for m in result))
         message.title = "Vulnerabilities found"
-        _LOGGING.warning(message)
+        _LOGGER.warning(message)
 
     command = ["snyk", "fix"] + config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
     async with asyncio.timeout(300):
@@ -277,10 +298,10 @@ async def snyk(
         )
     if snyk_fix_proc.returncode != 0:
         message.title = "Error while fixing the project"
-        _LOGGING.warning(message)
+        _LOGGER.warning(message)
     else:
         message.title = "Snyk fix applied"
-        _LOGGING.debug(message)
+        _LOGGER.debug(message)
 
     if snyk_fix_proc.returncode != 0 and vulnerabilities:
         result.append(
@@ -351,7 +372,7 @@ def _fill_versions(
     if package not in _PACKAGE_VERSION:
         dist, pkg = package.split("/")
         if pkg is None:
-            _LOGGING.warning("No package found in %s", package)
+            _LOGGER.warning("No package found in %s", package)
             return
         sources = _get_sources(dist, config, local_config)
         versions = sorted(
@@ -362,7 +383,7 @@ def _fill_versions(
             ]
         )
         if not versions:
-            _LOGGING.warning("No version found for %s", package)
+            _LOGGER.warning("No version found for %s", package)
         else:
             _PACKAGE_VERSION[package] = str(versions[-1])
 
@@ -381,7 +402,7 @@ async def dpkg(
 ) -> None:
     """Update the version of packages in the file ci/dpkg-versions.yaml."""
     if not os.path.exists("ci/dpkg-versions.yaml"):
-        _LOGGING.warning("The file ci/dpkg-versions.yaml does not exist")
+        _LOGGER.warning("The file ci/dpkg-versions.yaml does not exist")
 
     with open("ci/dpkg-versions.yaml", encoding="utf-8") as versions_file:
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)

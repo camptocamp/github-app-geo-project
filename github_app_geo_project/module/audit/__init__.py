@@ -188,7 +188,10 @@ async def _process_snyk_dpkg(
                         _LOGGER.debug(message)
 
                 result, body = await audit_utils.snyk(
-                    branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
+                    branch,
+                    python_version,
+                    context.module_config.get("snyk", {}),
+                    local_config.get("snyk", {}),
                 )
                 _process_error(context, key, [m.to_html() for m in result], issue_check)
 
