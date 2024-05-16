@@ -22,15 +22,22 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def snyk(
-    branch: str,
-    python_version: str,
-    config: configuration.SnykConfiguration,
-    local_config: configuration.SnykConfiguration,
+    branch: str, config: configuration.SnykConfiguration, local_config: configuration.SnykConfiguration
 ) -> tuple[list[module_utils.Message], module_utils.Message]:
     """
     Audit the code with Snyk.
     """
     result = []
+
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["echo"],
+        capture_output=True,
+        encoding="utf-8",
+        timeout=30,
+    )
+    message = module_utils.ansi_proc_message(proc)
+    message.title = "Environment variables"
+    _LOGGER.debug(message)
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "requirements.txt", "*/requirements.txt"],
@@ -50,20 +57,32 @@ async def snyk(
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
             async with asyncio.timeout(1200):
-                command = [
-                    "pip",
-                    "install",
-                    *local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
-                    f"--requirement={file}",
-                ]
-                async_proc = await asyncio.create_subprocess_exec(
-                    *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                )
-                stdout, stderr = await async_proc.communicate()
-                assert async_proc.returncode is not None
-                message = module_utils.AnsiProcessMessage(
-                    command, async_proc.returncode, stdout.decode(), stderr.decode()
-                )
+                try:
+                    command = [
+                        "pip",
+                        "install",
+                        *local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
+                        f"--requirement={file}",
+                    ]
+                    async_proc = await asyncio.create_subprocess_exec(
+                        *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                    )
+                    stdout, stderr = await async_proc.communicate()
+                    assert async_proc.returncode is not None
+                    message = module_utils.AnsiProcessMessage(
+                        command, async_proc.returncode, stdout.decode(), stderr.decode()
+                    )
+                except FileNotFoundError as exception:
+                    _LOGGER.exception("Pip not found: %s", exception)
+                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                        ["find", "/", "-name", "pip"],
+                        capture_output=True,
+                        encoding="utf-8",
+                        timeout=30,
+                    )
+                    message = module_utils.ansi_proc_message(proc)
+                    message.title = "Find pip"
+                    _LOGGER.debug(message)
             if async_proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGER.warning(message)
@@ -88,22 +107,34 @@ async def snyk(
             directory = os.path.dirname(os.path.abspath(file))
 
             async with asyncio.timeout(300):
-                command = [
-                    "pipenv",
-                    "install",
-                    *local_config.get("pipenv-sync-arguments", config.get("pipenv-sync-arguments", [])),
-                ]
-                async_proc = await asyncio.create_subprocess_exec(
-                    *command,
-                    cwd=directory,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout, stderr = await async_proc.communicate()
-                assert async_proc.returncode is not None
-                message = module_utils.AnsiProcessMessage(
-                    command, async_proc.returncode, stdout.decode(), stderr.decode()
-                )
+                try:
+                    command = [
+                        "pipenv",
+                        "install",
+                        *local_config.get("pipenv-sync-arguments", config.get("pipenv-sync-arguments", [])),
+                    ]
+                    async_proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        cwd=directory,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    stdout, stderr = await async_proc.communicate()
+                    assert async_proc.returncode is not None
+                    message = module_utils.AnsiProcessMessage(
+                        command, async_proc.returncode, stdout.decode(), stderr.decode()
+                    )
+                except FileNotFoundError as exception:
+                    _LOGGER.exception("Pipenv not found: %s", exception)
+                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                        ["find", "/", "-name", "pipenv"],
+                        capture_output=True,
+                        encoding="utf-8",
+                        timeout=30,
+                    )
+                    message = module_utils.ansi_proc_message(proc)
+                    message.title = "Find pipenv"
+                    _LOGGER.debug(message)
             if async_proc.returncode != 0:
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGER.warning(message)
@@ -130,43 +161,35 @@ async def snyk(
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
             async with asyncio.timeout(1200):
-                cwd = os.path.dirname(os.path.abspath(file))
-
-                if python_version:
+                try:
+                    command = ["poetry", "install"]
+                    async_proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        cwd=os.path.dirname(os.path.abspath(file)),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
+                    stdout, stderr = await async_proc.communicate()
+                    assert async_proc.returncode is not None
+                    message = module_utils.AnsiProcessMessage(
+                        command, async_proc.returncode, stdout.decode(), stderr.decode()
+                    )
+                    if async_proc.returncode != 0:
+                        message.title = f"Error while installing the dependencies from {file}"
+                        _LOGGER.warning(message)
+                        result.append(message)
+                except FileNotFoundError as exception:
+                    _LOGGER.exception("Poetry not found: %s", exception)
                     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                        ["pyenv", "local", python_version],
-                        cwd=cwd,
+                        ["find", "/", "-name", "poetry"],
                         capture_output=True,
                         encoding="utf-8",
-                        timeout=300,
+                        timeout=30,
                     )
                     message = module_utils.ansi_proc_message(proc)
-                    if proc.returncode != 0:
-                        message.title = "Error while setting the Python version"
-                        _LOGGER.error(message)
-                    else:
-                        message.title = "Setting the Python version"
-                        _LOGGER.debug(message)
+                    message.title = "Find poetry"
+                    _LOGGER.debug(message)
 
-                command = [
-                    "poetry",
-                    "install",
-                ]
-                async_proc = await asyncio.create_subprocess_exec(
-                    *command,
-                    cwd=cwd,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                stdout, stderr = await async_proc.communicate()
-                assert async_proc.returncode is not None
-                message = module_utils.AnsiProcessMessage(
-                    command, async_proc.returncode, stdout.decode(), stderr.decode()
-                )
-            if async_proc.returncode != 0:
-                message.title = f"Error while installing the dependencies from {file}"
-                _LOGGER.warning(message)
-                result.append(message)
             message.title = f"Dependencies installed from {file}"
             _LOGGER.debug(message)
 

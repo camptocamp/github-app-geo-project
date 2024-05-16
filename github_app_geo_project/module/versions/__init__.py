@@ -229,6 +229,37 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 )
                 message.title = "Dependencies:"
                 _LOGGER.debug(message)
+
+                message = module_utils.HtmlMessage(
+                    utils.format_json(
+                        transversal_status.repositories[
+                            f"{context.github_project.owner}/{context.github_project.repository}"
+                        ]
+                        .versions[context.module_event_data.branch]
+                        .model_dump()
+                    )
+                )
+                message.title = f"Branch ({context.module_event_data.branch}):"
+                _LOGGER.debug(message)
+
+                message = module_utils.HtmlMessage(
+                    utils.format_json(
+                        transversal_status.repositories[
+                            f"{context.github_project.owner}/{context.github_project.repository}"
+                        ].model_dump()
+                    )
+                )
+                message.title = "Repo:"
+                _LOGGER.debug(message)
+
+                message = module_utils.HtmlMessage(utils.format_json(transversal_status.model_dump()))
+                message.title = "Transversal Status:"
+                _LOGGER.debug(message)
+
+                message = module_utils.HtmlMessage(utils.format_json(context.transversal_status.model_dump()))
+                message.title = "Transversal Status:"
+                _LOGGER.debug(message)
+
             return ProcessOutput(transversal_status=context.transversal_status)
         raise VersionException("Invalid step")
 
