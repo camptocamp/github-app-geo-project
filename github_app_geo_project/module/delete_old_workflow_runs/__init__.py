@@ -66,9 +66,7 @@ class DeleteOldWorkflowRuns(
 
         Note that this method is called in the queue consuming Pod
         """
-        repo = context.github_project.github.get_repo(
-            f"{context.github_project.owner}/{context.github_project.repository}"
-        )
+        repo = context.github_project.repo
 
         deleted_number = 0
         deleted_workflows = []
