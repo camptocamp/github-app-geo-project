@@ -90,7 +90,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
     with SessionMaker() as session:
         if data.get("action") == "rerequested" and data.get("check_suite", {}).get("id"):
-            if "TEST_APPLICATION" in os.environ:
+            if "TEST_APPLICATION" not in os.environ:
                 try:
                     project_github = configuration.get_github_project(
                         request.registry.settings, application, owner, repository
@@ -120,7 +120,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 .where(models.Queue.check_run_id == data["check_run"]["id"])
                 .values({"priority": module.PRIORITY_HIGH, "status": models.JobStatus.NEW})
             )
-            if "TEST_APPLICATION" in os.environ:
+            if "TEST_APPLICATION" not in os.environ:
                 try:
                     project_github = configuration.get_github_project(
                         request.registry.settings, application, owner, repository
