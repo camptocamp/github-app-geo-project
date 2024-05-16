@@ -73,18 +73,18 @@ def _commits_messages(
             "check-fixup", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_FIXUP_DEFAULT
         ) and head.startswith("fixup! "):
             _LOGGER.warning("Fixup message not allowed")
-            messages.append(f"- [ ] Fixup message not allowed in commit {commit.sha}")
+            messages.append(f":heavy_check_mark: Fixup message not allowed in commit {commit.sha}")
             success = False
         else:
-            messages.append(f"- [x] The commit {commit.sha} is not a fixup commit")
+            messages.append(f":x: The commit {commit.sha} is not a fixup commit")
         if commit_message_config.get(
             "check-squash", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_SQUASH_DEFAULT
         ) and head.startswith("squash! "):
             _LOGGER.warning("Squash message not allowed")
-            messages.append(f"- [ ] Squash message not allowed in commit {commit.sha}")
+            messages.append(f":heavy_check_mark: Squash message not allowed in commit {commit.sha}")
             success = False
         else:
-            messages.append(f"- [x] The commit {commit.sha} is not a squash commit")
+            messages.append(f":x: The commit {commit.sha} is not a squash commit")
         if (
             commit_message_config.get(
                 "check-first-capital",
@@ -94,11 +94,11 @@ def _commits_messages(
         ):
             _LOGGER.warning("The first letter of message head should be a capital")
             messages.append(
-                f"- [ ] The first letter of message head should be a capital in commit {commit.sha}"
+                f":heavy_check_mark: The first letter of message head should be a capital in commit {commit.sha}"
             )
             success = False
         else:
-            messages.append(f"- [x] The first letter of message head in commit {commit.sha} is a capital")
+            messages.append(f":x: The first letter of message head in commit {commit.sha} is a capital")
         min_length = commit_message_config.get(
             "min-head-length",
             checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_MIN_HEAD_LENGTH_DEFAULT,
@@ -106,12 +106,12 @@ def _commits_messages(
         if min_length > 0 and len(head) < min_length:
             _LOGGER.warning("The message head should be at least %i characters long", min_length)
             messages.append(
-                f"- [ ] The message head should be at least {min_length} characters long in commit {commit.sha}"
+                f":heavy_check_mark: The message head should be at least {min_length} characters long in commit {commit.sha}"
             )
             success = False
         else:
             messages.append(
-                f"- [x] The message head in commit {commit.sha} is at least {min_length} characters long"
+                f":x: The message head in commit {commit.sha} is at least {min_length} characters long"
             )
         if (
             commit_message_config.get(
@@ -121,10 +121,10 @@ def _commits_messages(
             and len(commit.parents) != 1
         ):
             _LOGGER.warning("The merge commit are not allowed")
-            messages.append(f"- [ ] The merge commit are not allowed in commit {commit.sha}")
+            messages.append(f":heavy_check_mark: The merge commit are not allowed in commit {commit.sha}")
             success = False
         else:
-            messages.append(f"- [x] The commit {commit.sha} is not a merge commit")
+            messages.append(f":x: The commit {commit.sha} is not a merge commit")
         if commit_message_config.get(
             "check-no-own-revert",
             checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_NO_OWN_REVERT_DEFAULT,
@@ -136,11 +136,11 @@ def _commits_messages(
             revert_commit_hash = message_lines[2][len("This reverts commit ") : -1]
             if revert_commit_hash in commit_hash:
                 _LOGGER.warning("Revert own commits is not allowed (%s)", revert_commit_hash)
-                messages.append(f"- [x] Revert own commits is not allowed in commit {commit.sha}")
+                messages.append(f":x: Revert own commits is not allowed in commit {commit.sha}")
                 success = False
                 continue
             else:
-                messages.append(f"- [x] The commit {commit.sha} is not an own revert commit")
+                messages.append(f":x: The commit {commit.sha} is not an own revert commit")
     return success, messages
 
 
@@ -172,13 +172,13 @@ def _commits_spell(
                 _LOGGER.warning(message)
                 success = False
                 messages.append(
-                    "- [ ] "
+                    ":heavy_check_mark: "
                     + message.title
                     + "\n"
                     + module_utils.html_to_markdown(cast(module_utils.AnsiProcessMessage, message).stdout)
                 )
             else:
-                messages.append(f"- [x] Code spell on commit {commit.sha} are correct")
+                messages.append(f":x: Code spell on commit {commit.sha} are correct")
             message.title = f"Code spell in commit {commit.sha}"
             _LOGGER.debug(message)
     return success, messages
@@ -209,13 +209,13 @@ def _pull_request_spell(
         if spell.returncode != 0:
             message.title = "Code spell error in pull request"
             _LOGGER.warning(message)
-            messages.append("- [ ] " + message.to_markdown())
+            messages.append(":heavy_check_mark: " + message.to_markdown())
             return False, messages
         else:
             messages.append(
-                "- [x] Pull request title is correct"
+                ":x: Pull request title is correct"
                 if config.get("only_head", checks_configuration.PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT)
-                else "- [x] Pull request title and body are correct"
+                else ":x: Pull request title and body are correct"
             )
 
         message.title = "Code spell in pull request"
