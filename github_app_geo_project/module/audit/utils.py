@@ -73,7 +73,7 @@ async def snyk(
                         command, async_proc.returncode, stdout.decode(), stderr.decode()
                     )
                 except FileNotFoundError as exception:
-                    _LOGGER.exception(f"Pip not found: {exception}")
+                    _LOGGER.exception("Pip not found: %s", exception)
                     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                         ["find", "/", "-name", "pip"],
                         capture_output=True,
@@ -125,7 +125,7 @@ async def snyk(
                         command, async_proc.returncode, stdout.decode(), stderr.decode()
                     )
                 except FileNotFoundError as exception:
-                    _LOGGER.exception(f"Pipenv not found: {exception}")
+                    _LOGGER.exception("Pipenv not found: %s", exception)
                     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                         ["find", "/", "-name", "pipenv"],
                         capture_output=True,
