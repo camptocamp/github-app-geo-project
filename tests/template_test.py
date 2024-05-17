@@ -82,18 +82,38 @@ def test_pprint_duration() -> None:
     duration_str = "00:00:30.500"
     expected_output = "30 seconds"
     assert pprint_duration(duration_str) == expected_output
+    duration_str = "00:00:30.501"
+    expected_output = "31 seconds"
+    assert pprint_duration(duration_str) == expected_output
 
     # Test case when duration is less than 1 hour
     duration_str = "00:45:30.500"
-    expected_output = "45 minutes"
+    expected_output = "46 minutes"
     assert pprint_duration(duration_str) == expected_output
 
     # Test case when duration is less than 1 day
     duration_str = "12:30:30.500"
-    expected_output = "12 hours"
+    expected_output = "13 hours"
     assert pprint_duration(duration_str) == expected_output
 
     # Test case when duration is more than 1 day
     duration_str = "2 days, 12:30:30"
-    expected_output = "2 days"
+    expected_output = "3 days"
+    assert pprint_duration(duration_str) == expected_output
+
+    duration_str = "1 day, 1:30:30"
+    expected_output = "1 day"
+    assert pprint_duration(duration_str) == expected_output
+
+    # test negative duration
+    duration_str = "-1 day, 3:37:51.815113"
+    expected_output = "-20 hours"
+    assert pprint_duration(duration_str) == expected_output
+
+    duration_str = "-2 day, 18:37:51.815113"
+    expected_output = "-1 day"
+    assert pprint_duration(duration_str) == expected_output
+
+    duration_str = "-2 day, 3:37:51.815113"
+    expected_output = "-2 days"
     assert pprint_duration(duration_str) == expected_output

@@ -113,24 +113,31 @@ def pprint_duration(duration_in: str | timedelta) -> str:
         return "-"
 
     if isinstance(duration_in, str):
-        if " days, " in duration_in:
-            day_, duration_in = duration_in.split(" days, ")
+        if " days, " in duration_in or " day, " in duration_in:
+            day_txt = " days, " if " days, " in duration_in else " day, "
+            day_, duration_in = duration_in.split(day_txt)
             day = int(day_)
-            date = datetime.strptime(duration_in, "%H:%M:%S")
+
+            date = datetime.strptime(duration_in, "%H:%M:%S.%f" if "." in duration_in else "%H:%M:%S")
         else:
             day = 0
-            date = datetime.strptime(duration_in, "%H:%M:%S.%f")
+            date = datetime.strptime(duration_in, "%H:%M:%S.%f" if "." in duration_in else "%H:%M:%S")
         duration = timedelta(
             days=day, hours=date.hour, minutes=date.minute, seconds=date.second, microseconds=date.microsecond
         )
     else:
         duration = duration_in
 
-    if duration.total_seconds() < 60:
-        return f"{duration.seconds} seconds"
-    elif duration.total_seconds() < 3600:
-        return f"{duration.seconds // 60} minutes"
-    elif duration.total_seconds() < 86400:
-        return f"{duration.seconds // 3600} hours"
+    secounds_abs = abs(duration.total_seconds())
+    if secounds_abs < 60:
+        plurial = "" if int(round(secounds_abs)) == 1 else "s"
+        return f"{int(round(duration.total_seconds()))} second{plurial}"
+    elif secounds_abs < 3600:
+        plurial = "" if int(round(secounds_abs / 60)) == 1 else "s"
+        return f"{int(round(duration.total_seconds() / 60))} minute{plurial}"
+    elif secounds_abs < 86400:
+        plurial = "" if int(round(secounds_abs / 3600)) == 1 else "s"
+        return f"{int(round(duration.total_seconds() / 3600))} hour{plurial}"
     else:
-        return f"{duration.days} days"
+        plurial = "" if int(round(secounds_abs / 86400)) == 1 else "s"
+        return f"{int(round(duration.total_seconds() / 86400))} day{plurial}"
