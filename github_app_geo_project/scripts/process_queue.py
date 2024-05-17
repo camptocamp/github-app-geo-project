@@ -176,7 +176,9 @@ async def _process_job(
             )
             root_logger.addHandler(handler)
             try:
-                result = await current_module.process(context)
+                job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", 3600))
+                async with asyncio.timeout(job_timeout):
+                    result = await current_module.process(context)
                 if result is not None:
                     _LOGGER.info(
                         "Module %s result with: %s",
@@ -237,8 +239,10 @@ async def _process_job(
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and result.transversal_status is not None:
                 _LOGGER.debug(
-                    "Update module status %s\n%s",
+                    "Update module status %s (type: %s, %s)\n%s",
                     job.module,
+                    type(result.transversal_status),
+                    result.transversal_status,
                     current_module.transversal_status_to_json(result.transversal_status),
                 )
                 if module_status is None:
@@ -709,21 +713,19 @@ class _Run:
         self.max_priority = max_priority
 
     async def __call__(self, *args: Any, **kwds: Any) -> Any:
-        job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", 3600))
         empty_thread_sleep = int(os.environ.get("GHCI_EMPTY_THREAD_SLEEP", 10))
 
         while True:
             empty = True
             try:
-                async with asyncio.timeout(job_timeout):
-                    empty = await _process_one_job(
-                        self.config,
-                        self.Session,
-                        no_steal_long_pending=self.end_when_empty,
-                        max_priority=self.max_priority,
-                    )
-                    if self.end_when_empty and empty:
-                        return
+                empty = await _process_one_job(
+                    self.config,
+                    self.Session,
+                    no_steal_long_pending=self.end_when_empty,
+                    max_priority=self.max_priority,
+                )
+                if self.end_when_empty and empty:
+                    return
             except asyncio.TimeoutError:
                 _LOGGER.exception("Timeout")
             except Exception:  # pylint: disable=broad-exception-caught

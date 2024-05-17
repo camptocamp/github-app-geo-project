@@ -103,7 +103,14 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                         session.execute(
                             sqlalchemy.update(models.Queue)
                             .where(models.Queue.check_run_id == check_run.id)
-                            .values({"priority": module.PRIORITY_HIGH, "status": models.JobStatus.NEW})
+                            .values(
+                                {
+                                    "priority": module.PRIORITY_HIGH,
+                                    "status": models.JobStatus.NEW,
+                                    "started_at": None,
+                                    "finished_at": None,
+                                }
+                            )
                         )
                         session.commit()
                         check_run.edit(status="queued")
@@ -118,7 +125,14 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(models.Queue.check_run_id == data["check_run"]["id"])
-                .values({"priority": module.PRIORITY_HIGH, "status": models.JobStatus.NEW})
+                .values(
+                    {
+                        "priority": module.PRIORITY_HIGH,
+                        "status": models.JobStatus.NEW,
+                        "started_at": None,
+                        "finished_at": None,
+                    }
+                )
             )
             if "TEST_APPLICATION" not in os.environ:
                 try:
