@@ -39,6 +39,10 @@ async def snyk(
     message.title = "Environment variables"
     _LOGGER.debug(message)
 
+    env = os.environ.copy()
+    env["PATH"] = f'{env["HOME"]}/.local/bin:{env["PATH"]}'
+    _LOGGER.debug("Updated path: %s", env["PATH"])
+
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "requirements.txt", "*/requirements.txt"],
         capture_output=True,
@@ -65,7 +69,7 @@ async def snyk(
                         f"--requirement={file}",
                     ]
                     async_proc = await asyncio.create_subprocess_exec(
-                        *command, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                        *command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
                     )
                     stdout, stderr = await async_proc.communicate()
                     assert async_proc.returncode is not None
@@ -116,6 +120,7 @@ async def snyk(
                     async_proc = await asyncio.create_subprocess_exec(
                         *command,
                         cwd=directory,
+                        env=env,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
@@ -166,6 +171,7 @@ async def snyk(
                     async_proc = await asyncio.create_subprocess_exec(
                         *command,
                         cwd=os.path.dirname(os.path.abspath(file)),
+                        env=env,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
