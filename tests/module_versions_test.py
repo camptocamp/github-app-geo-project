@@ -495,3 +495,19 @@ def test_read_dependency() -> None:
             }
         ),
     }
+
+
+def test_transversal_status_to_json():
+    status = _TransversalStatus(
+        updated={}, repositories={"package1": _TransversalStatusRepo(url="url1", versions={})}
+    )
+    module = Versions()
+    assert module.transversal_status_to_json(status) == {
+        "repositories": {
+            "package1": {
+                "url": "url1",
+                "versions": {},
+            },
+        },
+        "updated": {},
+    }

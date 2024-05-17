@@ -237,8 +237,10 @@ async def _process_job(
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and result.transversal_status is not None:
                 _LOGGER.debug(
-                    "Update module status %s\n%s",
+                    "Update module status %s (type: %s, %s)\n%s",
                     job.module,
+                    type(result.transversal_status),
+                    result.transversal_status,
                     current_module.transversal_status_to_json(result.transversal_status),
                 )
                 if module_status is None:
