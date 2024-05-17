@@ -177,12 +177,27 @@ async def _process_job(
             root_logger.addHandler(handler)
             try:
                 result = await current_module.process(context)
-                if result and not result.success:
-                    _LOGGER.warning("Module %s failed", job.module)
+                if result is not None:
+                    _LOGGER.info(
+                        "Module %s result with: %s",
+                        job.module,
+                        ", ".join(
+                            [
+                                *(["dashboard"] if result.dashboard is not None else []),
+                                *(["transversal_status"] if result.transversal_status is not None else []),
+                                *(["actions"] if result.actions else []),
+                                *(["output"] if result.output is not None else []),
+                            ]
+                        ),
+                    )
+
+                    if not result.success:
+                        _LOGGER.warning("Module %s failed", job.module)
             finally:
                 root_logger.removeHandler(handler)
 
             if github_project is not None:
+                _LOGGER.debug("Update check run %s", job.check_run_id)
                 check_output = {
                     "title": current_module.title(),
                     "summary": (
@@ -221,11 +236,17 @@ async def _process_job(
 
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and result.transversal_status is not None:
+                _LOGGER.debug(
+                    "Update module status %s\n%s",
+                    job.module,
+                    current_module.transversal_status_to_json(result.transversal_status),
+                )
                 if module_status is None:
                     module_status = models.ModuleStatus(module=job.module, data={})
                     session.add(module_status)
                 module_status.data = current_module.transversal_status_to_json(result.transversal_status)
             if result is not None:
+                _LOGGER.debug("Process actions")
                 for action in result.actions:
                     new_job = models.Queue()
                     new_job.priority = action.priority if action.priority >= 0 else job.priority
