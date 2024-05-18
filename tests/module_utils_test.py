@@ -173,6 +173,8 @@ def test_manage_updated_separated():
 
     assert key in updated
     assert updated[key] >= datetime.datetime.now() - datetime.timedelta(minutes=1)
+    assert updated[key] <= datetime.datetime.now() + datetime.timedelta(minutes=1)
+    assert key not in data
 
     assert "key1" not in updated
     assert "key1" not in data
