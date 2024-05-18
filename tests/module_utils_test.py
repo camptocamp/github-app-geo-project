@@ -1,3 +1,4 @@
+import datetime
 from unittest.mock import Mock
 
 from github_app_geo_project.module import utils
@@ -153,3 +154,31 @@ message</p>"""
         """<p>stderr
 message</p>"""
     )
+
+
+def test_manage_updated_separated():
+    updated = {
+        "key2": datetime.datetime.now() - datetime.timedelta(hours=23),
+        "key3": datetime.datetime.now() - datetime.timedelta(hours=25),
+    }
+    data = {
+        "key1": {},
+        "key2": {},
+        "key3": {},
+    }
+    key = "key4"
+    days_old = 1
+
+    utils.manage_updated_separated(updated, data, key, days_old)
+
+    assert key in updated
+    assert updated[key] >= datetime.datetime.now() - datetime.timedelta(minutes=1)
+
+    assert "key1" not in updated
+    assert "key1" not in data
+
+    assert "key2" in updated
+    assert "key2" in data
+
+    assert "key3" not in updated
+    assert "key3" not in data
