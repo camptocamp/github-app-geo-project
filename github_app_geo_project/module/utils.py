@@ -676,17 +676,18 @@ def manage_updated_separated(
     Add an updated field to the status and remove the old status.
     """
     updated[key] = datetime.datetime.now()
+    min_date = datetime.datetime.now() - datetime.timedelta(days=days_old)
     for other_key, date in list(updated.items()):
-        if date < datetime.datetime.now() - datetime.timedelta(days=days_old):
+        if date < min_date:
             _LOGGER.debug(
                 "Remove old date %s (%s < %s)",
                 other_key,
                 date,
                 datetime.datetime.now() - datetime.timedelta(days=days_old),
             )
-            del data[other_key]
+            del updated[other_key]
 
-    for other_key in list(updated.keys()):
+    for other_key in list(data.keys()):
         if other_key not in updated:
             _LOGGER.debug("Remove old status %s", other_key)
             del data[other_key]
