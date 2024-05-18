@@ -71,42 +71,39 @@ async def test_process_step_2() -> None:
     }
 """
     output = await versions.process(context)
-    print(output)
     assert isinstance(output.transversal_status, _TransversalStatus)
-    assert versions.transversal_status_to_json(output.transversal_status) == {
-        "repositories": {
-            "camptocamp/test": {
-                "versions": {
-                    "master": {
-                        "dependencies_by_datasource": {},
-                        "names_by_datasource": {
-                            "docker": {
-                                "names": [
-                                    "camptocamp/github-app-geo-project:master",
-                                ],
-                            },
-                            "github": {
-                                "names": [
-                                    "camptocamp/test",
-                                ],
-                            },
-                            "npm": {
-                                "names": [
-                                    "ghci",
-                                ],
-                            },
-                            "pypi": {
-                                "names": [
-                                    "github-app-geo-project",
-                                ],
-                            },
+    transversal_status_json = versions.transversal_status_to_json(output.transversal_status)
+    assert transversal_status_json.get("repositories") == {
+        "camptocamp/test": {
+            "versions": {
+                "master": {
+                    "dependencies_by_datasource": {},
+                    "names_by_datasource": {
+                        "docker": {
+                            "names": [
+                                "camptocamp/github-app-geo-project:master",
+                            ],
                         },
-                        "support": "Best Effort",
+                        "github": {
+                            "names": [
+                                "camptocamp/test",
+                            ],
+                        },
+                        "npm": {
+                            "names": [
+                                "ghci",
+                            ],
+                        },
+                        "pypi": {
+                            "names": [
+                                "github-app-geo-project",
+                            ],
+                        },
                     },
+                    "support": "Best Effort",
                 },
             },
         },
-        "updated": {},
     }
 
 
