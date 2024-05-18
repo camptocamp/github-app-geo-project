@@ -40,9 +40,7 @@ class _TransversalStatusNameInDatasource(BaseModel):
 class _TransversalStatusVersion(BaseModel):
     support: str
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
-    """Datasource.name.branch[]"""
     dependencies_by_datasource: dict[str, _TransversalStatusNameInDatasource] = {}
-    """Datasource.name.versions[]"""
 
 
 class _TransversalStatusRepo(BaseModel):
@@ -395,7 +393,7 @@ def _get_names(
             data = toml.load(file)
             name = data.get("project", {}).get("name")
             names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
-            if name:
+            if name and name not in names:
                 names.append(name)
             else:
                 name = data.get("tool", {}).get("poetry", {}).get("name")
@@ -503,9 +501,9 @@ def _read_dependencies(
                     versions_by_names = result.setdefault(
                         datasource, _TransversalStatusNameInDatasource()
                     ).versions_by_names
-                    versions_by_names.setdefault(dependency, _TransversalStatusVersions()).versions.append(
-                        version
-                    )
+                    versions = versions_by_names.setdefault(dependency, _TransversalStatusVersions()).versions
+                    if version not in versions:
+                        versions.append(version)
 
     for datasource_value in result.values():
         for dep, dep_value in datasource_value.versions_by_names.items():
