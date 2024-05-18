@@ -203,10 +203,11 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         if context.module_event_data.step == 2:
             assert context.module_event_data.branch is not None
             with tempfile.TemporaryDirectory() as tmpdirname:
-                os.chdir(tmpdirname)
-                success = module_utils.git_clone(context.github_project, context.module_event_data.branch)
-                if not success:
-                    raise VersionException("Failed to clone the repository")
+                if os.environ.get("TEST") != "TRUE":
+                    os.chdir(tmpdirname)
+                    success = module_utils.git_clone(context.github_project, context.module_event_data.branch)
+                    if not success:
+                        raise VersionException("Failed to clone the repository")
 
                 version_status = _TransversalStatusVersion(support="Best Effort")
                 transversal_status = context.transversal_status
@@ -446,27 +447,30 @@ def _get_dependencies(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
     result: dict[str, _TransversalStatusNameInDatasource],
 ) -> None:
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["renovate-graph", "--platform=local"],
-        env={
-            **os.environ,
-            "RG_LOCAL_PLATFORM": "github",
-            "RG_LOCAL_ORGANISATION": context.github_project.owner,
-            "RG_LOCAL_REPO": context.github_project.repository,
-        },
-        capture_output=True,
-        encoding="utf-8",
-        timeout=300,
-    )
-    message = module_utils.ansi_proc_message(proc)
-    if proc.returncode != 0:
-        message.title = "Failed to get the dependencies"
-        _LOGGER.error(message)
-        raise VersionException(message.title)
-    message.title = "Got the dependencies"
-    _LOGGER.debug(message)
+    if os.environ.get("TEST") != "TRUE":
+        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+            ["renovate-graph", "--platform=local"],
+            env={
+                **os.environ,
+                "RG_LOCAL_PLATFORM": "github",
+                "RG_LOCAL_ORGANISATION": context.github_project.owner,
+                "RG_LOCAL_REPO": context.github_project.repository,
+            },
+            capture_output=True,
+            encoding="utf-8",
+            timeout=300,
+        )
+        message = module_utils.ansi_proc_message(proc)
+        if proc.returncode != 0:
+            message.title = "Failed to get the dependencies"
+            _LOGGER.error(message)
+            raise VersionException(message.title)
+        message.title = "Got the dependencies"
+        _LOGGER.debug(message)
 
-    lines = proc.stdout.splitlines()
+        lines = proc.stdout.splitlines()
+    else:
+        lines = os.environ["RENOVATE_GRAPH"].splitlines()
     lines = [line for line in lines if line.startswith("  ")]
 
     index = -1

@@ -1,5 +1,7 @@
+import os
 from unittest.mock import Mock
 
+import pytest
 import responses
 
 from github_app_geo_project.module.versions import (
@@ -29,30 +31,82 @@ def test_get_actions() -> None:
     assert actions[0].data == _EventData(step=1)
 
 
-async def test_process_step_1() -> None:
-    versions = Versions()
-    context = Mock()
-    context.event_data = _EventData(step=1)
-    context.transversal_status = _TransversalStatus()
-
-    output = await versions.process(context)
-    assert len(output.actions) == 1
-    assert output.actions[0].data == _EventData(step=2)
-    assert isinstance(output.transversal_status, dict)
-    assert output.transversal_status == {}
-
-
+@pytest.mark.asyncio
 async def test_process_step_2() -> None:
     versions = Versions()
     context = Mock()
-    context.event_data = _EventData(step=2)
+    context.module_event_data = _EventData(step=2, branch="master")
     context.transversal_status = _TransversalStatus()
-    #    "github_project": {"owner": "owner", "repository": "repo", "github": "github"},
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "test"
+    os.environ["TEST"] = "TRUE"
+    os.environ[
+        "RENOVATE_GRAPH"
+    ] = """WARN: GitHub token is required for some dependencies
+       "githubDeps": [
+         "camptocamp/backport-action",
+         "actions/checkout",
+         "github/codeql-action",
+         "actions/cache",
+         "actions/upload-artifact",
+         "actions/github-script",
+         "python"
+       ]
+ INFO: Extracted dependencies
+       "packageFiles": {
+         "docker-compose": [
+           {
+             "deps": [
+               {
+                 "depName": "sbrunner/scan-to-paperless",
+                 "replaceString": "sbrunner/scan-to-paperless",
+                 "autoReplaceStringTemplate": "{{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
+                 "datasource": "docker"
+               }
+             ],
+             "packageFile": "docker-compose.yaml"
+           }
+         ]
+    }
+"""
     output = await versions.process(context)
-    assert isinstance(output.transversal_status, dict)
-    assert output.transversal_status == {
-        "updated": {"branch": "branch"},
-        "repositories": {"branch": "branch"},
+    print(output)
+    assert isinstance(output.transversal_status, _TransversalStatus)
+    assert versions.transversal_status_to_json(output.transversal_status) == {
+        "repositories": {
+            "camptocamp/test": {
+                "versions": {
+                    "master": {
+                        "dependencies_by_datasource": {},
+                        "names_by_datasource": {
+                            "docker": {
+                                "names": [
+                                    "camptocamp/github-app-geo-project:master",
+                                ],
+                            },
+                            "github": {
+                                "names": [
+                                    "camptocamp/test",
+                                ],
+                            },
+                            "npm": {
+                                "names": [
+                                    "ghci",
+                                ],
+                            },
+                            "pypi": {
+                                "names": [
+                                    "github-app-geo-project",
+                                ],
+                            },
+                        },
+                        "support": "Best Effort",
+                    },
+                },
+            },
+        },
+        "updated": {},
     }
 
 

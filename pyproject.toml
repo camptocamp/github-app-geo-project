@@ -73,6 +73,7 @@ codespell = "2.2.6"
 pydantic = "2.7.1"
 markdownify = "0.12.1"
 responses = "0.25.0"
+pytest-asyncio = "0.23.6"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.0.8",  extras = ["test-images"] }
