@@ -386,7 +386,9 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
     def event_data_to_json(self, data: _EVENT_DATA) -> dict[str, Any]:
         """Create the JSON data from the module event data."""
         if isinstance(data, BaseModel):
+            _LOGGER.debug("%s: Thread event_data as Pydantic model", self.title())
             return data.model_dump(exclude_unset=True)
+        _LOGGER.debug("%s: Thread event_data as JSON", self.title())
         return data  # type: ignore[return-value]
 
     def transversal_status_from_json(self, data: dict[str, Any]) -> _TRANSVERSAL_STATUS:
@@ -405,7 +407,9 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
     def transversal_status_to_json(self, transversal_status: _TRANSVERSAL_STATUS) -> dict[str, Any]:
         """Create the JSON data from the transversal status."""
         if isinstance(transversal_status, BaseModel):
+            _LOGGER.debug("%s: Thread transversal_status ay Pydantic model", self.title())
             return transversal_status.model_dump(exclude_unset=True)
+        _LOGGER.debug("%s: Thread transversal_status as JSON", self.title())
         return transversal_status  # type: ignore[return-value]
 
     def required_issue_dashboard(self) -> bool:
