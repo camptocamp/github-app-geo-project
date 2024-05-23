@@ -53,7 +53,6 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
         """
         if (
             context.event_data.get("action") == "completed"
-            and context.event_data.get("workflow_run", {}).get("pull_requests")
             and context.event_data.get("workflow_run", {}).get("conclusion") == "failure"
         ):
             return [module.Action(priority=module.PRIORITY_CRON, data={})]
@@ -67,21 +66,22 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
 
         Note that this method is called in the queue consuming Pod
         """
-        repo = context.github_project.github.get_repo(
-            f"{context.github_project.owner}/{context.github_project.repository}"
-        )
+        repo = context.github_project.repo
         workflow_run = repo.get_workflow_run(cast(int, context.event_data["workflow_run"]["id"]))
         if not workflow_run.get_artifacts():
             _LOGGER.debug("No artifacts found")
             return module.ProcessOutput()
 
+        is_clone = "head_repository" in context.event_data.get("workflow_run", {})
         should_push = False
+        result_message = []
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.chdir(tmpdirname)
-            success = utils.git_clone(context.github_project, workflow_run.head_branch)
-            if not success:
-                raise PatchException("Failed to clone the repository, see logs for details")
+            if not is_clone:
+                success = utils.git_clone(context.github_project, workflow_run.head_branch)
+                if not success:
+                    raise PatchException("Failed to clone the repository, see logs for details")
 
             for artifact in workflow_run.get_artifacts():
                 if not artifact.name.endswith(".patch"):
@@ -123,28 +123,31 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                         patch_input = file.read().decode("utf-8")
                         message: utils.Message = utils.HtmlMessage(patch_input, "Applied the patch input")
                         _LOGGER.debug(message)
-                        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                            ["patch", "--strip=1"],
-                            input=patch_input,
-                            encoding="utf-8",
-                            capture_output=True,
-                            timeout=30,
-                        )
-                        message = utils.ansi_proc_message(proc)
-                        if proc.returncode != 0:
-                            message.title = f"Failed to apply the diff {artifact.name}"
-                            _LOGGER.warning(message)
-                            raise PatchException("Failed to apply the diff")
-                        message.title = f"Applied the diff {artifact.name}"
-                        _LOGGER.info(message)
-
-                        if utils.has_changes(include_un_followed=True):
-                            success = utils.create_commit(
-                                f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
+                        if is_clone:
+                            result_message.extend(["```diff", patch_input, "```"])
+                        else:
+                            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                                ["patch", "--strip=1"],
+                                input=patch_input,
+                                encoding="utf-8",
+                                capture_output=True,
+                                timeout=30,
                             )
-                            if not success:
-                                raise PatchException("Failed to commit the changes, see logs for details")
-                            should_push = True
+                            message = utils.ansi_proc_message(proc)
+                            if proc.returncode != 0:
+                                message.title = f"Failed to apply the diff {artifact.name}"
+                                _LOGGER.warning(message)
+                                raise PatchException("Failed to apply the diff")
+                            message.title = f"Applied the diff {artifact.name}"
+                            _LOGGER.info(message)
+
+                            if utils.has_changes(include_un_followed=True):
+                                success = utils.create_commit(
+                                    f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
+                                )
+                                if not success:
+                                    raise PatchException("Failed to commit the changes, see logs for details")
+                                should_push = True
             if should_push:
                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                     ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"],
@@ -154,6 +157,11 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                 )
                 if proc.returncode != 0:
                     raise PatchException(f"Failed to push the changes{format_process_output(proc)}")
+        if is_clone and result_message:
+            return module.ProcessOutput(
+                success=False,
+                output={"summary": "\n".join(["Patch to be applied", *result_message])},
+            )
         return module.ProcessOutput()
 
     def get_json_schema(self) -> dict[str, Any]:
