@@ -85,6 +85,7 @@ def test_ProcMessage() -> None:
         markdown
         == """Command: command arg1 arg2 'x-access-token:***'
 Return code: 0
+
 Output:
 ```
 stdout
@@ -122,6 +123,7 @@ def test_ansi_process_message() -> None:
     ansi_message = utils.AnsiProcessMessage(["command"], 0, "stdout\nmessage", "stderr\nmessage")
     expected_text = """Command: command
 Return code: 0
+
 Output:
 ```
 stdout
