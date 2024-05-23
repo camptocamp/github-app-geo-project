@@ -371,10 +371,10 @@ class AnsiProcessMessage(AnsiMessage):
         self.stderr = self._ansi_converter.convert(stderr, full=False)
 
         message = [f"Command: {shlex.join(self.args)}", f"Return code: {returncode}"]
-        if self.stdout:
+        if self.stdout.strip():
             message.append("Output:")
             message.append(self.stdout)
-        if self.stderr:
+        if self.stderr.strip():
             message.append("Error:")
             message.append(self.stderr)
 
@@ -388,15 +388,16 @@ class AnsiProcessMessage(AnsiMessage):
                 f"<summary>{self.title}</summary>",
                 f"Command: {shlex.join(self.args)}",
                 f"Return code: {self.returncode}",
-                "Output:",
-                "```",
-                html_to_markdown(self.stdout.strip()),
-                "```",
-                "",
-                "Error:",
-                "```",
-                html_to_markdown(self.stderr.strip()),
-                "```",
+                *(
+                    ["", "Output:", "```", html_to_markdown(self.stdout.strip()), "```"]
+                    if self.stdout.strip()
+                    else []
+                ),
+                *(
+                    ["", "Error:", "```", html_to_markdown(self.stderr.strip()), "```"]
+                    if self.stderr.strip()
+                    else []
+                ),
                 "</details>",
             ]
             if summary and self.title
@@ -404,15 +405,16 @@ class AnsiProcessMessage(AnsiMessage):
                 *([f"#### {self.title}"] if self.title else []),
                 f"Command: {shlex.join(self.args)}",
                 f"Return code: {self.returncode}",
-                "Output:",
-                "```",
-                html_to_markdown(self.stdout.strip()),
-                "```",
-                "",
-                "Error:",
-                "```",
-                html_to_markdown(self.stderr.strip()),
-                "```",
+                *(
+                    ["", "Output:", "```", html_to_markdown(self.stdout.strip()), "```"]
+                    if self.stdout.strip()
+                    else []
+                ),
+                *(
+                    ["", "Error:", "```", html_to_markdown(self.stderr.strip()), "```"]
+                    if self.stderr.strip()
+                    else []
+                ),
             ]
         )
 
