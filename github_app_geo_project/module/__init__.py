@@ -1,5 +1,6 @@
 """The base class of the modules."""
 
+import json
 import logging
 from abc import abstractmethod
 from types import GenericAlias
@@ -387,7 +388,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         """Create the JSON data from the module event data."""
         if isinstance(data, BaseModel):
             _LOGGER.debug("%s: Thread event_data as Pydantic model", self.title())
-            return data.model_dump(exclude_none=True)
+            return json.loads(data.model_dump_json(exclude_none=True))  # type: ignore[no-any-return]
         _LOGGER.debug("%s: Thread event_data as JSON", self.title())
         return data  # type: ignore[return-value]
 
@@ -408,7 +409,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         """Create the JSON data from the transversal status."""
         if isinstance(transversal_status, BaseModel):
             _LOGGER.debug("%s: Thread transversal_status ay Pydantic model", self.title())
-            return transversal_status.model_dump(exclude_none=True)
+            return json.loads(transversal_status.model_dump_json(exclude_none=True))  # type: ignore[no-any-return]
         _LOGGER.debug("%s: Thread transversal_status as JSON", self.title())
         return transversal_status  # type: ignore[return-value]
 
