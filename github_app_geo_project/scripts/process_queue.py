@@ -179,22 +179,27 @@ async def _process_job(
                 job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", 3600))
                 async with asyncio.timeout(job_timeout):
                     result = await current_module.process(context)
+
                 if result is not None:
-                    _LOGGER.info(
-                        "Module %s result with: %s",
-                        job.module,
-                        ", ".join(
-                            [
-                                *(["dashboard"] if result.dashboard is not None else []),
-                                *(["transversal_status"] if result.transversal_status is not None else []),
-                                *(["actions"] if result.actions else []),
-                                *(["output"] if result.output is not None else []),
-                            ]
-                        ),
-                    )
+                    non_none = [
+                        *(["dashboard"] if result.dashboard is not None else []),
+                        *(["transversal_status"] if result.transversal_status is not None else []),
+                        *(["actions"] if result.actions else []),
+                        *(["output"] if result.output is not None else []),
+                    ]
+                    if non_none:
+                        _LOGGER.info(
+                            "Module %s finished with: %s",
+                            job.module,
+                            ", ".join(non_none),
+                        )
+                    else:
+                        _LOGGER.info("Module %s finished", job.module)
 
                     if not result.success:
                         _LOGGER.warning("Module %s failed", job.module)
+                else:
+                    _LOGGER.info("Module %s finished with None result", job.module)
             finally:
                 root_logger.removeHandler(handler)
 
