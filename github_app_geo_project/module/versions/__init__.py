@@ -218,34 +218,36 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
                 _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
                 message = module_utils.HtmlMessage(
-                    utils.format_json(version_status.model_dump()["names_by_datasource"])
+                    utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
                 )
                 message.title = "Names:"
                 _LOGGER.debug(message)
                 _get_dependencies(context, version_status.dependencies_by_datasource)
                 message = module_utils.HtmlMessage(
-                    utils.format_json(version_status.model_dump()["dependencies_by_datasource"])
+                    utils.format_json(
+                        json.loads(version_status.model_dump_json())["dependencies_by_datasource"]
+                    )
                 )
                 message.title = "Dependencies:"
                 _LOGGER.debug(message)
 
                 message = module_utils.HtmlMessage(
-                    utils.format_json(
+                    utils.format_json_str(
                         transversal_status.repositories[
                             f"{context.github_project.owner}/{context.github_project.repository}"
                         ]
                         .versions[context.module_event_data.branch]
-                        .model_dump()
+                        .model_dump_json()
                     )
                 )
                 message.title = f"Branch ({context.module_event_data.branch}):"
                 _LOGGER.debug(message)
 
                 message = module_utils.HtmlMessage(
-                    utils.format_json(
+                    utils.format_json_str(
                         transversal_status.repositories[
                             f"{context.github_project.owner}/{context.github_project.repository}"
-                        ].model_dump()
+                        ].model_dump_json()
                     )
                 )
                 message.title = "Repo:"
@@ -277,7 +279,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                                 _canonical_minor_version(datasource, branch)
                             ] = branch_data.support
 
-            message = module_utils.HtmlMessage(utils.format_json(names.model_dump()))
+            message = module_utils.HtmlMessage(utils.format_json_str(names.model_dump_json()))
             message.title = "Names:"
             _LOGGER.debug(message)
 
@@ -333,7 +335,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                                     )
                                 )
 
-            message = module_utils.HtmlMessage(utils.format_json(reverse_dependencies.model_dump()))
+            message = module_utils.HtmlMessage(utils.format_json_str(reverse_dependencies.model_dump_json()))
             message.title = "Reverse dependencies:"
             _LOGGER.debug(message)
 
@@ -342,10 +344,10 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 data={
                     "title": self.title() + " - " + context.params["repository"],
                     "reverse_dependencies": reverse_dependencies,
-                    "data": utils.format_json(
+                    "data": utils.format_json_str(
                         transversal_status.repositories.get(
                             context.params["repository"], _TransversalStatusRepo()
-                        ).model_dump()
+                        ).model_dump_json()
                     ),
                 },
             )
