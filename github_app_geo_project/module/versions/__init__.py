@@ -72,7 +72,7 @@ class _Names(BaseModel):
 
 class _ReverseDependency(BaseModel):
     name: str
-    status_by_version: str
+    version: str
     support: str
     color: str
     repo: str
@@ -312,7 +312,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                                 reverse_dependencies.by_branch.setdefault(version, []).append(
                                     _ReverseDependency(
                                         name=dependency_name,
-                                        status_by_version=dependency_version,
+                                        version=dependency_version,
                                         support="Unsupported",
                                         color="--bs-danger",
                                         repo=repo,
@@ -328,7 +328,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                                 reverse_dependencies.by_branch.setdefault(version, []).append(
                                     _ReverseDependency(
                                         name=dependency_name,
-                                        status_by_version=dependency_version,
+                                        version=dependency_version,
                                         support=versions_of_dependency[canonical_dependency_version],
                                         color="--bs-body-bg" if is_supported else "--bs-danger",
                                         repo=repo,

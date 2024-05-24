@@ -72,7 +72,11 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
             _LOGGER.debug("No artifacts found")
             return module.ProcessOutput()
 
-        is_clone = "head_repository" in context.event_data.get("workflow_run", {})
+        is_clone = context.event_data.get("workflow_run", {}).get("head_repository", {}).get("owner", {}).get(
+            "login", ""
+        ) != context.event_data.get("workflow_run", {}).get("repository", {}).get("owner", {}).get(
+            "login", ""
+        )
         should_push = False
         result_message = []
 
