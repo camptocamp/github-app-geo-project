@@ -181,7 +181,7 @@ def test_get_transversal_dashboard_repo() -> None:
             "1.0": [
                 _ReverseDependency(
                     name="other_package",
-                    status_by_version="2.0.1",
+                    version="2.0.1",
                     support="Best effort",
                     color="--bs-danger",
                     repo="camptocamp/other",

@@ -7,8 +7,8 @@
   }
 </style>
 
-%for version, dependencies in reverse_dependencies.items():
-<h3>${version}</h3>
+%for branch, dependencies in reverse_dependencies.by_branch.items():
+<h3>${branch}</h3>
 <table>
   <tr>
     <th>Dependency</th>
@@ -17,9 +17,9 @@
   </tr>
   %for dependency in dependencies:
   <tr>
-    <td><a href="?repository=${dependency.get('repo')}">${dependency['name']}</a></td>
-    <td>${dependency['version']}</td>
-    <td style="background-color: var(${dependency[ 'color']})">${dependency.get('supported')}</td>
+    <td><a href="?repository=${dependency.repo}">${dependency.name}</a></td>
+    <td>${dependency.version}</td>
+    <td style="background-color: var(${dependency.color})">${dependency.support}</td>
   </tr>
   %endfor
 </table>
