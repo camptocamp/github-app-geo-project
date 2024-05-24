@@ -72,6 +72,7 @@ class _Names(BaseModel):
 
 class _ReverseDependency(BaseModel):
     name: str
+    datasource: str
     version: str
     support: str
     color: str
@@ -312,6 +313,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                                 reverse_dependencies.by_branch.setdefault(version, []).append(
                                     _ReverseDependency(
                                         name=dependency_name,
+                                        datasource=datasource_name,
                                         version=dependency_version,
                                         support="Unsupported",
                                         color="--bs-danger",
@@ -328,6 +330,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                                 reverse_dependencies.by_branch.setdefault(version, []).append(
                                     _ReverseDependency(
                                         name=dependency_name,
+                                        datasource=datasource_name,
                                         version=dependency_version,
                                         support=versions_of_dependency[canonical_dependency_version],
                                         color="--bs-body-bg" if is_supported else "--bs-danger",
@@ -344,10 +347,12 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 data={
                     "title": self.title() + " - " + context.params["repository"],
                     "reverse_dependencies": reverse_dependencies,
-                    "data": utils.format_json_str(
-                        transversal_status.repositories.get(
-                            context.params["repository"], _TransversalStatusRepo()
-                        ).model_dump_json()
+                    "data": utils.format_json(
+                        json.loads(
+                            transversal_status.repositories.get(
+                                context.params["repository"], _TransversalStatusRepo()
+                            ).model_dump_json()
+                        )
                     ),
                 },
             )
