@@ -8,10 +8,11 @@ from github_app_geo_project.module.versions import (
     ProcessOutput,
     Versions,
     _canonical_minor_version,
+    _Dependencies,
+    _DependenciesBranches,
+    _Dependency,
     _EventData,
     _read_dependencies,
-    _ReverseDependencies,
-    _ReverseDependency,
     _TransversalStatus,
     _TransversalStatusNameByDatasource,
     _TransversalStatusNameInDatasource,
@@ -176,18 +177,30 @@ def test_get_transversal_dashboard_repo() -> None:
     )
     context.params = {"repository": "camptocamp/test"}
     output = versions.get_transversal_dashboard(context)
-    assert output.data["reverse_dependencies"] == _ReverseDependencies(
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
-            "1.0": [
-                _ReverseDependency(
-                    name="other_package",
-                    datasource="pypi",
-                    version="2.0.1",
-                    support="Best effort",
-                    color="--bs-danger",
-                    repo="camptocamp/other",
-                )
-            ]
+            "1.0": _Dependencies(
+                forward=[
+                    _Dependency(
+                        name="other_package",
+                        datasource="pypi",
+                        version="2.0.1",
+                        support="Best effort",
+                        color="--bs-danger",
+                        repo="camptocamp/other",
+                    )
+                ],
+                reverse=[
+                    _Dependency(
+                        name="other_package",
+                        datasource="pypi",
+                        version="2.0",
+                        support="Unsupported",
+                        color="--bs-danger",
+                        repo="camptocamp/other",
+                    )
+                ],
+            )
         }
     )
 
