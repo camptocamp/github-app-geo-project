@@ -295,7 +295,12 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 context.params["repository"], _TransversalStatusRepo()
             ).versions.items():
                 _build_internal_dependencies(version, version_data, names, dependencies_branches)
-                _build_reverse_dependency(version, version_data, names, dependencies_branches)
+            _build_reverse_dependency(
+                context.params["repository"],
+                transversal_status.repositories.get(context.params["repository"], _TransversalStatusRepo()),
+                transversal_status,
+                dependencies_branches,
+            )
 
             message = module_utils.HtmlMessage(utils.format_json_str(dependencies_branches.model_dump_json()))
             message.title = "Dependencies branches:"
@@ -582,7 +587,7 @@ def _build_internal_dependencies(
                         version=dependency_version,
                         support=support,
                         color=(
-                            "--bs-danger" if _is_supported(version_data.support, support) else "--bs-body-bg"
+                            "--bs-body-bg" if _is_supported(version_data.support, support) else "--bs-danger"
                         ),
                         repo=dependency_package_data.repo or "-",
                     )
@@ -590,55 +595,59 @@ def _build_internal_dependencies(
 
 
 def _build_reverse_dependency(
-    version: str,
-    version_data: _TransversalStatusVersion,
-    names: _Names,
+    repository: str,
+    repo_data: _TransversalStatusRepo,
+    transversal_status: _TransversalStatus,
     dependencies_branches: _DependenciesBranches,
 ) -> None:
-    for other_datasource_name, other_datasource_data in names.by_datasources.items():
-        if other_datasource_name not in version_data.dependencies_by_datasource:
+    for other_repo, other_repo_data in transversal_status.repositories.items():
+        if repository == other_repo:
+            print(f"Skip {repository} {other_repo}")
             continue
-
         for (
-            other_dependency_name,
-            other_dependency_data,
-        ) in other_datasource_data.by_package.items():
-            if (
-                other_dependency_name
-                not in version_data.dependencies_by_datasource[other_datasource_name].versions_by_names
-            ):
-                continue
-
-            for other_dependency_version in other_dependency_data.status_by_version:
-                if (
-                    other_dependency_version
-                    in version_data.dependencies_by_datasource[other_datasource_name]
-                    .versions_by_names[other_dependency_name]
-                    .versions
-                ):
-                    support = other_dependency_data.status_by_version[other_dependency_version]
-                    dependencies_branches.by_branch.setdefault(version, _Dependencies()).reverse.append(
-                        _Dependency(
-                            name=other_dependency_name,
-                            datasource=other_datasource_name,
-                            version=other_dependency_version,
-                            support=support,
-                            color=(
-                                "--bs-danger"
-                                if _is_supported(version_data.support, support)
-                                else "--bs-body-bg"
-                            ),
-                            repo=other_dependency_data.repo or "-",
-                        )
-                    )
-                else:
-                    dependencies_branches.by_branch.setdefault(version, _Dependencies()).reverse.append(
-                        _Dependency(
-                            name=other_dependency_name,
-                            datasource=other_datasource_name,
-                            version=other_dependency_version,
-                            support="Unsupported",
-                            color="--bs-danger",
-                            repo=other_dependency_data.repo or "-",
-                        )
-                    )
+            other_version,
+            other_version_data,
+        ) in other_repo_data.versions.items():
+            for datasource_name, datasource_data in other_version_data.dependencies_by_datasource.items():
+                for package_name, package_data in datasource_data.versions_by_names.items():
+                    for version in package_data.versions:
+                        minor_version = _canonical_minor_version(datasource_name, version)
+                        version_data = repo_data.versions.get(minor_version)
+                        package_data = _TransversalStatusVersions()
+                        if version_data is not None:
+                            datasource_data = version_data.dependencies_by_datasource.get(
+                                datasource_name, _TransversalStatusNameInDatasource()
+                            )
+                            package_data = datasource_data.versions_by_names.get(
+                                package_name, _TransversalStatusVersions()
+                            )
+                        if version_data is not None and minor_version in package_data.versions:
+                            dependencies_branches.by_branch.setdefault(
+                                minor_version, _Dependencies()
+                            ).reverse.append(
+                                _Dependency(
+                                    name=other_repo,
+                                    datasource="-",
+                                    version=other_version,
+                                    support=other_version_data.support,
+                                    color=(
+                                        "--bs-danger"
+                                        if _is_supported(other_version_data.support, version_data.support)
+                                        else "--bs-body-bg"
+                                    ),
+                                    repo=other_repo,
+                                )
+                            )
+                        else:
+                            dependencies_branches.by_branch.setdefault(
+                                minor_version, _Dependencies()
+                            ).reverse.append(
+                                _Dependency(
+                                    name=other_repo,
+                                    datasource="-",
+                                    version=other_version,
+                                    support=other_version_data.support,
+                                    color="--bs-danger",
+                                    repo=other_repo,
+                                )
+                            )

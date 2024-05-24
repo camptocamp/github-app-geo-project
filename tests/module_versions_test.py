@@ -144,7 +144,7 @@ def test_get_transversal_dashboard() -> None:
     assert output.data == {"repositories": ["camptocamp/test", "camptocamp/other"]}
 
 
-def test_get_transversal_dashboard_repo() -> None:
+def test_get_transversal_dashboard_repo_forward() -> None:
     versions = Versions()
     context = Mock()
     context.status = _TransversalStatus(
@@ -156,14 +156,14 @@ def test_get_transversal_dashboard_repo() -> None:
                         dependencies_by_datasource={
                             "pypi": _TransversalStatusNameInDatasource(
                                 versions_by_names={
-                                    "other_package": _TransversalStatusVersions(versions=["2.0.1"])
-                                },
+                                    "other_package": _TransversalStatusVersions(versions=["2.0.1"]),
+                                }
                             )
                         },
                     )
                 },
             ),
-            "camptocamp/other": _TransversalStatusRepo(
+            "campotcamp/other": _TransversalStatusRepo(
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -186,18 +186,157 @@ def test_get_transversal_dashboard_repo() -> None:
                         datasource="pypi",
                         version="2.0.1",
                         support="Best effort",
-                        color="--bs-danger",
-                        repo="camptocamp/other",
+                        color="--bs-body-bg",
+                        repo="campotcamp/other",
                     )
                 ],
-                reverse=[
+                reverse=[],
+            )
+        }
+    )
+
+
+def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        dependencies_by_datasource={
+                            "pypi": _TransversalStatusNameInDatasource(
+                                versions_by_names={
+                                    "other_package": _TransversalStatusVersions(versions=["2.0.1"]),
+                                }
+                            )
+                        },
+                    )
+                },
+            ),
+            "campotcamp/other": _TransversalStatusRepo(
+                versions={
+                    "3.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        names_by_datasource={
+                            "pypi": _TransversalStatusNameByDatasource(names=["other_package"])
+                        },
+                    )
+                },
+            ),
+        }
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={
+            "1.0": _Dependencies(
+                forward=[
                     _Dependency(
                         name="other_package",
                         datasource="pypi",
-                        version="2.0",
+                        version="2.0.1",
                         support="Unsupported",
                         color="--bs-danger",
-                        repo="camptocamp/other",
+                        repo="campotcamp/other",
+                    )
+                ],
+                reverse=[],
+            )
+        }
+    )
+
+
+def test_get_transversal_dashboard_repo_reverse() -> None:
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        names_by_datasource={"pypi": _TransversalStatusNameByDatasource(names=["test"])},
+                    )
+                },
+            ),
+            "campotcamp/other": _TransversalStatusRepo(
+                versions={
+                    "2.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        dependencies_by_datasource={
+                            "pypi": _TransversalStatusNameInDatasource(
+                                versions_by_names={"test": _TransversalStatusVersions(versions=["1.0.1"])}
+                            )
+                        },
+                    )
+                },
+            ),
+        }
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={
+            "1.0": _Dependencies(
+                forward=[],
+                reverse=[
+                    _Dependency(
+                        name="campotcamp/other",
+                        datasource="-",
+                        version="2.0",
+                        support="Best effort",
+                        color="--bs-danger",
+                        repo="campotcamp/other",
+                    )
+                ],
+            )
+        }
+    )
+
+
+def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        names_by_datasource={"pypi": _TransversalStatusNameByDatasource(names=["test"])},
+                    )
+                },
+            ),
+            "campotcamp/other": _TransversalStatusRepo(
+                versions={
+                    "2.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        dependencies_by_datasource={
+                            "pypi": _TransversalStatusNameInDatasource(
+                                versions_by_names={"test": _TransversalStatusVersions(versions=["2.0.1"])}
+                            )
+                        },
+                    )
+                },
+            ),
+        }
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={
+            "2.0": _Dependencies(
+                forward=[],
+                reverse=[
+                    _Dependency(
+                        name="campotcamp/other",
+                        datasource="-",
+                        version="2.0",
+                        support="Best effort",
+                        color="--bs-danger",
+                        repo="campotcamp/other",
                     )
                 ],
             )

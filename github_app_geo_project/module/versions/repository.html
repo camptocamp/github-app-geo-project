@@ -30,14 +30,12 @@
 <table>
   <tr>
     <th>Dependency</th>
-    <th>Datasource</th>
     <th>Version</th>
     <th>Supported</th>
   </tr>
   %for dependency in dependencies.reverse:
   <tr>
     <td><a href="?repository=${dependency.repo}">${dependency.name}</a></td>
-    <td>${dependency.datasource}</td>
     <td>${dependency.version}</td>
     <td style="background-color: var(${dependency.color})">${dependency.support}</td>
   </tr>
