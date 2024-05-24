@@ -297,7 +297,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                                 dependency_name, dependency_version
                             )
                             dependency_definition: _NamesStatus = names.by_datasources.get(
-                                datasource_name, _NamesByDataSources
+                                datasource_name, _NamesByDataSources()
                             ).by_package.get(
                                 dependency_name,
                                 _NamesStatus(
