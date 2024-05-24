@@ -213,7 +213,12 @@ def _pull_request_spell(
         if spell.returncode != 0:
             message.title = "Code spell error in pull request"
             _LOGGER.warning(message)
-            messages.append(":x: " + message.to_markdown())
+            messages.append(
+                ":x: "
+                + message.title
+                + "\n"
+                + module_utils.html_to_markdown(cast(module_utils.AnsiProcessMessage, message).stdout)
+            )
             return False, messages
         else:
             messages.append(
