@@ -344,10 +344,12 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 data={
                     "title": self.title() + " - " + context.params["repository"],
                     "reverse_dependencies": reverse_dependencies,
-                    "data": utils.format_json_str(
-                        transversal_status.repositories.get(
-                            context.params["repository"], _TransversalStatusRepo()
-                        ).model_dump_json()
+                    "data": utils.format_json(
+                        json.loads(
+                            transversal_status.repositories.get(
+                                context.params["repository"], _TransversalStatusRepo()
+                            ).model_dump_json()
+                        )
                     ),
                 },
             )
