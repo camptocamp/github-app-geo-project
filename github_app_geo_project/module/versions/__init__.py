@@ -70,7 +70,7 @@ class _Names(BaseModel):
     by_datasources: dict[str, _NamesByDataSources] = {}
 
 
-class _ReverseDependency(BaseModel):
+class _Dependency(BaseModel):
     name: str
     datasource: str
     version: str
@@ -79,8 +79,13 @@ class _ReverseDependency(BaseModel):
     repo: str
 
 
-class _ReverseDependencies(BaseModel):
-    by_branch: dict[str, list[_ReverseDependency]] = {}
+class _Dependencies(BaseModel):
+    forward: list[_Dependency] = []
+    reverse: list[_Dependency] = []
+
+
+class _DependenciesBranches(BaseModel):
+    by_branch: dict[str, _Dependencies] = {}
 
 
 class _EventData(BaseModel):
@@ -285,68 +290,22 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             _LOGGER.debug(message)
 
             # branch = list of dependencies
-            reverse_dependencies = _ReverseDependencies()
+            dependencies_branches = _DependenciesBranches()
             for version, version_data in transversal_status.repositories.get(
                 context.params["repository"], _TransversalStatusRepo()
             ).versions.items():
-                for datasource_name, dependency_data in version_data.dependencies_by_datasource.items():
-                    for dependency_name, dependency_versions in dependency_data.versions_by_names.items():
-                        for dependency_version in dependency_versions.versions:
-                            if dependency_version.startswith("=="):
-                                dependency_version = dependency_version[2:]
-                            canonical_dependency_version = _canonical_minor_version(
-                                dependency_name, dependency_version
-                            )
-                            dependency_definition: _NamesStatus = names.by_datasources.get(
-                                datasource_name, _NamesByDataSources()
-                            ).by_package.get(
-                                dependency_name,
-                                _NamesStatus(
-                                    status_by_version={},
-                                ),
-                            )
-                            versions_of_dependency = dependency_definition.status_by_version
-                            repo = dependency_definition.repo or "-"
-                            if not versions_of_dependency:
-                                continue
-                            if canonical_dependency_version not in versions_of_dependency:
-                                reverse_dependencies.by_branch.setdefault(version, []).append(
-                                    _ReverseDependency(
-                                        name=dependency_name,
-                                        datasource=datasource_name,
-                                        version=dependency_version,
-                                        support="Unsupported",
-                                        color="--bs-danger",
-                                        repo=repo,
-                                    )
-                                )
-                            else:
-                                is_supported = all(
-                                    _is_supported(
-                                        support, versions_of_dependency[canonical_dependency_version]
-                                    )
-                                    for support in dependency_data.versions_by_names
-                                )
-                                reverse_dependencies.by_branch.setdefault(version, []).append(
-                                    _ReverseDependency(
-                                        name=dependency_name,
-                                        datasource=datasource_name,
-                                        version=dependency_version,
-                                        support=versions_of_dependency[canonical_dependency_version],
-                                        color="--bs-body-bg" if is_supported else "--bs-danger",
-                                        repo=repo,
-                                    )
-                                )
+                _build_internal_dependencies(version, version_data, names, dependencies_branches)
+                _build_reverse_dependency(version, version_data, names, dependencies_branches)
 
-            message = module_utils.HtmlMessage(utils.format_json_str(reverse_dependencies.model_dump_json()))
-            message.title = "Reverse dependencies:"
+            message = module_utils.HtmlMessage(utils.format_json_str(dependencies_branches.model_dump_json()))
+            message.title = "Dependencies branches:"
             _LOGGER.debug(message)
 
             return module.TransversalDashboardOutput(
                 renderer="github_app_geo_project:module/versions/repository.html",
                 data={
                     "title": self.title() + " - " + context.params["repository"],
-                    "reverse_dependencies": reverse_dependencies,
+                    "dependencies_branches": dependencies_branches,
                     "data": utils.format_json(
                         json.loads(
                             transversal_status.repositories.get(
@@ -599,3 +558,87 @@ def _is_supported(support: str, dependency_support: str) -> bool:
     if dependency_support == "To be defined":
         return False
     return datetime.datetime.fromisoformat(support) < datetime.datetime.fromisoformat(dependency_support)
+
+
+def _build_internal_dependencies(
+    version: str,
+    version_data: _TransversalStatusVersion,
+    names: _Names,
+    dependencies_branches: _DependenciesBranches,
+) -> None:
+    for datasource_name, dependencies_data in version_data.dependencies_by_datasource.items():
+        for dependency_name, dependency_versions in dependencies_data.versions_by_names.items():
+            for dependency_version in dependency_versions.versions:
+                dependency_data = names.by_datasources.get(datasource_name, _NamesByDataSources())
+                dependency_package_data = dependency_data.by_package.get(dependency_name, _NamesStatus())
+                support = dependency_package_data.status_by_version.get(
+                    _canonical_minor_version(datasource_name, dependency_version),
+                    "Unsupported",
+                )
+                dependencies_branches.by_branch.setdefault(version, _Dependencies()).forward.append(
+                    _Dependency(
+                        name=dependency_name,
+                        datasource=datasource_name,
+                        version=dependency_version,
+                        support=support,
+                        color=(
+                            "--bs-danger" if _is_supported(version_data.support, support) else "--bs-body-bg"
+                        ),
+                        repo=dependency_package_data.repo or "-",
+                    )
+                )
+
+
+def _build_reverse_dependency(
+    version: str,
+    version_data: _TransversalStatusVersion,
+    names: _Names,
+    dependencies_branches: _DependenciesBranches,
+) -> None:
+    for other_datasource_name, other_datasource_data in names.by_datasources.items():
+        if other_datasource_name not in version_data.dependencies_by_datasource:
+            continue
+
+        for (
+            other_dependency_name,
+            other_dependency_data,
+        ) in other_datasource_data.by_package.items():
+            if (
+                other_dependency_name
+                not in version_data.dependencies_by_datasource[other_datasource_name].versions_by_names
+            ):
+                continue
+
+            for other_dependency_version in other_dependency_data.status_by_version:
+                if (
+                    other_dependency_version
+                    in version_data.dependencies_by_datasource[other_datasource_name]
+                    .versions_by_names[other_dependency_name]
+                    .versions
+                ):
+                    support = other_dependency_data.status_by_version[other_dependency_version]
+                    dependencies_branches.by_branch.setdefault(version, _Dependencies()).reverse.append(
+                        _Dependency(
+                            name=other_dependency_name,
+                            datasource=other_datasource_name,
+                            version=other_dependency_version,
+                            support=support,
+                            color=(
+                                "--bs-danger"
+                                if _is_supported(version_data.support, support)
+                                else "--bs-body-bg"
+                            ),
+                            repo=other_dependency_data.repo or "-",
+                        )
+                    )
+                else:
+                    dependencies_branches.by_branch.setdefault(version, _Dependencies()).reverse.append(
+                        _Dependency(
+                            name=other_dependency_name,
+                            datasource=other_datasource_name,
+                            version=other_dependency_version,
+                            support="Unsupported",
+                            color="--bs-danger",
+                            repo=other_dependency_data.repo or "-",
+                        )
+                    )
