@@ -328,12 +328,18 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         )
 
 
-_MINOR_VERSION_RE = re.compile(r"^v?(\d+\.\d+)(\..+)?$")
+_MINOR_VERSION_RE = re.compile(r"^(\d+\.\d+)(\..+)?$")
+
+
+def _clean_version(version: str) -> str:
+    return version.lstrip("v=")
 
 
 def _canonical_minor_version(datasource: str, version: str) -> str:
     if datasource == "docker":
         return version
+
+    version = _clean_version(version)
 
     match = _MINOR_VERSION_RE.match(version)
     if match:
@@ -534,7 +540,11 @@ def _update_upstream_versions(
             _LOGGER.error("Failed to get the data for %s", package)
             package_status.upstream_updated = None
             return
-        for cycle in response.json():
+        cycles = response.json()
+        message = module_utils.HtmlMessage(utils.format_json(cycles))
+        message.title = "Cycles:"
+        _LOGGER.debug(message)
+        for cycle in cycles:
             if datetime.datetime.fromisoformat(cycle["eol"]) < datetime.datetime.now():
                 continue
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
@@ -588,7 +598,7 @@ def _build_internal_dependencies(
                     _Dependency(
                         name=dependency_name,
                         datasource=datasource_name,
-                        version=dependency_version,
+                        version=_clean_version(dependency_version),
                         support=support,
                         color=(
                             "--bs-body-bg" if _is_supported(version_data.support, support) else "--bs-danger"
@@ -645,7 +655,7 @@ def _build_reverse_dependency(
                                 _Dependency(
                                     name=other_repo,
                                     datasource="-",
-                                    version=other_version,
+                                    version=_clean_version(other_version),
                                     support=other_version_data.support,
                                     color=(
                                         "--bs-danger"
@@ -662,7 +672,7 @@ def _build_reverse_dependency(
                                 _Dependency(
                                     name=other_repo,
                                     datasource="-",
-                                    version=other_version,
+                                    version=_clean_version(other_version),
                                     support=other_version_data.support,
                                     color="--bs-danger",
                                     repo=other_repo,
