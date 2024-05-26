@@ -574,8 +574,12 @@ def _build_internal_dependencies(
     for datasource_name, dependencies_data in version_data.dependencies_by_datasource.items():
         for dependency_name, dependency_versions in dependencies_data.versions_by_names.items():
             for dependency_version in dependency_versions.versions:
-                dependency_data = names.by_datasources.get(datasource_name, _NamesByDataSources())
-                dependency_package_data = dependency_data.by_package.get(dependency_name, _NamesStatus())
+                if datasource_name not in names.by_datasources:
+                    continue
+                dependency_data = names.by_datasources[datasource_name]
+                if dependency_name not in dependency_data.by_package:
+                    continue
+                dependency_package_data = dependency_data.by_package[dependency_name]
                 support = dependency_package_data.status_by_version.get(
                     _canonical_minor_version(datasource_name, dependency_version),
                     "Unsupported",
