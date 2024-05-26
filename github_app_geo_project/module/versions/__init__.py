@@ -604,6 +604,11 @@ def _build_reverse_dependency(
     transversal_status: _TransversalStatus,
     dependencies_branches: _DependenciesBranches,
 ) -> None:
+    all_datasource_names: dict[str, set[str]] = {}
+    for version_name_data in repo_data.versions.values():
+        for datasource_name, datasource_name_data in version_name_data.names_by_datasource.items():
+            for package_name in datasource_name_data.names:
+                all_datasource_names.setdefault(datasource_name, set()).add(package_name)
     for other_repo, other_repo_data in transversal_status.repositories.items():
         if repository == other_repo:
             print(f"Skip {repository} {other_repo}")
@@ -613,19 +618,27 @@ def _build_reverse_dependency(
             other_version_data,
         ) in other_repo_data.versions.items():
             for datasource_name, datasource_data in other_version_data.dependencies_by_datasource.items():
+                if datasource_name not in all_datasource_names:
+                    continue
                 for package_name, package_data in datasource_data.versions_by_names.items():
+                    if package_name not in all_datasource_names[datasource_name]:
+                        continue
                     for version in package_data.versions:
                         minor_version = _canonical_minor_version(datasource_name, version)
                         version_data = repo_data.versions.get(minor_version)
-                        package_data = _TransversalStatusVersions()
-                        if version_data is not None:
-                            datasource_data = version_data.dependencies_by_datasource.get(
-                                datasource_name, _TransversalStatusNameInDatasource()
-                            )
-                            package_data = datasource_data.versions_by_names.get(
-                                package_name, _TransversalStatusVersions()
-                            )
-                        if version_data is not None and minor_version in package_data.versions:
+                        versions: _TransversalStatusVersions | None = None
+                        if (
+                            version_data is not None
+                            and datasource_name in version_data.dependencies_by_datasource
+                        ):
+                            datasource_data = version_data.dependencies_by_datasource[datasource_name]
+                            if package_name in datasource_data.versions_by_names:
+                                versions = datasource_data.versions_by_names[package_name]
+                        if (
+                            version_data is not None
+                            and versions is not None
+                            and minor_version in versions.versions
+                        ):
                             dependencies_branches.by_branch.setdefault(
                                 minor_version, _Dependencies()
                             ).reverse.append(
