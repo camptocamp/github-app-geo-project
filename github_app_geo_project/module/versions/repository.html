@@ -9,6 +9,7 @@
 
 %for branch, dependencies in dependencies_branches.by_branch.items():
 <h3>${branch}</h3>
+<p>Supported: ${branch.support}</p>
 %if dependencies.forward:
 <h4>Internal dependencies</h4>
 <table>

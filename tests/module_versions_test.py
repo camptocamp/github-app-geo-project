@@ -180,6 +180,7 @@ def test_get_transversal_dashboard_repo_forward() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
+                support="Best effort",
                 forward=[
                     _Dependency(
                         name="other_package",
@@ -232,6 +233,7 @@ def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
+                support="Best effort",
                 forward=[
                     _Dependency(
                         name="other_package",
@@ -280,6 +282,7 @@ def test_get_transversal_dashboard_repo_reverse() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
+                support="Best effort",
                 forward=[],
                 reverse=[
                     _Dependency(
@@ -327,7 +330,11 @@ def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
     output = versions.get_transversal_dashboard(context)
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
+            "1.0": _Dependencies(
+                support="Best effort",
+            ),
             "2.0": _Dependencies(
+                support="Unsupported",
                 forward=[],
                 reverse=[
                     _Dependency(
@@ -339,7 +346,7 @@ def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
                         repo="campotcamp/other",
                     )
                 ],
-            )
+            ),
         }
     )
 
@@ -365,7 +372,9 @@ def test_get_transversal_dashboard_repo_external() -> None:
     )
     context.params = {"repository": "camptocamp/test"}
     output = versions.get_transversal_dashboard(context)
-    assert output.data["dependencies_branches"] == _DependenciesBranches(by_branch={})
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={"1.0": _Dependencies(support="Best effort", forward=[], reverse=[])}
+    )
 
 
 # parametrize
@@ -405,7 +414,9 @@ def test_get_transversal_dashboard_repo_reverse_other(datasource: str, package: 
     )
     context.params = {"repository": "camptocamp/test"}
     output = versions.get_transversal_dashboard(context)
-    assert output.data["dependencies_branches"] == _DependenciesBranches(by_branch={})
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={"1.0": _Dependencies(support="Best effort", forward=[], reverse=[])}
+    )
 
 
 def test_docker_datasource() -> None:
