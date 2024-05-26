@@ -540,7 +540,11 @@ def _update_upstream_versions(
             _LOGGER.error("Failed to get the data for %s", package)
             package_status.upstream_updated = None
             return
-        for cycle in response.json():
+        cycles = response.json()
+        message = module_utils.HtmlMessage(utils.format_json(cycles))
+        message.title = "Cycles:"
+        _LOGGER.debug(message)
+        for cycle in cycles:
             if datetime.datetime.fromisoformat(cycle["eol"]) < datetime.datetime.now():
                 continue
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
