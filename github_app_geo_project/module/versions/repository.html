@@ -9,6 +9,7 @@
 
 %for branch, dependencies in dependencies_branches.by_branch.items():
 <h3>${branch}</h3>
+%if dependencies.forward:
 <h4>Internal dependencies</h4>
 <table>
   <tr>
@@ -26,6 +27,9 @@
   </tr>
   %endfor
 </table>
+%endif
+<!---->
+%if dependencies.reverse:
 <h4>Reverse dependencies</h4>
 <table>
   <tr>
@@ -41,6 +45,8 @@
   </tr>
   %endfor
 </table>
+%endif
+<!---->
 %endfor
 
 <p>${data|sanitizer, n}</p>
