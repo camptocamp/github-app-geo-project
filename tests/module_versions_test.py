@@ -344,6 +344,70 @@ def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
     )
 
 
+def test_get_transversal_dashboard_repo_external() -> None:
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        dependencies_by_datasource={
+                            "pypi": _TransversalStatusNameInDatasource(
+                                versions_by_names={"other": _TransversalStatusVersions(versions=["2.0.1"])}
+                            )
+                        },
+                    )
+                },
+            ),
+        }
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(by_branch={})
+
+
+# parametrize
+@pytest.mark.parametrize(
+    "datasource, package",
+    [
+        ("pypi", "wring"),
+        ("wrong", "test"),
+    ],
+)
+def test_get_transversal_dashboard_repo_reverse_other(datasource: str, package: str) -> None:
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        names_by_datasource={"pypi": _TransversalStatusNameByDatasource(names=["test"])},
+                    )
+                },
+            ),
+            "campotcamp/other": _TransversalStatusRepo(
+                versions={
+                    "2.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        dependencies_by_datasource={
+                            datasource: _TransversalStatusNameInDatasource(
+                                versions_by_names={package: _TransversalStatusVersions(versions=["1.0.1"])}
+                            )
+                        },
+                    )
+                },
+            ),
+        }
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(by_branch={})
+
+
 def test_docker_datasource() -> None:
     version = "1.2.3"
     result = _canonical_minor_version("docker", version)
