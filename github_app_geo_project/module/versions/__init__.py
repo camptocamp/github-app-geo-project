@@ -553,12 +553,16 @@ def _update_upstream_versions(
         message.title = f"Cycles {package}:"
         _LOGGER.debug(message)
         for cycle in cycles:
-            if not isinstance(cycle.get("eol"), str):
-                continue
-            if datetime.datetime.fromisoformat(cycle["eol"]) < datetime.datetime.now():
-                continue
+            eol = cycle.get("eol")
+            if eol is False:
+                eol = "Best Effort"
+            else:
+                if not isinstance(eol, str):
+                    continue
+                if datetime.datetime.fromisoformat(eol) < datetime.datetime.now():
+                    continue
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
-                support=cycle["eol"],
+                support=eol,
                 names_by_datasource={
                     datasource: _TransversalStatusNameByDatasource(
                         names=[package],
