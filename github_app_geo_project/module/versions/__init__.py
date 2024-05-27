@@ -80,6 +80,7 @@ class _Dependency(BaseModel):
 
 
 class _Dependencies(BaseModel):
+    support: str = "Unsupported"
     forward: list[_Dependency] = []
     reverse: list[_Dependency] = []
 
@@ -581,6 +582,9 @@ def _build_internal_dependencies(
     names: _Names,
     dependencies_branches: _DependenciesBranches,
 ) -> None:
+    dependencies_branch = dependencies_branches.by_branch.setdefault(
+        version, _Dependencies(support=version_data.support)
+    )
     for datasource_name, dependencies_data in version_data.dependencies_by_datasource.items():
         for dependency_name, dependency_versions in dependencies_data.versions_by_names.items():
             for dependency_version in dependency_versions.versions:
@@ -594,7 +598,7 @@ def _build_internal_dependencies(
                     _canonical_minor_version(datasource_name, dependency_version),
                     "Unsupported",
                 )
-                dependencies_branches.by_branch.setdefault(version, _Dependencies()).forward.append(
+                dependencies_branch.forward.append(
                     _Dependency(
                         name=dependency_name,
                         datasource=datasource_name,
