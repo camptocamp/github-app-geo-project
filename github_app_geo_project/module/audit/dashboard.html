@@ -1,4 +1,7 @@
 %for data in repositories:
 <h2>${data['repository']}</h2>
-<p><a href="${data['data'].url}">${data['data'].title}</a></p>
+%for type_name, type in data.types.items:
+<p>${type_name}: <a href="${type.url}">${type.title}</a></p>
+%endfor
+<!---->
 %endfor
