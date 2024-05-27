@@ -543,9 +543,11 @@ def _update_upstream_versions(
             return
         cycles = response.json()
         message = module_utils.HtmlMessage(utils.format_json(cycles))
-        message.title = "Cycles:"
+        message.title = f"Cycles {package}:"
         _LOGGER.debug(message)
         for cycle in cycles:
+            if not isinstance(cycle.get("eol"), str):
+                continue
             if datetime.datetime.fromisoformat(cycle["eol"]) < datetime.datetime.now():
                 continue
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
