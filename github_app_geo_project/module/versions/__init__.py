@@ -340,7 +340,14 @@ def _canonical_minor_version(datasource: str, version: str) -> str:
     if datasource == "docker":
         return version
 
+    if "," in version:
+        versions = [v for v in version.split(",") if not v.startswith("<")]
+        if len(versions) != 1:
+            return version
+        version = versions[0]
+
     version = _clean_version(version)
+    version = version.lstrip("^>=")
 
     match = _MINOR_VERSION_RE.match(version)
     if match:
