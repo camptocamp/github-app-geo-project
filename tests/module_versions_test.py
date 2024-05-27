@@ -419,22 +419,21 @@ def test_get_transversal_dashboard_repo_reverse_other(datasource: str, package: 
     )
 
 
-def test_docker_datasource() -> None:
-    version = "1.2.3"
-    result = _canonical_minor_version("docker", version)
-    assert result == version
-
-
-def test_valid_version() -> None:
-    version = "1.2.3"
-    result = _canonical_minor_version("other", version)
-    assert result == "1.2"
-
-
-def test_invalid_version() -> None:
-    version = "invalid"
-    result = _canonical_minor_version("other", version)
-    assert result == version
+@pytest.mark.parametrize(
+    "datasource, version, expected",
+    [
+        ("docker", "1.2.3", "1.2.3"),
+        ("other", "1.2.3", "1.2"),
+        ("other", "invalid", "invalid"),
+        ("other", "^3.7.2", "3.7"),
+        ("other", ">=3.9,<4.0", "3.9"),
+        ("other", "==1.5.2", "1.5"),
+        ("other", ">=3.9.1", "3.9"),
+    ],
+)
+def test_canonical_minor_version(datasource, version, expected) -> None:
+    result = _canonical_minor_version(datasource, version)
+    assert result == expected
 
 
 @responses.activate
