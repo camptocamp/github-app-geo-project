@@ -100,7 +100,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
                 del branch_data[context.event_data.get("workflow", {}).get("name", "-")]
             if not branch_data:
                 del repo_data[head_branch]
-            if repo_data.keys() == ["updated"]:
+            if not repo_data:
                 del context.transversal_status[
                     context.github_project.owner + "/" + context.github_project.repository
                 ]
