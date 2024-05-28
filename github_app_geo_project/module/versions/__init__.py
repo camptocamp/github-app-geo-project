@@ -476,6 +476,8 @@ def _read_dependencies(
             for dep in value.get("deps", []):
                 if "currentValue" not in dep:
                     continue
+                if "datasource" not in dep:
+                    continue
                 for dependency, datasource, version in _dependency_extractor(
                     context, dep["depName"], dep["datasource"], dep["currentValue"]
                 ):
