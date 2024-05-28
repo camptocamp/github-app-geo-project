@@ -12,6 +12,7 @@ from github_app_geo_project.module.versions import (
     _DependenciesBranches,
     _Dependency,
     _EventData,
+    _order_versions,
     _read_dependencies,
     _TransversalStatus,
     _TransversalStatusNameByDatasource,
@@ -789,3 +790,9 @@ def test_transversal_status_to_json():
         },
         "updated": {},
     }
+
+
+def test_order_versions():
+    versions = ["1.0", "2.0", "1.5", "toto", "3.0", "1.2"]
+    ordered_versions = _order_versions(versions)
+    assert ordered_versions == ["3.0", "2.0", "1.5", "1.2", "1.0", "toto"]

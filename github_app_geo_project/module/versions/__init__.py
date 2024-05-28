@@ -8,6 +8,7 @@ import os.path
 import re
 import subprocess  # nosec
 import tempfile
+from collections.abc import Iterable
 from typing import Any
 
 import c2cciutils.security
@@ -312,6 +313,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 data={
                     "title": self.title() + " - " + context.params["repository"],
                     "dependencies_branches": dependencies_branches,
+                    "branches": _order_versions(dependencies_branches.by_branch.keys()),
                     "data": utils.format_json(
                         json.loads(
                             transversal_status.repositories.get(
@@ -330,6 +332,37 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
 
 _MINOR_VERSION_RE = re.compile(r"^(\d+\.\d+)(\..+)?$")
+
+
+class _Version:
+    _VERSION_RE = re.compile(r"^(\d+)\.(\d+)$")
+
+    def __init__(self, version: str) -> None:
+        self.version = version
+
+    def __cmp__(self, other: "_Version") -> int:
+        if self.version == other.version:
+            return 0
+        match1 = self._VERSION_RE.match(self.version)
+        match2 = self._VERSION_RE.match(other.version)
+        if match1 is None and match2 is None:
+            return 1 if self.version > other.version else -1
+        if match1 is None:
+            return -1
+        if match2 is None:
+            return 1
+        if match1.group(1) == match2.group(1):
+            if match1.group(2) == match2.group(2):
+                return 0
+            return 1 if match1.group(2) > match2.group(2) else -1
+        return 1 if match1.group(1) > match2.group(1) else -1
+
+    def __lt__(self, other: "_Version") -> bool:
+        return self.__cmp__(other) < 0
+
+
+def _order_versions(versions: Iterable[str]) -> list[str]:
+    return sorted(versions, reverse=True, key=_Version)
 
 
 def _clean_version(version: str) -> str:
