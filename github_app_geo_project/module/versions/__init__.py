@@ -626,11 +626,16 @@ def _build_internal_dependencies(
                     dependency_minor,
                     "Unsupported",
                 )
+                clean_dependency_version = _clean_version(dependency_version)
                 dependencies_branch.forward.append(
                     _Dependency(
                         name=dependency_name,
                         datasource=datasource_name,
-                        version=f"{dependency_minor} ({_clean_version(dependency_version)})",
+                        version=(
+                            dependency_minor
+                            if dependency_minor == clean_dependency_version
+                            else f"{dependency_minor} ({clean_dependency_version})"
+                        ),
                         support=support,
                         color=(
                             "--bs-body-bg" if _is_supported(version_data.support, support) else "--bs-danger"
