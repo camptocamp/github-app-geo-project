@@ -279,12 +279,12 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 for branch, branch_data in repo_data.versions.items():
                     for datasource, datasource_data in branch_data.names_by_datasource.items():
                         for name in datasource_data.names:
-                            names.by_datasources.setdefault(datasource, _NamesByDataSources()).by_package[
-                                name
-                            ] = _NamesStatus(repo=repo)
-                            names.by_datasources[datasource].by_package[name].status_by_version[
-                                _canonical_minor_version(datasource, branch)
-                            ] = branch_data.support
+                            current_status = names.by_datasources.setdefault(
+                                datasource, _NamesByDataSources()
+                            ).by_package.setdefault(name, _NamesStatus(repo=repo))
+                            current_status.status_by_version[_canonical_minor_version(datasource, branch)] = (
+                                branch_data.support
+                            )
 
             message = module_utils.HtmlMessage(utils.format_json_str(names.model_dump_json()))
             message.title = "Names:"
@@ -607,15 +607,16 @@ def _build_internal_dependencies(
                 if dependency_name not in dependency_data.by_package:
                     continue
                 dependency_package_data = dependency_data.by_package[dependency_name]
+                dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 support = dependency_package_data.status_by_version.get(
-                    _canonical_minor_version(datasource_name, dependency_version),
+                    dependency_minor,
                     "Unsupported",
                 )
                 dependencies_branch.forward.append(
                     _Dependency(
                         name=dependency_name,
                         datasource=datasource_name,
-                        version=_clean_version(dependency_version),
+                        version=f"{dependency_minor} ({_clean_version(dependency_version)})",
                         support=support,
                         color=(
                             "--bs-body-bg" if _is_supported(version_data.support, support) else "--bs-danger"
