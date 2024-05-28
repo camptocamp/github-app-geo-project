@@ -7,7 +7,9 @@
   }
 </style>
 
-%for branch, dependencies in dependencies_branches.by_branch.items():
+%for branch in branches:
+<!---->
+<% dependencies = dependencies_branches.by_branch[branch] %>
 <h3>${branch}</h3>
 <p>Supported: ${dependencies.support}</p>
 %if dependencies.forward:
