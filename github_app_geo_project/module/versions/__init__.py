@@ -586,21 +586,26 @@ def _update_upstream_versions(
 
 
 def _is_supported(support: str, dependency_support: str) -> bool:
+    support = support.lower()
+    dependency_support = dependency_support.lower()
     if support == dependency_support:
         return True
-    if support == "Unsupported":
+    if support == "unsupported":
         return True
-    if dependency_support == "Unsupported":
+    if dependency_support == "unsupported":
         return False
-    if support == "Best effort":
+    if support == "best effort":
         return True
-    if dependency_support == "Best effort":
+    if dependency_support == "best effort":
         return False
-    if support == "To be defined":
+    if support == "to be defined":
         return True
-    if dependency_support == "To be defined":
+    if dependency_support == "to be defined":
         return False
-    return datetime.datetime.fromisoformat(support) < datetime.datetime.fromisoformat(dependency_support)
+    try:
+        return datetime.datetime.fromisoformat(support) < datetime.datetime.fromisoformat(dependency_support)
+    except ValueError:
+        return False
 
 
 def _build_internal_dependencies(
