@@ -476,6 +476,8 @@ def _read_dependencies(
             for dep in value.get("deps", []):
                 if "currentValue" not in dep:
                     continue
+                if "datasource" not in dep:
+                    continue
                 for dependency, datasource, version in _dependency_extractor(
                     context, dep["depName"], dep["datasource"], dep["currentValue"]
                 ):
@@ -586,21 +588,26 @@ def _update_upstream_versions(
 
 
 def _is_supported(support: str, dependency_support: str) -> bool:
+    support = support.lower()
+    dependency_support = dependency_support.lower()
     if support == dependency_support:
         return True
-    if support == "Unsupported":
+    if support == "unsupported":
         return True
-    if dependency_support == "Unsupported":
+    if dependency_support == "unsupported":
         return False
-    if support == "Best effort":
+    if support == "best effort":
         return True
-    if dependency_support == "Best effort":
+    if dependency_support == "best effort":
         return False
-    if support == "To be defined":
+    if support == "to be defined":
         return True
-    if dependency_support == "To be defined":
+    if dependency_support == "to be defined":
         return False
-    return datetime.datetime.fromisoformat(support) < datetime.datetime.fromisoformat(dependency_support)
+    try:
+        return datetime.datetime.fromisoformat(support) < datetime.datetime.fromisoformat(dependency_support)
+    except ValueError:
+        return False
 
 
 def _build_internal_dependencies(
@@ -626,11 +633,16 @@ def _build_internal_dependencies(
                     dependency_minor,
                     "Unsupported",
                 )
+                clean_dependency_version = _clean_version(dependency_version)
                 dependencies_branch.forward.append(
                     _Dependency(
                         name=dependency_name,
                         datasource=datasource_name,
-                        version=f"{dependency_minor} ({_clean_version(dependency_version)})",
+                        version=(
+                            dependency_minor
+                            if dependency_minor == clean_dependency_version
+                            else f"{dependency_minor} ({clean_dependency_version})"
+                        ),
                         support=support,
                         color=(
                             "--bs-body-bg" if _is_supported(version_data.support, support) else "--bs-danger"
