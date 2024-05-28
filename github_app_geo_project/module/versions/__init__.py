@@ -194,8 +194,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 stabilization_branch = [repo.default_branch]
                 status.versions.setdefault(
                     repo.default_branch,
-                    _TransversalStatusVersion(support="Best Effort"),
-                ).support = "Best Effort"
+                    _TransversalStatusVersion(support="Best effort"),
+                ).support = "Best effort"
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_branch))
 
             versions = status.versions
@@ -216,7 +216,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     if not success:
                         raise VersionException("Failed to clone the repository")
 
-                version_status = _TransversalStatusVersion(support="Best Effort")
+                version_status = _TransversalStatusVersion(support="Best effort")
                 transversal_status = context.transversal_status
                 transversal_status.repositories.setdefault(
                     f"{context.github_project.owner}/{context.github_project.repository}",
@@ -555,7 +555,7 @@ def _update_upstream_versions(
         for cycle in cycles:
             eol = cycle.get("eol")
             if eol is False:
-                eol = "Best Effort"
+                eol = "Best effort"
             else:
                 if not isinstance(eol, str):
                     continue

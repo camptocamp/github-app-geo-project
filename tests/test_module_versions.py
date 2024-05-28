@@ -101,7 +101,7 @@ async def test_process_step_2() -> None:
                             ],
                         },
                     },
-                    "support": "Best Effort",
+                    "support": "Best effort",
                 },
             },
         },
