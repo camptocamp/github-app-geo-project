@@ -194,8 +194,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 stabilization_branch = [repo.default_branch]
                 status.versions.setdefault(
                     repo.default_branch,
-                    _TransversalStatusVersion(support="Best Effort"),
-                ).support = "Best Effort"
+                    _TransversalStatusVersion(support="Best effort"),
+                ).support = "Best effort"
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_branch))
 
             versions = status.versions
@@ -216,7 +216,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     if not success:
                         raise VersionException("Failed to clone the repository")
 
-                version_status = _TransversalStatusVersion(support="Best Effort")
+                version_status = _TransversalStatusVersion(support="Best effort")
                 transversal_status = context.transversal_status
                 transversal_status.repositories.setdefault(
                     f"{context.github_project.owner}/{context.github_project.repository}",
@@ -279,12 +279,12 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 for branch, branch_data in repo_data.versions.items():
                     for datasource, datasource_data in branch_data.names_by_datasource.items():
                         for name in datasource_data.names:
-                            names.by_datasources.setdefault(datasource, _NamesByDataSources()).by_package[
-                                name
-                            ] = _NamesStatus(repo=repo)
-                            names.by_datasources[datasource].by_package[name].status_by_version[
-                                _canonical_minor_version(datasource, branch)
-                            ] = branch_data.support
+                            current_status = names.by_datasources.setdefault(
+                                datasource, _NamesByDataSources()
+                            ).by_package.setdefault(name, _NamesStatus(repo=repo))
+                            current_status.status_by_version[_canonical_minor_version(datasource, branch)] = (
+                                branch_data.support
+                            )
 
             message = module_utils.HtmlMessage(utils.format_json_str(names.model_dump_json()))
             message.title = "Names:"
@@ -520,6 +520,18 @@ def _dependency_extractor(
     return result
 
 
+def _str_to_time_delta(text: str) -> datetime.timedelta:
+    if text.endswith("d"):
+        return datetime.timedelta(days=int(text[:-1]))
+    if text.endswith("w"):
+        return datetime.timedelta(weeks=int(text[:-1]))
+    if text.endswith("m"):
+        return datetime.timedelta(minutes=int(text[:-1]))
+    if text.endswith("h"):
+        return datetime.timedelta(hours=int(text[:-1]))
+    raise ValueError(f"Invalid time delta: {text}")
+
+
 def _update_upstream_versions(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
 ) -> None:
@@ -537,7 +549,9 @@ def _update_upstream_versions(
         )
 
         if package_status.upstream_updated and (
-            package_status.upstream_updated > datetime.datetime.now() - datetime.timedelta(days=30)
+            package_status.upstream_updated
+            > datetime.datetime.now()
+            - _str_to_time_delta(os.environ.get("GHCI_EXTERNAL_PACKAGES_UPDATE_PERIOD", "30d"))
         ):
             return
         package_status.upstream_updated = datetime.datetime.now()
@@ -555,7 +569,7 @@ def _update_upstream_versions(
         for cycle in cycles:
             eol = cycle.get("eol")
             if eol is False:
-                eol = "Best Effort"
+                eol = "Best effort"
             else:
                 if not isinstance(eol, str):
                     continue
@@ -607,15 +621,16 @@ def _build_internal_dependencies(
                 if dependency_name not in dependency_data.by_package:
                     continue
                 dependency_package_data = dependency_data.by_package[dependency_name]
+                dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 support = dependency_package_data.status_by_version.get(
-                    _canonical_minor_version(datasource_name, dependency_version),
+                    dependency_minor,
                     "Unsupported",
                 )
                 dependencies_branch.forward.append(
                     _Dependency(
                         name=dependency_name,
                         datasource=datasource_name,
-                        version=_clean_version(dependency_version),
+                        version=f"{dependency_minor} ({_clean_version(dependency_version)})",
                         support=support,
                         color=(
                             "--bs-body-bg" if _is_supported(version_data.support, support) else "--bs-danger"

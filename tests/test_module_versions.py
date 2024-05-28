@@ -101,7 +101,7 @@ async def test_process_step_2() -> None:
                             ],
                         },
                     },
-                    "support": "Best Effort",
+                    "support": "Best effort",
                 },
             },
         },
@@ -185,7 +185,7 @@ def test_get_transversal_dashboard_repo_forward() -> None:
                     _Dependency(
                         name="other_package",
                         datasource="pypi",
-                        version="2.0.1",
+                        version="2.0 (2.0.1)",
                         support="Best effort",
                         color="--bs-body-bg",
                         repo="campotcamp/other",
@@ -238,7 +238,7 @@ def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
                     _Dependency(
                         name="other_package",
                         datasource="pypi",
-                        version="2.0.1",
+                        version="2.0 (2.0.1)",
                         support="Unsupported",
                         color="--bs-danger",
                         repo="campotcamp/other",
