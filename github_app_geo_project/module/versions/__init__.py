@@ -217,7 +217,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     if not success:
                         raise VersionException("Failed to clone the repository")
 
-                version_status = _TransversalStatusVersion(support="Best effort")
+                version_status = status.versions[context.module_event_data.branch]
                 transversal_status = context.transversal_status
                 transversal_status.repositories.setdefault(
                     f"{context.github_project.owner}/{context.github_project.repository}",
