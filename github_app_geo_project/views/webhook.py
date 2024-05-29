@@ -263,6 +263,7 @@ def process_event(context: ProcessContext) -> None:
                         repo,  # type: ignore[arg-type]
                         context.event_data,
                         context.service_url,
+                        action.title,
                     )
 
                 context.session.commit()
@@ -277,6 +278,7 @@ def create_checks(
     repo: github.Repository.Repository,
     event_data: dict[str, Any],
     service_url: str,
+    sub_name: str | None = None,
 ) -> github.CheckRun.CheckRun:
     """Create the GitHub check run."""
     service_url = service_url if service_url.endswith("/") else service_url + "/"
@@ -297,8 +299,9 @@ def create_checks(
     if sha is None:
         sha = repo.get_branch(repo.default_branch).commit.sha
 
+    name = f"{current_module.title()}: {sub_name}" if sub_name else current_module.title()
     check_run = repo.create_check_run(
-        name=current_module.title(),
+        name=name,
         head_sha=sha,
         details_url=service_url,
         external_id=str(job.id),
