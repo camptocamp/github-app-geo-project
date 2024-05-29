@@ -206,7 +206,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
             actions = []
             for branch in stabilization_branch:
-                actions.append(module.Action(data=_EventData(step=2, branch=branch)))
+                actions.append(module.Action(data=_EventData(step=2, branch=branch), title=branch))
             return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
         if context.module_event_data.step == 2:
             assert context.module_event_data.branch is not None
