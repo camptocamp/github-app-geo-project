@@ -550,7 +550,13 @@ def _process_dashboard_issue(
                             session.flush()
                             if action.checks:
                                 webhook.create_checks(
-                                    job, session, current_module, repo, {}, config["service-url"]
+                                    job,
+                                    session,
+                                    current_module,
+                                    repo,
+                                    {},
+                                    config["service-url"],
+                                    action.title,
                                 )
                             session.commit()
     else:

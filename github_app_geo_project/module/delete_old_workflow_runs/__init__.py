@@ -1,12 +1,11 @@
 """Utility functions for the auto* modules."""
 
+import asyncio
 import datetime
 import json
 import logging
 import os.path
 from typing import Any
-
-from numpy import number
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils
@@ -99,7 +98,7 @@ class DeleteOldWorkflowRuns(
             for workflow_run in workflow_runs:
                 if not workflow or workflow_run.name == workflow:
                     deleted_workflows.append(f"{workflow_run.name} ({workflow_run.created_at})")
-                    workflow_run.delete()
+                    await asyncio.to_thread(workflow_run.delete)
                     deleted_number += 1
         message = utils.HtmlMessage("\n".join(deleted_workflows))
         message.title = f"Deleted {deleted_number} workflow runs"
