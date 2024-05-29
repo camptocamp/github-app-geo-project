@@ -95,7 +95,7 @@
 
     <%def name="display_output(out, suffix)">
     %if isinstance(out, str):
-      <p>${out}</p>
+      <p>${out | sanitizer, n}</p>
     %else:
     <div class="output">
       <p class="d-inline-flex gap-1">
