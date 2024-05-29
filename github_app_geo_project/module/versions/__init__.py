@@ -658,6 +658,8 @@ def _build_internal_dependencies(
                 if datasource_name not in names.by_datasources:
                     continue
                 dependency_data = names.by_datasources[datasource_name]
+                if datasource_name == "docker":
+                    dependency_name = f"{dependency_name}:{dependency_version}"
                 if dependency_name not in dependency_data.by_package:
                     continue
                 dependency_package_data = dependency_data.by_package[dependency_name]
@@ -708,9 +710,11 @@ def _build_reverse_dependency(
                 if datasource_name not in all_datasource_names:
                     continue
                 for package_name, package_data in datasource_data.versions_by_names.items():
-                    if package_name not in all_datasource_names[datasource_name]:
-                        continue
                     for version in package_data.versions:
+                        if datasource_name == "docker":
+                            package_name = f"{package_name}:{version}"
+                        if package_name not in all_datasource_names[datasource_name]:
+                            continue
                         minor_version = _canonical_minor_version(datasource_name, version)
                         version_data = repo_data.versions.get(minor_version)
                         versions: _TransversalStatusVersions | None = None
