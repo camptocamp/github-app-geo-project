@@ -437,18 +437,17 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
         self, context: module.TransversalDashboardContext[_TransversalStatus]
     ) -> module.TransversalDashboardOutput:
         """Get the transversal dashboard content."""
-        result = []
+        repositories = []
         for repository, data in context.status.repositories.items():
             if data:
-                result.append(
+                repositories.append(
                     {
                         "repository": repository,
                         "data": data,
                     }
                 )
-
         return module.TransversalDashboardOutput(
             # template="dashboard.html",
             renderer="github_app_geo_project:module/audit/dashboard.html",
-            data={"repositories": result},
+            data={"repositories": repositories},
         )
