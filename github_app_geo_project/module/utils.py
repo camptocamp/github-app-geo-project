@@ -220,10 +220,13 @@ class HtmlMessage(Message):
         """Convert the ANSI message to HTML."""
         global _suffix  # pylint: disable=global-statement
 
-        html = self.html
-        if self.title:
-            _suffix += 1
+        # interpret template parameters
+        html = self.html.replace("{pre}", "<pre>" if style != "collapse" else "").replace(
+            "{post}", "</pre>" if style != "collapse" else ""
+        )
+        if self.title and style != "no-title":
             if style == "collapse":
+                _suffix += 1
                 html = "".join(
                     [
                         '<div class="collapse-container">',
@@ -373,10 +376,10 @@ class AnsiProcessMessage(AnsiMessage):
         message = [f"Command: {shlex.join(self.args)}", f"Return code: {returncode}"]
         if self.stdout.strip():
             message.append("Output:")
-            message.append(self.stdout)
+            message.append(f"{{pre}}{self.stdout}{{post}}")
         if self.stderr.strip():
             message.append("Error:")
-            message.append(self.stderr)
+            message.append(f"{{pre}}{self.stderr}{{post}}")
 
         super().__init__("".join([f"<p>{line}</p>" for line in message]), _is_html=True)
 

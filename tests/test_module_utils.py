@@ -150,11 +150,11 @@ message
         "<p>Command: command</p>"
         "<p>Return code: 0</p>"
         "<p>Output:</p>"
-        """<p>stdout
-message</p>"""
+        """<pre>stdout
+message</pre>"""
         "<p>Error:</p>"
-        """<p>stderr
-message</p>"""
+        """<pre>stderr
+message</pre>"""
     )
 
 

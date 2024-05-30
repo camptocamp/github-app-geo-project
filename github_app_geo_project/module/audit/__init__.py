@@ -70,7 +70,7 @@ def _get_process_output(
 def _process_error(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
     key: str,
-    error_message: list[str],
+    error_message: list[str | models.OutputData],
     issue_check: module_utils.DashboardIssue,
 ) -> None:
     full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
@@ -190,7 +190,12 @@ async def _process_snyk_dpkg(
                 result, body = await audit_utils.snyk(
                     branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
                 )
-                _process_error(context, key, [m.to_html() for m in result], issue_check)
+                _process_error(
+                    context,
+                    key,
+                    [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
+                    issue_check,
+                )
 
             if context.module_event_data.type == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")
