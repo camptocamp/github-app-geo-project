@@ -10,26 +10,26 @@ help: ## Display this help message
 
 .PHONY: build
 build: ## Build the acceptences test application Docker image
-	docker compose build
+	${shell which docker} compose build
 
 .PHONY: run
 run: ## Run the acceptences application Docker image
 run: build
-	docker compose down --volume --remove-orphans
-	docker compose up -d db
-	docker compose run --rm tests wait-db
+	${shell which docker} compose down --volume --remove-orphans
+	${shell which docker} compose up -d db
+	${shell which docker} compose run --rm tests wait-db
 	# Create the tables
-	docker compose run --no-TTY worker process-queue --exit-when-empty
+	${shell which docker} compose run --no-TTY worker process-queue --exit-when-empty
 	sleep 1
 	# Run the application
-	docker compose up -d
+	${shell which docker} compose up -d
 	# Get one success and one error job
-	docker compose run --no-TTY worker send-event --application=test --event=test
-	docker compose run --no-TTY worker process-queue --exit-when-empty
+	${shell which docker} compose run --no-TTY worker send-event --application=test --event=test
+	${shell which docker} compose run --no-TTY worker process-queue --exit-when-empty
 	# Get one new and one pending job
-	docker compose run --no-TTY worker send-event --application=test --event=test
-	docker compose run --no-TTY worker process-queue --only-one
-	docker compose run --no-TTY worker process-queue --make-pending
+	${shell which docker} compose run --no-TTY worker send-event --application=test --event=test
+	${shell which docker} compose run --no-TTY worker process-queue --only-one
+	${shell which docker} compose run --no-TTY worker process-queue --make-pending
 
 .PHONY: tests
 tests: ## Run the unit tests
@@ -41,4 +41,4 @@ tests:
 .PHONY: acceptance-tests
 acceptance-tests: ## Run the acceptance tests
 acceptance-tests: run
-	docker compose run --no-TTY tests pytest -vv /acceptance_tests
+	${shell which docker} compose run --no-TTY tests pytest -vv /acceptance_tests
