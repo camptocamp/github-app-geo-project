@@ -1,7 +1,13 @@
 %for data in repositories:
 <h2>${data['repository']}</h2>
 %for type_name, type_ in data['data'].types.items():
+<!---->
+%if type_.url:
 <p><a href="${type_.url}">${type_.title}</a></p>
+%else
+<p>${type_.title}</p>
+%endif
+<!---->
 %endfor
 <!---->
 %endfor
