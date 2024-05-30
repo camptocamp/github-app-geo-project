@@ -12,6 +12,7 @@ from github_app_geo_project.module.versions import (
     _DependenciesBranches,
     _Dependency,
     _EventData,
+    _is_supported,
     _order_versions,
     _read_dependencies,
     _TransversalStatus,
@@ -156,7 +157,10 @@ def test_get_transversal_dashboard() -> None:
     assert output.data == {"repositories": ["camptocamp/test", "camptocamp/other"]}
 
 
-def test_get_transversal_dashboard_repo_forward() -> None:
+@pytest.mark.parametrize(
+    "other_support, expected_color", [("01/01/2044", "--bs-danger"), ("01/01/2046", "--bs-body-bg")]
+)
+def test_get_transversal_dashboard_repo_forward(other_support: str, expected_color: str) -> None:
     versions = Versions()
     context = Mock()
     context.status = _TransversalStatus(
@@ -164,7 +168,7 @@ def test_get_transversal_dashboard_repo_forward() -> None:
             "camptocamp/test": _TransversalStatusRepo(
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support="Best effort",
+                        support="01/01/2045",
                         dependencies_by_datasource={
                             "pypi": _TransversalStatusNameInDatasource(
                                 versions_by_names={
@@ -178,7 +182,7 @@ def test_get_transversal_dashboard_repo_forward() -> None:
             "camptocamp/other": _TransversalStatusRepo(
                 versions={
                     "2.0": _TransversalStatusVersion(
-                        support="Best effort",
+                        support=other_support,
                         names_by_datasource={
                             "pypi": _TransversalStatusNameByDatasource(names=["other_package"])
                         },
@@ -192,14 +196,14 @@ def test_get_transversal_dashboard_repo_forward() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support="Best effort",
+                support="01/01/2045",
                 forward=[
                     _Dependency(
                         name="other_package",
                         datasource="pypi",
                         version="2.0 (2.0.1)",
-                        support="Best effort",
-                        color="--bs-body-bg",
+                        support=other_support,
+                        color=expected_color,
                         repo="camptocamp/other",
                     )
                 ],
@@ -315,7 +319,10 @@ def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
     )
 
 
-def test_get_transversal_dashboard_repo_reverse() -> None:
+@pytest.mark.parametrize(
+    "other_support, expected_color", [("01/01/2044", "--bs-body-bg"), ("01/01/2046", "--bs-danger")]
+)
+def test_get_transversal_dashboard_repo_reverse(other_support: str, expected_color: str) -> None:
     versions = Versions()
     context = Mock()
     context.status = _TransversalStatus(
@@ -323,7 +330,7 @@ def test_get_transversal_dashboard_repo_reverse() -> None:
             "camptocamp/test": _TransversalStatusRepo(
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support="Best effort",
+                        support="01/01/2045",
                         names_by_datasource={"pypi": _TransversalStatusNameByDatasource(names=["test"])},
                     )
                 },
@@ -331,7 +338,7 @@ def test_get_transversal_dashboard_repo_reverse() -> None:
             "camptocamp/other": _TransversalStatusRepo(
                 versions={
                     "2.0": _TransversalStatusVersion(
-                        support="Best effort",
+                        support=other_support,
                         dependencies_by_datasource={
                             "pypi": _TransversalStatusNameInDatasource(
                                 versions_by_names={"test": _TransversalStatusVersions(versions=["1.0.1"])}
@@ -347,15 +354,15 @@ def test_get_transversal_dashboard_repo_reverse() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support="Best effort",
+                support="01/01/2045",
                 forward=[],
                 reverse=[
                     _Dependency(
                         name="camptocamp/other",
                         datasource="-",
                         version="2.0",
-                        support="Best effort",
-                        color="--bs-danger",
+                        support=other_support,
+                        color=expected_color,
                         repo="camptocamp/other",
                     )
                 ],
@@ -408,7 +415,7 @@ def test_get_transversal_dashboard_repo_reverse_docker() -> None:
                         datasource="-",
                         version="2.0",
                         support="Best effort",
-                        color="--bs-danger",
+                        color="--bs-body-bg",
                         repo="camptocamp/other",
                     )
                 ],
@@ -913,3 +920,32 @@ def test_order_versions():
     versions = ["1.0", "2.0", "1.5", "toto", "3.0", "1.2"]
     ordered_versions = _order_versions(versions)
     assert ordered_versions == ["3.0", "2.0", "1.5", "1.2", "1.0", "toto"]
+
+
+@pytest.mark.parametrize(
+    "support, dependency_support, expected_result",
+    [
+        ("test", "test", True),
+        ("other", "other", True),
+        ("other", "test", False),
+        ("test", "other", False),
+        ("Best effort", "To be defined", True),
+        ("To be defined", "Best effort", False),
+        ("Unsupported", "Best effort", True),
+        ("Best effort", "Unsupported", False),
+        ("To be defined", "2040-01-01", True),
+        ("Unsupported", "2040-01-01", True),
+        ("Best effort", "2040-01-01", True),
+        ("2040-01-01", "To be defined", False),
+        ("2040-01-01", "Unsupported", False),
+        ("2040-01-01", "Best effort", False),
+        ("01/01/2040", "2040-01-01", True),
+        ("2040-01-01", "01/01/2040", True),
+        ("01/01/2045", "01/01/2046", True),
+        ("01/01/2045", "01/01/2044", False),
+        ("01/01/2046", "01/01/2045", False),
+        ("01/01/2044", "01/01/2045", True),
+    ],
+)
+def test_is_supported(support, dependency_support, expected_result):
+    assert _is_supported(support, dependency_support) == expected_result
