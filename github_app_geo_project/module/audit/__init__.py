@@ -29,7 +29,7 @@ _OUTDATED = "Outdated version"
 
 class _TransversalStatusTool(BaseModel):
     title: str
-    url: str
+    url: str | None = None
 
 
 class _TransversalStatusRepo(BaseModel):
@@ -70,8 +70,9 @@ def _get_process_output(
 def _process_error(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
     key: str,
-    error_message: list[str | models.OutputData],
     issue_check: module_utils.DashboardIssue,
+    error_message: list[str | models.OutputData] | None = None,
+    message: str | None = None,
 ) -> None:
     full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
     if error_message:
@@ -87,10 +88,20 @@ def _process_error(
             full_repo,
             _TransversalStatusRepo(),
         ).types[key] = _TransversalStatusTool(
-            title=key,
+            title=f"{key}: {message}" if message else key,
             url=output_url,
         )
-        issue_check.set_title(key, f"{key} ([Error]({output_url}))")
+        issue_check.set_title(
+            key, f"{key}: {message} ([Error]({output_url}))" if message else f"{key} ([Error]({output_url}))"
+        )
+    elif message:
+        context.transversal_status.repositories.setdefault(
+            full_repo,
+            _TransversalStatusRepo(),
+        ).types[
+            key
+        ] = _TransversalStatusTool(title=f"{key}: {message}")
+        issue_check.set_title(key, f"{key}: {message}")
     else:
         issue_check.set_title(key, key)
 
@@ -114,14 +125,14 @@ def _process_outdated(
         security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
         error_message = audit_utils.outdated_versions(security)
-        _process_error(context, _OUTDATED, error_message, issue_check)
+        _process_error(context, _OUTDATED, issue_check, error_message)
     except github.GithubException as exception:
         if exception.status == 404:
             _LOGGER.debug("No SECURITY.md file in the repository")
-            _process_error(context, _OUTDATED, ["No SECURITY.md file in the repository"], issue_check)
+            _process_error(context, _OUTDATED, issue_check, message="No SECURITY.md file in the repository")
         else:
             _LOGGER.exception("Error while getting SECURITY.md")
-            _process_error(context, _OUTDATED, ["Error while getting SECURITY.md"], issue_check)
+            _process_error(context, _OUTDATED, issue_check, message="Error while getting SECURITY.md")
             raise
 
 
@@ -187,14 +198,15 @@ async def _process_snyk_dpkg(
                         message.title = "Setting the Python version"
                         _LOGGER.debug(message)
 
-                result, body = await audit_utils.snyk(
+                result, body, short_message = await audit_utils.snyk(
                     branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
                 )
                 _process_error(
                     context,
                     key,
-                    [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
                     issue_check,
+                    [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
+                    short_message,
                 )
 
             if context.module_event_data.type == "dpkg":

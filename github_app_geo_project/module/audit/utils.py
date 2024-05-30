@@ -23,11 +23,12 @@ _LOGGER = logging.getLogger(__name__)
 
 async def snyk(
     branch: str, config: configuration.SnykConfiguration, local_config: configuration.SnykConfiguration
-) -> tuple[list[module_utils.Message], module_utils.Message]:
+) -> tuple[list[module_utils.Message], module_utils.Message, str | None]:
     """
     Audit the code with Snyk.
     """
     result = []
+    return_message = None
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["echo"],
@@ -306,7 +307,8 @@ async def snyk(
             dashboard_message = module_utils.AnsiProcessMessage(
                 command, test_proc.returncode, stdout.decode(), stderr.decode()
             )
-        dashboard_message.title = "Error while testing the project"
+        return_message = "Error while testing the project"
+        dashboard_message.title = return_message
         _LOGGER.error(dashboard_message)
 
     if vulnerabilities:
@@ -340,7 +342,7 @@ async def snyk(
             )
         )
 
-    return result, snyk_fix_message
+    return result, snyk_fix_message, return_message
 
 
 def outdated_versions(
