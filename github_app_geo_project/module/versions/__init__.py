@@ -616,26 +616,35 @@ def _update_upstream_versions(
             )
 
 
-def _is_supported(support: str, dependency_support: str) -> bool:
-    support = support.lower()
-    dependency_support = dependency_support.lower()
-    if support == dependency_support:
+def _parse_support_date(text: str) -> datetime.datetime:
+    try:
+        return datetime.datetime.fromisoformat(text)
+    except ValueError:
+        # Parse date like 01/01/2024
+        return datetime.datetime.strptime(text, "%d/%m/%Y")
+
+
+def _is_supported(base: str, other: str) -> bool:
+    base = base.lower()
+    other = other.lower()
+    if base == other:
         return True
-    if support == "unsupported":
+    if base == "unsupported":
         return True
-    if dependency_support == "unsupported":
+    if other == "unsupported":
         return False
-    if support == "best effort":
+    if base == "best effort":
         return True
-    if dependency_support == "best effort":
+    if other == "best effort":
         return False
-    if support == "to be defined":
+    if base == "to be defined":
         return True
-    if dependency_support == "to be defined":
+    if other == "to be defined":
         return False
     try:
-        return datetime.datetime.fromisoformat(support) < datetime.datetime.fromisoformat(dependency_support)
-    except ValueError:
+        return _parse_support_date(base) <= _parse_support_date(other)
+    except ValueError as exc:
+        _LOGGER.warning("Failed to parse support date: %s", exc)
         return False
 
 
@@ -696,7 +705,6 @@ def _build_reverse_dependency(
                 all_datasource_names.setdefault(datasource_name, set()).add(package_name)
     for other_repo, other_repo_data in transversal_status.repositories.items():
         if repository == other_repo:
-            print(f"Skip {repository} {other_repo}")
             continue
         for (
             other_version,
@@ -713,19 +721,10 @@ def _build_reverse_dependency(
                             continue
                         minor_version = _canonical_minor_version(datasource_name, version)
                         version_data = repo_data.versions.get(minor_version)
-                        versions: _TransversalStatusVersions | None = None
-                        if (
-                            version_data is not None
-                            and datasource_name in version_data.dependencies_by_datasource
-                        ):
-                            datasource_data = version_data.dependencies_by_datasource[datasource_name]
-                            if package_name in datasource_data.versions_by_names:
-                                versions = datasource_data.versions_by_names[package_name]
-                        if (
-                            version_data is not None
-                            and versions is not None
-                            and minor_version in versions.versions
-                        ):
+                        match = False
+                        if version_data is not None and datasource_name in version_data.names_by_datasource:
+                            match = package_name in version_data.names_by_datasource[datasource_name].names
+                        if version_data is not None and match:
                             dependencies_branches.by_branch.setdefault(
                                 minor_version, _Dependencies()
                             ).reverse.append(
@@ -735,9 +734,9 @@ def _build_reverse_dependency(
                                     version=_clean_version(other_version),
                                     support=other_version_data.support,
                                     color=(
-                                        "--bs-danger"
+                                        "--bs-body-bg"
                                         if _is_supported(other_version_data.support, version_data.support)
-                                        else "--bs-body-bg"
+                                        else "--bs-danger"
                                     ),
                                     repo=other_repo,
                                 )
