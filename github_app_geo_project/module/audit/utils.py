@@ -14,7 +14,7 @@ import c2cciutils.security
 import debian_inspector.version
 import yaml  # nosec
 
-from github_app_geo_project import utils
+from github_app_geo_project import models, utils
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
 
@@ -328,6 +328,7 @@ async def snyk(
     if snyk_fix_proc.returncode != 0:
         message.title = "Error while fixing the project"
         _LOGGER.warning(message)
+        result.append(message)
     else:
         message.title = "Snyk fix applied"
         _LOGGER.debug(message)
@@ -344,14 +345,14 @@ async def snyk(
 
 def outdated_versions(
     security: c2cciutils.security.Security,
-) -> list[str]:
+) -> list[str | models.OutputData]:
     """
     Check that the versions from the SECURITY.md are not outdated.
     """
     version_index = security.headers.index("Version")
     date_index = security.headers.index("Supported Until")
 
-    errors = []
+    errors: list[str | models.OutputData] = []
 
     for row in security.data:
         str_date = row[date_index]

@@ -155,12 +155,12 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
         Note that this method is called in the queue consuming Pod
         """
+        key = f"{context.github_project.owner}/{context.github_project.repository}"
+        status = context.transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
         if context.module_event_data.step == 1:
-            key = f"{context.github_project.owner}/{context.github_project.repository}"
             module_utils.manage_updated_separated(
                 context.transversal_status.updated, context.transversal_status.repositories, key
             )
-            status = context.transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
 
             _update_upstream_versions(context)
 
@@ -206,7 +206,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
             actions = []
             for branch in stabilization_branch:
-                actions.append(module.Action(data=_EventData(step=2, branch=branch)))
+                actions.append(module.Action(data=_EventData(step=2, branch=branch), title=branch))
             return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
         if context.module_event_data.step == 2:
             assert context.module_event_data.branch is not None
@@ -217,12 +217,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     if not success:
                         raise VersionException("Failed to clone the repository")
 
-                version_status = _TransversalStatusVersion(support="Best effort")
+                version_status = status.versions[context.module_event_data.branch]
                 transversal_status = context.transversal_status
-                transversal_status.repositories.setdefault(
-                    f"{context.github_project.owner}/{context.github_project.repository}",
-                    _TransversalStatusRepo(),
-                ).versions[context.module_event_data.branch] = version_status
 
                 _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
                 message = module_utils.HtmlMessage(
