@@ -11,6 +11,7 @@ import tempfile
 from collections.abc import Iterable
 from typing import Any
 
+import c2cciutils.configuration
 import c2cciutils.security
 import github
 import requests
@@ -404,7 +405,7 @@ def _get_names(
                 names.append(name)
             else:
                 name = data.get("tool", {}).get("poetry", {}).get("name")
-                if name:
+                if name and name not in names:
                     names.append(name)
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "setup.py", "*/setup.py"],
@@ -414,22 +415,39 @@ def _get_names(
         timeout=30,
     ).stdout.splitlines():
         with open(filename, encoding="utf-8") as file:
+            names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
             for line in file:
                 match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
                 if match:
-                    names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names.append(
-                        match.group(1)
-                    )
+                    if match.group(1) not in names:
+                        names.append(match.group(1))
 
     if os.path.exists("ci/config.yaml"):
         with open("ci/config.yaml", encoding="utf-8") as file:
             data = yaml.load(file, Loader=yaml.SafeLoader)
-            if data.get("publish", {}).get("docker", {}):
-                for conf in data.get("publish", {}).get("docker", {}).get("images", []):
+            docker_config = data.get("publish", {}).get("docker", {})
+            if docker_config:
+                names = names_by_datasource.setdefault("docker", _TransversalStatusNameByDatasource()).names
+                for conf in docker_config.get("images", []):
                     for tag in conf.get("tags", ["{version}"]):
-                        names_by_datasource.setdefault(
-                            "docker", _TransversalStatusNameByDatasource()
-                        ).names.append(f"{conf.get('name')}:{tag.format(version=branch)}")
+                        for repository_conf in docker_config.get(
+                            "repository", c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT
+                        ).values():
+                            repository_server = repository_conf.get("server", False)
+                            add_names = []
+                            if repository_server:
+                                add_names.append(
+                                    f"{repository_server}/{conf.get('name')}:{tag.format(version=branch)}"
+                                )
+
+                            else:
+                                add_names = [
+                                    f"{conf.get('name')}:{tag.format(version=branch)}",
+                                    f"docker.io/{conf.get('name')}:{tag.format(version=branch)}",
+                                ]
+                            for add_name in add_names:
+                                if add_name not in names:
+                                    names.append(add_name)
 
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "package.json", "*/package.json"],
@@ -441,12 +459,14 @@ def _get_names(
         with open(filename, encoding="utf-8") as file:
             data = json.load(file)
             name = data.get("name")
-            if name:
-                names_by_datasource.setdefault("npm", _TransversalStatusNameByDatasource()).names.append(name)
+            names = names_by_datasource.setdefault("npm", _TransversalStatusNameByDatasource()).names
+            if name and name not in names:
+                names.append(name)
 
-    names_by_datasource.setdefault("github", _TransversalStatusNameByDatasource()).names.append(
-        f"{context.github_project.owner}/{context.github_project.repository}"
-    )
+    names = names_by_datasource.setdefault("github-release", _TransversalStatusNameByDatasource()).names
+    add_name = f"{context.github_project.owner}/{context.github_project.repository}"
+    if add_name not in names:
+        names.append(add_name)
 
 
 def _get_dependencies(

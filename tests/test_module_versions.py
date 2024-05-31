@@ -95,10 +95,12 @@ async def test_process_step_2() -> None:
                     "names_by_datasource": {
                         "docker": {
                             "names": [
+                                "ghcr.io/camptocamp/github-app-geo-project:master",
                                 "camptocamp/github-app-geo-project:master",
+                                "docker.io/camptocamp/github-app-geo-project:master",
                             ],
                         },
-                        "github": {
+                        "github-release": {
                             "names": [
                                 "camptocamp/test",
                             ],
