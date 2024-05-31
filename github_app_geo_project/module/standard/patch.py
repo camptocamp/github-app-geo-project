@@ -42,7 +42,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
-        return "https://github.com/camptocamp/github-app-geo-project/wiki/Patch-module"
+        return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Patch"
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """
