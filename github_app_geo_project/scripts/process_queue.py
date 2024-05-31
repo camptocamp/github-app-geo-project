@@ -253,8 +253,8 @@ async def _process_job(
                 )
                 if module_status is None:
                     module_status = models.ModuleStatus(module=job.module, data={})
-                    session.add(module_status)
                 module_status.data = current_module.transversal_status_to_json(result.transversal_status)
+                session.add(module_status)
             if result is not None:
                 _LOGGER.debug("Process actions")
                 for action in result.actions:
