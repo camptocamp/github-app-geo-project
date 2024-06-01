@@ -5,6 +5,6 @@
   "author": "",
   "dependencies": {
     "@jamietanna/renovate-graph": "^0.19.0",
-    "snyk": "1.1291.0"
+    "snyk": "1.1291.1"
   }
 }
