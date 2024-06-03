@@ -76,10 +76,11 @@ def _process_error(
 ) -> None:
     full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
     if error_message:
+        logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
         output_id = module_utils.add_output(
             context,
             key,
-            [*error_message, f'<a href="{context.service_url}/logs/{context.job_id}">Logs</a>'],
+            [*error_message, f'<a href="{logs_url}">Logs</a>'],
             models.OutputStatus.ERROR,
         )
 

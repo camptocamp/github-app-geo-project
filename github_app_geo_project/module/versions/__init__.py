@@ -159,6 +159,9 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         key = f"{context.github_project.owner}/{context.github_project.repository}"
         status = context.transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
         if context.module_event_data.step == 1:
+            status.url = (
+                f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
+            )
             module_utils.manage_updated_separated(
                 context.transversal_status.updated, context.transversal_status.repositories, key
             )
@@ -309,6 +312,11 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 renderer="github_app_geo_project:module/versions/repository.html",
                 data={
                     "title": self.title() + " - " + context.params["repository"],
+                    "url": (
+                        transversal_status.repositories[context.params["repository"]].url
+                        if context.params["repository"] in transversal_status.repositories
+                        else None
+                    ),
                     "dependencies_branches": dependencies_branches,
                     "branches": _order_versions(dependencies_branches.by_branch.keys()),
                     "data": utils.format_json(
@@ -497,15 +505,22 @@ def _get_dependencies(
         lines = proc.stdout.splitlines()
     else:
         lines = os.environ["RENOVATE_GRAPH"].splitlines()
-    lines = [line for line in lines if line.startswith("  ")]
 
     index = -1
     for i, line in enumerate(lines):
-        if "packageFiles" in line:
+        if "packageFiles" in line and line.strip().endswith("  "):
             index = i
             break
     if index != -1:
         lines = lines[index:]
+
+    index = -1
+    for i, line in enumerate(lines):
+        if not line.startswith("  "):
+            index = i
+            break
+    if index != -1:
+        lines = lines[:index]
 
     json_str = "{\n" + "\n".join(lines) + "\n}"
     message = module_utils.HtmlMessage(utils.format_json_str(json_str))
@@ -598,6 +613,7 @@ def _update_upstream_versions(
         package_status: _TransversalStatusRepo = context.transversal_status.repositories.setdefault(
             package, _TransversalStatusRepo()
         )
+        package_status.url = f"https://endoflife.date/{package}"
 
         if package_status.upstream_updated and (
             package_status.upstream_updated

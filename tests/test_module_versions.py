@@ -82,7 +82,12 @@ async def test_process_step_2() -> None:
              "packageFile": "docker-compose.yaml"
            }
          ]
-    }
+        }
+DEBUG: yarn.lock package-lock.json is has no __metadata so is yarn 1
+DEBUG: writePackageDataToFile called for github//local
+       "key": {"platform": "github", "organisation": "", "repo": "local"},
+       "outDir": "out"
+ INFO: Successfully retrieved dependency data for camptocamp/github-app-geo-project
 """
     output = await versions.process(context)
     assert isinstance(output.transversal_status, _TransversalStatus)
