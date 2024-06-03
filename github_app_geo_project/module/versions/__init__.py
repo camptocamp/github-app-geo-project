@@ -497,15 +497,22 @@ def _get_dependencies(
         lines = proc.stdout.splitlines()
     else:
         lines = os.environ["RENOVATE_GRAPH"].splitlines()
-    lines = [line for line in lines if line.startswith("  ")]
 
     index = -1
     for i, line in enumerate(lines):
-        if "packageFiles" in line:
+        if "packageFiles" in line and line.strip().endswith("  "):
             index = i
             break
     if index != -1:
         lines = lines[index:]
+
+    index = -1
+    for i, line in enumerate(lines):
+        if not line.startswith("  "):
+            index = i
+            break
+    if index != -1:
+        lines = lines[:index]
 
     json_str = "{\n" + "\n".join(lines) + "\n}"
     message = module_utils.HtmlMessage(utils.format_json_str(json_str))
