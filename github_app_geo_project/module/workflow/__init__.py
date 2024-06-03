@@ -132,6 +132,9 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             del context.transversal_status[
                 context.github_project.owner + "/" + context.github_project.repository
             ]
+        message = module_utils.HtmlMessage(utils.format_json(context.transversal_status))
+        message.title = "New transversal status"
+        _LOGGER.debug(message)
         return module.ProcessOutput(transversal_status=context.transversal_status)
 
     def has_transversal_dashboard(self) -> bool:

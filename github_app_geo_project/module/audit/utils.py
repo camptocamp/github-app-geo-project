@@ -12,6 +12,7 @@ import subprocess  # nosec
 import apt_repo
 import c2cciutils.security
 import debian_inspector.version
+import markdown
 import yaml  # nosec
 
 from github_app_geo_project import models, utils
@@ -236,11 +237,11 @@ async def snyk(
 
     test_json_str = stdout.decode()
     message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
-    message.title = "Snyk test output"
+    message.title = "Snyk test JSON output"
     if test_json_str:
         _LOGGER.debug(message)
     else:
-        _LOGGER.error("Snyk test returned nothing on project %s branch %s", os.getcwd(), branch)
+        _LOGGER.error("Snyk test JSON returned nothing on project %s branch %s", os.getcwd(), branch)
     test_json = json.loads(test_json_str) if test_json_str else []
 
     if not isinstance(test_json, list):
@@ -249,52 +250,48 @@ async def snyk(
     vulnerabilities = False
     error = False
     for row in test_json:
-        if row.get("ok", True) is False:
-            _LOGGER.warning("Error on file %s: %s", row.get("targetFile", "-"), row.get("error"))
-            error = True
-            continue
-
-        else:
-            if not row.get("vulnerabilities", []):
-                continue
-
-            result.append(
-                module_utils.HtmlMessage(
-                    f"<p>Package manager: {row.get('packageManager', '-')}</p>"
-                    f"<p>Target file: {row.get('targetFile', '-')}</p>"
-                    f"<p>Project path: {row.get('projectPath', '-')}</p>"
+        result.append(
+            module_utils.HtmlMessage(
+                "\n".join(
+                    [
+                        f"Package manager: {row.get('packageManager', '-')}",
+                        f"Target file: {row.get('displayTargetFile', '-')}",
+                        f"Project path: {row.get('path', '-')}",
+                        row.get("summary", ""),
+                    ]
                 )
             )
+        )
 
-            # TODO: Example message:
-            # Pin idna@3.3 to idna@3.7 to fix
-            # ✗ Resource Exhaustion (new) [Medium Severity][https://security.snyk.io/vuln/SNYK-PYTHON-IDNA-6597975] in idna@3.3
-            #   introduced by requests@2.31.0 > idna@3.3 and 6 other path(s)
+        # TODO: Example message:
+        # Pin idna@3.3 to idna@3.7 to fix
+        # ✗ Resource Exhaustion (new) [Medium Severity][https://security.snyk.io/vuln/SNYK-PYTHON-IDNA-6597975] in idna@3.3
+        #   introduced by requests@2.31.0 > idna@3.3 and 6 other path(s)
 
-            for vuln in row["vulnerabilities"]:
-                if vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):
-                    vulnerabilities = True
-                result.append(
-                    module_utils.HtmlMessage(
-                        "\n".join(
-                            [
-                                vuln["id"],
-                                " > ".join(vuln["from"]),
-                                *[
-                                    f"{identifier_type} {', '.join(identifiers)}"
-                                    for identifier_type, identifiers in vuln["identifiers"].items()
-                                ],
-                                *[
-                                    f"[{reference['title']}]({reference['url']})"
-                                    for reference in vuln["references"]
-                                ],
-                                "",
-                                vuln["description"],
-                            ]
-                        ),
-                        f"[{vuln['severity'].upper()}] {vuln['packageName']}@{vuln['version']}: {vuln['title']}, fixed in {', '.join(vuln['fixedIn'])}",
-                    )
+        for vuln in row["vulnerabilities"]:
+            if vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):
+                vulnerabilities = True
+            result.append(
+                module_utils.HtmlMessage(
+                    "\n".join(
+                        [
+                            vuln["id"],
+                            " > ".join(vuln["from"]),
+                            *[
+                                f"{identifier_type} {', '.join(identifiers)}"
+                                for identifier_type, identifiers in vuln["identifiers"].items()
+                            ],
+                            *[
+                                f"[{reference['title']}]({reference['url']})"
+                                for reference in vuln["references"]
+                            ],
+                            "",
+                            markdown.markdown(vuln["description"]),
+                        ]
+                    ),
+                    f"[{vuln['severity'].upper()}] {vuln['packageName']}@{vuln['version']}: {vuln['title']}, fixed in {', '.join(vuln['fixedIn'])}",
                 )
+            )
 
     if error:
         command = ["snyk", "test"] + config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
