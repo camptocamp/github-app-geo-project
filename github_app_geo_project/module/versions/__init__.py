@@ -94,6 +94,7 @@ class _DependenciesBranches(BaseModel):
 class _EventData(BaseModel):
     step: int
     branch: str | None = None
+    alternate_versions: list[str] | None = None
 
 
 class VersionException(Exception):
@@ -210,7 +211,16 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
             actions = []
             for branch in stabilization_branch:
-                actions.append(module.Action(data=_EventData(step=2, branch=branch), title=branch))
+                actions.append(
+                    module.Action(
+                        data=_EventData(
+                            step=2,
+                            branch=branch,
+                            alternate_versions=module_utils.get_alternate_versions(security, branch),
+                        ),
+                        title=branch,
+                    )
+                )
             return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
         if context.module_event_data.step == 2:
             assert context.module_event_data.branch is not None
@@ -222,6 +232,10 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                         raise VersionException("Failed to clone the repository")
 
                 version_status = status.versions[context.module_event_data.branch]
+                for alternate in context.module_event_data.alternate_versions or []:
+                    status.versions[alternate] = version_status
+                for datasource_data in version_status.names_by_datasource.values():
+                    datasource_data.names = list(set(datasource_data.names))
                 transversal_status = context.transversal_status
 
                 _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
