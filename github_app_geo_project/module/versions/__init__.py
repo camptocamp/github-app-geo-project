@@ -160,6 +160,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         key = f"{context.github_project.owner}/{context.github_project.repository}"
         status = context.transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
         if context.module_event_data.step == 1:
+            _apply_additional_packages(context)
             status.url = (
                 f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
             )
@@ -804,3 +805,11 @@ def _build_reverse_dependency(
                                     repo=other_repo,
                                 )
                             )
+
+
+def _apply_additional_packages(
+    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
+) -> None:
+    for repo, data in context.module_config.get("additional-packages", {}).items():
+        pydentic_data = _TransversalStatusRepo(**data)
+        context.transversal_status.repositories[repo] = pydentic_data
