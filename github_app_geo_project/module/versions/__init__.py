@@ -695,15 +695,17 @@ def _build_internal_dependencies(
     )
     for datasource_name, dependencies_data in version_data.dependencies_by_datasource.items():
         for dependency_name, dependency_versions in dependencies_data.versions_by_names.items():
+            if datasource_name not in names.by_datasources:
+                continue
             for dependency_version in dependency_versions.versions:
-                if datasource_name not in names.by_datasources:
-                    continue
                 dependency_data = names.by_datasources[datasource_name]
                 if datasource_name == "docker":
-                    dependency_name = f"{dependency_name}:{dependency_version}"
-                if dependency_name not in dependency_data.by_package:
+                    full_dependency_name = f"{dependency_name}:{dependency_version}"
+                else:
+                    full_dependency_name = dependency_name
+                if full_dependency_name not in dependency_data.by_package:
                     continue
-                dependency_package_data = dependency_data.by_package[dependency_name]
+                dependency_package_data = dependency_data.by_package[full_dependency_name]
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 support = dependency_package_data.status_by_version.get(
                     dependency_minor,

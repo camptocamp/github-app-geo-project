@@ -259,13 +259,80 @@ def test_get_transversal_dashboard_repo_forward_docker() -> None:
                 support="Best effort",
                 forward=[
                     _Dependency(
-                        name="camptocamp/other:2.0",
+                        name="camptocamp/other",
                         datasource="docker",
                         version="2.0",
                         support="Best effort",
                         color="--bs-body-bg",
                         repo="camptocamp/other",
                     )
+                ],
+                reverse=[],
+            )
+        }
+    )
+
+
+def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        dependencies_by_datasource={
+                            "docker": _TransversalStatusNameInDatasource(
+                                versions_by_names={
+                                    "camptocamp/other": _TransversalStatusVersions(versions=["1.0", "2.0"]),
+                                }
+                            )
+                        },
+                    )
+                },
+            ),
+            "camptocamp/other": _TransversalStatusRepo(
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        names_by_datasource={
+                            "docker": _TransversalStatusNameByDatasource(names=["camptocamp/other:1.0"])
+                        },
+                    ),
+                    "2.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        names_by_datasource={
+                            "docker": _TransversalStatusNameByDatasource(names=["camptocamp/other:2.0"])
+                        },
+                    ),
+                },
+            ),
+        }
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={
+            "1.0": _Dependencies(
+                support="Best effort",
+                forward=[
+                    _Dependency(
+                        name="camptocamp/other",
+                        datasource="docker",
+                        version="1.0",
+                        support="Best effort",
+                        color="--bs-body-bg",
+                        repo="camptocamp/other",
+                    ),
+                    _Dependency(
+                        name="camptocamp/other",
+                        datasource="docker",
+                        version="2.0",
+                        support="Best effort",
+                        color="--bs-body-bg",
+                        repo="camptocamp/other",
+                    ),
                 ],
                 reverse=[],
             )
