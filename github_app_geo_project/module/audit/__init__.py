@@ -57,6 +57,8 @@ class _EventData(BaseModel):
 def _get_process_output(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
     issue_check: module_utils.DashboardIssue,
+    short_message: list[str],
+    success: bool,
 ) -> module.ProcessOutput[_EventData, _TransversalStatus]:
     assert context.module_event_data.type is not None
     issue_check.set_check(context.module_event_data.type, False)
@@ -64,6 +66,8 @@ def _get_process_output(
     return module.ProcessOutput(
         dashboard=issue_check.to_string(),
         transversal_status=context.transversal_status,
+        success=success,
+        output={"summary": "\n".join(short_message)} if short_message else {},
     )
 
 
@@ -73,8 +77,9 @@ def _process_error(
     issue_check: module_utils.DashboardIssue,
     error_message: list[str | models.OutputData] | None = None,
     message: str | None = None,
-) -> None:
+) -> str | None:
     full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
+    output_url = None
     if error_message:
         logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
         output_id = module_utils.add_output(
@@ -113,6 +118,7 @@ def _process_error(
             del context.transversal_status.repositories[full_repo].types[key]
             if not context.transversal_status.repositories[full_repo].types:
                 del context.transversal_status.repositories[full_repo]
+    return output_url
 
 
 def _process_outdated(
@@ -140,7 +146,10 @@ def _process_outdated(
 async def _process_snyk_dpkg(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
     issue_check: module_utils.DashboardIssue,
-) -> None:
+) -> tuple[list[str], bool]:
+    short_message: list[str] = []
+    success = True
+
     key = f"Undefined {context.module_event_data.version}"
     new_branch = f"ghci/audit/{context.module_event_data.type}/{context.module_event_data.version}"
     if context.module_event_data.type == "snyk":
@@ -168,7 +177,7 @@ async def _process_snyk_dpkg(
         # Checkout the right branch on a temporary directory
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.chdir(tmpdirname)
-            success = module_utils.git_clone(context.github_project, branch)
+            success &= module_utils.git_clone(context.github_project, branch)
 
             local_config: configuration.AuditConfiguration = {}
             if context.module_event_data.type in ("snyk", "dpkg"):
@@ -199,16 +208,19 @@ async def _process_snyk_dpkg(
                         message.title = "Setting the Python version"
                         _LOGGER.debug(message)
 
-                result, body, short_message = await audit_utils.snyk(
+                result, body, short_message, new_success = await audit_utils.snyk(
                     branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
                 )
-                _process_error(
+                success &= new_success
+                output_url = _process_error(
                     context,
                     key,
                     issue_check,
                     [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
-                    short_message,
+                    ", ".join(short_message),
                 )
+                if output_url is not None:
+                    short_message.append(f"[See also]({output_url})")
 
             if context.module_event_data.type == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")
@@ -232,10 +244,11 @@ async def _process_snyk_dpkg(
 
                 else:
                     repo = context.github_project.repo
-                    success, pull_request = module_utils.create_commit_pull_request(
+                    new_success, pull_request = module_utils.create_commit_pull_request(
                         branch, new_branch, f"Audit {key}", body.to_markdown(), repo
                     )
-                    if not success:
+                    success &= new_success
+                    if not new_success:
                         _LOGGER.error("Error while create commit or pull request")
                     else:
                         if pull_request is not None:
@@ -243,6 +256,8 @@ async def _process_snyk_dpkg(
 
     except Exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
+
+    return short_message, success
 
 
 class Audit(module.Module[configuration.AuditConfiguration, _EventData, _TransversalStatus]):
@@ -328,6 +343,8 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
         """
         issue_check = module_utils.DashboardIssue(context.issue_data)
         repo = context.github_project.repo
+        short_message: list[str] = []
+        success = True
 
         module_utils.manage_updated_separated(
             context.transversal_status.updated,
@@ -426,9 +443,9 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                         )
                 return ProcessOutput(actions=actions)
             else:
-                await _process_snyk_dpkg(context, issue_check)
+                short_message, success = await _process_snyk_dpkg(context, issue_check)
 
-        return _get_process_output(context, issue_check)
+        return _get_process_output(context, issue_check, short_message, success)
 
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
