@@ -196,11 +196,11 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
             else:
                 _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
-                stabilization_branch = [repo.default_branch]
-                status.versions.setdefault(
-                    repo.default_branch,
-                    _TransversalStatusVersion(support="Best effort"),
-                ).support = "Best effort"
+            stabilization_branch.append(repo.default_branch)
+            status.versions.setdefault(
+                repo.default_branch,
+                _TransversalStatusVersion(support="Best effort"),
+            ).support = "Best effort"
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_branch))
 
             versions = status.versions
