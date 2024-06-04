@@ -267,6 +267,16 @@ async def _process_job(
                     new_job.event_data = job.event_data
                     new_job.module = job.module
                     new_job.module_data = current_module.event_data_to_json(action.data)
+                    webhook.create_checks(
+                        new_job,
+                        session,
+                        current_module,
+                        repo,
+                        job.event_data,
+                        config["service-url"],
+                        action.title,
+                    )
+
                     session.add(new_job)
             session.commit()
             new_issue_data = result.dashboard if result is not None else None
