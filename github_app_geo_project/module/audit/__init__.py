@@ -430,7 +430,9 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                     ):
                         actions.append(
                             module.Action(
-                                priority=priority, data=_EventData(type="snyk", version=version), title="snyk"
+                                priority=priority,
+                                data=_EventData(type="snyk", version=version),
+                                title=f"snyk ({version})",
                             )
                         )
                     if context.module_event_data.dpkg and context.module_config.get("dpkg", {}).get(
@@ -438,7 +440,9 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                     ):
                         actions.append(
                             module.Action(
-                                priority=priority, data=_EventData(type="dpkg", version=version), title="dpkg"
+                                priority=priority,
+                                data=_EventData(type="dpkg", version=version),
+                                title=f"dpkg ({version})",
                             )
                         )
                 return ProcessOutput(actions=actions)
