@@ -444,32 +444,30 @@ def _get_names(
                     if match.group(1) not in names:
                         names.append(match.group(1))
 
-    if os.path.exists("ci/config.yaml"):
-        with open("ci/config.yaml", encoding="utf-8") as file:
-            data = yaml.load(file, Loader=yaml.SafeLoader)
-            docker_config = data.get("publish", {}).get("docker", {})
-            if docker_config:
-                names = names_by_datasource.setdefault("docker", _TransversalStatusNameByDatasource()).names
-                for conf in docker_config.get("images", []):
-                    for tag in conf.get("tags", ["{version}"]):
-                        for repository_conf in docker_config.get(
-                            "repository", c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT
-                        ).values():
-                            repository_server = repository_conf.get("server", False)
-                            add_names = []
-                            if repository_server:
-                                add_names.append(
-                                    f"{repository_server}/{conf.get('name')}:{tag.format(version=branch)}"
-                                )
+    data = c2cciutils.get_config()
+    docker_config = data.get("publish", {}).get("docker", {})
+    if docker_config:
+        names = names_by_datasource.setdefault("docker", _TransversalStatusNameByDatasource()).names
+        for conf in docker_config.get("images", []):
+            for tag in conf.get("tags", ["{version}"]):
+                for repository_conf in docker_config.get(
+                    "repository", c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT
+                ).values():
+                    repository_server = repository_conf.get("server", False)
+                    add_names = []
+                    if repository_server:
+                        add_names.append(
+                            f"{repository_server}/{conf.get('name')}:{tag.format(version=branch)}"
+                        )
 
-                            else:
-                                add_names = [
-                                    f"{conf.get('name')}:{tag.format(version=branch)}",
-                                    f"docker.io/{conf.get('name')}:{tag.format(version=branch)}",
-                                ]
-                            for add_name in add_names:
-                                if add_name not in names:
-                                    names.append(add_name)
+                    else:
+                        add_names = [
+                            f"{conf.get('name')}:{tag.format(version=branch)}",
+                            f"docker.io/{conf.get('name')}:{tag.format(version=branch)}",
+                        ]
+                    for add_name in add_names:
+                        if add_name not in names:
+                            names.append(add_name)
 
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "package.json", "*/package.json"],
