@@ -260,7 +260,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                             f"{context.github_project.owner}/{context.github_project.repository}"
                         ]
                         .versions[context.module_event_data.branch]
-                        .model_dump_json()
+                        .model_dump_json(indent=2)
                     )
                 )
                 message.title = f"Branch ({context.module_event_data.branch}):"
@@ -270,7 +270,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     utils.format_json_str(
                         transversal_status.repositories[
                             f"{context.github_project.owner}/{context.github_project.repository}"
-                        ].model_dump_json()
+                        ].model_dump_json(indent=2)
                     )
                 )
                 message.title = "Repo:"
