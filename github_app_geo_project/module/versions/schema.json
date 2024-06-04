@@ -6,6 +6,10 @@
   "additionalProperties": false,
 
   "properties": {
+    "additional-packages": {
+      "type": "object",
+      "description": "The additional packages to be added to the versions"
+    },
     "external-packages": {
       "type": "array",
       "examples": [

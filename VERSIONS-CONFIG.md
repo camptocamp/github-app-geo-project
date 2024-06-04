@@ -2,6 +2,7 @@
 
 ## Properties
 
+- **`additional-packages`** _(object)_: The additional packages to be added to the versions.
 - **`external-packages`** _(array)_
 
   - **Items** _(object)_: Cannot contain additional properties.

@@ -2,7 +2,7 @@
 Automatically generated file from a JSON schema.
 """
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from typing_extensions import Required
 
@@ -10,6 +10,8 @@ from typing_extensions import Required
 VersionsConfiguration = TypedDict(
     "VersionsConfiguration",
     {
+        # The additional packages to be added to the versions
+        "additional-packages": dict[str, Any],
         # examples:
         #   - datasource: pypi
         #     package: python

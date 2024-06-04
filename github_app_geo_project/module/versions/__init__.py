@@ -94,6 +94,7 @@ class _DependenciesBranches(BaseModel):
 class _EventData(BaseModel):
     step: int
     branch: str | None = None
+    alternate_versions: list[str] | None = None
 
 
 class VersionException(Exception):
@@ -159,6 +160,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         key = f"{context.github_project.owner}/{context.github_project.repository}"
         status = context.transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
         if context.module_event_data.step == 1:
+            _apply_additional_packages(context)
             status.url = (
                 f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
             )
@@ -196,11 +198,11 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
             else:
                 _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
-                stabilization_branch = [repo.default_branch]
-                status.versions.setdefault(
-                    repo.default_branch,
-                    _TransversalStatusVersion(support="Best effort"),
-                ).support = "Best effort"
+            stabilization_branch.append(repo.default_branch)
+            status.versions.setdefault(
+                repo.default_branch,
+                _TransversalStatusVersion(support="Best effort"),
+            ).support = "Best effort"
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_branch))
 
             versions = status.versions
@@ -210,7 +212,16 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
             actions = []
             for branch in stabilization_branch:
-                actions.append(module.Action(data=_EventData(step=2, branch=branch), title=branch))
+                actions.append(
+                    module.Action(
+                        data=_EventData(
+                            step=2,
+                            branch=branch,
+                            alternate_versions=module_utils.get_alternate_versions(security, branch),
+                        ),
+                        title=branch,
+                    )
+                )
             return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
         if context.module_event_data.step == 2:
             assert context.module_event_data.branch is not None
@@ -222,6 +233,10 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                         raise VersionException("Failed to clone the repository")
 
                 version_status = status.versions[context.module_event_data.branch]
+                for alternate in context.module_event_data.alternate_versions or []:
+                    status.versions[alternate] = version_status
+                for datasource_data in version_status.names_by_datasource.values():
+                    datasource_data.names = list(set(datasource_data.names))
                 transversal_status = context.transversal_status
 
                 _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
@@ -430,32 +445,30 @@ def _get_names(
                     if match.group(1) not in names:
                         names.append(match.group(1))
 
-    if os.path.exists("ci/config.yaml"):
-        with open("ci/config.yaml", encoding="utf-8") as file:
-            data = yaml.load(file, Loader=yaml.SafeLoader)
-            docker_config = data.get("publish", {}).get("docker", {})
-            if docker_config:
-                names = names_by_datasource.setdefault("docker", _TransversalStatusNameByDatasource()).names
-                for conf in docker_config.get("images", []):
-                    for tag in conf.get("tags", ["{version}"]):
-                        for repository_conf in docker_config.get(
-                            "repository", c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT
-                        ).values():
-                            repository_server = repository_conf.get("server", False)
-                            add_names = []
-                            if repository_server:
-                                add_names.append(
-                                    f"{repository_server}/{conf.get('name')}:{tag.format(version=branch)}"
-                                )
+    data = c2cciutils.get_config()
+    docker_config = data.get("publish", {}).get("docker", {})
+    if docker_config:
+        names = names_by_datasource.setdefault("docker", _TransversalStatusNameByDatasource()).names
+        for conf in docker_config.get("images", []):
+            for tag in conf.get("tags", ["{version}"]):
+                for repository_conf in docker_config.get(
+                    "repository", c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT
+                ).values():
+                    repository_server = repository_conf.get("server", False)
+                    add_names = []
+                    if repository_server:
+                        add_names.append(
+                            f"{repository_server}/{conf.get('name')}:{tag.format(version=branch)}"
+                        )
 
-                            else:
-                                add_names = [
-                                    f"{conf.get('name')}:{tag.format(version=branch)}",
-                                    f"docker.io/{conf.get('name')}:{tag.format(version=branch)}",
-                                ]
-                            for add_name in add_names:
-                                if add_name not in names:
-                                    names.append(add_name)
+                    else:
+                        add_names = [
+                            f"{conf.get('name')}:{tag.format(version=branch)}",
+                            f"docker.io/{conf.get('name')}:{tag.format(version=branch)}",
+                        ]
+                    for add_name in add_names:
+                        if add_name not in names:
+                            names.append(add_name)
 
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "package.json", "*/package.json"],
@@ -695,15 +708,17 @@ def _build_internal_dependencies(
     )
     for datasource_name, dependencies_data in version_data.dependencies_by_datasource.items():
         for dependency_name, dependency_versions in dependencies_data.versions_by_names.items():
+            if datasource_name not in names.by_datasources:
+                continue
             for dependency_version in dependency_versions.versions:
-                if datasource_name not in names.by_datasources:
-                    continue
                 dependency_data = names.by_datasources[datasource_name]
                 if datasource_name == "docker":
-                    dependency_name = f"{dependency_name}:{dependency_version}"
-                if dependency_name not in dependency_data.by_package:
+                    full_dependency_name = f"{dependency_name}:{dependency_version}"
+                else:
+                    full_dependency_name = dependency_name
+                if full_dependency_name not in dependency_data.by_package:
                     continue
-                dependency_package_data = dependency_data.by_package[dependency_name]
+                dependency_package_data = dependency_data.by_package[full_dependency_name]
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 support = dependency_package_data.status_by_version.get(
                     dependency_minor,
@@ -790,3 +805,11 @@ def _build_reverse_dependency(
                                     repo=other_repo,
                                 )
                             )
+
+
+def _apply_additional_packages(
+    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
+) -> None:
+    for repo, data in context.module_config.get("additional-packages", {}).items():
+        pydentic_data = _TransversalStatusRepo(**data)
+        context.transversal_status.repositories[repo] = pydentic_data

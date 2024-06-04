@@ -619,7 +619,6 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
 
 def get_stabilization_branch(security: c2cciutils.security.Security) -> list[str]:
     """Get the stabilization versions."""
-    alternate_index = security.headers.index("Alternate Tag") if "Alternate Tag" in security.headers else -1
     version_index = security.headers.index("Version") if "Version" in security.headers else -1
     supported_until_index = (
         security.headers.index("Supported Until") if "Supported Until" in security.headers else -1
@@ -632,21 +631,31 @@ def get_stabilization_branch(security: c2cciutils.security.Security) -> list[str
         _LOGGER.warning("No Supported Until column in the SECURITY.md")
         return []
 
-    alternate = []
-    if alternate_index >= 0:
-        for row in security.data:
-            if row[alternate_index]:
-                alternate.append(row[alternate_index])
-
     versions = []
     for row in security.data:
         if row[supported_until_index] != "Unsupported":
-            if alternate:
-                if row[alternate_index] not in alternate:
-                    versions.append(row[version_index])
-            else:
-                versions.append(row[version_index])
+            versions.append(row[version_index])
     return versions
+
+
+def get_alternate_versions(security: c2cciutils.security.Security, branch: str) -> list[str]:
+    """Get the stabilization versions."""
+    alternate_index = security.headers.index("Alternate Tag") if "Alternate Tag" in security.headers else -1
+    version_index = security.headers.index("Version") if "Version" in security.headers else -1
+
+    if alternate_index < 0:
+        return []
+
+    if version_index < 0:
+        _LOGGER.warning("No Version column in the SECURITY.md")
+        return []
+
+    for row in security.data:
+        if row[version_index] == branch:
+            return [v.strip() for v in row[alternate_index].split(",") if v.strip()]
+
+    _LOGGER.warning("Branch %s not found in the SECURITY.md", branch)
+    return []
 
 
 def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
