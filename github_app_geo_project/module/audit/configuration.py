@@ -100,9 +100,9 @@ class DpkgConfiguration(TypedDict, total=False):
 
     enabled: bool
     """
-    Enable Dpkg.
+    Enable dpkg.
 
-    Enable Dpkg audit
+    Enable dpkg audit
 
     default: True
     """
@@ -262,14 +262,14 @@ SnykConfiguration = TypedDict(
         "pipenv-sync-arguments": list[str],
         # Snyk monitor arguments.
         #
-        # Arguments to pass to snyk monitor
+        # Arguments to pass to Snyk monitor
         #
         # default:
         #   - --all-projects
         "monitor-arguments": list[str],
         # Snyk test arguments.
         #
-        # Arguments to pass to snyk test
+        # Arguments to pass to Snyk test
         #
         # default:
         #   - --all-projects
@@ -277,7 +277,7 @@ SnykConfiguration = TypedDict(
         "test-arguments": list[str],
         # Snyk fix arguments.
         #
-        # Arguments to pass to snyk fix
+        # Arguments to pass to Snyk fix
         #
         # default:
         #   - --all-projects

@@ -106,10 +106,10 @@ repos:
       - id: jsonschema-gentypes
         files: |-
           (?x)^(
-              github_app_geo_project/project-schema\.json
-              |github_app_geo_project/application-schema\.json
-              |github_app_geo_project/module/.*/schema\.json
-              |github_app_geo_project/module/.*/.*-schema\.json
+            github_app_geo_project/project-schema\.json
+            |github_app_geo_project/application-schema\.json
+            |github_app_geo_project/module/.*/schema\.json
+            |github_app_geo_project/module/.*/.*-schema\.json
           )$
   - repo: https://github.com/sbrunner/jsonschema2md
     rev: 1.2.0
@@ -175,9 +175,25 @@ repos:
       - id: jsonschema-validator
         files: |-
           (?x)^(
-              ci/config\.yaml
-              |github_app_geo_project/project-schema\.json
-              |github_app_geo_project/application-schema\.json
-              |github_app_geo_project/module/.*/schema\.json
-              |github_app_geo_project/module/.*/.*-schema\.json
+            ci/config\.yaml
+            |github_app_geo_project/project-schema\.json
+            |github_app_geo_project/application-schema\.json
+            |github_app_geo_project/module/.*/schema\.json
+            |github_app_geo_project/module/.*/.*-schema\.json
           )$
+  - repo: https://github.com/mheap/json-schema-spell-checker
+    rev: main
+    hooks:
+      - id: json-schema-spell-checker
+        files: |-
+          (?x)^(
+            github_app_geo_project/module/audit/schema\.json
+            |github_app_geo_project/module/delete_old_workflow_runs/schema\.json
+            |github_app_geo_project/module/versions/schema\.json
+          )$
+        args:
+          - --fields=description,title
+          - --spelling=.github/spell-ignore-words.txt
+          - --ignore-numbers
+          - --ignore-acronyms
+          - --en-us

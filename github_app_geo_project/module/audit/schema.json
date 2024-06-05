@@ -51,7 +51,7 @@
             "monitor-arguments": {
               "type": "array",
               "title": "Snyk monitor arguments",
-              "description": "Arguments to pass to snyk monitor",
+              "description": "Arguments to pass to Snyk monitor",
               "default": ["--all-projects"],
               "items": {
                 "type": "string"
@@ -60,7 +60,7 @@
             "test-arguments": {
               "type": "array",
               "title": "Snyk test arguments",
-              "description": "Arguments to pass to snyk test",
+              "description": "Arguments to pass to Snyk test",
               "default": ["--all-projects", "--severity-threshold=medium"],
               "items": {
                 "type": "string"
@@ -69,7 +69,7 @@
             "fix-arguments": {
               "type": "array",
               "title": "Snyk fix arguments",
-              "description": "Arguments to pass to snyk fix",
+              "description": "Arguments to pass to Snyk fix",
               "default": ["--all-projects"],
               "items": {
                 "type": "string"
@@ -84,8 +84,8 @@
           "properties": {
             "enabled": {
               "type": "boolean",
-              "title": "Enable Dpkg",
-              "description": "Enable Dpkg audit",
+              "title": "Enable dpkg",
+              "description": "Enable dpkg audit",
               "default": true
             },
             "sources": {
