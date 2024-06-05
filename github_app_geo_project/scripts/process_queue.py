@@ -169,7 +169,7 @@ async def _process_job(
                 module_event_data=current_module.event_data_from_json(job.module_data),
                 issue_data=issue_data,
                 transversal_status=current_module.transversal_status_from_json(
-                    module_status.data if module_status is not None else {}
+                    module_status.data if module_status is not None else None
                 ),
                 job_id=job.id,
                 service_url=config["service-url"],
@@ -252,9 +252,17 @@ async def _process_job(
                     current_module.transversal_status_to_json(result.transversal_status),
                 )
                 if module_status is None:
-                    module_status = models.ModuleStatus(module=job.module, data={})
-                module_status.data = current_module.transversal_status_to_json(result.transversal_status)
-                session.add(module_status)
+                    module_status = models.ModuleStatus(
+                        module=job.module,
+                        data=current_module.transversal_status_to_json(result.transversal_status),
+                    )
+                    session.add(module_status)
+                else:
+                    session.execute(
+                        sqlalchemy.update(models.ModuleStatus)
+                        .where(models.ModuleStatus.module == job.module)
+                        .values(data=current_module.transversal_status_to_json(result.transversal_status))
+                    )
             if result is not None:
                 _LOGGER.debug("Process actions")
                 for action in result.actions:

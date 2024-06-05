@@ -160,19 +160,16 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         key = f"{context.github_project.owner}/{context.github_project.repository}"
         status = context.transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
         if context.module_event_data.step == 1:
-            _apply_additional_packages(context)
             status.url = (
                 f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
             )
+            _apply_additional_packages(context)
+            _update_upstream_versions(context)
+
             module_utils.manage_updated_separated(
                 context.transversal_status.updated, context.transversal_status.repositories, key
             )
-
-            _update_upstream_versions(context)
-
-            repo = context.github_project.github.get_repo(
-                f"{context.github_project.owner}/{context.github_project.repository}"
-            )
+            repo = context.github_project.repo
             stabilization_branch = []
             security_file = None
             try:
@@ -811,5 +808,8 @@ def _apply_additional_packages(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
 ) -> None:
     for repo, data in context.module_config.get("additional-packages", {}).items():
+        module_utils.manage_updated_separated(
+            context.transversal_status.updated, context.transversal_status.repositories, repo
+        )
         pydentic_data = _TransversalStatusRepo(**data)
         context.transversal_status.repositories[repo] = pydentic_data

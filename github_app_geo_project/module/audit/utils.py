@@ -24,7 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def snyk(
     branch: str, config: configuration.SnykConfiguration, local_config: configuration.SnykConfiguration
-) -> tuple[list[module_utils.Message], module_utils.Message, list[str], bool]:
+) -> tuple[list[module_utils.Message], module_utils.Message | None, list[str], bool]:
     """
     Audit the code with Snyk.
 
@@ -269,7 +269,9 @@ async def snyk(
         )
         _LOGGER.info(message)
 
-        for vuln in row["vulnerabilities"]:
+        if "error" in row:
+            _LOGGER.error(row["error"])
+        for vuln in row.get("vulnerabilities", []):
             fixable = vuln.get("isUpgradable", False) or vuln.get("isPatchable", False)
             severity = vuln["severity"]
             display = False
@@ -314,6 +316,7 @@ async def snyk(
             result.append(message)
 
     snyk_fix_success = True
+    snyk_fix_message = None
     if fixable_vulnerabilities:
         command = ["snyk", "fix"] + config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
         async with asyncio.timeout(300):
