@@ -269,7 +269,9 @@ async def snyk(
         )
         _LOGGER.info(message)
 
-        for vuln in row["vulnerabilities"]:
+        if "error" in row:
+            _LOGGER.error(row["error"])
+        for vuln in row.get("vulnerabilities", []):
             fixable = vuln.get("isUpgradable", False) or vuln.get("isPatchable", False)
             severity = vuln["severity"]
             display = False
