@@ -258,7 +258,7 @@ async def snyk(
     fixable_vulnerabilities: dict[str, int] = {}
     for row in test_json:
         message = module_utils.HtmlMessage(
-            "\n".join(
+            "<br>\n".join(
                 [
                     f"Package manager: {row.get('packageManager', '-')}",
                     f"Target file: {row.get('displayTargetFile', '-')}",
@@ -267,6 +267,7 @@ async def snyk(
                 ]
             )
         )
+        message.title = row.get("summary", "Snyk test")
         _LOGGER.info(message)
 
         if "error" in row:
