@@ -230,7 +230,7 @@ def process_event(context: ProcessContext) -> None:
                 )
             ):
                 job = models.Queue()
-                job.priority = action.priority
+                job.priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
                 job.application = context.application
                 job.owner = context.owner
                 job.repository = context.repository
