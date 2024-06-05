@@ -746,11 +746,11 @@ def _build_reverse_dependency(
     transversal_status: _TransversalStatus,
     dependencies_branches: _DependenciesBranches,
 ) -> None:
-    all_datasource_names: dict[str, set[str]] = {}
-    for version_name_data in repo_data.versions.values():
+    all_datasource_names: dict[str, dict[str, str]] = {}
+    for branch, version_name_data in repo_data.versions.items():
         for datasource_name, datasource_name_data in version_name_data.names_by_datasource.items():
             for package_name in datasource_name_data.names:
-                all_datasource_names.setdefault(datasource_name, set()).add(package_name)
+                all_datasource_names.setdefault(datasource_name, {})[package_name] = branch
     for other_repo, other_repo_data in transversal_status.repositories.items():
         if repository == other_repo:
             continue
@@ -767,7 +767,11 @@ def _build_reverse_dependency(
                             package_name = f"{package_name}:{version}"
                         if package_name not in all_datasource_names[datasource_name]:
                             continue
-                        minor_version = _canonical_minor_version(datasource_name, version)
+                        minor_version = (
+                            all_datasource_names[datasource_name][package_name]
+                            if datasource_name == "docker"
+                            else _canonical_minor_version(datasource_name, version)
+                        )
                         version_data = repo_data.versions.get(minor_version)
                         match = False
                         if version_data is not None and datasource_name in version_data.names_by_datasource:
