@@ -392,8 +392,9 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         _LOGGER.debug("%s: Thread event_data as JSON", self.title())
         return data  # type: ignore[return-value]
 
-    def transversal_status_from_json(self, data: dict[str, Any]) -> _TRANSVERSAL_STATUS:
+    def transversal_status_from_json(self, data: dict[str, Any] | None) -> _TRANSVERSAL_STATUS:
         """Create the transversal status from the JSON data."""
+        data = data or {}
         super_ = [c for c in self.__class__.__orig_bases__ if c.__origin__ == Module][0]  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[2]
         # Is Pydantic BaseModel
