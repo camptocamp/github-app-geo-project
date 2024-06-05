@@ -172,6 +172,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             repo = context.github_project.repo
             stabilization_branch = []
             security_file = None
+            security = None
             try:
                 security_file = repo.get_contents("SECURITY.md")
             except github.GithubException as exc:
@@ -214,7 +215,11 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                         data=_EventData(
                             step=2,
                             branch=branch,
-                            alternate_versions=module_utils.get_alternate_versions(security, branch),
+                            alternate_versions=(
+                                module_utils.get_alternate_versions(security, branch)
+                                if security is not None
+                                else []
+                            ),
                         ),
                         title=branch,
                     )

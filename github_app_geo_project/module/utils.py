@@ -640,8 +640,8 @@ def get_stabilization_branch(security: c2cciutils.security.Security) -> list[str
 
 def get_alternate_versions(security: c2cciutils.security.Security, branch: str) -> list[str]:
     """Get the stabilization versions."""
-    alternate_index = security.headers.index("Alternate Tag") if "Alternate Tag" in security.headers else -1
-    version_index = security.headers.index("Version") if "Version" in security.headers else -1
+    alternate_index = security.alternate_index
+    version_index = security.version_index
 
     if alternate_index < 0:
         return []
