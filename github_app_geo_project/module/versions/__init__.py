@@ -210,6 +210,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
             actions = []
             for branch in stabilization_branch:
+                branch = context.module_config.get("version-mapping", {}).get(branch, branch)
                 actions.append(
                     module.Action(
                         data=_EventData(

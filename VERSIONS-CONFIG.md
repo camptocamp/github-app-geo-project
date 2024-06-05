@@ -91,3 +91,5 @@
           - **Items** _(string)_
         - **`package`** _(string, required)_: The name of the package that can be build from the extracted values.
         - **`version`** _(string, required)_: The version of the package that can be build from the extracted values.
+- **`version-mapping`** _(object)_: Mapping of version to the branch name. Can contain additional properties. Default: `{}`.
+  - **Additional properties** _(string)_

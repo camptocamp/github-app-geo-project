@@ -26,3 +26,5 @@
           - **`distribution`** _(string)_: Distribution of the source.
           - **`components`** _(array)_: Components of the source.
             - **Items** _(string)_
+  - **`version-mapping`** _(object)_: Mapping of version to the branch name. Can contain additional properties. Default: `{}`.
+    - **Additional properties** _(string)_
