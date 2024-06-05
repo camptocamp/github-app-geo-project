@@ -8,7 +8,7 @@ line_length = 110
 known_first_party = "github_app_geo_project"
 
 [tool.mypy]
-python_version = 3.10
+python_version = "3.11"
 warn_redundant_casts = true
 warn_unused_ignores = true
 ignore_missing_imports = true
