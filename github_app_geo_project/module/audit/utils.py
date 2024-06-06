@@ -375,6 +375,7 @@ def outdated_versions(
 
 
 _SOURCES = {}
+_PACKAGE_VERSION: dict[str, str] = {}
 
 
 def _get_sources(
@@ -397,33 +398,10 @@ def _get_sources(
                 for source in conf[dist]
             ]
         )
+        for package in _SOURCES[dist].packages:
+            _PACKAGE_VERSION[f"{dist}/{package.package}"] = package.version
 
     return _SOURCES[dist]
-
-
-_PACKAGE_VERSION: dict[str, str] = {}
-
-
-def _fill_versions(
-    package: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
-) -> None:
-    if package not in _PACKAGE_VERSION:
-        dist, pkg = package.split("/")
-        if pkg is None:
-            _LOGGER.warning("No package found in %s", package)
-            return
-        sources = _get_sources(dist, config, local_config)
-        versions = sorted(
-            [
-                debian_inspector.version.Version.from_string(apt_package.version)
-                for apt_package in sources.get_packages_by_name(package)
-                if apt_package.version
-            ]
-        )
-        if not versions:
-            _LOGGER.warning("No version found for %s", package)
-        else:
-            _PACKAGE_VERSION[package] = str(versions[-1])
 
 
 async def _get_packages_version(
@@ -431,7 +409,10 @@ async def _get_packages_version(
 ) -> str | None:
     """Get the version of the package."""
     if package not in _PACKAGE_VERSION:
-        await asyncio.to_thread(_fill_versions, package, config, local_config)
+        dist = package.split("/")[0]
+        await asyncio.to_thread(_get_sources, dist, config, local_config)
+    if package not in _PACKAGE_VERSION:
+        _LOGGER.warning("No version found for %s", package)
     return _PACKAGE_VERSION.get(package)
 
 
