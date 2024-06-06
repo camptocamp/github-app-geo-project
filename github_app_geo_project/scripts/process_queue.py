@@ -12,7 +12,7 @@ import socket
 import subprocess  # nosec
 import sys
 import urllib.parse
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
@@ -31,6 +31,17 @@ from github_app_geo_project.views import webhook
 _LOGGER = logging.getLogger(__name__)
 
 _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
+
+
+class _JobInfo(NamedTuple):
+    module: str
+    event_name: str
+    repository: str
+    priority: int
+    worker_max_priority: int
+
+
+_RUNNING_JOBS: dict[int, _JobInfo] = {}
 
 
 class _Handler(logging.Handler):
@@ -656,6 +667,9 @@ async def _process_one_job(
         message.title = f"Start process job '{job.event_name}' id: {job.id}, on {job.owner}/{job.repository} on module: {job.module}, on application {job.application}"
         root_logger.addHandler(handler)
         _LOGGER.info(message)
+        _RUNNING_JOBS[job.id] = _JobInfo(
+            job.module or "-", job.event_name, job.repository, job.priority, max_priority
+        )
         root_logger.removeHandler(handler)
 
         if make_pending:
@@ -722,6 +736,7 @@ async def _process_one_job(
                 job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
+            _RUNNING_JOBS.pop(job.id)
 
         _LOGGER.debug("Process one job (max priority: %i): Done", max_priority)
         return False
@@ -784,6 +799,18 @@ class _UpdateCounter:
             await asyncio.sleep(10)
 
 
+async def _watch_dog() -> None:
+    while True:
+        _LOGGER.debug("Watch dog: alive")
+        with open("/watch_dog", "w", encoding="utf-8") as file_:
+            file_.write(datetime.datetime.now().isoformat())
+            for id_, job in _RUNNING_JOBS.items():
+                file_.write(
+                    f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})\n"
+                )
+        await asyncio.sleep(60)
+
+
 async def _async_main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -816,6 +843,7 @@ async def _async_main() -> None:
     threads_call = []
     if not args.exit_when_empty:
         threads_call.append(_UpdateCounter(Session)())
+        threads_call.append(_watch_dog())
 
     for priority in priority_groups:
         threads_call.append(_Run(config, Session, args.exit_when_empty, priority)())
