@@ -426,6 +426,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                 )
                 actions = []
                 for version in versions:
+                    version = context.module_config.get("version-mapping", {}).get(version, version)
                     if context.module_event_data.snyk and context.module_config.get("snyk", {}).get(
                         "enabled", configuration.ENABLE_SNYK_DEFAULT
                     ):

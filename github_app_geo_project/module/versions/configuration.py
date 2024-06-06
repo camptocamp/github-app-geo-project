@@ -6,6 +6,10 @@ from typing import Any, TypedDict
 
 from typing_extensions import Required
 
+VERSION_MAPPING_DEFAULT: dict[str, Any] = {}
+""" Default value of the field path 'Versions configuration version-mapping' """
+
+
 # Versions configuration.
 VersionsConfiguration = TypedDict(
     "VersionsConfiguration",
@@ -36,6 +40,13 @@ VersionsConfiguration = TypedDict(
         "external-packages": list["_VersionsConfigurationExternalPackagesItem"],
         # The package extractor by datasource
         "package-extractor": dict[str, "_VersionsConfigurationPackageExtractorAdditionalproperties"],
+        # Version mapping.
+        #
+        # Mapping of version to the branch name
+        #
+        # default:
+        #   {}
+        "version-mapping": dict[str, str],
     },
     total=False,
 )

@@ -4,15 +4,24 @@ Automatically generated file from a JSON schema.
 
 from typing import Any, TypedDict
 
-
-class AuditConfiguration(TypedDict, total=False):
-    """Audit configuration."""
-
-    snyk: "SnykConfiguration"
-    """ Snyk configuration. """
-
-    dpkg: "DpkgConfiguration"
-    """ Dpkg configuration. """
+# Audit configuration.
+AuditConfiguration = TypedDict(
+    "AuditConfiguration",
+    {
+        # Snyk configuration.
+        "snyk": "SnykConfiguration",
+        # Dpkg configuration.
+        "dpkg": "DpkgConfiguration",
+        # Version mapping.
+        #
+        # Mapping of version to the branch name
+        #
+        # default:
+        #   {}
+        "version-mapping": dict[str, str],
+    },
+    total=False,
+)
 
 
 class AuditModulesConfiguration(TypedDict, total=False):
@@ -285,6 +294,10 @@ SnykConfiguration = TypedDict(
     },
     total=False,
 )
+
+
+VERSION_MAPPING_DEFAULT: dict[str, Any] = {}
+""" Default value of the field path 'Audit configuration version-mapping' """
 
 
 class _DpkgSourcesAdditionalpropertiesItem(TypedDict, total=False):

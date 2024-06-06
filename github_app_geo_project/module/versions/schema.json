@@ -110,6 +110,15 @@
           }
         }
       }
+    },
+    "version-mapping": {
+      "type": "object",
+      "title": "Version mapping",
+      "description": "Mapping of version to the branch name",
+      "default": {},
+      "additionalProperties": {
+        "type": "string"
+      }
     }
   }
 }
