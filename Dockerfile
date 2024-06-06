@@ -163,8 +163,8 @@ RUN --mount=type=cache,target=/root/.cache \
 
 COPY scripts/* /usr/bin/
 
-RUN mkdir -p /var/run/ghci \
-    && chmod a+rwx /var/run/ghci
+RUN mkdir -p /var/ghci \
+    && chmod a+rwx /var/ghci
 
 
 # Set runner as final
