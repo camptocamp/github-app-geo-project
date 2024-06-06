@@ -7,7 +7,9 @@ LABEL maintainer Camptocamp "info@camptocamp.com"
 # Print commands and their arguments as they are executed.
 SHELL ["/bin/bash", "-o", "pipefail", "-cux"]
 
-RUN apt-get update \
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache,sharing=locked \
+    apt-get update \
     && apt-get upgrade --assume-yes \
     && apt-get install --assume-yes --no-install-recommends python3-pip postgresql-client docker.io libmagic1 git curl gnupg zlib1g libpq5
 
@@ -16,6 +18,11 @@ RUN rm -rf /usr/lib/python3.*/EXTERNALLY-MANAGED
 # Used to convert the locked packages by poetry to pip requirements format
 # We don't directly use `poetry install` because it force to use a virtual environment.
 FROM base-all as poetry
+
+# Fail on error on pipe, see: https://github.com/hadolint/hadolint/wiki/DL4006.
+# Treat unset variables as an error when substituting.
+# Print commands and their arguments as they are executed.
+SHELL ["/bin/bash", "-o", "pipefail", "-cux"]
 
 # Install Poetry
 WORKDIR /tmp
@@ -32,6 +39,11 @@ RUN poetry export --output=requirements.txt \
 # Base, the biggest thing is to install the Python packages
 FROM base-all as base
 
+# Fail on error on pipe, see: https://github.com/hadolint/hadolint/wiki/DL4006.
+# Treat unset variables as an error when substituting.
+# Print commands and their arguments as they are executed.
+SHELL ["/bin/bash", "-o", "pipefail", "-cux"]
+
 COPY .nvmrc /tmp
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
@@ -41,17 +53,17 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     && apt-get update \
     && apt-get install --assume-yes --no-install-recommends "nodejs=${NODE_MAJOR}.*"
 
-# hadolint ignore=SC2086,DL3042,DL3008
+# Install some required dev packages
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
+    apt-get update \
+    && apt-get install --assume-yes --no-install-recommends build-essential python3-dev libpq-dev libproj-dev
+
+RUN --mount=type=cache,target=/var/cache,sharing=locked \
     --mount=type=cache,target=/root/.cache \
     --mount=type=bind,from=poetry,source=/tmp,target=/poetry \
-    DEV_PACKAGES="python3-dev libpq-dev build-essential" \
-    && apt-get update \
-    && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
-    && python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements.txt \
-    && python3 -m compileall /usr/local/lib/python* /usr/lib/python* \
-    && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES} binutils
+    python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements.txt \
+    && python3 -m compileall /usr/local/lib/python* /usr/lib/python*
 
 # From c2cwsgiutils
 
@@ -90,9 +102,10 @@ ENV PATH=/pyenv/shims:/pyenv/bin:${PATH} \
     PYENV_ROOT=/pyenv
 
 # Install different Python version with pyenv
+# hadolint ignore=SC2086
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
-    DEV_PACKAGES="build-essential libffi-dev libssl-dev liblzma-dev libsqlite3-dev libcurses-ocaml-dev libreadline-dev libbz2-dev zlib1g-dev" \
+    DEV_PACKAGES="libffi-dev libssl-dev liblzma-dev libsqlite3-dev libcurses-ocaml-dev libreadline-dev libbz2-dev zlib1g-dev" \
     && apt-get update && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
     && git clone --depth=1 https://github.com/pyenv/pyenv.git /pyenv \
     && pyenv install 3.7 3.8 3.9 3.10 3.11 \
