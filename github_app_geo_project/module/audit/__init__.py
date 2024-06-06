@@ -164,19 +164,20 @@ async def _process_snyk_dpkg(
             if "branch_to_version_re" in ci_config.get("version", {}):
                 branch_to_version_re = c2cciutils.compile_re(ci_config["version"]["branch-to-version-re"])
 
-                repo = context.github_project.github.get_repo(
-                    f"{context.github_project.owner}/{context.github_project.repository}"
-                )
+                repo = context.github_project.repo
+                _LOGGER.debug("Find the branch name")
                 for github_branch in repo.get_branches():
                     matched, conf, value = c2cciutils.match(github_branch.name, branch_to_version_re)
                     version = c2cciutils.substitute(matched, conf, value)
                     if version == branch:
                         branch = github_branch.name
                         break
+                _LOGGER.debug("Branch name: %s", branch)
 
         # Checkout the right branch on a temporary directory
         with tempfile.TemporaryDirectory() as tmpdirname:
             os.chdir(tmpdirname)
+            _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
             success &= module_utils.git_clone(context.github_project, branch)
 
             local_config: configuration.AuditConfiguration = {}
