@@ -44,7 +44,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             context.event_data.get("action") == "completed"
             and context.event_data.get("workflow_run", {}).get("event", "pull_request") != "pull_request"
         ):
-            return [module.Action({})]
+            return [module.Action({}, priority=module.PRIORITY_STATUS + 2)]
         return []
 
     async def process(
