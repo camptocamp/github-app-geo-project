@@ -802,7 +802,7 @@ class _UpdateCounter:
 async def _watch_dog() -> None:
     while True:
         _LOGGER.debug("Watch dog: alive")
-        with open("/var/run/ghci/watch_dog", "w", encoding="utf-8") as file_:
+        with open("/var/ghci/watch_dog", "w", encoding="utf-8") as file_:
             file_.write(datetime.datetime.now().isoformat())
             for id_, job in _RUNNING_JOBS.items():
                 file_.write(
