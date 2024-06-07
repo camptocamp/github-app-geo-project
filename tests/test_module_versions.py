@@ -38,7 +38,7 @@ def test_get_actions() -> None:
 async def test_process_step_2() -> None:
     versions = Versions()
     context = Mock()
-    context.module_event_data = _EventData(step=2, branch="master")
+    context.module_event_data = _EventData(step=2, version="master")
     context.transversal_status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(

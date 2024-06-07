@@ -75,7 +75,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             assert isinstance(security_file, github.ContentFile.ContentFile)
             security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
-            stabilization_branches += module_utils.get_stabilization_branch(security)
+            stabilization_branches += module_utils.get_stabilization_versions(security)
 
         else:
             _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
