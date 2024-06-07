@@ -120,7 +120,8 @@ class Links(
                 module.Action(
                     {
                         "pull-request-number": context.event_data.get("pull_request", {}).get("number"),
-                    }
+                    },
+                    priority=module.PRIORITY_STATUS,
                 )
             ]
         return []
