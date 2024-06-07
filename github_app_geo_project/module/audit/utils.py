@@ -374,6 +374,7 @@ def outdated_versions(
     return errors
 
 
+_GENERATION_TIME = None
 _SOURCES = {}
 _PACKAGE_VERSION: dict[str, str] = {}
 
@@ -408,6 +409,12 @@ async def _get_packages_version(
     package: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
 ) -> str | None:
     """Get the version of the package."""
+    if _GENERATION_TIME is None or _GENERATION_TIME < datetime.datetime.now() - utils.parse_duration(
+        os.environ.get("GHCI_DPKG_CACHE_DURATION", "3h")
+    ):
+        _PACKAGE_VERSION.clear()
+        _SOURCES.clear()
+        datetime.datetime.now()
     if package not in _PACKAGE_VERSION:
         dist = package.split("/")[0]
         await asyncio.to_thread(_get_sources, dist, config, local_config)

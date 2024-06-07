@@ -1,5 +1,6 @@
 """Application utility module."""
 
+import datetime
 import json
 from typing import Any
 
@@ -75,3 +76,24 @@ def format_yaml(yaml_data: dict[str, Any]) -> str:
     return pygments.highlight(  # type: ignore[no-any-return]
         yaml.dump(yaml_data, default_flow_style=False), _YAML_LEXER, _HTML_FORMATTER
     )
+
+
+def parse_duration(text: str) -> datetime.timedelta:
+    """
+    Parse a duration string to a timedelta.
+
+    The duration string should be in the format:
+    - 1d for 1 day
+    - 1w for 1 week
+    - 1m for 1 minute
+    - 1h for 1 hour
+    """
+    if text.endswith("d"):
+        return datetime.timedelta(days=int(text[:-1]))
+    if text.endswith("w"):
+        return datetime.timedelta(weeks=int(text[:-1]))
+    if text.endswith("m"):
+        return datetime.timedelta(minutes=int(text[:-1]))
+    if text.endswith("h"):
+        return datetime.timedelta(hours=int(text[:-1]))
+    raise ValueError(f"Invalid time delta: {text}")

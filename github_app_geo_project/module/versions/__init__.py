@@ -602,18 +602,6 @@ def _dependency_extractor(
     return result
 
 
-def _str_to_time_delta(text: str) -> datetime.timedelta:
-    if text.endswith("d"):
-        return datetime.timedelta(days=int(text[:-1]))
-    if text.endswith("w"):
-        return datetime.timedelta(weeks=int(text[:-1]))
-    if text.endswith("m"):
-        return datetime.timedelta(minutes=int(text[:-1]))
-    if text.endswith("h"):
-        return datetime.timedelta(hours=int(text[:-1]))
-    raise ValueError(f"Invalid time delta: {text}")
-
-
 def _update_upstream_versions(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
 ) -> None:
@@ -634,7 +622,7 @@ def _update_upstream_versions(
         if package_status.upstream_updated and (
             package_status.upstream_updated
             > datetime.datetime.now()
-            - _str_to_time_delta(os.environ.get("GHCI_EXTERNAL_PACKAGES_UPDATE_PERIOD", "30d"))
+            - utils.parse_duration(os.environ.get("GHCI_EXTERNAL_PACKAGES_UPDATE_PERIOD", "30d"))
         ):
             return
         package_status.upstream_updated = datetime.datetime.now()
