@@ -617,7 +617,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     return True
 
 
-def get_stabilization_branch(security: c2cciutils.security.Security) -> list[str]:
+def get_stabilization_versions(security: c2cciutils.security.Security) -> list[str]:
     """Get the stabilization versions."""
     version_index = security.headers.index("Version") if "Version" in security.headers else -1
     supported_until_index = (

@@ -93,7 +93,7 @@ class _DependenciesBranches(BaseModel):
 
 class _EventData(BaseModel):
     step: int
-    branch: str | None = None
+    version: str | None = None
     alternate_versions: list[str] | None = None
 
 
@@ -170,7 +170,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 context.transversal_status.updated, context.transversal_status.repositories, key
             )
             repo = context.github_project.repo
-            stabilization_branch = []
+            stabilization_versions = []
             security_file = None
             security = None
             try:
@@ -182,67 +182,68 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 assert isinstance(security_file, github.ContentFile.ContentFile)
                 security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
-                stabilization_branch = module_utils.get_stabilization_branch(security)
+                stabilization_versions = module_utils.get_stabilization_versions(security)
+            else:
+                _LOGGER.debug("No SECURITY.md file in the repository, apply only on default branch")
 
-                version_index = security.headers.index("Version")
-                support_index = security.headers.index("Supported Until")
+            stabilization_versions.append(repo.default_branch)
+            _LOGGER.debug("Versions: %s", ", ".join(stabilization_versions))
+            for version in stabilization_versions:
+                status.versions.setdefault(
+                    version,
+                    _TransversalStatusVersion(support="Best effort"),
+                ).support = "Best effort"
+
+            if security is not None:
+                version_index = security.version_index
+                support_index = security.support_until_index
                 for raw in security.data:
                     if len(raw) > max(version_index, support_index):
-                        branch = raw[version_index]
+                        version = raw[version_index]
                         support = raw[support_index]
-                        status.versions.setdefault(
-                            branch, _TransversalStatusVersion(support=support)
-                        ).support = support
-
-            else:
-                _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
-            stabilization_branch.append(repo.default_branch)
-            status.versions.setdefault(
-                repo.default_branch,
-                _TransversalStatusVersion(support="Best effort"),
-            ).support = "Best effort"
-            _LOGGER.debug("Versions: %s", ", ".join(stabilization_branch))
+                        status.versions[version].support = support
 
             versions = status.versions
             for version in list(versions.keys()):
-                if version not in stabilization_branch:
+                if version not in stabilization_versions:
                     del versions[version]
 
             actions = []
-            for branch in stabilization_branch:
-                branch = context.module_config.get("version-mapping", {}).get(branch, branch)
+            for version in stabilization_versions:
                 actions.append(
                     module.Action(
                         data=_EventData(
                             step=2,
-                            branch=branch,
+                            version=version,
                             alternate_versions=(
-                                module_utils.get_alternate_versions(security, branch)
+                                module_utils.get_alternate_versions(security, version)
                                 if security is not None
                                 else []
                             ),
                         ),
-                        title=branch,
+                        title=version,
                     )
                 )
             return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
         if context.module_event_data.step == 2:
-            assert context.module_event_data.branch is not None
+            assert context.module_event_data.version is not None
+            version = context.module_event_data.version
+            branch = context.module_config.get("version-mapping", {}).get(version, version)
             with tempfile.TemporaryDirectory() as tmpdirname:
                 if os.environ.get("TEST") != "TRUE":
                     os.chdir(tmpdirname)
-                    success = module_utils.git_clone(context.github_project, context.module_event_data.branch)
+                    success = module_utils.git_clone(context.github_project, branch)
                     if not success:
                         raise VersionException("Failed to clone the repository")
 
-                version_status = status.versions[context.module_event_data.branch]
+                version_status = status.versions[version]
                 for alternate in context.module_event_data.alternate_versions or []:
                     status.versions[alternate] = version_status
                 for datasource_data in version_status.names_by_datasource.values():
                     datasource_data.names = list(set(datasource_data.names))
                 transversal_status = context.transversal_status
 
-                _get_names(context, version_status.names_by_datasource, context.module_event_data.branch)
+                _get_names(context, version_status.names_by_datasource, version)
                 message = module_utils.HtmlMessage(
                     utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
                 )
@@ -262,11 +263,11 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                         transversal_status.repositories[
                             f"{context.github_project.owner}/{context.github_project.repository}"
                         ]
-                        .versions[context.module_event_data.branch]
+                        .versions[version]
                         .model_dump_json(indent=2)
                     )
                 )
-                message.title = f"Branch ({context.module_event_data.branch}):"
+                message.title = f"Version ({version}):"
                 _LOGGER.debug(message)
 
                 message = module_utils.HtmlMessage(
@@ -414,7 +415,7 @@ def _canonical_minor_version(datasource: str, version: str) -> str:
 def _get_names(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource],
-    branch: str,
+    version: str,
 ) -> None:
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "pyproject.toml", "*/pyproject.toml"],
@@ -461,13 +462,13 @@ def _get_names(
                     add_names = []
                     if repository_server:
                         add_names.append(
-                            f"{repository_server}/{conf.get('name')}:{tag.format(version=branch)}"
+                            f"{repository_server}/{conf.get('name')}:{tag.format(version=version)}"
                         )
 
                     else:
                         add_names = [
-                            f"{conf.get('name')}:{tag.format(version=branch)}",
-                            f"docker.io/{conf.get('name')}:{tag.format(version=branch)}",
+                            f"{conf.get('name')}:{tag.format(version=version)}",
+                            f"docker.io/{conf.get('name')}:{tag.format(version=version)}",
                         ]
                     for add_name in add_names:
                         if add_name not in names:

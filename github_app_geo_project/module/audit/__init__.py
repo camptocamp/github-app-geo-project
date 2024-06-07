@@ -405,7 +405,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                         security_file.decoded_content.decode("utf-8")
                     )
 
-                    versions = module_utils.get_stabilization_branch(security_file)
+                    versions = module_utils.get_stabilization_versions(security_file)
                 else:
                     _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
                     versions = [repo.default_branch]
