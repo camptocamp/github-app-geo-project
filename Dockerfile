@@ -105,8 +105,9 @@ ENV PATH=/pyenv/shims:/pyenv/bin:${PATH} \
 # hadolint ignore=SC2086
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
-    DEV_PACKAGES="libffi-dev libssl-dev liblzma-dev libsqlite3-dev libcurses-ocaml-dev libreadline-dev libbz2-dev zlib1g-dev" \
-    && apt-get update && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
+    DEV_PACKAGES="libffi-dev libcurses-ocaml-dev libreadline-dev libbz2-dev" \
+    && apt-get update \
+    && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
     && git clone --depth=1 https://github.com/pyenv/pyenv.git /pyenv \
     && pyenv install 3.7 3.8 3.9 3.10 3.11 \
     && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES}
