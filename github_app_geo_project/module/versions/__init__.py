@@ -201,7 +201,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     if len(raw) > max(version_index, support_index):
                         version = raw[version_index]
                         support = raw[support_index]
-                        if version not in status.versions:
+                        if version in status.versions:
                             status.versions[version].support = support
 
             versions = status.versions
