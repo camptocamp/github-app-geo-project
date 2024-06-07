@@ -170,7 +170,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_23_10/libxtables12: 1.8.9-2ubuntu2
   ubuntu_23_10/libxxhash0: 0.8.1-1
   ubuntu_23_10/libzstd1: 1.5.5+dfsg2-1ubuntu2
-  ubuntu_23_10/linux-libc-dev: 6.5.0-35.35
+  ubuntu_23_10/linux-libc-dev: 6.5.0-41.41
   ubuntu_23_10/login: 1:4.13+dfsg1-1ubuntu1.1
   ubuntu_23_10/logsave: 1.47.0-2ubuntu1
   ubuntu_23_10/lto-disabled-list: '43'
@@ -181,7 +181,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_23_10/ncurses-base: 6.4+20230625-2
   ubuntu_23_10/ncurses-bin: 6.4+20230625-2
   ubuntu_23_10/netbase: '6.4'
-  ubuntu_23_10/nodejs: 20.14.0-1nodesource1
+  ubuntu_23_10/nodejs: 18.13.0+dfsg1-1ubuntu2.2
   ubuntu_23_10/openssl: 3.0.10-1ubuntu2.3
   ubuntu_23_10/passwd: 1:4.13+dfsg1-1ubuntu1.1
   ubuntu_23_10/patch: 2.7.6-7build2
