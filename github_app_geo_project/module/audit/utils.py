@@ -401,11 +401,19 @@ def _get_sources(
         )
         for package in _SOURCES[dist].packages:
             name = f"{dist}/{package.package}"
-            version = debian_inspector.version.Version.from_string(package.version)
-            if name not in _PACKAGE_VERSION:
-                _PACKAGE_VERSION[name] = version
-            elif version > _PACKAGE_VERSION[name]:
-                _PACKAGE_VERSION[name] = version
+            try:
+                version = debian_inspector.version.Version.from_string(package.version)
+                if name not in _PACKAGE_VERSION:
+                    _PACKAGE_VERSION[name] = version
+                elif version > _PACKAGE_VERSION[name]:
+                    _PACKAGE_VERSION[name] = version
+            except ValueError as exception:
+                _LOGGER.warning(
+                    "Error while parsing the package %s version of %s: %s",
+                    package.package,
+                    package.version,
+                    exception,
+                )
 
     return _SOURCES[dist]
 
