@@ -57,7 +57,7 @@ pull-request-links = "github_app_geo_project.module.pull_request.links:Links"
 delete-old-workflow-runs = "github_app_geo_project.module.delete_old_workflow_runs:DeleteOldWorkflowRuns"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
+python = ">=3.10,<3.13"
 c2cwsgiutils = { version = "6.0.8",  extras = ["standard", "debug", "dev"] }
 pyramid-mako = "1.1.0"
 jsonmerge = "1.9.2"
