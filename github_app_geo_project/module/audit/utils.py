@@ -376,7 +376,7 @@ def outdated_versions(
 
 _GENERATION_TIME = None
 _SOURCES = {}
-_PACKAGE_VERSION: dict[str, str] = {}
+_PACKAGE_VERSION: dict[str, debian_inspector.version.Version] = {}
 
 
 def _get_sources(
@@ -400,7 +400,12 @@ def _get_sources(
             ]
         )
         for package in _SOURCES[dist].packages:
-            _PACKAGE_VERSION[f"{dist}/{package.package}"] = package.version
+            name = f"{dist}/{package.package}"
+            version = debian_inspector.version.Version.from_string(package.version)
+            if name not in _PACKAGE_VERSION:
+                _PACKAGE_VERSION[name] = version
+            elif version > _PACKAGE_VERSION[name]:
+                _PACKAGE_VERSION[name] = version
 
     return _SOURCES[dist]
 
@@ -420,7 +425,7 @@ async def _get_packages_version(
         await asyncio.to_thread(_get_sources, dist, config, local_config)
     if package not in _PACKAGE_VERSION:
         _LOGGER.warning("No version found for %s", package)
-    return _PACKAGE_VERSION.get(package)
+    return str(_PACKAGE_VERSION.get(package))
 
 
 async def dpkg(
