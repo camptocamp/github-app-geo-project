@@ -55,7 +55,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
             context.event_data.get("action") == "completed"
             and context.event_data.get("workflow_run", {}).get("conclusion") == "failure"
         ):
-            return [module.Action(priority=module.PRIORITY_CRON, data={})]
+            return [module.Action(priority=module.PRIORITY_STATUS, data={})]
         return []
 
     async def process(
