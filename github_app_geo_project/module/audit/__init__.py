@@ -329,7 +329,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
         if dpkg or snyk:
             results.append(
                 module.Action(
-                    priority=module.PRIORITY_HIGH,
+                    priority=module.PRIORITY_CRON,
                     data=_EventData(snyk=snyk, dpkg=dpkg, is_dashboard=is_dashboard),
                 )
             )
