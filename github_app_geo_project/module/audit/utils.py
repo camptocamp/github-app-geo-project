@@ -99,7 +99,8 @@ async def snyk(
                 message.title = f"Error while installing the dependencies from {file}"
                 _LOGGER.warning(message)
                 result.append(message)
-            message.title = f"Dependencies installed from {file}"
+            else:
+                message.title = f"Dependencies installed from {file}"
             _LOGGER.debug(message)
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -258,7 +259,7 @@ async def snyk(
     fixable_vulnerabilities: dict[str, int] = {}
     for row in test_json:
         message = module_utils.HtmlMessage(
-            "<br>\n".join(
+            "\n".join(
                 [
                     f"Package manager: {row.get('packageManager', '-')}",
                     f"Target file: {row.get('displayTargetFile', '-')}",
@@ -267,7 +268,7 @@ async def snyk(
                 ]
             )
         )
-        message.title = row.get("summary", "Snyk test")
+        message.title = f'{row.get("summary", "Snyk test")} in {row.get("displayTargetFile", "-")}.'
         _LOGGER.info(message)
 
         if "error" in row:
@@ -288,7 +289,8 @@ async def snyk(
                 [
                     f"[{vuln['severity'].upper()}]",
                     f"{vuln['packageName']}@{vuln['version']}:",
-                    f'<a href="https://security.snyk.io/vuln/{vuln["id"]}">{vuln["title"]}</a>',
+                    vuln["id"],
+                    *(vuln.get("identifiers", {}).get("CWE", [])),
                 ]
             )
             if vuln.get("isUpgradable", False):
@@ -298,17 +300,14 @@ async def snyk(
             else:
                 title += "."
             message = module_utils.HtmlMessage(
-                "\n".join(
+                "<br>\n".join(
                     [
-                        vuln["id"],
+                        f'<a href="https://security.snyk.io/vuln/{vuln["id"]}">{vuln["title"]}</a>',
                         " > ".join(vuln["from"]),
-                        *[
-                            f"{identifier_type} {', '.join(identifiers)}"
-                            for identifier_type, identifiers in vuln["identifiers"].items()
-                        ],
-                        *[f"[{reference['title']}]({reference['url']})" for reference in vuln["references"]],
-                        "",
-                        markdown.markdown(vuln["description"]),
+                        *[", ".join(identifiers) for identifiers in vuln.get("identifiers", {}).values()],
+                        # *[f'<a href="{reference['url']}>{reference["title"]}</a>' for reference in vuln["references"]],
+                        # "",
+                        # markdown.markdown(vuln["description"]),
                     ]
                 ),
                 title,
