@@ -449,7 +449,7 @@ def _get_names(
                 if match:
                     if match.group(1) not in names:
                         names.append(match.group(1))
-
+    os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     data = c2cciutils.get_config()
     docker_config = data.get("publish", {}).get("docker", {})
     if docker_config:
