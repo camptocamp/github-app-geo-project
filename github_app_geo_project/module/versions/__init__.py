@@ -240,8 +240,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 version_status = status.versions[version]
                 for alternate in context.module_event_data.alternate_versions or []:
                     status.versions[alternate] = version_status
-                for datasource_data in version_status.names_by_datasource.values():
-                    datasource_data.names = list(set(datasource_data.names))
+                version_status.names_by_datasource.clear()
+                version_status.dependencies_by_datasource.clear()
                 transversal_status = context.transversal_status
 
                 _get_names(context, version_status.names_by_datasource, version)
