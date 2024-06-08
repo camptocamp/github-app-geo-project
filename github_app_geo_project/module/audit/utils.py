@@ -119,7 +119,7 @@ async def snyk(
                 continue
             directory = os.path.dirname(os.path.abspath(file))
 
-            async with asyncio.timeout(300):
+            async with asyncio.timeout(600):
                 try:
                     command = [
                         "pipenv",
@@ -174,7 +174,7 @@ async def snyk(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            async with asyncio.timeout(1200):
+            async with asyncio.timeout(600):
                 try:
                     command = ["poetry", "install"]
                     async_proc = await asyncio.create_subprocess_exec(
