@@ -619,10 +619,9 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
 
 def get_stabilization_versions(security: c2cciutils.security.Security) -> list[str]:
     """Get the stabilization versions."""
-    version_index = security.headers.index("Version") if "Version" in security.headers else -1
-    supported_until_index = (
-        security.headers.index("Supported Until") if "Supported Until" in security.headers else -1
-    )
+    version_index = security.version_index
+    supported_until_index = security.support_until_index
+    alternates_tag_index = security.alternate_tag_index
 
     if version_index < 0:
         _LOGGER.warning("No Version column in the SECURITY.md")
@@ -632,10 +631,13 @@ def get_stabilization_versions(security: c2cciutils.security.Security) -> list[s
         return []
 
     versions = []
+    alternate_tags = []
     for row in security.data:
         if row[supported_until_index] != "Unsupported":
             versions.append(row[version_index])
-    return versions
+        if alternates_tag_index >= 0:
+            alternate_tags.extend([v.strip() for v in row[alternates_tag_index].split(",") if v.strip()])
+    return [v for v in versions if v not in alternate_tags]
 
 
 def get_alternate_versions(security: c2cciutils.security.Security, branch: str) -> list[str]:
