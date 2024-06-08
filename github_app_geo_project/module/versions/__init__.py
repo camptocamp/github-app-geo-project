@@ -163,12 +163,13 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             status.url = (
                 f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
             )
-            _apply_additional_packages(context)
-            _update_upstream_versions(context)
-
             module_utils.manage_updated_separated(
                 context.transversal_status.updated, context.transversal_status.repositories, key
             )
+
+            _apply_additional_packages(context)
+            _update_upstream_versions(context)
+
             repo = context.github_project.repo
             stabilization_versions = []
             security_file = None
