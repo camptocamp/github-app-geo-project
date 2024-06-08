@@ -240,8 +240,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 version_status = status.versions[version]
                 for alternate in context.module_event_data.alternate_versions or []:
                     status.versions[alternate] = version_status
-                for datasource_data in version_status.names_by_datasource.values():
-                    datasource_data.names = list(set(datasource_data.names))
+                version_status.names_by_datasource.clear()
+                version_status.dependencies_by_datasource.clear()
                 transversal_status = context.transversal_status
 
                 _get_names(context, version_status.names_by_datasource, version)
@@ -449,7 +449,7 @@ def _get_names(
                 if match:
                     if match.group(1) not in names:
                         names.append(match.group(1))
-
+    os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     data = c2cciutils.get_config()
     docker_config = data.get("publish", {}).get("docker", {})
     if docker_config:
