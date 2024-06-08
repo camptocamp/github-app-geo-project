@@ -408,7 +408,8 @@ def _get_sources(
                     _PACKAGE_VERSION[name] = version
             except ValueError as exception:
                 _LOGGER.warning(
-                    "Error while parsing the package %s version of %s: %s",
+                    "Error while parsing the package %s/%s version of %s: %s",
+                    dist,
                     package.package,
                     package.version,
                     exception,
@@ -421,12 +422,13 @@ async def _get_packages_version(
     package: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
 ) -> str | None:
     """Get the version of the package."""
+    global _GENERATION_TIME  # pylint: disable=global-statement
     if _GENERATION_TIME is None or _GENERATION_TIME < datetime.datetime.now() - utils.parse_duration(
         os.environ.get("GHCI_DPKG_CACHE_DURATION", "3h")
     ):
         _PACKAGE_VERSION.clear()
         _SOURCES.clear()
-        datetime.datetime.now()
+        _GENERATION_TIME = datetime.datetime.now()
     if package not in _PACKAGE_VERSION:
         dist = package.split("/")[0]
         await asyncio.to_thread(_get_sources, dist, config, local_config)
