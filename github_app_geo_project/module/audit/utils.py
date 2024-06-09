@@ -227,6 +227,28 @@ async def snyk(
             "monitor-arguments", config.get("monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT)
         ),
     ]
+    local_monitor_config = local_config.get("monitor", {})
+    monitor_config = config.get("monitor", {})
+    if "project-environment" in local_monitor_config or "project-environment" in monitor_config:
+        command.append(
+            f"--project-environment={','.join(local_monitor_config.get('project-environment', monitor_config.get('project-environment', [])))}"
+        )
+    if "project-lifecycle" in local_monitor_config or "project-lifecycle" in monitor_config:
+        command.append(
+            f"--project-lifecycle={','.join(local_monitor_config.get('project-lifecycle', monitor_config.get('project-lifecycle', [])))}"
+        )
+    if (
+        "project-business-criticality" in local_monitor_config
+        or "project-business-criticality" in monitor_config
+    ):
+        command.append(
+            f"--project-business-criticality={','.join(local_monitor_config.get('project-business-criticality', monitor_config.get('project-business-criticality', [])))}"
+        )
+    if "project-tags" in local_monitor_config or "project-tags" in monitor_config:
+        command.append(
+            f"--project-tags={','.join(['='.join(tag) for tag in local_monitor_config.get('project-tags', monitor_config.get('project-tags', {}))])}"
+        )
+
     async with asyncio.timeout(int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))):
         async_proc = await asyncio.create_subprocess_exec(
             *command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE

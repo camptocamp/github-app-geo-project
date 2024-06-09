@@ -2,7 +2,7 @@
 Automatically generated file from a JSON schema.
 """
 
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict, Union
 
 # Audit configuration.
 AuditConfiguration = TypedDict(
@@ -298,6 +298,37 @@ SnykConfiguration = TypedDict(
         # default:
         #   - --all-projects
         "fix-arguments": list[str],
+        # Snyk monitor configuration.
+        "monitor": "SnykMonitorConfiguration",
+    },
+    total=False,
+)
+
+
+# Snyk monitor configuration.
+SnykMonitorConfiguration = TypedDict(
+    "SnykMonitorConfiguration",
+    {
+        # Snyk monitor environment.
+        #
+        # Set the project environment project attribute. To clear the project environment set empty array.
+        # For more information see Project attributes https://docs.snyk.io/getting-started/introduction-to-snyk-projects/view-project-information/project-attributes
+        "project-environment": list["_SnykMonitorEnvironmentItem"],
+        # Snyk monitor lifecycle.
+        #
+        # Set the project lifecycle project attribute. To clear the project lifecycle set empty array.
+        # For more information see Project attributes https://docs.snyk.io/snyk-admin/snyk-projects/project-tags
+        "project-lifecycle": list["_SnykMonitorLifecycleItem"],
+        # Snyk monitor business criticality.
+        #
+        # Set the project business criticality project attribute. To clear the project business criticality set empty array.
+        # For more information see Project attributes https://docs.snyk.io/snyk-admin/snyk-projects/project-tags
+        "project-business-criticality": list["_SnykMonitorBusinessCriticalityItem"],
+        # Snyk monitor tags.
+        #
+        # Set the project tags to one or more values.
+        # To clear the project tags set empty dictionary.
+        "project-tags": dict[str, str],
     },
     total=False,
 )
@@ -328,3 +359,56 @@ class _DpkgSourcesAdditionalpropertiesItem(TypedDict, total=False):
 
     Components of the source
     """
+
+
+_SnykMonitorBusinessCriticalityItem = Union[
+    Literal["critical"], Literal["high"], Literal["medium"], Literal["low"]
+]
+_SNYKMONITORBUSINESSCRITICALITYITEM_CRITICAL: Literal["critical"] = "critical"
+"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
+_SNYKMONITORBUSINESSCRITICALITYITEM_HIGH: Literal["high"] = "high"
+"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
+_SNYKMONITORBUSINESSCRITICALITYITEM_MEDIUM: Literal["medium"] = "medium"
+"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
+_SNYKMONITORBUSINESSCRITICALITYITEM_LOW: Literal["low"] = "low"
+"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
+
+
+_SnykMonitorEnvironmentItem = Union[
+    Literal["frontend"],
+    Literal["backend"],
+    Literal["internal"],
+    Literal["external"],
+    Literal["mobile"],
+    Literal["saas"],
+    Literal["onprem"],
+    Literal["hosted"],
+    Literal["distributed"],
+]
+_SNYKMONITORENVIRONMENTITEM_FRONTEND: Literal["frontend"] = "frontend"
+"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+_SNYKMONITORENVIRONMENTITEM_BACKEND: Literal["backend"] = "backend"
+"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+_SNYKMONITORENVIRONMENTITEM_INTERNAL: Literal["internal"] = "internal"
+"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+_SNYKMONITORENVIRONMENTITEM_EXTERNAL: Literal["external"] = "external"
+"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+_SNYKMONITORENVIRONMENTITEM_MOBILE: Literal["mobile"] = "mobile"
+"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+_SNYKMONITORENVIRONMENTITEM_SAAS: Literal["saas"] = "saas"
+"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+_SNYKMONITORENVIRONMENTITEM_ONPREM: Literal["onprem"] = "onprem"
+"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+_SNYKMONITORENVIRONMENTITEM_HOSTED: Literal["hosted"] = "hosted"
+"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+_SNYKMONITORENVIRONMENTITEM_DISTRIBUTED: Literal["distributed"] = "distributed"
+"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+
+
+_SnykMonitorLifecycleItem = Union[Literal["production"], Literal["development"], Literal["sandbox"]]
+_SNYKMONITORLIFECYCLEITEM_PRODUCTION: Literal["production"] = "production"
+"""The values for the '_SnykMonitorLifecycleItem' enum"""
+_SNYKMONITORLIFECYCLEITEM_DEVELOPMENT: Literal["development"] = "development"
+"""The values for the '_SnykMonitorLifecycleItem' enum"""
+_SNYKMONITORLIFECYCLEITEM_SANDBOX: Literal["sandbox"] = "sandbox"
+"""The values for the '_SnykMonitorLifecycleItem' enum"""
