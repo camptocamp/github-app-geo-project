@@ -68,7 +68,7 @@ async def snyk(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            async with asyncio.timeout(1200):
+            async with asyncio.timeout(int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "1200"))):
                 try:
                     command = [
                         "pip",
@@ -119,7 +119,7 @@ async def snyk(
                 continue
             directory = os.path.dirname(os.path.abspath(file))
 
-            async with asyncio.timeout(600):
+            async with asyncio.timeout(int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "1200"))):
                 try:
                     command = [
                         "pipenv",
@@ -174,9 +174,15 @@ async def snyk(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            async with asyncio.timeout(600):
+            async with asyncio.timeout(int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "1200"))):
                 try:
-                    command = ["poetry", "install"]
+                    command = [
+                        "poetry",
+                        "install",
+                        *local_config.get(
+                            "poetry-install-arguments", config.get("poetry-install-arguments", [])
+                        ),
+                    ]
                     async_proc = await asyncio.create_subprocess_exec(
                         *command,
                         cwd=os.path.dirname(os.path.abspath(file)),
@@ -213,10 +219,15 @@ async def snyk(
     env_no_debug = {**env}
     env["DEBUG"] = "*snyk*"  # debug mode
 
-    command = ["snyk", "monitor", f"--target-reference={branch}"] + config.get(
-        "monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT
-    )
-    async with asyncio.timeout(300):
+    command = [
+        "snyk",
+        "monitor",
+        f"--target-reference={branch}",
+        *local_config.get(
+            "monitor-arguments", config.get("monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT)
+        ),
+    ]
+    async with asyncio.timeout(int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))):
         async_proc = await asyncio.create_subprocess_exec(
             *command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
@@ -233,10 +244,15 @@ async def snyk(
         message.title = "Project monitored"
         _LOGGER.debug(message)
 
-    command = ["snyk", "test", "--json"] + config.get(
-        "test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT
-    )
-    async with asyncio.timeout(300):
+    command = [
+        "snyk",
+        "test",
+        "--json",
+        *local_config.get(
+            "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
+        ),
+    ]
+    async with asyncio.timeout(int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))):
         test_proc = await asyncio.create_subprocess_exec(
             *command, env=env_no_debug, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
@@ -318,8 +334,14 @@ async def snyk(
     snyk_fix_success = True
     snyk_fix_message = None
     if fixable_vulnerabilities:
-        command = ["snyk", "fix"] + config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
-        async with asyncio.timeout(300):
+        command = [
+            "snyk",
+            "fix",
+            *local_config.get(
+                "fix-arguments", config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
+            ),
+        ]
+        async with asyncio.timeout(int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))):
             snyk_fix_proc = await asyncio.create_subprocess_exec(
                 *command, env=env_no_debug, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )

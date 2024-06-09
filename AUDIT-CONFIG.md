@@ -7,9 +7,11 @@
     - **`enabled`** _(boolean)_: Enable Snyk audit. Default: `true`.
     - **`files-no-install`** _(array)_: Dependency files that will not be installed. Default: `[]`.
       - **Items** _(string)_
-    - **`pip-install-arguments`** _(array)_: Arguments to pass to pip install. Default: `["--user"]`.
+    - **`pip-install-arguments`** _(array)_: Arguments to pass to pip install. Default: `[]`.
       - **Items** _(string)_
     - **`pipenv-sync-arguments`** _(array)_: Arguments to pass to pipenv sync. Default: `[]`.
+      - **Items** _(string)_
+    - **`poetry-install-arguments`** _(array)_: Arguments to pass to pip install. Default: `[]`.
       - **Items** _(string)_
     - **`monitor-arguments`** _(array)_: Arguments to pass to Snyk monitor. Default: `["--all-projects"]`.
       - **Items** _(string)_
