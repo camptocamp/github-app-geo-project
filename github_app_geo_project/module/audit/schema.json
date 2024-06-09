@@ -83,6 +83,58 @@
               "items": {
                 "type": "string"
               }
+            },
+            "monitor": {
+              "type": "object",
+              "title": "Snyk monitor configuration",
+              "additionalProperties": false,
+              "properties": {
+                "project-environment": {
+                  "type": "array",
+                  "title": "Snyk monitor environment",
+                  "description": "Set the project environment project attribute. To clear the project environment set empty array.\nFor more information see Project attributes https://docs.snyk.io/getting-started/introduction-to-snyk-projects/view-project-information/project-attributes",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "frontend",
+                      "backend",
+                      "internal",
+                      "external",
+                      "mobile",
+                      "saas",
+                      "onprem",
+                      "hosted",
+                      "distributed"
+                    ]
+                  }
+                },
+                "project-lifecycle": {
+                  "type": "array",
+                  "title": "Snyk monitor lifecycle",
+                  "description": "Set the project lifecycle project attribute. To clear the project lifecycle set empty array.\nFor more information see Project attributes https://docs.snyk.io/snyk-admin/snyk-projects/project-tags",
+                  "items": {
+                    "type": "string",
+                    "enum": ["production", "development", "sandbox"]
+                  }
+                },
+                "project-business-criticality": {
+                  "type": "array",
+                  "title": "Snyk monitor business criticality",
+                  "description": "Set the project business criticality project attribute. To clear the project business criticality set empty array.\nFor more information see Project attributes https://docs.snyk.io/snyk-admin/snyk-projects/project-tags",
+                  "items": {
+                    "type": "string",
+                    "enum": ["critical", "high", "medium", "low"]
+                  }
+                },
+                "project-tags": {
+                  "type": "object",
+                  "title": "Snyk monitor tags",
+                  "description": "Set the project tags to one or more values.\nTo clear the project tags set empty dictionary.",
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                }
+              }
             }
           }
         },

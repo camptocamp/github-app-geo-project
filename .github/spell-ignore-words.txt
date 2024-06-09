@@ -2,3 +2,4 @@ Snyk
 dpkg
 pipenv
 datasource
+lifecycle
