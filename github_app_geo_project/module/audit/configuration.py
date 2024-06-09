@@ -222,7 +222,7 @@ PIPENV_SYNC_ARGUMENTS_DEFAULT: list[Any] = []
 """ Default value of the field path 'Snyk configuration pipenv-sync-arguments' """
 
 
-PIP_INSTALL_ARGUMENTS_DEFAULT = ["--user"]
+PIP_INSTALL_ARGUMENTS_DEFAULT: list[Any] = []
 """ Default value of the field path 'Snyk configuration pip-install-arguments' """
 
 
@@ -260,7 +260,7 @@ SnykConfiguration = TypedDict(
         # Arguments to pass to pip install
         #
         # default:
-        #   - --user
+        #   []
         "pip-install-arguments": list[str],
         # Pipenv sync arguments.
         #
@@ -269,6 +269,13 @@ SnykConfiguration = TypedDict(
         # default:
         #   []
         "pipenv-sync-arguments": list[str],
+        # Pip install arguments.
+        #
+        # Arguments to pass to pip install
+        #
+        # default:
+        #   []
+        "poetry-install-arguments": list[str],
         # Snyk monitor arguments.
         #
         # Arguments to pass to Snyk monitor

@@ -34,7 +34,7 @@
               "type": "array",
               "title": "Pip install arguments",
               "description": "Arguments to pass to pip install",
-              "default": ["--user"],
+              "default": [],
               "items": {
                 "type": "string"
               }
@@ -43,6 +43,15 @@
               "type": "array",
               "title": "Pipenv sync arguments",
               "description": "Arguments to pass to pipenv sync",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "poetry-install-arguments": {
+              "type": "array",
+              "title": "Pip install arguments",
+              "description": "Arguments to pass to pip install",
               "default": [],
               "items": {
                 "type": "string"
