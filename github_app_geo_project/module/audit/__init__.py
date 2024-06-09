@@ -179,6 +179,8 @@ async def _process_snyk_dpkg(
             os.chdir(tmpdirname)
             _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
             success &= module_utils.git_clone(context.github_project, branch)
+            if not success:
+                return ["Fail to clone the repository"], success
 
             local_config: configuration.AuditConfiguration = {}
             if context.module_event_data.type in ("snyk", "dpkg"):
