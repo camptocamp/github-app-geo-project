@@ -495,11 +495,14 @@ async def dpkg(
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)
         for versions in versions_config.values():
             for package_full in versions.keys():
-                version = await _get_packages_version(package_full, config, local_config)
-                if version and debian_inspector.version.Version.from_string(
-                    version
-                ) > debian_inspector.version.Version.from_string(versions[package_full]):
-                    versions[package_full] = version
+                try:
+                    version = await _get_packages_version(package_full, config, local_config)
+                    if version and debian_inspector.version.Version.from_string(
+                        version
+                    ) > debian_inspector.version.Version.from_string(versions[package_full]):
+                        versions[package_full] = version
+                except ValueError as exception:
+                    _LOGGER.error("Error while updating the package %s: %s", package_full, exception)
 
     with open("ci/dpkg-versions.yaml", "w", encoding="utf-8") as versions_file:
         yaml.dump(versions_config, versions_file, Dumper=yaml.SafeDumper)
