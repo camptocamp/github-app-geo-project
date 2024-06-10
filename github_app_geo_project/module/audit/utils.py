@@ -442,22 +442,25 @@ def _get_sources(
                 for source in conf[dist]
             ]
         )
-        for package in _SOURCES[dist].packages:
-            name = f"{dist}/{package.package}"
-            try:
-                version = debian_inspector.version.Version.from_string(package.version)
-                if name not in _PACKAGE_VERSION:
-                    _PACKAGE_VERSION[name] = version
-                elif version > _PACKAGE_VERSION[name]:
-                    _PACKAGE_VERSION[name] = version
-            except ValueError as exception:
-                _LOGGER.warning(
-                    "Error while parsing the package %s/%s version of %s: %s",
-                    dist,
-                    package.package,
-                    package.version,
-                    exception,
-                )
+        try:
+            for package in _SOURCES[dist].packages:
+                name = f"{dist}/{package.package}"
+                try:
+                    version = debian_inspector.version.Version.from_string(package.version)
+                    if name not in _PACKAGE_VERSION:
+                        _PACKAGE_VERSION[name] = version
+                    elif version > _PACKAGE_VERSION[name]:
+                        _PACKAGE_VERSION[name] = version
+                except ValueError as exception:
+                    _LOGGER.warning(
+                        "Error while parsing the package %s/%s version of %s: %s",
+                        dist,
+                        package.package,
+                        package.version,
+                        exception,
+                    )
+        except AttributeError as exception:
+            _LOGGER.error("Error while loading the distribution %s: %s", dist, exception)
 
     return _SOURCES[dist]
 
