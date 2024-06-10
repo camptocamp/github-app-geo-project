@@ -98,7 +98,7 @@ WORKDIR /app/
 # The final part
 FROM base as runner
 
-ENV PATH=/pyenv/shims:/pyenv/bin:${PATH} \
+ENV PATH=/pyenv/shims:/pyenv/bin:/var/www/.local/bin/:${PATH} \
     PYENV_ROOT=/pyenv
 
 # Install different Python version with pyenv
