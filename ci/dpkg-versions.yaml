@@ -152,6 +152,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libpam0g: 1.5.3-5ubuntu5.1
   ubuntu_24_04/libpcre2-8-0: 10.42-4ubuntu2
   ubuntu_24_04/libperl5.38t64: 5.38.2-3.2build2
+  ubuntu_24_04/libpkgconf3: 1.8.1-2build1
   ubuntu_24_04/libpq-dev: 16.3-0ubuntu0.24.04.1
   ubuntu_24_04/libpq5: 16.3-0ubuntu0.24.04.1
   ubuntu_24_04/libproc2-0: 2:4.0.4-4ubuntu3
@@ -217,7 +218,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/ncurses-base: 6.4+20240113-1ubuntu2
   ubuntu_24_04/ncurses-bin: 6.4+20240113-1ubuntu2
   ubuntu_24_04/netbase: '6.4'
-  ubuntu_24_04/nodejs: 18.19.1+dfsg-6ubuntu5
+  ubuntu_24_04/nodejs: 20.14.0-1nodesource1
   ubuntu_24_04/openssl: 3.0.13-0ubuntu3.1
   ubuntu_24_04/passwd: 1:4.13+dfsg1-4ubuntu3
   ubuntu_24_04/patch: 2.7.6-7build3
@@ -225,6 +226,8 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/perl-base: 5.38.2-3.2build2
   ubuntu_24_04/perl-modules-5.38: 5.38.2-3.2build2
   ubuntu_24_04/pinentry-curses: 1.2.1-3ubuntu5
+  ubuntu_24_04/pkgconf: 1.8.1-2build1
+  ubuntu_24_04/pkgconf-bin: 1.8.1-2build1
   ubuntu_24_04/postgresql-client: 16+257build1
   ubuntu_24_04/postgresql-client-16: 16.3-0ubuntu0.24.04.1
   ubuntu_24_04/postgresql-client-common: 257build1

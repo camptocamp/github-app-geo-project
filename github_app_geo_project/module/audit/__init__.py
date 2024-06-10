@@ -237,7 +237,6 @@ async def _process_snyk_dpkg(
                 ["git", "diff", "--quiet"], timeout=30
             )
             if diff_proc.returncode != 0:
-                assert body is not None
                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                     ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8", timeout=30
                 )
@@ -249,7 +248,7 @@ async def _process_snyk_dpkg(
                 else:
                     repo = context.github_project.repo
                     new_success, pull_request = module_utils.create_commit_pull_request(
-                        branch, new_branch, f"Audit {key}", body.to_markdown(), repo
+                        branch, new_branch, f"Audit {key}", "" if body is None else body.to_markdown(), repo
                     )
                     success &= new_success
                     if not new_success:

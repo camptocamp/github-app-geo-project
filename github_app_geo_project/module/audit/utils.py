@@ -38,7 +38,7 @@ async def snyk(
     result = []
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["echo"],
+        ["env"],
         capture_output=True,
         encoding="utf-8",
         timeout=30,
@@ -442,22 +442,25 @@ def _get_sources(
                 for source in conf[dist]
             ]
         )
-        for package in _SOURCES[dist].packages:
-            name = f"{dist}/{package.package}"
-            try:
-                version = debian_inspector.version.Version.from_string(package.version)
-                if name not in _PACKAGE_VERSION:
-                    _PACKAGE_VERSION[name] = version
-                elif version > _PACKAGE_VERSION[name]:
-                    _PACKAGE_VERSION[name] = version
-            except ValueError as exception:
-                _LOGGER.warning(
-                    "Error while parsing the package %s/%s version of %s: %s",
-                    dist,
-                    package.package,
-                    package.version,
-                    exception,
-                )
+        try:
+            for package in _SOURCES[dist].packages:
+                name = f"{dist}/{package.package}"
+                try:
+                    version = debian_inspector.version.Version.from_string(package.version)
+                    if name not in _PACKAGE_VERSION:
+                        _PACKAGE_VERSION[name] = version
+                    elif version > _PACKAGE_VERSION[name]:
+                        _PACKAGE_VERSION[name] = version
+                except ValueError as exception:
+                    _LOGGER.warning(
+                        "Error while parsing the package %s/%s version of %s: %s",
+                        dist,
+                        package.package,
+                        package.version,
+                        exception,
+                    )
+        except AttributeError as exception:
+            _LOGGER.error("Error while loading the distribution %s: %s", dist, exception)
 
     return _SOURCES[dist]
 
@@ -493,7 +496,9 @@ async def dpkg(
         for versions in versions_config.values():
             for package_full in versions.keys():
                 version = await _get_packages_version(package_full, config, local_config)
-                if version:
+                if version and debian_inspector.version.Version.from_string(
+                    version
+                ) > debian_inspector.version.Version.from_string(versions[package_full]):
                     versions[package_full] = version
 
     with open("ci/dpkg-versions.yaml", "w", encoding="utf-8") as versions_file:

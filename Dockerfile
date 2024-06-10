@@ -57,7 +57,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     apt-get update \
-    && apt-get install --assume-yes --no-install-recommends build-essential python3-dev libpq-dev libproj-dev
+    && apt-get install --assume-yes --no-install-recommends build-essential python3-dev libpq-dev libproj-dev pkgconf
 
 RUN --mount=type=cache,target=/var/cache,sharing=locked \
     --mount=type=cache,target=/root/.cache \
@@ -98,7 +98,7 @@ WORKDIR /app/
 # The final part
 FROM base as runner
 
-ENV PATH=/pyenv/shims:/pyenv/bin:${PATH} \
+ENV PATH=/pyenv/shims:/pyenv/bin:/var/www/.local/bin/:${PATH} \
     PYENV_ROOT=/pyenv
 
 # Install different Python version with pyenv

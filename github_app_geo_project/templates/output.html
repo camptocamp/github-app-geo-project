@@ -110,7 +110,7 @@
       </p>
       <div class="collapse" id="element${suffix}">
         %for no, child in enumerate(out['children']):
-        <p>${display_output(child, f"{suffix}-{no}")}</p>
+        <p>${display_output(child, f"{suffix}-{no}") | n}</p>
         %endfor
       </div>
     </div>
