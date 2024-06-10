@@ -85,7 +85,12 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
             if not is_clone:
                 success = utils.git_clone(context.github_project, workflow_run.head_branch)
                 if not success:
-                    raise PatchException("Failed to clone the repository, see logs for details")
+                    return module.ProcessOutput(
+                        success=False,
+                        output={
+                            "summary": "Failed to clone the repository, see details on the application for details (link below)"
+                        },
+                    )
 
             for artifact in workflow_run.get_artifacts():
                 if not artifact.name.endswith(".patch"):
