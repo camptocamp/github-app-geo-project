@@ -53,17 +53,23 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     && apt-get update \
     && apt-get install --assume-yes --no-install-recommends "nodejs=${NODE_MAJOR}.*"
 
-# Install some required dev packages
+# Install required packages
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     apt-get update \
-    && apt-get install --assume-yes --no-install-recommends build-essential python3-dev libpq-dev libproj-dev pkgconf
+    && apt-get install --assume-yes --no-install-recommends build-essential python3-dev libpq-dev
 
-RUN --mount=type=cache,target=/var/cache,sharing=locked \
+    RUN --mount=type=cache,target=/var/cache,sharing=locked \
     --mount=type=cache,target=/root/.cache \
     --mount=type=bind,from=poetry,source=/tmp,target=/poetry \
     python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements.txt \
     && python3 -m compileall /usr/local/lib/python* /usr/lib/python*
+
+# Install packages required by audit
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache,sharing=locked \
+    apt-get update \
+    && apt-get install --assume-yes --no-install-recommends libproj-dev pkgconf libcairo2-dev
 
 # From c2cwsgiutils
 
