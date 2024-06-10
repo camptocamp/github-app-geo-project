@@ -38,7 +38,7 @@ async def snyk(
     result = []
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["echo"],
+        ["env"],
         capture_output=True,
         encoding="utf-8",
         timeout=30,
