@@ -111,7 +111,7 @@ ENV PATH=/pyenv/shims:/pyenv/bin:/var/www/.local/bin/:${PATH} \
 # hadolint ignore=SC2086
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
-    DEV_PACKAGES="libffi-dev libcurses-ocaml-dev libreadline-dev libbz2-dev" \
+    DEV_PACKAGES="libcurses-ocaml-dev libreadline-dev" \
     && apt-get update \
     && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
     && git clone --depth=1 https://github.com/pyenv/pyenv.git /pyenv \

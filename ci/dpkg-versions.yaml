@@ -27,6 +27,9 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/dpkg-dev: 1.22.6ubuntu6
   ubuntu_24_04/e2fsprogs: 1.47.0-2.4~exp1ubuntu4
   ubuntu_24_04/findutils: 4.9.0-5build1
+  ubuntu_24_04/fontconfig-config: 2.15.0-1.1ubuntu2
+  ubuntu_24_04/fonts-dejavu-core: 2.37-8
+  ubuntu_24_04/fonts-dejavu-mono: 2.37-8
   ubuntu_24_04/g++: 4:13.2.0-7ubuntu1
   ubuntu_24_04/g++-13: 13.2.0-23ubuntu4
   ubuntu_24_04/g++-13-x86-64-linux-gnu: 13.2.0-23ubuntu4
@@ -61,13 +64,21 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libaudit-common: 1:3.1.2-2.1build1
   ubuntu_24_04/libaudit1: 1:3.1.2-2.1build1
   ubuntu_24_04/libbinutils: 2.42-4ubuntu2
+  ubuntu_24_04/libblkid-dev: 2.39.3-9ubuntu6
   ubuntu_24_04/libblkid1: 2.39.3-9ubuntu6
+  ubuntu_24_04/libbrotli-dev: 1.1.0-2build2
   ubuntu_24_04/libbrotli1: 1.1.0-2build2
+  ubuntu_24_04/libbsd0: 0.12.1-1build1
   ubuntu_24_04/libbz2-1.0: 1.0.8-5.1
+  ubuntu_24_04/libbz2-dev: 1.0.8-5.1
   ubuntu_24_04/libc-bin: 2.39-0ubuntu8.2
   ubuntu_24_04/libc-dev-bin: 2.39-0ubuntu8.2
   ubuntu_24_04/libc6: 2.39-0ubuntu8.2
   ubuntu_24_04/libc6-dev: 2.39-0ubuntu8.2
+  ubuntu_24_04/libcairo-gobject2: 1.18.0-3build1
+  ubuntu_24_04/libcairo-script-interpreter2: 1.18.0-3build1
+  ubuntu_24_04/libcairo2: 1.18.0-3build1
+  ubuntu_24_04/libcairo2-dev: 1.18.0-3build1
   ubuntu_24_04/libcap-ng0: 0.8.4-2build2
   ubuntu_24_04/libcap2: 1:2.66-5ubuntu2
   ubuntu_24_04/libcc1-0: 14-20240412-0ubuntu1
@@ -85,16 +96,28 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libdeflate0: 1.19-1build1
   ubuntu_24_04/libdevmapper1.02.1: 2:1.02.185-3ubuntu3
   ubuntu_24_04/libdpkg-perl: 1.22.6ubuntu6
+  ubuntu_24_04/libelf1t64: 0.190-1.1build4
   ubuntu_24_04/liberror-perl: 0.17029-2
   ubuntu_24_04/libexpat1: 2.6.1-2build1
   ubuntu_24_04/libexpat1-dev: 2.6.1-2build1
   ubuntu_24_04/libext2fs2t64: 1.47.0-2.4~exp1ubuntu4
+  ubuntu_24_04/libffi-dev: 3.4.6-1build1
   ubuntu_24_04/libffi8: 3.4.6-1build1
+  ubuntu_24_04/libfontconfig-dev: 2.15.0-1.1ubuntu2
+  ubuntu_24_04/libfontconfig1: 2.15.0-1.1ubuntu2
+  ubuntu_24_04/libfreetype-dev: 2.13.2+dfsg-1build3
+  ubuntu_24_04/libfreetype6: 2.13.2+dfsg-1build3
   ubuntu_24_04/libgcc-13-dev: 13.2.0-23ubuntu4
   ubuntu_24_04/libgcc-s1: 14-20240412-0ubuntu1
   ubuntu_24_04/libgcrypt20: 1.10.3-2build1
   ubuntu_24_04/libgdbm-compat4t64: 1.23-5.1build1
   ubuntu_24_04/libgdbm6t64: 1.23-5.1build1
+  ubuntu_24_04/libgirepository-2.0-0: 2.80.0-6ubuntu3.1
+  ubuntu_24_04/libglib2.0-0t64: 2.80.0-6ubuntu3.1
+  ubuntu_24_04/libglib2.0-bin: 2.80.0-6ubuntu3.1
+  ubuntu_24_04/libglib2.0-data: 2.80.0-6ubuntu3.1
+  ubuntu_24_04/libglib2.0-dev: 2.80.0-6ubuntu3.1
+  ubuntu_24_04/libglib2.0-dev-bin: 2.80.0-6ubuntu3.1
   ubuntu_24_04/libgmp10: 2:6.3.0+dfsg-2ubuntu6
   ubuntu_24_04/libgnutls30t64: 3.8.3-1.1ubuntu3.1
   ubuntu_24_04/libgomp1: 14-20240412-0ubuntu1
@@ -103,6 +126,8 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libgssapi-krb5-2: 1.20.1-6ubuntu2
   ubuntu_24_04/libhogweed6t64: 3.9.1-2.2build1
   ubuntu_24_04/libhwasan0: 14-20240412-0ubuntu1
+  ubuntu_24_04/libice-dev: 2:1.0.10-1build3
+  ubuntu_24_04/libice6: 2:1.0.10-1build3
   ubuntu_24_04/libidn2-0: 2.3.7-2build1
   ubuntu_24_04/libip4tc2: 1.8.10-3ubuntu2
   ubuntu_24_04/libip6tc2: 1.8.10-3ubuntu2
@@ -131,10 +156,12 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/liblz4-1: 1.9.4-1build1
   ubuntu_24_04/liblzma-dev: 5.6.1+really5.4.5-1
   ubuntu_24_04/liblzma5: 5.6.1+really5.4.5-1
+  ubuntu_24_04/liblzo2-2: 2.10-2build4
   ubuntu_24_04/libmagic-mgc: 1:5.45-3build1
   ubuntu_24_04/libmagic1t64: 1:5.45-3build1
   ubuntu_24_04/libmd0: 1.1.0-2build1
   ubuntu_24_04/libmnl0: 1.0.5-2build1
+  ubuntu_24_04/libmount-dev: 2.39.3-9ubuntu6
   ubuntu_24_04/libmount1: 2.39.3-9ubuntu6
   ubuntu_24_04/libmpc3: 1.3.1-1build1
   ubuntu_24_04/libmpfr6: 4.2.1-1build1
@@ -150,15 +177,24 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libpam-modules-bin: 1.5.3-5ubuntu5.1
   ubuntu_24_04/libpam-runtime: 1.5.3-5ubuntu5.1
   ubuntu_24_04/libpam0g: 1.5.3-5ubuntu5.1
+  ubuntu_24_04/libpcre2-16-0: 10.42-4ubuntu2
+  ubuntu_24_04/libpcre2-32-0: 10.42-4ubuntu2
   ubuntu_24_04/libpcre2-8-0: 10.42-4ubuntu2
+  ubuntu_24_04/libpcre2-dev: 10.42-4ubuntu2
+  ubuntu_24_04/libpcre2-posix3: 10.42-4ubuntu2
   ubuntu_24_04/libperl5.38t64: 5.38.2-3.2build2
+  ubuntu_24_04/libpixman-1-0: 0.42.2-1build1
+  ubuntu_24_04/libpixman-1-dev: 0.42.2-1build1
   ubuntu_24_04/libpkgconf3: 1.8.1-2build1
+  ubuntu_24_04/libpng-dev: 1.6.43-5build1
+  ubuntu_24_04/libpng16-16t64: 1.6.43-5build1
   ubuntu_24_04/libpq-dev: 16.3-0ubuntu0.24.04.1
   ubuntu_24_04/libpq5: 16.3-0ubuntu0.24.04.1
   ubuntu_24_04/libproc2-0: 2:4.0.4-4ubuntu3
   ubuntu_24_04/libproj-dev: 9.4.0-1build2
   ubuntu_24_04/libproj25: 9.4.0-1build2
   ubuntu_24_04/libpsl5t64: 0.21.2-1.1build1
+  ubuntu_24_04/libpthread-stubs0-dev: 0.4-1build3
   ubuntu_24_04/libpython3-dev: 3.12.3-0ubuntu1
   ubuntu_24_04/libpython3-stdlib: 3.12.3-0ubuntu1
   ubuntu_24_04/libpython3.12-dev: 3.12.3-1
@@ -172,12 +208,16 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libsasl2-modules-db: 2.1.28+dfsg1-5ubuntu3
   ubuntu_24_04/libseccomp2: 2.5.5-1ubuntu3
   ubuntu_24_04/libselinux1: 3.5-2ubuntu2
+  ubuntu_24_04/libselinux1-dev: 3.5-2ubuntu2
   ubuntu_24_04/libsemanage-common: 3.5-1build5
   ubuntu_24_04/libsemanage2: 3.5-1build5
+  ubuntu_24_04/libsepol-dev: 3.5-2build1
   ubuntu_24_04/libsepol2: 3.5-2build1
   ubuntu_24_04/libsframe1: 2.42-4ubuntu2
   ubuntu_24_04/libsharpyuv-dev: 1.3.2-0.4build3
   ubuntu_24_04/libsharpyuv0: 1.3.2-0.4build3
+  ubuntu_24_04/libsm-dev: 2:1.2.3-1build3
+  ubuntu_24_04/libsm6: 2:1.2.3-1build3
   ubuntu_24_04/libsmartcols1: 2.39.3-9ubuntu6
   ubuntu_24_04/libsqlite3-0: 3.45.1-1ubuntu2
   ubuntu_24_04/libsqlite3-dev: 3.45.1-1ubuntu2
@@ -189,9 +229,9 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libstdc++6: 14-20240412-0ubuntu1
   ubuntu_24_04/libsystemd0: 255.4-1ubuntu8.1
   ubuntu_24_04/libtasn1-6: 4.19.0-3build1
-  ubuntu_24_04/libtiff-dev: 4.5.1+git230720-4ubuntu2
-  ubuntu_24_04/libtiff6: 4.5.1+git230720-4ubuntu2
-  ubuntu_24_04/libtiffxx6: 4.5.1+git230720-4ubuntu2
+  ubuntu_24_04/libtiff-dev: 4.5.1+git230720-4ubuntu2.1
+  ubuntu_24_04/libtiff6: 4.5.1+git230720-4ubuntu2.1
+  ubuntu_24_04/libtiffxx6: 4.5.1+git230720-4ubuntu2.1
   ubuntu_24_04/libtinfo6: 6.4+20240113-1ubuntu2
   ubuntu_24_04/libtsan2: 14-20240412-0ubuntu1
   ubuntu_24_04/libubsan1: 14-20240412-0ubuntu1
@@ -203,6 +243,23 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libwebpdecoder3: 1.3.2-0.4build3
   ubuntu_24_04/libwebpdemux2: 1.3.2-0.4build3
   ubuntu_24_04/libwebpmux3: 1.3.2-0.4build3
+  ubuntu_24_04/libx11-6: 2:1.8.7-1build1
+  ubuntu_24_04/libx11-data: 2:1.8.7-1build1
+  ubuntu_24_04/libx11-dev: 2:1.8.7-1build1
+  ubuntu_24_04/libxau-dev: 1:1.0.9-1build6
+  ubuntu_24_04/libxau6: 1:1.0.9-1build6
+  ubuntu_24_04/libxcb-render0: 1.15-1ubuntu2
+  ubuntu_24_04/libxcb-render0-dev: 1.15-1ubuntu2
+  ubuntu_24_04/libxcb-shm0: 1.15-1ubuntu2
+  ubuntu_24_04/libxcb-shm0-dev: 1.15-1ubuntu2
+  ubuntu_24_04/libxcb1: 1.15-1ubuntu2
+  ubuntu_24_04/libxcb1-dev: 1.15-1ubuntu2
+  ubuntu_24_04/libxdmcp-dev: 1:1.1.3-0ubuntu6
+  ubuntu_24_04/libxdmcp6: 1:1.1.3-0ubuntu6
+  ubuntu_24_04/libxext-dev: 2:1.3.4-1build2
+  ubuntu_24_04/libxext6: 2:1.3.4-1build2
+  ubuntu_24_04/libxrender-dev: 1:0.9.10-1.1build1
+  ubuntu_24_04/libxrender1: 1:0.9.10-1.1build1
   ubuntu_24_04/libxtables12: 1.8.10-3ubuntu2
   ubuntu_24_04/libxxhash0: 0.8.2-2build1
   ubuntu_24_04/libzstd-dev: 1.5.5+dfsg2-2build1
@@ -236,6 +293,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/python3: 3.12.3-0ubuntu1
   ubuntu_24_04/python3-dev: 3.12.3-0ubuntu1
   ubuntu_24_04/python3-minimal: 3.12.3-0ubuntu1
+  ubuntu_24_04/python3-packaging: 24.0-1
   ubuntu_24_04/python3-pip: 24.0+dfsg-1ubuntu1
   ubuntu_24_04/python3-pkg-resources: 68.1.2-2ubuntu1
   ubuntu_24_04/python3-setuptools: 68.1.2-2ubuntu1
@@ -253,5 +311,11 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/tzdata: 2024a-3ubuntu1.1
   ubuntu_24_04/ubuntu-keyring: 2023.11.28.1
   ubuntu_24_04/util-linux: 2.39.3-9ubuntu6
+  ubuntu_24_04/uuid-dev: 2.39.3-9ubuntu6
+  ubuntu_24_04/x11-common: 1:7.7+23ubuntu3
+  ubuntu_24_04/x11proto-core-dev: 2023.2-1
+  ubuntu_24_04/x11proto-dev: 2023.2-1
+  ubuntu_24_04/xorg-sgml-doctools: 1:1.11-1.1
+  ubuntu_24_04/xtrans-dev: 1.4.0-1
   ubuntu_24_04/xz-utils: 5.6.1+really5.4.5-1
   ubuntu_24_04/zlib1g: 1:1.3.dfsg-3.1ubuntu2

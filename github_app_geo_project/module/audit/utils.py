@@ -37,16 +37,6 @@ async def snyk(
     """
     result = []
 
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["env"],
-        capture_output=True,
-        encoding="utf-8",
-        timeout=30,
-    )
-    message = module_utils.ansi_proc_message(proc)
-    message.title = "Environment variables"
-    _LOGGER.debug(message)
-
     env = os.environ.copy()
     env["PATH"] = f'{env["HOME"]}/.local/bin:{env["PATH"]}'
     _LOGGER.debug("Updated path: %s", env["PATH"])
