@@ -527,7 +527,7 @@ def _get_dependencies(
 
     index = -1
     for i, line in enumerate(lines):
-        if '"packageFiles": {' in line and line.strip().startswith("  "):
+        if '"packageFiles": {' in line and line.startswith("  "):
             index = i
             break
     if index != -1:
