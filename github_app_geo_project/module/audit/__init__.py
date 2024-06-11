@@ -205,10 +205,10 @@ async def _process_snyk_dpkg(
                     )
                     message = module_utils.ansi_proc_message(proc)
                     if proc.returncode != 0:
-                        message.title = "Error while setting the Python version"
+                        message.title = f"Error while setting the Python version to {python_version}"
                         _LOGGER.error(message)
                     else:
-                        message.title = "Setting the Python version"
+                        message.title = f"Setting the Python version to {python_version}"
                         _LOGGER.debug(message)
 
                 result, body, short_message, new_success = await audit_utils.snyk(

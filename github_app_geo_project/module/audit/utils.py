@@ -91,7 +91,7 @@ async def snyk(
                 result.append(message)
             else:
                 message.title = f"Dependencies installed from {file}"
-            _LOGGER.debug(message)
+                _LOGGER.debug(message)
 
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8", timeout=30
