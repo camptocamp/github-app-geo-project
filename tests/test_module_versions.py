@@ -54,6 +54,7 @@ async def test_process_step_2() -> None:
     context.github_project = Mock()
     context.github_project.owner = "camptocamp"
     context.github_project.repository = "test"
+    context.module_config = {}
     os.environ["TEST"] = "TRUE"
     os.environ[
         "RENOVATE_GRAPH"
@@ -73,10 +74,15 @@ async def test_process_step_2() -> None:
            {
              "deps": [
                {
-                 "depName": "sbrunner/scan-to-paperless",
-                 "replaceString": "sbrunner/scan-to-paperless",
-                 "autoReplaceStringTemplate": "{{depName}}{{#if newValue}}:{{newValue}}{{/if}}{{#if newDigest}}@{{newDigest}}{{/if}}",
-                 "datasource": "docker"
+                 "depName": "actions/checkout",
+                 "commitMessageTopic": "{{{depName}}} action",
+                 "datasource": "github-tags",
+                 "versioning": "docker",
+                 "depType": "action",
+                 "replaceString": "actions/checkout@v4",
+                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
+                 "currentValue": "v4",
+                 "skipReason": "github-token-required"
                }
              ],
              "packageFile": "docker-compose.yaml"
@@ -96,7 +102,17 @@ DEBUG: writePackageDataToFile called for github//local
         "camptocamp/test": {
             "versions": {
                 "master": {
-                    "dependencies_by_datasource": {},
+                    "dependencies_by_datasource": {
+                        "github-tags": {
+                            "versions_by_names": {
+                                "actions/checkout": {
+                                    "versions": [
+                                        "v4",
+                                    ],
+                                },
+                            },
+                        },
+                    },
                     "names_by_datasource": {
                         "docker": {
                             "names": [
