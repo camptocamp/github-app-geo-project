@@ -302,7 +302,7 @@ async def snyk(
         if "error" in row:
             _LOGGER.error(row["error"])
         for vuln in row.get("vulnerabilities", []):
-            fixable = vuln.get("isUpgradable", False) or vuln.get("isPatchable", False)
+            fixable = vuln.get("fixedIn", []) or vuln.get("isPatchable", False)
             severity = vuln["severity"]
             display = False
             if fixable:
@@ -321,8 +321,10 @@ async def snyk(
                     *(vuln.get("identifiers", {}).get("CWE", [])),
                 ]
             )
-            if vuln.get("isUpgradable", False):
+            if vuln.get("fixedIn", []):
                 title += " [Fixed in: " + ", ".join(vuln["fixedIn"]) + "]."
+            elif vuln.get("isUpgradable", False):
+                title += " [Upgradable]."
             elif vuln.get("isPatchable", False):
                 title += " [Patch available]."
             else:
@@ -485,14 +487,33 @@ async def dpkg(
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)
         for versions in versions_config.values():
             for package_full in versions.keys():
+                version = await _get_packages_version(package_full, config, local_config)
+                if version is None:
+                    _LOGGER.warning("No version found for %s", package_full)
+                    continue
+                if versions[package_full] is None or versions[package_full] == "None":
+                    versions[package_full] = version
                 try:
-                    version = await _get_packages_version(package_full, config, local_config)
-                    if version and debian_inspector.version.Version.from_string(
-                        version
-                    ) > debian_inspector.version.Version.from_string(versions[package_full]):
+                    current_version = debian_inspector.version.Version.from_string(versions[package_full])
+                except ValueError as exception:
+                    _LOGGER.warning(
+                        "Error while parsing the current version %s of the package %s: %s",
+                        versions[package_full],
+                        package_full,
+                        exception,
+                    )
+                    versions[package_full] = version
+                    continue
+                try:
+                    if debian_inspector.version.Version.from_string(version) > current_version:
                         versions[package_full] = version
                 except ValueError as exception:
-                    _LOGGER.error("Error while updating the package %s: %s", package_full, exception)
+                    _LOGGER.warning(
+                        "Error while parsing the new version %s of the package %s: %s",
+                        version,
+                        package_full,
+                        exception,
+                    )
 
     with open("ci/dpkg-versions.yaml", "w", encoding="utf-8") as versions_file:
         yaml.dump(versions_config, versions_file, Dumper=yaml.SafeDumper)
