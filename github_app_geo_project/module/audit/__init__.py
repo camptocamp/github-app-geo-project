@@ -249,8 +249,11 @@ async def _process_snyk_dpkg(
                         if pull_request is not None:
                             issue_check.set_title(key, f"{key} ([Pull request]({pull_request.html_url}))")
 
-    except Exception:  # pylint: disable=broad-except
+    except Exception as exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
+        return [f"Error while processing the audit {key}: {exception}"], False
+    finally:
+        os.chdir("/")
 
     return short_message, success
 
