@@ -64,6 +64,8 @@ async def snyk(
             async with asyncio.timeout(int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "1200"))):
                 try:
                     command = [
+                        "python",
+                        "-m",
                         "pip",
                         "install",
                         *local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
@@ -339,7 +341,7 @@ async def snyk(
                 "<br>\n".join(
                     [
                         f'<a href="https://security.snyk.io/vuln/{vuln["id"]}">{vuln["title"]}</a>',
-                        " > ".join(vuln["from"]),
+                        " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]]),
                         *[", ".join(identifiers) for identifiers in vuln.get("identifiers", {}).values()],
                         # *[f'<a href="{reference['url']}>{reference["title"]}</a>' for reference in vuln["references"]],
                         # "",
