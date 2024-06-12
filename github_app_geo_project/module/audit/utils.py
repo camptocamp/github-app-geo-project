@@ -64,6 +64,8 @@ async def snyk(
             async with asyncio.timeout(int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "1200"))):
                 try:
                     command = [
+                        "python",
+                        "-m",
                         "pip",
                         "install",
                         *local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
