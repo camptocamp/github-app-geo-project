@@ -196,34 +196,26 @@ async def _process_snyk_dpkg(
                             if line.startswith("python "):
                                 python_version = ".".join(line.split(" ")[1].split(".")[0:2])
                                 break
-                if python_version:
-                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                        ["pyenv", "local", python_version],
-                        capture_output=True,
-                        encoding="utf-8",
-                        timeout=300,
-                    )
-                    message = module_utils.ansi_proc_message(proc)
-                    if proc.returncode != 0:
-                        message.title = f"Error while setting the Python version to {python_version}"
-                        _LOGGER.error(message)
-                    else:
-                        message.title = f"Setting the Python version to {python_version}"
-                        _LOGGER.debug(message)
+                try:
+                    if python_version:
+                        _use_python_version(python_version)
 
-                result, body, short_message, new_success = await audit_utils.snyk(
-                    branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
-                )
-                success &= new_success
-                output_url = _process_error(
-                    context,
-                    key,
-                    issue_check,
-                    [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
-                    ", ".join(short_message),
-                )
-                if output_url is not None:
-                    short_message.append(f"[See also]({output_url})")
+                    result, body, short_message, new_success = await audit_utils.snyk(
+                        branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
+                    )
+                    success &= new_success
+                    output_url = _process_error(
+                        context,
+                        key,
+                        issue_check,
+                        [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
+                        ", ".join(short_message),
+                    )
+                    if output_url is not None:
+                        short_message.append(f"[See also]({output_url})")
+                finally:
+                    if python_version:
+                        _use_python_version("3.10")
 
             if context.module_event_data.type == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")
@@ -261,6 +253,28 @@ async def _process_snyk_dpkg(
         _LOGGER.exception("Audit %s error", key)
 
     return short_message, success
+
+
+def _use_python_version(python_version: str) -> None:
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["pyenv", "local", python_version],
+        capture_output=True,
+        encoding="utf-8",
+        timeout=300,
+    )
+    message = module_utils.ansi_proc_message(proc)
+    if proc.returncode != 0:
+        message.title = f"Error while setting the Python version to {python_version}"
+        _LOGGER.error(message)
+    else:
+        message.title = f"Setting the Python version to {python_version}"
+        _LOGGER.debug(message)
+    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["python", "--version"], capture_output=True, encoding="utf-8", timeout=5
+    )
+    message = module_utils.ansi_proc_message(proc)
+    message.title = "Python version"
+    _LOGGER.debug(message)
 
 
 class Audit(module.Module[configuration.AuditConfiguration, _EventData, _TransversalStatus]):
