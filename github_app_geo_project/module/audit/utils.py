@@ -69,6 +69,18 @@ async def snyk(
         fixable_vulnerabilities,
         fixable_vulnerabilities_summary,
     )
+    npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result)
+    fix_message: module_utils.Message | None = None
+    if snyk_fix_message is None:
+        if npm_audit_fix_message:
+            fix_message = module_utils.HtmlMessage(npm_audit_fix_message)
+            fix_message.title = "Npm audit fix"
+    else:
+        fix_message = snyk_fix_message
+        if npm_audit_fix_message:
+            assert isinstance(fix_message, module_utils.HtmlMessage)
+            fix_message.html = f"{fix_message.html}<br>\n<br>\n{npm_audit_fix_message}"
+    fix_success = snyk_fix_success and npm_audit_fix_success
 
     return_message = [
         *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
@@ -360,6 +372,7 @@ async def _snyk_test(
     high_vulnerabilities: dict[str, int] = {}
     fixable_vulnerabilities: dict[str, int] = {}
     fixable_vulnerabilities_summary: dict[str, str] = {}
+    fixable_files_npm: dict[str, set[str]] = {}
     for row in test_json:
         message = module_utils.HtmlMessage(
             "\n".join(
@@ -406,6 +419,8 @@ async def _snyk_test(
                 title += "."
             if vuln.get("fixedIn", []) or vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):
                 fixable_vulnerabilities_summary[vuln["id"]] = title
+                if vuln.get("packageManager") == "npm":
+                    fixable_files_npm.setdefault(row.get("displayTargetFile"), set()).add(title)
             message = module_utils.HtmlMessage(
                 "<br>\n".join(
                     [
@@ -421,7 +436,7 @@ async def _snyk_test(
             )
             _LOGGER.warning(message)
             result.append(message)
-    return high_vulnerabilities, fixable_vulnerabilities, fixable_vulnerabilities_summary
+    return high_vulnerabilities, fixable_vulnerabilities, fixable_vulnerabilities_summary, fixable_files_npm
 
 
 async def _snyk_fix(
@@ -474,6 +489,36 @@ async def _snyk_fix(
             message.title = "Snyk fix applied"
             _LOGGER.debug(message)
     return snyk_fix_success, snyk_fix_message
+
+
+async def _npm_audit_fix(
+    fixable_files_npm: dict[str, set[str]], result: list[module_utils.Message]
+) -> tuple[str, bool]:
+    messages: set[str] = set()
+    for package_lock_file_name, file_messages in fixable_files_npm.items():
+        messages.update(file_messages)
+        command = ["npm", "audit", "fix"]
+        async with asyncio.timeout(int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))):
+            async_proc = await asyncio.create_subprocess_exec(
+                *command,
+                cwd=os.path.join(os.getcwd(), os.path.dirname(package_lock_file_name)),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await async_proc.communicate()
+            assert async_proc.returncode is not None
+            message = module_utils.AnsiProcessMessage(
+                command, async_proc.returncode, stdout.decode(), stderr.decode()
+            )
+            fix_success = async_proc.returncode == 0
+            if async_proc.returncode != 0:
+                message.title = f"Error while fixing the {package_lock_file_name} project"
+                _LOGGER.warning(message)
+                result.append(message)
+            else:
+                message.title = "Npm audit fix fix applied"
+                _LOGGER.debug(message)
+    return "\n".join(messages), fix_success
 
 
 def outdated_versions(
