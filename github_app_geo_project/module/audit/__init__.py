@@ -194,14 +194,15 @@ async def _process_snyk_dpkg(
                     with open(".tool-versions", encoding="utf-8") as file:
                         for line in file:
                             if line.startswith("python "):
-                                python_version = ".".join(line.split(" ")[1].split(".")[0:2])
+                                python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
                                 break
                 try:
                     if python_version:
                         _use_python_version(python_version)
 
+                    logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
                     result, body, short_message, new_success = await audit_utils.snyk(
-                        branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
+                        branch, context.module_config.get("snyk", {}), local_config.get("snyk", {}), logs_url
                     )
                     success &= new_success
                     output_url = _process_error(
@@ -211,6 +212,11 @@ async def _process_snyk_dpkg(
                         [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
                         ", ".join(short_message),
                     )
+                    message: module_utils.Message = module_utils.HtmlMessage(
+                        "<a href='%s'>Output</a>" % output_url
+                    )
+                    message.title = "Output URL"
+                    _LOGGER.debug(message)
                     if output_url is not None:
                         short_message.append(f"[See also]({output_url})")
                 finally:
@@ -249,8 +255,11 @@ async def _process_snyk_dpkg(
                         if pull_request is not None:
                             issue_check.set_title(key, f"{key} ([Pull request]({pull_request.html_url}))")
 
-    except Exception:  # pylint: disable=broad-except
+    except Exception as exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
+        return [f"Error while processing the audit {key}: {exception}"], False
+    finally:
+        os.chdir("/")
 
     return short_message, success
 

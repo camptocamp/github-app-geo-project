@@ -308,6 +308,10 @@ class HtmlMessage(Message):
         """Get the string representation."""
         return self.to_plain_text()
 
+    def __repr__(self) -> str:
+        """Get the string representation."""
+        return self.to_plain_text()
+
     def to_plain_text(self) -> str:
         """Get the ANSI message."""
         sanitizer = html_sanitizer.Sanitizer(
