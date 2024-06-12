@@ -200,8 +200,9 @@ async def _process_snyk_dpkg(
                     if python_version:
                         _use_python_version(python_version)
 
+                    logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
                     result, body, short_message, new_success = await audit_utils.snyk(
-                        branch, context.module_config.get("snyk", {}), local_config.get("snyk", {})
+                        branch, context.module_config.get("snyk", {}), local_config.get("snyk", {}), logs_url
                     )
                     success &= new_success
                     output_url = _process_error(
@@ -211,6 +212,11 @@ async def _process_snyk_dpkg(
                         [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
                         ", ".join(short_message),
                     )
+                    message: module_utils.Message = module_utils.HtmlMessage(
+                        "<a href='%s'>Output</a>" % output_url
+                    )
+                    message.title = "Output URL"
+                    _LOGGER.debug(message)
                     if output_url is not None:
                         short_message.append(f"[See also]({output_url})")
                 finally:

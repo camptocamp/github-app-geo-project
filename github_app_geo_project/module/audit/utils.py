@@ -23,7 +23,10 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def snyk(
-    branch: str, config: configuration.SnykConfiguration, local_config: configuration.SnykConfiguration
+    branch: str,
+    config: configuration.SnykConfiguration,
+    local_config: configuration.SnykConfiguration,
+    logs_url: str,
 ) -> tuple[list[module_utils.Message], module_utils.Message | None, list[str], bool]:
     """
     Audit the code with Snyk.
@@ -285,6 +288,7 @@ async def snyk(
 
     high_vulnerabilities: dict[str, int] = {}
     fixable_vulnerabilities: dict[str, int] = {}
+    fixable_vulnerabilities_summary: dict[str, str] = {}
     for row in test_json:
         message = module_utils.HtmlMessage(
             "\n".join(
@@ -329,6 +333,8 @@ async def snyk(
                 title += " [Patch available]."
             else:
                 title += "."
+            if vuln.get("fixedIn", []) or vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):
+                fixable_vulnerabilities_summary[vuln["id"]] = title
             message = module_utils.HtmlMessage(
                 "<br>\n".join(
                     [
@@ -368,8 +374,19 @@ async def snyk(
         snyk_fix_success = snyk_fix_proc.returncode == 0
         if snyk_fix_proc.returncode != 0:
             message.title = "Error while fixing the project"
-            _LOGGER.error(message)
+            _LOGGER.warning(message)
             result.append(message)
+            message = module_utils.HtmlMessage(
+                "<br>\n".join(
+                    [
+                        *fixable_vulnerabilities_summary.values(),
+                        f"{os.path.basename(os.getcwd())}:{branch}",
+                        f"See logs: {logs_url}",
+                    ]
+                )
+            )
+            message.title = f"Unable to fix {len(fixable_vulnerabilities)} vulnerabilities"
+            _LOGGER.error(message)
         else:
             message.title = "Snyk fix applied"
             _LOGGER.debug(message)
