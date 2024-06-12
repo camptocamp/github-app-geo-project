@@ -194,7 +194,7 @@ async def _process_snyk_dpkg(
                     with open(".tool-versions", encoding="utf-8") as file:
                         for line in file:
                             if line.startswith("python "):
-                                python_version = ".".join(line.split(" ")[1].split(".")[0:2])
+                                python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
                                 break
                 try:
                     if python_version:
