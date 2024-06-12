@@ -341,7 +341,7 @@ async def snyk(
                 "<br>\n".join(
                     [
                         f'<a href="https://security.snyk.io/vuln/{vuln["id"]}">{vuln["title"]}</a>',
-                        " > ".join(vuln["from"]),
+                        " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]]),
                         *[", ".join(identifiers) for identifiers in vuln.get("identifiers", {}).values()],
                         # *[f'<a href="{reference['url']}>{reference["title"]}</a>' for reference in vuln["references"]],
                         # "",
