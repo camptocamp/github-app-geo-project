@@ -12,7 +12,6 @@ import subprocess  # nosec
 import apt_repo
 import c2cciutils.security
 import debian_inspector.version
-import markdown
 import yaml  # nosec
 
 from github_app_geo_project import models, utils
@@ -20,6 +19,70 @@ from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def _run_timeout(
+    command: list[str],
+    env: dict[str, str] | None,
+    timeout: int,
+    success_message: str,
+    error_message: str,
+    timeout_message: str,
+    error_messages: list[module_utils.Message],
+    cwd: str | None = None,
+) -> tuple[str | None, bool]:
+    async_proc = None
+    try:
+        async with asyncio.timeout(timeout):
+            async_proc = await asyncio.create_subprocess_exec(
+                *command,
+                cwd=cwd or os.getcwd(),
+                env=env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await async_proc.communicate()
+            assert async_proc.returncode is not None
+            message: module_utils.Message = module_utils.AnsiProcessMessage(
+                command, async_proc.returncode, stdout.decode(), stderr.decode()
+            )
+            success = async_proc.returncode == 0
+            if success:
+                message.title = success_message
+                _LOGGER.debug(message)
+            else:
+                message.title = error_message
+                _LOGGER.warning(message)
+                error_messages.append(message)
+            return stdout.decode(), success
+    except FileNotFoundError as exception:
+        _LOGGER.exception("%s not found: %s", command[0], exception)
+        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+            ["find", "/", "-name", command[0]],
+            capture_output=True,
+            encoding="utf-8",
+            timeout=30,
+        )
+        message = module_utils.ansi_proc_message(proc)
+        message.title = f"Find {command[0]}"
+        _LOGGER.debug(message)
+        return None, False
+    except asyncio.TimeoutError as exception:
+        if async_proc:
+            async_proc.kill()
+            message = module_utils.AnsiProcessMessage(
+                command,
+                None,
+                "" if async_proc.stdout is None else (await async_proc.stdout.read()).decode(),
+                "" if async_proc.stderr is None else (await async_proc.stderr.read()).decode(),
+                error=str(exception),
+            )
+            message.title = timeout_message
+            _LOGGER.warning(message)
+            error_messages.append(message)
+            return None, False
+        else:
+            raise
 
 
 async def snyk(
@@ -117,42 +180,23 @@ async def _install_requirements_dependencies(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            async with asyncio.timeout(int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "1200"))):
-                try:
-                    command = [
-                        "python",
-                        "-m",
-                        "pip",
-                        "install",
-                        *local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
-                        f"--requirement={file}",
-                    ]
-                    async_proc = await asyncio.create_subprocess_exec(
-                        *command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-                    )
-                    stdout, stderr = await async_proc.communicate()
-                    assert async_proc.returncode is not None
-                    message = module_utils.AnsiProcessMessage(
-                        command, async_proc.returncode, stdout.decode(), stderr.decode()
-                    )
-                except FileNotFoundError as exception:
-                    _LOGGER.exception("Pip not found: %s", exception)
-                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                        ["find", "/", "-name", "pip"],
-                        capture_output=True,
-                        encoding="utf-8",
-                        timeout=30,
-                    )
-                    message = module_utils.ansi_proc_message(proc)
-                    message.title = "Find pip"
-                    _LOGGER.debug(message)
-            if async_proc.returncode != 0:
-                message.title = f"Error while installing the dependencies from {file}"
-                _LOGGER.warning(message)
-                result.append(message)
-            else:
-                message.title = f"Dependencies installed from {file}"
-                _LOGGER.debug(message)
+
+            await _run_timeout(
+                [
+                    "python",
+                    "-m",
+                    "pip",
+                    "install",
+                    *local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
+                    f"--requirement={file}",
+                ],
+                env,
+                int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "600")),
+                f"Dependencies installed from {file}",
+                f"Error while installing the dependencies from {file}",
+                f"Timeout while installing the dependencies from {file}",
+                result,
+            )
 
 
 async def _install_pipenv_dependencies(
@@ -177,43 +221,20 @@ async def _install_pipenv_dependencies(
                 continue
             directory = os.path.dirname(os.path.abspath(file))
 
-            async with asyncio.timeout(int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "1200"))):
-                try:
-                    command = [
-                        "pipenv",
-                        "install",
-                        *local_config.get("pipenv-sync-arguments", config.get("pipenv-sync-arguments", [])),
-                    ]
-                    async_proc = await asyncio.create_subprocess_exec(
-                        *command,
-                        cwd=directory,
-                        env=env,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    stdout, stderr = await async_proc.communicate()
-                    assert async_proc.returncode is not None
-                    message = module_utils.AnsiProcessMessage(
-                        command, async_proc.returncode, stdout.decode(), stderr.decode()
-                    )
-                except FileNotFoundError as exception:
-                    _LOGGER.exception("Pipenv not found: %s", exception)
-                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                        ["find", "/", "-name", "pipenv"],
-                        capture_output=True,
-                        encoding="utf-8",
-                        timeout=30,
-                    )
-                    message = module_utils.ansi_proc_message(proc)
-                    message.title = "Find pipenv"
-                    _LOGGER.debug(message)
-            if async_proc.returncode != 0:
-                message.title = f"Error while installing the dependencies from {file}"
-                _LOGGER.warning(message)
-                result.append(message)
-            else:
-                message.title = f"Dependencies installed from {file}"
-                _LOGGER.debug(message)
+            await _run_timeout(
+                [
+                    "pipenv",
+                    "install",
+                    *local_config.get("pipenv-sync-arguments", config.get("pipenv-sync-arguments", [])),
+                ],
+                env,
+                int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "600")),
+                f"Dependencies installed from {file}",
+                f"Error while installing the dependencies from {file}",
+                f"Timeout while installing the dependencies from {file}",
+                result,
+                directory,
+            )
 
 
 async def _install_poetry_dependencies(
@@ -239,45 +260,21 @@ async def _install_poetry_dependencies(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            async with asyncio.timeout(int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "1200"))):
-                try:
-                    command = [
-                        "poetry",
-                        "install",
-                        *local_config.get(
-                            "poetry-install-arguments", config.get("poetry-install-arguments", [])
-                        ),
-                    ]
-                    async_proc = await asyncio.create_subprocess_exec(
-                        *command,
-                        cwd=os.path.dirname(os.path.abspath(file)),
-                        env=env,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    stdout, stderr = await async_proc.communicate()
-                    assert async_proc.returncode is not None
-                    message = module_utils.AnsiProcessMessage(
-                        command, async_proc.returncode, stdout.decode(), stderr.decode()
-                    )
-                    if async_proc.returncode != 0:
-                        message.title = f"Error while installing the dependencies from {file}"
-                        _LOGGER.warning(message)
-                        result.append(message)
-                except FileNotFoundError as exception:
-                    _LOGGER.exception("Poetry not found: %s", exception)
-                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                        ["find", "/", "-name", "poetry"],
-                        capture_output=True,
-                        encoding="utf-8",
-                        timeout=30,
-                    )
-                    message = module_utils.ansi_proc_message(proc)
-                    message.title = "Find poetry"
-                    _LOGGER.debug(message)
 
-            message.title = f"Dependencies installed from {file}"
-            _LOGGER.debug(message)
+            await _run_timeout(
+                [
+                    "poetry",
+                    "install",
+                    *local_config.get("poetry-install-arguments", config.get("poetry-install-arguments", [])),
+                ],
+                env,
+                int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "600")),
+                f"Dependencies installed from {file}",
+                f"Error while installing the dependencies from {file}",
+                f"Timeout while installing the dependencies from {file}",
+                result,
+                os.path.dirname(os.path.abspath(file)),
+            )
 
 
 async def _snyk_monitor(
@@ -317,22 +314,15 @@ async def _snyk_monitor(
             f"--project-tags={','.join(['='.join(tag) for tag in local_monitor_config.get('project-tags', monitor_config.get('project-tags', {}))])}"
         )
 
-    async with asyncio.timeout(int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))):
-        async_proc = await asyncio.create_subprocess_exec(
-            *command, env=env, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await async_proc.communicate()
-        assert async_proc.returncode is not None
-        message = module_utils.AnsiProcessMessage(
-            command, async_proc.returncode, stdout.decode(), stderr.decode()
-        )
-    if async_proc.returncode != 0:
-        message.title = "Error while monitoring the project"
-        _LOGGER.warning(message)
-        result.append(message)
-    else:
-        message.title = "Project monitored"
-        _LOGGER.debug(message)
+    await _run_timeout(
+        command,
+        env,
+        int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+        "Project monitored",
+        "Error while monitoring the project",
+        "Timeout while monitoring the project",
+        result,
+    )
 
 
 async def _snyk_test(
@@ -350,16 +340,21 @@ async def _snyk_test(
             "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
         ),
     ]
-    async with asyncio.timeout(int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))):
-        test_proc = await asyncio.create_subprocess_exec(
-            *command, env=env_no_debug, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
-        stdout, _ = await test_proc.communicate()
+    test_json_str, success = await _run_timeout(
+        command,
+        env_no_debug,
+        int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+        "Snyk test",
+        "Error while testing the project",
+        "Timeout while testing the project",
+        result,
+    )
+    if not success:
+        raise ValueError("Error while testing the project")
 
-    test_json_str = stdout.decode()
-    message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
-    message.title = "Snyk test JSON output"
     if test_json_str:
+        message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
+        message.title = "Snyk test JSON output"
         _LOGGER.debug(message)
     else:
         _LOGGER.error("Snyk test JSON returned nothing on project %s branch %s", os.getcwd(), branch)
@@ -459,21 +454,18 @@ async def _snyk_fix(
                 "fix-arguments", config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
             ),
         ]
-        async with asyncio.timeout(int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))):
-            snyk_fix_proc = await asyncio.create_subprocess_exec(
-                *command, env=env_no_debug, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            stdout, stderr = await snyk_fix_proc.communicate()
-            assert snyk_fix_proc.returncode is not None
-            snyk_fix_message = module_utils.AnsiMessage(stdout.decode().strip())
-            message: module_utils.Message = module_utils.AnsiProcessMessage(
-                command, snyk_fix_proc.returncode, stdout.decode(), stderr.decode()
-            )
-        snyk_fix_success = snyk_fix_proc.returncode == 0
-        if snyk_fix_proc.returncode != 0:
-            message.title = "Error while fixing the project"
-            _LOGGER.warning(message)
-            result.append(message)
+        fix_message, snyk_fix_success = await _run_timeout(
+            command,
+            env_no_debug,
+            int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+            "Snyk fix",
+            "Error while fixing the project",
+            "Timeout while fixing the project",
+            result,
+        )
+        if fix_message:
+            snyk_fix_message = module_utils.AnsiMessage(fix_message.strip())
+        if not snyk_fix_success:
             message = module_utils.HtmlMessage(
                 "<br>\n".join(
                     [
@@ -485,9 +477,6 @@ async def _snyk_fix(
             )
             message.title = f"Unable to fix {len(fixable_vulnerabilities)} vulnerabilities"
             _LOGGER.error(message)
-        else:
-            message.title = "Snyk fix applied"
-            _LOGGER.debug(message)
     return snyk_fix_success, snyk_fix_message
 
 
@@ -495,29 +484,21 @@ async def _npm_audit_fix(
     fixable_files_npm: dict[str, set[str]], result: list[module_utils.Message]
 ) -> tuple[str, bool]:
     messages: set[str] = set()
+    fix_success = True
     for package_lock_file_name, file_messages in fixable_files_npm.items():
         messages.update(file_messages)
         command = ["npm", "audit", "fix"]
-        async with asyncio.timeout(int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))):
-            async_proc = await asyncio.create_subprocess_exec(
-                *command,
-                cwd=os.path.join(os.getcwd(), os.path.dirname(package_lock_file_name)),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await async_proc.communicate()
-            assert async_proc.returncode is not None
-            message = module_utils.AnsiProcessMessage(
-                command, async_proc.returncode, stdout.decode(), stderr.decode()
-            )
-            fix_success = async_proc.returncode == 0
-            if async_proc.returncode != 0:
-                message.title = f"Error while fixing the {package_lock_file_name} project"
-                _LOGGER.warning(message)
-                result.append(message)
-            else:
-                message.title = "Npm audit fix fix applied"
-                _LOGGER.debug(message)
+        _, success = await _run_timeout(
+            command,
+            os.environ.copy(),
+            int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+            "Npm audit fix",
+            "Error while fixing the project",
+            "Timeout while fixing the project",
+            result,
+            os.path.dirname(os.path.abspath(package_lock_file_name)),
+        )
+        fix_success &= success
     return "\n".join(messages), fix_success
 
 
