@@ -363,7 +363,9 @@ class AnsiMessage(HtmlMessage):
 class AnsiProcessMessage(AnsiMessage):
     """Represent a message from a subprocess."""
 
-    def __init__(self, args: list[str], returncode: int, stdout: str, stderr: str) -> None:
+    def __init__(
+        self, args: list[str], returncode: int | None, stdout: str, stderr: str, error: str | None = None
+    ) -> None:
         """Initialize the process message."""
         self.args: list[str] = []
 
@@ -377,7 +379,11 @@ class AnsiProcessMessage(AnsiMessage):
         self.stdout = self._ansi_converter.convert(stdout, full=False)
         self.stderr = self._ansi_converter.convert(stderr, full=False)
 
-        message = [f"Command: {shlex.join(self.args)}", f"Return code: {returncode}"]
+        message = [f"Command: {shlex.join(self.args)}"]
+        if error:
+            message.append(f"Error: {error}")
+        if returncode is not None:
+            message.append(f"Return code: {returncode}")
         if self.stdout.strip():
             message.append("Output:")
             message.append(f"{{pre}}{self.stdout}{{post}}")
