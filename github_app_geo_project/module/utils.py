@@ -662,12 +662,23 @@ def get_alternate_versions(security: c2cciutils.security.Security, branch: str) 
         _LOGGER.warning("No Version column in the SECURITY.md")
         return []
 
+    last = False
+    result = []
     for row in security.data:
         if row[version_index] == branch:
-            return [v.strip() for v in row[alternate_index].split(",") if v.strip()]
+            result = [v.strip() for v in row[alternate_index].split(",") if v.strip()]
+            last = True
+        elif last:
+            last = False
+            break
 
-    _LOGGER.warning("Branch %s not found in the SECURITY.md", branch)
-    return []
+    if last:
+        result.append("latest")
+
+    if not result:
+        _LOGGER.warning("Branch %s not found in the SECURITY.md", branch)
+
+    return result
 
 
 def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
