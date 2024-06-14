@@ -104,7 +104,6 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                             .where(models.Queue.check_run_id == check_run.id)
                             .values(
                                 {
-                                    "priority": module.PRIORITY_HIGH,
                                     "status": models.JobStatus.NEW,
                                     "started_at": None,
                                     "finished_at": None,
