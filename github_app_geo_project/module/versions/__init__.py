@@ -619,14 +619,15 @@ def _update_upstream_versions(
     transversal_status = context.transversal_status
     for external_config in context.module_config.get("external-packages", []):
         package = external_config["package"]
+        name = f"endoflife.date/{package}"
         datasource = external_config["datasource"]
 
         module_utils.manage_updated_separated(
-            transversal_status.updated, transversal_status.repositories, package
+            transversal_status.updated, transversal_status.repositories, name
         )
 
         package_status: _TransversalStatusRepo = context.transversal_status.repositories.setdefault(
-            package, _TransversalStatusRepo()
+            name, _TransversalStatusRepo()
         )
         package_status.url = f"https://endoflife.date/{package}"
 
@@ -638,7 +639,6 @@ def _update_upstream_versions(
             return
         package_status.upstream_updated = datetime.datetime.now()
 
-        package_status.url = f"https://endoflife.date/{package}"
         response = requests.get(f"https://endoflife.date/api/{package}.json", timeout=10)
         if not response.ok:
             _LOGGER.error("Failed to get the data for %s", package)
