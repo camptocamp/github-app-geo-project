@@ -504,7 +504,6 @@ async def _npm_audit_fix(
             package_json = json.load(package_file)
             for dependencies_type in ("dependencies", "devDependencies"):
                 for package, version in package_json.get(dependencies_type, {}).items():
-                    print(dependencies_type, package, version)
                     if version.startswith("^"):
                         package_json[dependencies_type][package] = version[1:]
             with open(os.path.join(directory, "package.json"), "w", encoding="utf-8") as package_file:
