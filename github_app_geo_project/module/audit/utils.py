@@ -488,6 +488,7 @@ async def _npm_audit_fix(
     for package_lock_file_name, file_messages in fixable_files_npm.items():
         directory = os.path.dirname(os.path.abspath(package_lock_file_name))
         messages.update(file_messages)
+        _LOGGER.debug("Fixing vulnerabilities in %s with npm audit fix --force", package_lock_file_name)
         command = ["npm", "audit", "fix", "--force"]
         _, success = await _run_timeout(
             command,
@@ -499,6 +500,7 @@ async def _npm_audit_fix(
             result,
             directory,
         )
+        _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
         with open(os.path.join(directory, "package.json"), encoding="utf-8") as package_file:
             package_json = json.load(package_file)
@@ -508,6 +510,7 @@ async def _npm_audit_fix(
                         package_json[dependencies_type][package] = version[1:]
             with open(os.path.join(directory, "package.json"), "w", encoding="utf-8") as package_file:
                 json.dump(package_json, package_file, indent=2)
+        _LOGGER.debug("Succeeded fix %s", package_lock_file_name)
 
         fix_success &= success
     return "\n".join(messages), fix_success
