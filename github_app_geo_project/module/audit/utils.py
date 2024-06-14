@@ -486,6 +486,7 @@ async def _npm_audit_fix(
     messages: set[str] = set()
     fix_success = True
     for package_lock_file_name, file_messages in fixable_files_npm.items():
+        directory = os.path.dirname(os.path.abspath(package_lock_file_name))
         messages.update(file_messages)
         command = ["npm", "audit", "fix", "--force"]
         _, success = await _run_timeout(
@@ -496,8 +497,19 @@ async def _npm_audit_fix(
             "Error while fixing the project",
             "Timeout while fixing the project",
             result,
-            os.path.dirname(os.path.abspath(package_lock_file_name)),
+            directory,
         )
+        # Remove the add '~' in the version in the package.json
+        with open(os.path.join(directory, "package.json"), encoding="utf-8") as package_file:
+            package_json = json.load(package_file)
+            for dependencies_type in ("dependencies", "devDependencies"):
+                for package, version in package_json.get(dependencies_type, {}).items():
+                    print(dependencies_type, package, version)
+                    if version.startswith("^"):
+                        package_json[dependencies_type][package] = version[1:]
+            with open(os.path.join(directory, "package.json"), "w", encoding="utf-8") as package_file:
+                json.dump(package_json, package_file, indent=2)
+
         fix_success &= success
     return "\n".join(messages), fix_success
 
