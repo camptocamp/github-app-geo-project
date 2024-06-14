@@ -487,7 +487,7 @@ async def _npm_audit_fix(
     fix_success = True
     for package_lock_file_name, file_messages in fixable_files_npm.items():
         messages.update(file_messages)
-        command = ["npm", "audit", "fix"]
+        command = ["npm", "audit", "fix", "--force"]
         _, success = await _run_timeout(
             command,
             os.environ.copy(),
