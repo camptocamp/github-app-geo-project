@@ -239,13 +239,16 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                         raise VersionException("Failed to clone the repository")
 
                 version_status = status.versions[version]
-                for alternate in context.module_event_data.alternate_versions or []:
-                    status.versions[alternate] = version_status
                 version_status.names_by_datasource.clear()
                 version_status.dependencies_by_datasource.clear()
                 transversal_status = context.transversal_status
 
-                _get_names(context, version_status.names_by_datasource, version)
+                _get_names(
+                    context,
+                    version_status.names_by_datasource,
+                    version,
+                    alternate_versions=context.module_event_data.alternate_versions,
+                )
                 message = module_utils.HtmlMessage(
                     utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
                 )
@@ -418,6 +421,7 @@ def _get_names(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource],
     version: str,
+    alternate_versions: list[str] | None = None,
 ) -> None:
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "pyproject.toml", "*/pyproject.toml"],
@@ -455,26 +459,30 @@ def _get_names(
     docker_config = data.get("publish", {}).get("docker", {})
     if docker_config:
         names = names_by_datasource.setdefault("docker", _TransversalStatusNameByDatasource()).names
+        all_versions = [version]
+        if alternate_versions:
+            all_versions.extend(alternate_versions)
         for conf in docker_config.get("images", []):
             for tag in conf.get("tags", ["{version}"]):
                 for repository_conf in docker_config.get(
                     "repository", c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT
                 ).values():
-                    repository_server = repository_conf.get("server", False)
-                    add_names = []
-                    if repository_server:
-                        add_names.append(
-                            f"{repository_server}/{conf.get('name')}:{tag.format(version=version)}"
-                        )
+                    for ver in all_versions:
+                        repository_server = repository_conf.get("server", False)
+                        add_names = []
+                        if repository_server:
+                            add_names.append(
+                                f"{repository_server}/{conf.get('name')}:{tag.format(version=ver)}"
+                            )
 
-                    else:
-                        add_names = [
-                            f"{conf.get('name')}:{tag.format(version=version)}",
-                            f"docker.io/{conf.get('name')}:{tag.format(version=version)}",
-                        ]
-                    for add_name in add_names:
-                        if add_name not in names:
-                            names.append(add_name)
+                        else:
+                            add_names = [
+                                f"{conf.get('name')}:{tag.format(version=ver)}",
+                                f"docker.io/{conf.get('name')}:{tag.format(version=ver)}",
+                            ]
+                        for add_name in add_names:
+                            if add_name not in names:
+                                names.append(add_name)
 
     for filename in subprocess.run(  # nosec
         ["git", "ls-files", "package.json", "*/package.json"],
@@ -611,14 +619,15 @@ def _update_upstream_versions(
     transversal_status = context.transversal_status
     for external_config in context.module_config.get("external-packages", []):
         package = external_config["package"]
+        name = f"endoflife.date/{package}"
         datasource = external_config["datasource"]
 
         module_utils.manage_updated_separated(
-            transversal_status.updated, transversal_status.repositories, package
+            transversal_status.updated, transversal_status.repositories, name
         )
 
         package_status: _TransversalStatusRepo = context.transversal_status.repositories.setdefault(
-            package, _TransversalStatusRepo()
+            name, _TransversalStatusRepo()
         )
         package_status.url = f"https://endoflife.date/{package}"
 
@@ -630,7 +639,6 @@ def _update_upstream_versions(
             return
         package_status.upstream_updated = datetime.datetime.now()
 
-        package_status.url = f"https://endoflife.date/{package}"
         response = requests.get(f"https://endoflife.date/api/{package}.json", timeout=10)
         if not response.ok:
             _LOGGER.error("Failed to get the data for %s", package)
