@@ -540,6 +540,16 @@ def create_commit_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
+    if os.path.exists(".pre-commit-config.yaml"):
+        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+            ["pre-commit", "install"],
+            capture_output=True,
+            encoding="utf-8",
+            timeout=10,
+        )
+        proc_message = ansi_proc_message(proc)
+        proc_message.title = "Install pre-commit"
+        _LOGGER.debug(proc_message)
     if not create_commit(message):
         return False, None
     return create_pull_request(branch, new_branch, message, body, repo)
