@@ -340,7 +340,7 @@ async def _snyk_test(
             "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
         ),
     ]
-    test_json_str, success = await _run_timeout(
+    test_json_str, _ = await _run_timeout(
         command,
         env_no_debug,
         int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
@@ -349,8 +349,6 @@ async def _snyk_test(
         "Timeout while testing the project",
         result,
     )
-    if not success:
-        raise ValueError("Error while testing the project")
 
     if test_json_str:
         message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
