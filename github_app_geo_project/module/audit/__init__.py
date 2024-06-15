@@ -251,7 +251,10 @@ async def _process_snyk_dpkg(
                     else:
                         if pull_request is not None:
                             issue_check.set_title(key, f"{key} ([Pull request]({pull_request.html_url}))")
-
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
+        message = module_utils.ansi_proc_message(proc_error)
+        _LOGGER.exception("Audit %s process error", key)
+        return [f"Error while processing the audit {key}: {proc_error}"], False
     except Exception as exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
         return [f"Error while processing the audit {key}: {exception}"], False

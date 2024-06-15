@@ -433,13 +433,17 @@ class AnsiProcessMessage(AnsiMessage):
 
     @staticmethod
     def from_process(
-        proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError,
+        proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError | subprocess.TimeoutExpired,
     ) -> "AnsiProcessMessage":
         """Create a process message from a subprocess."""
+        if isinstance(proc, subprocess.TimeoutExpired):
+            return AnsiProcessMessage(cast(list[str], proc.args), None, proc.output, cast(str, proc.stderr))
         return AnsiProcessMessage(cast(list[str], proc.args), proc.returncode, proc.stdout, proc.stderr)
 
 
-def ansi_proc_message(proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError) -> Message:
+def ansi_proc_message(
+    proc: subprocess.CompletedProcess[str] | subprocess.CalledProcessError | subprocess.TimeoutExpired,
+) -> Message:
     """
     Process the output of a subprocess for the dashboard (markdown)/HTML.
 
