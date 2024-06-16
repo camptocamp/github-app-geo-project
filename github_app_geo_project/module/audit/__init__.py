@@ -1,6 +1,7 @@
 """the audit modules."""
 
 import datetime
+import glob
 import json
 import logging
 import os
@@ -198,11 +199,13 @@ async def _process_snyk_dpkg(
                                 break
 
                 if python_version:
-                    _use_python_version(python_version)
+                    env = _use_python_version(python_version)
+                else:
+                    env = os.environ.copy()
 
                 logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
                 result, body, short_message, new_success = await audit_utils.snyk(
-                    branch, context.module_config.get("snyk", {}), local_config.get("snyk", {}), logs_url
+                    branch, context.module_config.get("snyk", {}), local_config.get("snyk", {}), logs_url, env
                 )
                 success &= new_success
                 output_url = _process_error(
@@ -264,7 +267,7 @@ async def _process_snyk_dpkg(
     return short_message, success
 
 
-def _use_python_version(python_version: str) -> None:
+def _use_python_version(python_version: str) -> dict[str, str]:
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["pyenv", "local", python_version],
         capture_output=True,
@@ -281,9 +284,18 @@ def _use_python_version(python_version: str) -> None:
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["python", "--version"], capture_output=True, encoding="utf-8", timeout=5
     )
+
+    # Get path from /pyenv/versions/{python_version}.*/bin/
+    env = os.environ.copy()
+    bin_paths = glob.glob(f"/pyenv/versions/{python_version}.*/bin")
+    if bin_paths:
+        env["PATH"] = f'{bin_paths[0]}:{env["PATH"]}'
+
     message = module_utils.ansi_proc_message(proc)
     message.title = "Python version"
     _LOGGER.debug(message)
+
+    return env
 
 
 class Audit(module.Module[configuration.AuditConfiguration, _EventData, _TransversalStatus]):

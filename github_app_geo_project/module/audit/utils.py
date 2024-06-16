@@ -90,6 +90,7 @@ async def snyk(
     config: configuration.SnykConfiguration,
     local_config: configuration.SnykConfiguration,
     logs_url: str,
+    env: dict[str, str],
 ) -> tuple[list[module_utils.Message], module_utils.Message | None, list[str], bool]:
     """
     Audit the code with Snyk.
@@ -103,7 +104,6 @@ async def snyk(
     """
     result: list[module_utils.Message] = []
 
-    env = os.environ.copy()
     env["PATH"] = f'{env["HOME"]}/.local/bin:{env["PATH"]}'
     _LOGGER.debug("Updated path: %s", env["PATH"])
 
