@@ -370,7 +370,7 @@ class AnsiProcessMessage(AnsiMessage):
         self.args: list[str] = []
 
         for arg in args:
-            if "x-access-token" in arg:
+            if "x-access-token" in str(arg):
                 self.args.append(re.sub(r"x-access-token:[0-9a-zA-Z_]*", "x-access-token:***", arg))
             else:
                 self.args.append(arg)
