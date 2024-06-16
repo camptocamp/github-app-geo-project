@@ -1,5 +1,6 @@
 """Module utility functions for the modules."""
 
+import asyncio
 import datetime
 import logging
 import os
@@ -376,8 +377,8 @@ class AnsiProcessMessage(AnsiMessage):
                 self.args.append(arg)
 
         self.returncode = returncode
-        self.stdout = self._ansi_converter.convert(stdout, full=False)
-        self.stderr = self._ansi_converter.convert(stderr, full=False)
+        self.stdout = self._ansi_converter.convert(stdout or "", full=False)
+        self.stderr = self._ansi_converter.convert(stderr or "", full=False)
 
         message = [f"Command: {shlex.join(self.args)}"]
         if error:
@@ -458,6 +459,84 @@ def ansi_proc_message(
     return AnsiProcessMessage.from_process(proc)
 
 
+async def run_timeout(
+    command: list[str],
+    env: dict[str, str] | None,
+    timeout: int,
+    success_message: str,
+    error_message: str,
+    timeout_message: str,
+    cwd: str | None = None,
+) -> tuple[str | None, bool, Message | None]:
+    """
+    Run a command with a timeout.
+
+    Arguments:
+    ---------
+    command: The command to run
+    env: The environment variables
+    timeout: The timeout
+    success_message: The message on success
+    error_message: The message on error
+    timeout_message: The message on timeout
+    cwd: The working directory
+
+    Return:
+    ------
+    The standard output, the success, the logged message
+    """
+    async_proc = None
+    try:
+        async with asyncio.timeout(timeout):
+            async_proc = await asyncio.create_subprocess_exec(
+                *command,
+                cwd=cwd or os.getcwd(),
+                env=env,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await async_proc.communicate()
+            assert async_proc.returncode is not None
+            message: Message = AnsiProcessMessage(
+                command, async_proc.returncode, stdout.decode(), stderr.decode()
+            )
+            success = async_proc.returncode == 0
+            if success:
+                message.title = success_message
+                _LOGGER.debug(message)
+            else:
+                message.title = error_message
+                _LOGGER.warning(message)
+            return stdout.decode(), success, message
+    except FileNotFoundError as exception:
+        _LOGGER.exception("%s not found: %s", command[0], exception)
+        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+            ["find", "/", "-name", command[0]],
+            capture_output=True,
+            encoding="utf-8",
+            timeout=30,
+        )
+        message = ansi_proc_message(proc)
+        message.title = f"Find {command[0]}"
+        _LOGGER.debug(message)
+        return None, False, message
+    except asyncio.TimeoutError as exception:
+        if async_proc:
+            async_proc.kill()
+            message = AnsiProcessMessage(
+                command,
+                None,
+                "" if async_proc.stdout is None else (await async_proc.stdout.read()).decode(),
+                "" if async_proc.stderr is None else (await async_proc.stderr.read()).decode(),
+                error=str(exception),
+            )
+            message.title = timeout_message
+            _LOGGER.warning(message)
+            return None, False, message
+        else:
+            raise
+
+
 def has_changes(include_un_followed: bool = False) -> bool:
     """Check if there are changes."""
     if include_un_followed:
@@ -471,7 +550,7 @@ def has_changes(include_un_followed: bool = False) -> bool:
     return proc.returncode != 0
 
 
-def create_commit(message: str) -> bool:
+async def create_commit(message: str) -> bool:
     """Do a commit."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "add", "--all"], capture_output=True, encoding="utf-8", timeout=30
@@ -481,16 +560,15 @@ def create_commit(message: str) -> bool:
         proc_message.title = "Error adding files to commit"
         _LOGGER.warning(proc_message)
         return False
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8", timeout=300
+    _, success, _ = await run_timeout(
+        ["git", "commit", f"--message={message}"],
+        None,
+        600,
+        "Commit",
+        "Error committing files",
+        "Timeout committing files",
     )
-    if proc.returncode != 0:
-        proc_message = ansi_proc_message(proc)
-        proc_message.title = "Error committing files"
-        _LOGGER.warning(proc_message)
-        return False
-
-    return True
+    return success
 
 
 def create_pull_request(
@@ -540,7 +618,7 @@ def create_pull_request(
     return True, None
 
 
-def create_commit_pull_request(
+async def create_commit_pull_request(
     branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
@@ -557,7 +635,7 @@ def create_commit_pull_request(
             _LOGGER.debug(proc_message)
         except FileNotFoundError:
             _LOGGER.debug("pre-commit not installed")
-    if not create_commit(message):
+    if not await create_commit(message):
         return False, None
     return create_pull_request(branch, new_branch, message, body, repo)
 

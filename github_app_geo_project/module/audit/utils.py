@@ -21,70 +21,6 @@ from github_app_geo_project.module.audit import configuration
 _LOGGER = logging.getLogger(__name__)
 
 
-async def _run_timeout(
-    command: list[str],
-    env: dict[str, str] | None,
-    timeout: int,
-    success_message: str,
-    error_message: str,
-    timeout_message: str,
-    error_messages: list[module_utils.Message],
-    cwd: str | None = None,
-) -> tuple[str | None, bool]:
-    async_proc = None
-    try:
-        async with asyncio.timeout(timeout):
-            async_proc = await asyncio.create_subprocess_exec(
-                *command,
-                cwd=cwd or os.getcwd(),
-                env=env,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await async_proc.communicate()
-            assert async_proc.returncode is not None
-            message: module_utils.Message = module_utils.AnsiProcessMessage(
-                command, async_proc.returncode, stdout.decode(), stderr.decode()
-            )
-            success = async_proc.returncode == 0
-            if success:
-                message.title = success_message
-                _LOGGER.debug(message)
-            else:
-                message.title = error_message
-                _LOGGER.warning(message)
-                error_messages.append(message)
-            return stdout.decode(), success
-    except FileNotFoundError as exception:
-        _LOGGER.exception("%s not found: %s", command[0], exception)
-        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-            ["find", "/", "-name", command[0]],
-            capture_output=True,
-            encoding="utf-8",
-            timeout=30,
-        )
-        message = module_utils.ansi_proc_message(proc)
-        message.title = f"Find {command[0]}"
-        _LOGGER.debug(message)
-        return None, False
-    except asyncio.TimeoutError as exception:
-        if async_proc:
-            async_proc.kill()
-            message = module_utils.AnsiProcessMessage(
-                command,
-                None,
-                "" if async_proc.stdout is None else (await async_proc.stdout.read()).decode(),
-                "" if async_proc.stderr is None else (await async_proc.stderr.read()).decode(),
-                error=str(exception),
-            )
-            message.title = timeout_message
-            _LOGGER.warning(message)
-            error_messages.append(message)
-            return None, False
-        else:
-            raise
-
-
 async def snyk(
     branch: str,
     config: configuration.SnykConfiguration,
@@ -181,7 +117,7 @@ async def _install_requirements_dependencies(
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
 
-            await _run_timeout(
+            _, _, proc_message = await module_utils.run_timeout(
                 [
                     "python",
                     "-m",
@@ -195,8 +131,9 @@ async def _install_requirements_dependencies(
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
-                result,
             )
+            if proc_message is not None:
+                result.append(proc_message)
 
 
 async def _install_pipenv_dependencies(
@@ -221,7 +158,7 @@ async def _install_pipenv_dependencies(
                 continue
             directory = os.path.dirname(os.path.abspath(file))
 
-            await _run_timeout(
+            _, _, proc_message = await module_utils.run_timeout(
                 [
                     "pipenv",
                     "install",
@@ -232,9 +169,10 @@ async def _install_pipenv_dependencies(
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
-                result,
                 directory,
             )
+            if proc_message is not None:
+                result.append(proc_message)
 
 
 async def _install_poetry_dependencies(
@@ -261,7 +199,7 @@ async def _install_poetry_dependencies(
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
 
-            await _run_timeout(
+            _, _, proc_message = await module_utils.run_timeout(
                 [
                     "poetry",
                     "install",
@@ -272,9 +210,10 @@ async def _install_poetry_dependencies(
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
-                result,
                 os.path.dirname(os.path.abspath(file)),
             )
+            if proc_message is not None:
+                result.append(proc_message)
 
 
 async def _snyk_monitor(
@@ -314,15 +253,16 @@ async def _snyk_monitor(
             f"--project-tags={','.join(['='.join(tag) for tag in local_monitor_config.get('project-tags', monitor_config.get('project-tags', {}))])}"
         )
 
-    await _run_timeout(
+    _, _, message = await module_utils.run_timeout(
         command,
         env,
         int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
         "Project monitored",
         "Error while monitoring the project",
         "Timeout while monitoring the project",
-        result,
     )
+    if message is not None:
+        result.append(message)
 
 
 async def _snyk_test(
@@ -340,15 +280,16 @@ async def _snyk_test(
             "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
         ),
     ]
-    test_json_str, _ = await _run_timeout(
+    test_json_str, _, message = await module_utils.run_timeout(
         command,
         env_no_debug,
         int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
         "Snyk test",
         "Error while testing the project",
         "Timeout while testing the project",
-        result,
     )
+    if message is not None:
+        result.append(message)
 
     if test_json_str:
         message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
@@ -452,15 +393,16 @@ async def _snyk_fix(
                 "fix-arguments", config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
             ),
         ]
-        fix_message, snyk_fix_success = await _run_timeout(
+        fix_message, snyk_fix_success, message = await module_utils.run_timeout(
             command,
             env_no_debug,
             int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
             "Snyk fix",
             "Error while fixing the project",
             "Timeout while fixing the project",
-            result,
         )
+        if message is not None:
+            result.append(message)
         if fix_message:
             snyk_fix_message = module_utils.AnsiMessage(fix_message.strip())
         if not snyk_fix_success:
@@ -488,16 +430,17 @@ async def _npm_audit_fix(
         messages.update(file_messages)
         _LOGGER.debug("Fixing vulnerabilities in %s with npm audit fix --force", package_lock_file_name)
         command = ["npm", "audit", "fix", "--force"]
-        _, success = await _run_timeout(
+        _, success, message = await module_utils.run_timeout(
             command,
             os.environ.copy(),
             int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
             "Npm audit fix",
             "Error while fixing the project",
             "Timeout while fixing the project",
-            result,
             directory,
         )
+        if message is not None:
+            result.append(message)
         _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
         with open(os.path.join(directory, "package.json"), encoding="utf-8") as package_file:
