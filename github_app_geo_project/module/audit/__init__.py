@@ -245,7 +245,7 @@ async def _process_snyk_dpkg(
 
                 else:
                     repo = context.github_project.repo
-                    new_success, pull_request = module_utils.create_commit_pull_request(
+                    new_success, pull_request = await module_utils.create_commit_pull_request(
                         branch, new_branch, f"Audit {key}", "" if body is None else body.to_markdown(), repo
                     )
                     success &= new_success

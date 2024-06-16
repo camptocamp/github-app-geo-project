@@ -156,7 +156,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                             _LOGGER.info(message)
 
                             if utils.has_changes(include_un_followed=True):
-                                success = utils.create_commit(
+                                success = await utils.create_commit(
                                     f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
                                 )
                                 if not success:
