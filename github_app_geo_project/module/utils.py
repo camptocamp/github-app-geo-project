@@ -482,7 +482,7 @@ def create_commit(message: str) -> bool:
         _LOGGER.warning(proc_message)
         return False
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8", timeout=30
+        ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8", timeout=300
     )
     if proc.returncode != 0:
         proc_message = ansi_proc_message(proc)
