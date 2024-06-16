@@ -370,7 +370,7 @@ class AnsiProcessMessage(AnsiMessage):
         self.args: list[str] = []
 
         for arg in args:
-            if "x-access-token" in arg:
+            if "x-access-token" in str(arg):
                 self.args.append(re.sub(r"x-access-token:[0-9a-zA-Z_]*", "x-access-token:***", arg))
             else:
                 self.args.append(arg)
@@ -482,7 +482,7 @@ def create_commit(message: str) -> bool:
         _LOGGER.warning(proc_message)
         return False
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-        ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8", timeout=30
+        ["git", "commit", f"--message={message}"], capture_output=True, encoding="utf-8", timeout=300
     )
     if proc.returncode != 0:
         proc_message = ansi_proc_message(proc)
@@ -545,15 +545,18 @@ def create_commit_pull_request(
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
     if os.path.exists(".pre-commit-config.yaml"):
-        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-            ["pre-commit", "install"],
-            capture_output=True,
-            encoding="utf-8",
-            timeout=10,
-        )
-        proc_message = ansi_proc_message(proc)
-        proc_message.title = "Install pre-commit"
-        _LOGGER.debug(proc_message)
+        try:
+            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                ["pre-commit", "install"],
+                capture_output=True,
+                encoding="utf-8",
+                timeout=10,
+            )
+            proc_message = ansi_proc_message(proc)
+            proc_message.title = "Install pre-commit"
+            _LOGGER.debug(proc_message)
+        except FileNotFoundError:
+            _LOGGER.debug("pre-commit not installed")
     if not create_commit(message):
         return False, None
     return create_pull_request(branch, new_branch, message, body, repo)
