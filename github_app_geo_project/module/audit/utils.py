@@ -296,7 +296,9 @@ async def _snyk_test(
         message.title = "Snyk test JSON output"
         _LOGGER.debug(message)
     else:
-        _LOGGER.error("Snyk test JSON returned nothing on project %s branch %s", os.getcwd(), branch)
+        _LOGGER.error(
+            "Snyk test JSON returned nothing on project %s branch %s", module_utils.get_cwd(), branch
+        )
 
     test_json = json.loads(test_json_str) if test_json_str else []
 
