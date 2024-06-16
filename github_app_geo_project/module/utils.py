@@ -459,6 +459,18 @@ def ansi_proc_message(
     return AnsiProcessMessage.from_process(proc)
 
 
+def get_cwd() -> str | None:
+    """
+    Get the current working directory.
+
+    Did not raise an exception if it does not exist, return None instead.
+    """
+    try:
+        return os.getcwd()
+    except FileNotFoundError:
+        return None
+
+
 async def run_timeout(
     command: list[str],
     env: dict[str, str] | None,
@@ -490,7 +502,7 @@ async def run_timeout(
         async with asyncio.timeout(timeout):
             async_proc = await asyncio.create_subprocess_exec(
                 *command,
-                cwd=cwd or os.getcwd(),
+                cwd=cwd or get_cwd(),
                 env=env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
