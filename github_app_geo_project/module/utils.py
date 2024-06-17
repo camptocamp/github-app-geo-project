@@ -765,9 +765,6 @@ def get_alternate_versions(security: c2cciutils.security.Security, branch: str) 
     alternate_index = security.alternate_tag_index
     version_index = security.version_index
 
-    if alternate_index < 0:
-        return []
-
     if version_index < 0:
         _LOGGER.warning("No Version column in the SECURITY.md")
         return []
@@ -776,7 +773,8 @@ def get_alternate_versions(security: c2cciutils.security.Security, branch: str) 
     result = []
     for row in security.data:
         if row[version_index] == branch:
-            result = [v.strip() for v in row[alternate_index].split(",") if v.strip()]
+            if alternate_index >= 0:
+                result = [v.strip() for v in row[alternate_index].split(",") if v.strip()]
             last = True
         elif last:
             last = False
