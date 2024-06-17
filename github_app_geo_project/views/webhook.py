@@ -279,6 +279,9 @@ def create_checks(
     sub_name: str | None = None,
 ) -> github.CheckRun.CheckRun:
     """Create the GitHub check run."""
+    # Get the job id from the database
+    session.flush()
+
     service_url = service_url if service_url.endswith("/") else service_url + "/"
     service_url = urllib.parse.urljoin(service_url, "logs/")
     service_url = urllib.parse.urljoin(service_url, str(job.id))
