@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import contextvars
 import datetime
+import io
 import logging
 import os
 import socket
@@ -21,7 +22,7 @@ import plaster
 import prometheus_client
 import sentry_sdk
 import sqlalchemy.orm
-from prometheus_client import Gauge
+from prometheus_client import Gauge, Info
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
 from github_app_geo_project.module import modules
@@ -31,6 +32,7 @@ from github_app_geo_project.views import webhook
 _LOGGER = logging.getLogger(__name__)
 
 _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
+_JOBS = Info("ghci_jobs", "Running jobs", [])
 
 
 class _JobInfo(NamedTuple):
@@ -779,7 +781,7 @@ class _Run:
             await asyncio.sleep(empty_thread_sleep if empty else 0)
 
 
-class _UpdateCounter:
+class _WatchDog:
     def __init__(
         self,
         Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
@@ -790,25 +792,34 @@ class _UpdateCounter:
 
     async def __call__(self, *args: Any, **kwds: Any) -> Any:
         while True:
+            _LOGGER.debug("Watch dog: alive")
             with self.Session() as session:
                 for status in models.JobStatus:
                     _NB_JOBS.labels(status.name).set(
                         session.query(models.Queue).filter(models.Queue.status == status).count()
                     )
                     await asyncio.sleep(0)
-            await asyncio.sleep(10)
-
-
-async def _watch_dog() -> None:
-    while True:
-        _LOGGER.debug("Watch dog: alive")
-        with open("/var/ghci/watch_dog", "w", encoding="utf-8") as file_:
-            file_.write(datetime.datetime.now().isoformat())
+            info = {}
+            text = []
             for id_, job in _RUNNING_JOBS.items():
-                file_.write(
-                    f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})\n"
+                text.append(
+                    f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})"
                 )
-        await asyncio.sleep(60)
+                info[f"job-id-{id_}"] = (
+                    f"{job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})"
+                )
+            for task in asyncio.all_tasks():
+                txt = io.StringIO()
+                task.print_stack(file=txt)
+                text.append("-" * 30)
+                text.append(txt.getvalue())
+                info[f"task-{id(task)}"] = txt.getvalue()
+            _JOBS.info(info)
+            with open("/var/ghci/watch_dog", "w", encoding="utf-8") as file_:
+                file_.write(datetime.datetime.now().isoformat())
+                file_.write("\n".join(text))
+                file_.write("\n")
+            await asyncio.sleep(10)
 
 
 async def _async_main() -> None:
@@ -842,8 +853,7 @@ async def _async_main() -> None:
 
     threads_call = []
     if not args.exit_when_empty:
-        threads_call.append(_UpdateCounter(Session)())
-        threads_call.append(_watch_dog())
+        threads_call.append(_WatchDog(Session)())
 
     for priority in priority_groups:
         threads_call.append(_Run(config, Session, args.exit_when_empty, priority)())
