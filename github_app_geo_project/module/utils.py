@@ -562,7 +562,7 @@ def has_changes(include_un_followed: bool = False) -> bool:
     return proc.returncode != 0
 
 
-async def create_commit(message: str) -> bool:
+async def create_commit(message: str, pre_commit_check: bool = True) -> bool:
     """Do a commit."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "add", "--all"], capture_output=True, encoding="utf-8", timeout=30
@@ -573,13 +573,16 @@ async def create_commit(message: str) -> bool:
         _LOGGER.warning(proc_message)
         return False
     _, success, _ = await run_timeout(
-        ["git", "commit", f"--message={message}"],
+        ["git", "commit", f"--message={message}", *([] if pre_commit_check else ["--no-verify"])],
         None,
         600,
         "Commit",
         "Error committing files",
         "Timeout committing files",
     )
+    if not success and pre_commit_check:
+        # On pre-commit issues, add them to the commit, and try again without the pre-commit
+        success = await create_commit(message, False)
     return success
 
 
