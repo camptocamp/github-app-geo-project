@@ -236,6 +236,13 @@ async def _process_snyk_dpkg(
             )
             if diff_proc.returncode != 0:
                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                    ["git", "diff"], timeout=30, capture_output=True, encoding="utf-8"
+                )
+                message = module_utils.ansi_proc_message(proc)
+                message.title = "Changes to be committed"
+                _LOGGER.debug(message)
+
+                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                     ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8", timeout=30
                 )
                 if proc.returncode != 0:
@@ -254,6 +261,8 @@ async def _process_snyk_dpkg(
                     else:
                         if pull_request is not None:
                             issue_check.set_title(key, f"{key} ([Pull request]({pull_request.html_url}))")
+            else:
+                _LOGGER.debug("No changes to commit")
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
         message = module_utils.ansi_proc_message(proc_error)
         _LOGGER.exception("Audit %s process error", key)
