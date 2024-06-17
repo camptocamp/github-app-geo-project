@@ -50,19 +50,14 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
     async def process(
         self, context: module.ProcessContext[None, dict[str, Any], dict[str, Any]]
     ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
+        full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
         repo_data = context.transversal_status.setdefault(
             context.github_project.owner + "/" + context.github_project.repository, {}
         )
 
-        module_utils.manage_updated(
-            context.transversal_status,
-            f"{context.github_project.owner}/{context.github_project.repository}",
-            days_old=30,
-        )
+        module_utils.manage_updated(context.transversal_status, full_repo, days_old=30)
 
-        repo = context.github_project.github.get_repo(
-            context.github_project.owner + "/" + context.github_project.repository
-        )
+        repo = context.github_project.github.get_repo(full_repo)
 
         stabilization_branches = [repo.default_branch]
         security_file = None

@@ -12,6 +12,7 @@ import os
 import socket
 import subprocess  # nosec
 import sys
+import time
 import urllib.parse
 from typing import Any, NamedTuple, cast
 
@@ -760,6 +761,9 @@ class _Run:
         self.max_priority = max_priority
 
     async def __call__(self, *args: Any, **kwds: Any) -> Any:
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            current_task.set_name(f"Run ({self.max_priority})")
         empty_thread_sleep = int(os.environ.get("GHCI_EMPTY_THREAD_SLEEP", 10))
 
         while True:
@@ -781,7 +785,7 @@ class _Run:
             await asyncio.sleep(empty_thread_sleep if empty else 0)
 
 
-class _WatchDog:
+class _PrometheusWatch:
     def __init__(
         self,
         Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
@@ -791,14 +795,18 @@ class _WatchDog:
         self.Session = Session  # pylint: disable=invalid-name
 
     async def __call__(self, *args: Any, **kwds: Any) -> Any:
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            current_task.set_name("PrometheusWatch")
+        await asyncio.to_thread(self._watch)
+
+    def _watch(self) -> None:
         while True:
-            _LOGGER.debug("Watch dog: alive")
             with self.Session() as session:
                 for status in models.JobStatus:
                     _NB_JOBS.labels(status.name).set(
                         session.query(models.Queue).filter(models.Queue.status == status).count()
                     )
-                    await asyncio.sleep(0)
             info = {}
             text = []
             for id_, job in _RUNNING_JOBS.items():
@@ -815,11 +823,23 @@ class _WatchDog:
                 text.append(txt.getvalue())
                 info[f"task-{id(task)}"] = txt.getvalue()
             _JOBS.info(info)
-            with open("/var/ghci/watch_dog", "w", encoding="utf-8") as file_:
-                file_.write(datetime.datetime.now().isoformat())
+            with open("/var/ghci/job_info", "w", encoding="utf-8") as file_:
                 file_.write("\n".join(text))
                 file_.write("\n")
-            await asyncio.sleep(10)
+            time.sleep(10)
+
+
+class _WatchDog:
+    async def __call__(self, *args: Any, **kwds: Any) -> Any:
+        current_task = asyncio.current_task()
+        if current_task is not None:
+            current_task.set_name("WatchDog")
+        while True:
+            _LOGGER.debug("Watch dog: alive")
+            with open("/var/ghci/watch_dog", "w", encoding="utf-8") as file_:
+                file_.write(datetime.datetime.now().isoformat())
+                file_.write("\n")
+            await asyncio.sleep(60)
 
 
 async def _async_main() -> None:
@@ -853,7 +873,8 @@ async def _async_main() -> None:
 
     threads_call = []
     if not args.exit_when_empty:
-        threads_call.append(_WatchDog(Session)())
+        threads_call.append(_WatchDog()())
+        threads_call.append(_PrometheusWatch(Session)())
 
     for priority in priority_groups:
         threads_call.append(_Run(config, Session, args.exit_when_empty, priority)())
