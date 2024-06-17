@@ -17,8 +17,8 @@ services:
       target: runner
     environment:
       &app-env # https://docs.pylonsproject.org/projects/pyramid/en/1.6-branch/narr/environment.html
-      PYRAMID_DEBUG_ALL: TRUE
-      PYRAMID_RELOAD_ALL: TRUE
+      PYRAMID_DEBUG_ALL: 'TRUE'
+      PYRAMID_RELOAD_ALL: 'TRUE'
       PYRAMID_DEFAULT_LOCALE_NAME: en
       LOG_LEVEL: DEBUG
       C2CWSGIUTILS_LOG_LEVEL: INFO
@@ -26,32 +26,32 @@ services:
       GUNICORN_LOG_LEVEL: INFO
       OTHER_LOG_LEVEL: INFO
       C2C_AUTH_GITHUB_REPOSITORY: camptocamp/github-app-geo-project
-      C2C_AUTH_GITHUB_SECRET: 1234567890123456789
-      C2C_AUTH_GITHUB_CLIENT_ID: 1234
-      C2C_AUTH_GITHUB_CLIENT_SECRET: 1234
-      C2C_PROMETHEUS_PORT: 9110
+      C2C_AUTH_GITHUB_SECRET: '1234567890123456789'
+      C2C_AUTH_GITHUB_CLIENT_ID: '1234'
+      C2C_AUTH_GITHUB_CLIENT_SECRET: '1234'
+      C2C_PROMETHEUS_PORT: '9110'
       TEST_USER: test
       TEST_APPLICATION: test
       SQLALCHEMY_URL: postgresql://postgresql:postgresql@db/tests
-      SQLALCHEMY_POOL_RECYCLE: 3600
-      SQLALCHEMY_POOL_SIZE: 10
-      SQLALCHEMY_MAX_OVERFLOW: 20
+      SQLALCHEMY_POOL_RECYCLE: '3600'
+      SQLALCHEMY_POOL_SIZE: '10'
+      SQLALCHEMY_MAX_OVERFLOW: '20'
       SQLALCHEMY_SLAVE_URL: postgresql://postgresql:postgresql@db/tests
-      SQLALCHEMY_SLAVE_POOL_RECYCLE: 3600
-      SQLALCHEMY_SLAVE_POOL_SIZE: 10
-      SQLALCHEMY_SLAVE_MAX_OVERFLOW: 20
+      SQLALCHEMY_SLAVE_POOL_RECYCLE: '3600'
+      SQLALCHEMY_SLAVE_POOL_SIZE: '10'
+      SQLALCHEMY_SLAVE_MAX_OVERFLOW: '20'
       GHCI_TEST_GITHUB_APP_ID: ${GHCI_TEST_GITHUB_APP_ID}
       GHCI_TEST_GITHUB_APP_PRIVATE_KEY: ${GHCI_TEST_GITHUB_APP_PRIVATE_KEY}
       GHCI_TEST_GITHUB_APP_URL: https://github.com/apps/test
-      GHCI_SESSION_SECRET: 1234
-      GHCI_SESSION_SALT: 1234
+      GHCI_SESSION_SECRET: '1234'
+      GHCI_SESSION_SALT: '1234'
       GHCI_CONFIGURATION: /etc/ghci/config.yaml
       VISIBLE_ENTRY_POINT: /
       PGHOST: db
       PGUSER: postgresql
       PGPASSWORD: postgresql
       PGDATABASE: tests
-      PGPORT: 5432
+      PGPORT: '5432'
     volumes:
       - ./docker/test-app/config.yaml:/etc/ghci/config.yaml:ro
       - ./github_app_geo_project:/app/github_app_geo_project:ro
