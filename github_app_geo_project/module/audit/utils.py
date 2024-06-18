@@ -412,7 +412,7 @@ async def _snyk_fix(
                 "<br>\n".join(
                     [
                         *fixable_vulnerabilities_summary.values(),
-                        f"{os.path.basename(os.getcwd())}:{branch}",
+                        f"Project: {os.path.basename(os.getcwd())}:{branch}",
                         f"See logs: {logs_url}",
                     ]
                 )
@@ -443,6 +443,15 @@ async def _npm_audit_fix(
         )
         if message is not None:
             result.append(message)
+        if not success:
+            await module_utils.run_timeout(
+                ["poetry", "--version"],
+                os.environ.copy(),
+                10,
+                "Poetry version",
+                "Error while getting the Poetry version",
+                "Timeout while getting the Poetry version",
+            )
         _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
         with open(os.path.join(directory, "package.json"), encoding="utf-8") as package_file:
