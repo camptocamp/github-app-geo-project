@@ -816,12 +816,15 @@ class _PrometheusWatch:
                 info[f"job-id-{id_}"] = (
                     f"{job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})"
                 )
-            for task in asyncio.all_tasks():
-                txt = io.StringIO()
-                task.print_stack(file=txt)
-                text.append("-" * 30)
-                text.append(txt.getvalue())
-                info[f"task-{id(task)}"] = txt.getvalue()
+            try:
+                for task in asyncio.all_tasks():
+                    txt = io.StringIO()
+                    task.print_stack(file=txt)
+                    text.append("-" * 30)
+                    text.append(txt.getvalue())
+                    info[f"task-{id(task)}"] = txt.getvalue()
+            except RuntimeError as exception:
+                text.append(str(exception))
             _JOBS.info(info)
             with open("/var/ghci/job_info", "w", encoding="utf-8") as file_:
                 file_.write("\n".join(text))
