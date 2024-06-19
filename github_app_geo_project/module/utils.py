@@ -497,7 +497,10 @@ async def run_timeout(
     ------
     The standard output, the success, the logged message
     """
-    _LOGGER.debug("Run command: %s", shlex.join(command))
+    if cwd:
+        _LOGGER.debug("Run command: %s, in %s", shlex.join(command), cwd)
+    else:
+        _LOGGER.debug("Run command: %s", shlex.join(command))
     async_proc = None
     try:
         async with asyncio.timeout(timeout):
