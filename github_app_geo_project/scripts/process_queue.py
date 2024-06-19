@@ -33,7 +33,7 @@ from github_app_geo_project.views import webhook
 _LOGGER = logging.getLogger(__name__)
 
 _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
-_JOBS = Info("ghci_jobs", "Running jobs", [])
+_JOBS = Info("ghci_jobs", "Running jobs")
 
 
 class _JobInfo(NamedTuple):
@@ -793,6 +793,7 @@ class _PrometheusWatch:
         ],
     ):
         self.Session = Session  # pylint: disable=invalid-name
+        self.last_run = time.time()
 
     async def __call__(self, *args: Any, **kwds: Any) -> Any:
         current_task = asyncio.current_task()
@@ -826,6 +827,19 @@ class _PrometheusWatch:
             except RuntimeError as exception:
                 text.append(str(exception))
             _JOBS.info(info)
+
+            if time.time() - self.last_run > 300:
+                error_message = ["Old Status"]
+                with open("/var/ghci/job_info", encoding="utf-8") as file_:
+                    error_message.extend(file_.read().split("\n"))
+                error_message.append("-" * 30)
+                error_message.append("New status")
+                error_message.extend(text)
+                message = module_utils.HtmlMessage("<br>\n".join(error_message))
+                message.title = "Too long waiting for a schedule"
+                _LOGGER.error(message)
+            self.last_run = time.time()
+
             with open("/var/ghci/job_info", "w", encoding="utf-8") as file_:
                 file_.write("\n".join(text))
                 file_.write("\n")
