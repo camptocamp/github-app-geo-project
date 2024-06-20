@@ -222,6 +222,9 @@ async def _process_snyk_dpkg(
                 _LOGGER.debug(message)
                 if output_url is not None:
                     short_message.append(f"[See also]({output_url})")
+                if body is not None:
+                    body.html += f"\n\n[See output]({output_url})"
+                    body.html += f"\n\n[See logs]({logs_url})"
 
             if context.module_event_data.type == "dpkg":
                 body = module_utils.HtmlMessage("Update dpkg packages")

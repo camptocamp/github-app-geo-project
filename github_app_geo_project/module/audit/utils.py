@@ -27,7 +27,7 @@ async def snyk(
     local_config: configuration.SnykConfiguration,
     logs_url: str,
     env: dict[str, str],
-) -> tuple[list[module_utils.Message], module_utils.Message | None, list[str], bool]:
+) -> tuple[list[module_utils.Message], module_utils.HtmlMessage | None, list[str], bool]:
     """
     Audit the code with Snyk.
 
@@ -69,7 +69,7 @@ async def snyk(
         fixable_vulnerabilities_summary,
     )
     npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result)
-    fix_message: module_utils.Message | None = None
+    fix_message: module_utils.HtmlMessage | None = None
     if snyk_fix_message is None:
         if npm_audit_fix_message:
             fix_message = module_utils.HtmlMessage(npm_audit_fix_message)
@@ -310,6 +310,10 @@ async def _snyk_test(
     fixable_vulnerabilities_summary: dict[str, str] = {}
     fixable_files_npm: dict[str, set[str]] = {}
     for row in test_json:
+        if "error" in row:
+            _LOGGER.error(row["error"])
+            continue
+
         message = module_utils.HtmlMessage(
             "\n".join(
                 [
@@ -323,8 +327,6 @@ async def _snyk_test(
         message.title = f'{row.get("summary", "Snyk test")} in {row.get("displayTargetFile", "-")}.'
         _LOGGER.info(message)
 
-        if "error" in row:
-            _LOGGER.error(row["error"])
         for vuln in row.get("vulnerabilities", []):
             fixable = vuln.get("fixedIn", []) or vuln.get("isPatchable", False)
             severity = vuln["severity"]
@@ -384,7 +386,7 @@ async def _snyk_fix(
     env_no_debug: dict[str, str],
     fixable_vulnerabilities: dict[str, int],
     fixable_vulnerabilities_summary: dict[str, str],
-) -> tuple[bool, module_utils.Message | None]:
+) -> tuple[bool, module_utils.HtmlMessage | None]:
     snyk_fix_success = True
     snyk_fix_message = None
     if fixable_vulnerabilities:
@@ -408,17 +410,28 @@ async def _snyk_fix(
         if fix_message:
             snyk_fix_message = module_utils.AnsiMessage(fix_message.strip())
         if not snyk_fix_success:
+            cwd = module_utils.get_cwd()
+            project = "-" if cwd is None else os.path.basename(cwd)
             message = module_utils.HtmlMessage(
                 "<br>\n".join(
                     [
                         *fixable_vulnerabilities_summary.values(),
-                        f"Project: {os.path.basename(os.getcwd())}:{branch}",
+                        f"Project: {project}:{branch}",
                         f"See logs: {logs_url}",
                     ]
                 )
             )
             message.title = f"Unable to fix {len(fixable_vulnerabilities)} vulnerabilities"
             _LOGGER.error(message)
+
+            await module_utils.run_timeout(
+                ["poetry", "--version"],
+                os.environ.copy(),
+                10,
+                "Poetry version",
+                "Error while getting the Poetry version",
+                "Timeout while getting the Poetry version",
+            )
     return snyk_fix_success, snyk_fix_message
 
 
@@ -443,15 +456,6 @@ async def _npm_audit_fix(
         )
         if message is not None:
             result.append(message)
-        if not success:
-            await module_utils.run_timeout(
-                ["poetry", "--version"],
-                os.environ.copy(),
-                10,
-                "Poetry version",
-                "Error while getting the Poetry version",
-                "Timeout while getting the Poetry version",
-            )
         _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
         with open(os.path.join(directory, "package.json"), encoding="utf-8") as package_file:
