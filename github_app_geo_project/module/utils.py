@@ -502,6 +502,7 @@ async def run_timeout(
     else:
         _LOGGER.debug("Run command: %s", shlex.join(command))
     async_proc = None
+    start = datetime.datetime.now()
     try:
         async with asyncio.timeout(timeout):
             async_proc = await asyncio.create_subprocess_exec(
@@ -518,10 +519,10 @@ async def run_timeout(
             )
             success = async_proc.returncode == 0
             if success:
-                message.title = success_message
+                message.title = f"{success_message}, in {datetime.datetime.now() - start}s."
                 _LOGGER.debug(message)
             else:
-                message.title = error_message
+                message.title = f"{error_message}, in {datetime.datetime.now() - start}s."
                 _LOGGER.warning(message)
             return stdout.decode(), success, message
     except FileNotFoundError as exception:
