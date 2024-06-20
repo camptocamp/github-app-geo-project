@@ -13,7 +13,6 @@ from typing import Any, cast
 
 import c2cciutils.security
 import github
-import markdown
 import yaml
 from pydantic import BaseModel
 
