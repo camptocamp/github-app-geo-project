@@ -11,7 +11,7 @@ from typing import Any, cast
 import requests
 
 from github_app_geo_project import module
-from github_app_geo_project.module import utils
+from github_app_geo_project.module import utils as module_utils
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
             context.event_data.get("action") == "completed"
             and context.event_data.get("workflow_run", {}).get("conclusion") == "failure"
         ):
-            return [module.Action(priority=module.PRIORITY_STATUS, data={})]
+            return [module.Action(priority=module.PRIORITY_STANDARD, data={})]
         return []
 
     async def process(
@@ -80,97 +80,103 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
         should_push = False
         result_message = []
 
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            os.chdir(tmpdirname)
-            if not is_clone:
-                success = utils.git_clone(context.github_project, workflow_run.head_branch)
-                if not success:
-                    return module.ProcessOutput(
-                        success=False,
-                        output={
-                            "summary": "Failed to clone the repository, see details on the application for details (link below)"
-                        },
-                    )
+        async with module_utils.WORKING_DIRECTORY_LOCK:
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                os.chdir(tmpdirname)
+                if not is_clone:
+                    success = module_utils.git_clone(context.github_project, workflow_run.head_branch)
+                    if not success:
+                        return module.ProcessOutput(
+                            success=False,
+                            output={
+                                "summary": "Failed to clone the repository, see details on the application for details (link below)"
+                            },
+                        )
 
-            for artifact in workflow_run.get_artifacts():
-                if not artifact.name.endswith(".patch"):
-                    continue
-
-                if artifact.expired:
-                    _LOGGER.info("Artifact %s is expired", artifact.name)
-                    continue
-
-                (
-                    status,
-                    headers,
-                    response_redirect,
-                ) = workflow_run._requester.requestJson(  # pylint: disable=protected-access
-                    "GET", artifact.archive_download_url
-                )
-                if status != 302:
-                    _LOGGER.error(
-                        "Failed to download artifact %s, status: %s, data:\n%s",
-                        artifact.name,
-                        status,
-                        response_redirect,
-                    )
-                    continue
-
-                # Follow redirect.
-                response = requests.get(headers["location"], timeout=120)
-                if not response.ok:
-                    _LOGGER.error("Failed to download artifact %s", artifact.name)
-                    continue
-
-                # unzip
-                with zipfile.ZipFile(io.BytesIO(response.content)) as diff:
-                    if len(diff.namelist()) != 1:
-                        _LOGGER.info("Invalid artifact %s", artifact.name)
+                for artifact in workflow_run.get_artifacts():
+                    if not artifact.name.endswith(".patch"):
                         continue
 
-                    with diff.open(diff.namelist()[0]) as file:
-                        patch_input = file.read().decode("utf-8")
-                        message: utils.Message = utils.HtmlMessage(patch_input, "Applied the patch input")
-                        _LOGGER.debug(message)
-                        if is_clone:
-                            result_message.extend(["```diff", patch_input, "```"])
-                        else:
-                            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                                ["patch", "--strip=1"],
-                                input=patch_input,
-                                encoding="utf-8",
-                                capture_output=True,
-                                timeout=30,
-                            )
-                            message = utils.ansi_proc_message(proc)
-                            if proc.returncode != 0:
-                                message.title = f"Failed to apply the diff {artifact.name}"
-                                _LOGGER.warning(message)
-                                return module.ProcessOutput(
-                                    success=False,
-                                    output={
-                                        "summary": "Failed to apply the diff, you should probably rebase your branch"
-                                    },
-                                )
-                            message.title = f"Applied the diff {artifact.name}"
-                            _LOGGER.info(message)
+                    if artifact.expired:
+                        _LOGGER.info("Artifact %s is expired", artifact.name)
+                        continue
 
-                            if utils.has_changes(include_un_followed=True):
-                                success = await utils.create_commit(
-                                    f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
+                    (
+                        status,
+                        headers,
+                        response_redirect,
+                    ) = workflow_run._requester.requestJson(  # pylint: disable=protected-access
+                        "GET", artifact.archive_download_url
+                    )
+                    if status != 302:
+                        _LOGGER.error(
+                            "Failed to download artifact %s, status: %s, data:\n%s",
+                            artifact.name,
+                            status,
+                            response_redirect,
+                        )
+                        continue
+
+                    # Follow redirect.
+                    response = requests.get(headers["location"], timeout=120)
+                    if not response.ok:
+                        _LOGGER.error("Failed to download artifact %s", artifact.name)
+                        continue
+
+                    # unzip
+                    with zipfile.ZipFile(io.BytesIO(response.content)) as diff:
+                        if len(diff.namelist()) != 1:
+                            _LOGGER.info("Invalid artifact %s", artifact.name)
+                            continue
+
+                        with diff.open(diff.namelist()[0]) as file:
+                            patch_input = file.read().decode("utf-8")
+                            message: module_utils.Message = module_utils.HtmlMessage(
+                                patch_input, "Applied the patch input"
+                            )
+                            _LOGGER.debug(message)
+                            if is_clone:
+                                result_message.extend(["```diff", patch_input, "```"])
+                            else:
+                                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                                    ["patch", "--strip=1"],
+                                    input=patch_input,
+                                    encoding="utf-8",
+                                    capture_output=True,
+                                    timeout=30,
                                 )
-                                if not success:
-                                    raise PatchException("Failed to commit the changes, see logs for details")
-                                should_push = True
-            if should_push:
-                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                    ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"],
-                    capture_output=True,
-                    encoding="utf-8",
-                    timeout=60,
-                )
-                if proc.returncode != 0:
-                    raise PatchException(f"Failed to push the changes{format_process_output(proc)}")
+                                message = module_utils.ansi_proc_message(proc)
+                                if proc.returncode != 0:
+                                    message.title = f"Failed to apply the diff {artifact.name}"
+                                    _LOGGER.warning(message)
+                                    return module.ProcessOutput(
+                                        success=False,
+                                        output={
+                                            "summary": "Failed to apply the diff, you should probably rebase your branch"
+                                        },
+                                    )
+                                message.title = f"Applied the diff {artifact.name}"
+                                _LOGGER.info(message)
+
+                                if module_utils.has_changes(include_un_followed=True):
+                                    success = await module_utils.create_commit(
+                                        f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
+                                    )
+                                    if not success:
+                                        raise PatchException(
+                                            "Failed to commit the changes, see logs for details"
+                                        )
+                                    should_push = True
+                if should_push:
+                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                        ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"],
+                        capture_output=True,
+                        encoding="utf-8",
+                        timeout=60,
+                    )
+                    if proc.returncode != 0:
+                        raise PatchException(f"Failed to push the changes{format_process_output(proc)}")
+                os.chdir("/")
         if is_clone and result_message:
             return module.ProcessOutput(
                 success=False,

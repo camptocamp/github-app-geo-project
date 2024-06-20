@@ -174,97 +174,109 @@ async def _process_snyk_dpkg(
                         break
                 _LOGGER.debug("Branch name: %s", branch)
 
-        # Checkout the right branch on a temporary directory
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            os.chdir(tmpdirname)
-            _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-            success &= module_utils.git_clone(context.github_project, branch)
-            if not success:
-                return ["Fail to clone the repository"], success
+        async with module_utils.WORKING_DIRECTORY_LOCK:
+            # Checkout the right branch on a temporary directory
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                os.chdir(tmpdirname)
+                _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
+                success &= module_utils.git_clone(context.github_project, branch)
+                if not success:
+                    return ["Fail to clone the repository"], success
 
-            local_config: configuration.AuditConfiguration = {}
-            if context.module_event_data.type in ("snyk", "dpkg"):
-                if os.path.exists(".github/ghci.yaml"):
-                    with open(".github/ghci.yaml", encoding="utf-8") as file:
-                        local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
+                local_config: configuration.AuditConfiguration = {}
+                if context.module_event_data.type in ("snyk", "dpkg"):
+                    if os.path.exists(".github/ghci.yaml"):
+                        with open(".github/ghci.yaml", encoding="utf-8") as file:
+                            local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
 
-            if context.module_event_data.type == "snyk":
-                python_version = ""
-                if os.path.exists(".tool-versions"):
-                    with open(".tool-versions", encoding="utf-8") as file:
-                        for line in file:
-                            if line.startswith("python "):
-                                python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
-                                break
+                if context.module_event_data.type == "snyk":
+                    python_version = ""
+                    if os.path.exists(".tool-versions"):
+                        with open(".tool-versions", encoding="utf-8") as file:
+                            for line in file:
+                                if line.startswith("python "):
+                                    python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
+                                    break
 
-                if python_version:
-                    env = _use_python_version(python_version)
-                else:
-                    env = os.environ.copy()
+                    if python_version:
+                        env = _use_python_version(python_version)
+                    else:
+                        env = os.environ.copy()
 
-                logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
-                result, body, short_message, new_success = await audit_utils.snyk(
-                    branch, context.module_config.get("snyk", {}), local_config.get("snyk", {}), logs_url, env
-                )
-                success &= new_success
-                output_url = _process_error(
-                    context,
-                    key,
-                    issue_check,
-                    [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
-                    ", ".join(short_message),
-                )
-                message: module_utils.Message = module_utils.HtmlMessage(
-                    "<a href='%s'>Output</a>" % output_url
-                )
-                message.title = "Output URL"
-                _LOGGER.debug(message)
-                if output_url is not None:
-                    short_message.append(f"[See also]({output_url})")
-                if body is not None:
-                    body.html += f"\n\n[See output]({output_url})"
-                    body.html += f"\n\n[See logs]({logs_url})"
-
-            if context.module_event_data.type == "dpkg":
-                body = module_utils.HtmlMessage("Update dpkg packages")
-
-                if os.path.exists("ci/dpkg-versions.yaml"):
-                    await audit_utils.dpkg(
-                        context.module_config.get("dpkg", {}), local_config.get("dpkg", {})
-                    )
-
-            diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                ["git", "diff", "--quiet"], timeout=30
-            )
-            if diff_proc.returncode != 0:
-                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                    ["git", "diff"], timeout=30, capture_output=True, encoding="utf-8"
-                )
-                message = module_utils.ansi_proc_message(proc)
-                message.title = "Changes to be committed"
-                _LOGGER.debug(message)
-
-                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                    ["git", "checkout", "-b", new_branch], capture_output=True, encoding="utf-8", timeout=30
-                )
-                if proc.returncode != 0:
-                    message = module_utils.ansi_proc_message(proc)
-                    message.title = "Error while creating the new branch"
-                    _LOGGER.error(message)
-
-                else:
-                    repo = context.github_project.repo
-                    new_success, pull_request = await module_utils.create_commit_pull_request(
-                        branch, new_branch, f"Audit {key}", "" if body is None else body.to_markdown(), repo
+                    logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
+                    result, body, short_message, new_success = await audit_utils.snyk(
+                        branch,
+                        context.module_config.get("snyk", {}),
+                        local_config.get("snyk", {}),
+                        logs_url,
+                        env,
                     )
                     success &= new_success
-                    if not new_success:
-                        _LOGGER.error("Error while create commit or pull request")
+                    output_url = _process_error(
+                        context,
+                        key,
+                        issue_check,
+                        [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
+                        ", ".join(short_message),
+                    )
+                    message: module_utils.Message = module_utils.HtmlMessage(
+                        "<a href='%s'>Output</a>" % output_url
+                    )
+                    message.title = "Output URL"
+                    _LOGGER.debug(message)
+                    if output_url is not None:
+                        short_message.append(f"[See also]({output_url})")
+                    if body is not None:
+                        body.html += f"\n\n[See output]({output_url})"
+                        body.html += f"\n\n[See logs]({logs_url})"
+
+                if context.module_event_data.type == "dpkg":
+                    body = module_utils.HtmlMessage("Update dpkg packages")
+
+                    if os.path.exists("ci/dpkg-versions.yaml"):
+                        await audit_utils.dpkg(
+                            context.module_config.get("dpkg", {}), local_config.get("dpkg", {})
+                        )
+
+                diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                    ["git", "diff", "--quiet"], timeout=30
+                )
+                if diff_proc.returncode != 0:
+                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                        ["git", "diff"], timeout=30, capture_output=True, encoding="utf-8"
+                    )
+                    message = module_utils.ansi_proc_message(proc)
+                    message.title = "Changes to be committed"
+                    _LOGGER.debug(message)
+
+                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                        ["git", "checkout", "-b", new_branch],
+                        capture_output=True,
+                        encoding="utf-8",
+                        timeout=30,
+                    )
+                    if proc.returncode != 0:
+                        message = module_utils.ansi_proc_message(proc)
+                        message.title = "Error while creating the new branch"
+                        _LOGGER.error(message)
+
                     else:
-                        if pull_request is not None:
-                            issue_check.set_title(key, f"{key} ([Pull request]({pull_request.html_url}))")
-            else:
-                _LOGGER.debug("No changes to commit")
+                        repo = context.github_project.repo
+                        new_success, pull_request = await module_utils.create_commit_pull_request(
+                            branch,
+                            new_branch,
+                            f"Audit {key}",
+                            "" if body is None else body.to_markdown(),
+                            repo,
+                        )
+                        success &= new_success
+                        if not new_success:
+                            _LOGGER.error("Error while create commit or pull request")
+                        else:
+                            if pull_request is not None:
+                                issue_check.set_title(key, f"{key} ([Pull request]({pull_request.html_url}))")
+                else:
+                    _LOGGER.debug("No changes to commit")
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
         message = module_utils.ansi_proc_message(proc_error)
         _LOGGER.exception("Audit %s process error", key)
@@ -401,7 +413,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
             f"{context.github_project.owner}/{context.github_project.repository}",
         )
 
-        # If no SECURITY.md apply on main branch
+        # If no SECURITY.md apply on default branch
         key_starts = []
         security_file = None
         try:
@@ -448,11 +460,9 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                 versions = []
                 if security_file is not None:
                     assert isinstance(security_file, github.ContentFile.ContentFile)
-                    security_file = c2cciutils.security.Security(
-                        security_file.decoded_content.decode("utf-8")
-                    )
+                    security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
 
-                    versions = module_utils.get_stabilization_versions(security_file)
+                    versions = module_utils.get_stabilization_versions(security)
                 else:
                     _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
                     versions = [repo.default_branch]
