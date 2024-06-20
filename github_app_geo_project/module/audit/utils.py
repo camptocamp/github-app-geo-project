@@ -408,11 +408,13 @@ async def _snyk_fix(
         if fix_message:
             snyk_fix_message = module_utils.AnsiMessage(fix_message.strip())
         if not snyk_fix_success:
+            cwd = module_utils.get_cwd()
+            project = "-" if cwd is None else os.path.basename(cwd)
             message = module_utils.HtmlMessage(
                 "<br>\n".join(
                     [
                         *fixable_vulnerabilities_summary.values(),
-                        f"Project: {os.path.basename(os.getcwd())}:{branch}",
+                        f"Project: {project}:{branch}",
                         f"See logs: {logs_url}",
                     ]
                 )
