@@ -400,7 +400,7 @@ async def _snyk_fix(
         fix_message, snyk_fix_success, message = await module_utils.run_timeout(
             command,
             env_no_debug,
-            int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+            int(os.environ.get("GHCI_SNYK_FIX_TIMEOUT", os.environ.get("GHCI_SNYK_TIMEOUT", "300"))),
             "Snyk fix",
             "Error while fixing the project",
             "Timeout while fixing the project",
