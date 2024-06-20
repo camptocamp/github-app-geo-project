@@ -305,6 +305,7 @@ async def _snyk_test(
     if not isinstance(test_json, list):
         test_json = [test_json]
 
+    _LOGGER.debug("Start parsing the vulnerabilities")
     high_vulnerabilities: dict[str, int] = {}
     fixable_vulnerabilities: dict[str, int] = {}
     fixable_vulnerabilities_summary: dict[str, str] = {}
@@ -374,6 +375,7 @@ async def _snyk_test(
             )
             _LOGGER.warning(message)
             result.append(message)
+    _LOGGER.debug("End parsing the vulnerabilities")
     return high_vulnerabilities, fixable_vulnerabilities, fixable_vulnerabilities_summary, fixable_files_npm
 
 
