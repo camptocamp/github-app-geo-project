@@ -687,7 +687,7 @@ async def _process_one_job(
             job.status = models.JobStatus.PENDING
             job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
             session.commit()
-            _NB_JOBS.labels(models.JobStatus.PENDING).set(
+            _NB_JOBS.labels(models.JobStatus.PENDING.name).set(
                 session.query(models.Queue).filter(models.Queue.status == models.JobStatus.PENDING).count()
             )
 
@@ -803,6 +803,7 @@ class _PrometheusWatch:
 
     def _watch(self) -> None:
         while True:
+            _LOGGER.debug("Prometheus watch: alive")
             with self.Session() as session:
                 for status in models.JobStatus:
                     _NB_JOBS.labels(status.name).set(
