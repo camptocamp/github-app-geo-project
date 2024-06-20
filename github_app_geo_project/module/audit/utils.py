@@ -310,6 +310,10 @@ async def _snyk_test(
     fixable_vulnerabilities_summary: dict[str, str] = {}
     fixable_files_npm: dict[str, set[str]] = {}
     for row in test_json:
+        if "error" in row:
+            _LOGGER.error(row["error"])
+            continue
+
         message = module_utils.HtmlMessage(
             "\n".join(
                 [
@@ -323,8 +327,6 @@ async def _snyk_test(
         message.title = f'{row.get("summary", "Snyk test")} in {row.get("displayTargetFile", "-")}.'
         _LOGGER.info(message)
 
-        if "error" in row:
-            _LOGGER.error(row["error"])
         for vuln in row.get("vulnerabilities", []):
             fixable = vuln.get("fixedIn", []) or vuln.get("isPatchable", False)
             severity = vuln["severity"]
