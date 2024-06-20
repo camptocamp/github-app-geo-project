@@ -27,7 +27,7 @@ async def snyk(
     local_config: configuration.SnykConfiguration,
     logs_url: str,
     env: dict[str, str],
-) -> tuple[list[module_utils.Message], module_utils.Message | None, list[str], bool]:
+) -> tuple[list[module_utils.Message], module_utils.HtmlMessage | None, list[str], bool]:
     """
     Audit the code with Snyk.
 
@@ -69,7 +69,7 @@ async def snyk(
         fixable_vulnerabilities_summary,
     )
     npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result)
-    fix_message: module_utils.Message | None = None
+    fix_message: module_utils.HtmlMessage | None = None
     if snyk_fix_message is None:
         if npm_audit_fix_message:
             fix_message = module_utils.HtmlMessage(npm_audit_fix_message)
@@ -384,7 +384,7 @@ async def _snyk_fix(
     env_no_debug: dict[str, str],
     fixable_vulnerabilities: dict[str, int],
     fixable_vulnerabilities_summary: dict[str, str],
-) -> tuple[bool, module_utils.Message | None]:
+) -> tuple[bool, module_utils.HtmlMessage | None]:
     snyk_fix_success = True
     snyk_fix_message = None
     if fixable_vulnerabilities:
