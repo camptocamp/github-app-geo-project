@@ -81,6 +81,10 @@ async def snyk(
             fix_message.html = f"{fix_message.html}<br>\n<br>\n{npm_audit_fix_message}"
     fix_success = snyk_fix_success and npm_audit_fix_success
 
+    high_vulnerabilities, fixable_vulnerabilities, fixable_vulnerabilities_summary, fixable_files_npm = (
+        await _snyk_test(branch, config, local_config, result, env_no_debug)
+    )
+
     return_message = [
         *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
         *[
