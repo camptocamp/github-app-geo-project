@@ -81,9 +81,13 @@ async def snyk(
             fix_message.html = f"{fix_message.html}<br>\n<br>\n{npm_audit_fix_message}"
     fix_success = snyk_fix_success and npm_audit_fix_success
 
-    high_vulnerabilities, fixable_vulnerabilities, fixable_vulnerabilities_summary, fixable_files_npm = (
-        await _snyk_test(branch, config, local_config, result, env_no_debug)
+    diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        ["git", "diff", "--quiet"], timeout=30
     )
+    if diff_proc.returncode != 0:
+        high_vulnerabilities, fixable_vulnerabilities, fixable_vulnerabilities_summary, fixable_files_npm = (
+            await _snyk_test(branch, config, local_config, result, env_no_debug)
+        )
 
     return_message = [
         *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
