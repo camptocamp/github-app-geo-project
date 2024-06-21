@@ -20,7 +20,7 @@ import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
 import github
 import plaster
-import prometheus_client
+import prometheus_client.exposition
 import sentry_sdk
 import sqlalchemy.orm
 from prometheus_client import Gauge, Info
@@ -31,6 +31,7 @@ from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
+_LOGGER_WSGI = logging.getLogger("prometheus_client.wsgi")
 
 _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
 _JOBS = Info("ghci_jobs", "Running jobs")
@@ -885,6 +886,15 @@ async def _async_main() -> None:
         sys.exit(0)
 
     if not args.exit_when_empty and "C2C_PROMETHEUS_PORT" in os.environ:
+
+        class LogHandler(prometheus_client.exposition._SilentHandler):  # pylint: disable=protected-access
+            """WSGI handler that does not log requests."""
+
+            def log_message(self, *args: Any) -> None:
+                _LOGGER_WSGI.debug(*args)
+
+        prometheus_client.exposition._SilentHandler = LogHandler  # type: ignore[misc] # pylint: disable=protected-access
+
         prometheus_client.start_http_server(int(os.environ["C2C_PROMETHEUS_PORT"]))
 
     priority_groups = [int(e) for e in os.environ.get("GHCI_PRIORITY_GROUPS", "2147483647").split(",")]
