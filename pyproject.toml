@@ -38,6 +38,7 @@ classifiers = [
 [tool.poetry.scripts]
 process-queue = "github_app_geo_project.scripts.process_queue:main"
 send-event = "github_app_geo_project.scripts.send_event:main"
+health-check = "github_app_geo_project.scripts.health_check:main"
 
 [tool.poetry.plugins."paste.app_factory"]
 main = "github_app_geo_project.server:main"
