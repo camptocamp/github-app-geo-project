@@ -400,6 +400,8 @@ async def _snyk_fix(
     snyk_fix_success = True
     snyk_fix_message = None
     if fixable_vulnerabilities:
+        subprocess.run(["git", "reset", "--hard"], timeout=30)  # nosec # pylint: disable=subprocess-run-check
+
         command = [
             "snyk",
             "fix",
