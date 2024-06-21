@@ -243,6 +243,11 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 version_status.dependencies_by_datasource.clear()
                 transversal_status = context.transversal_status
 
+                message = module_utils.HtmlMessage(
+                    utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
+                )
+                message.title = "Names cleaned:"
+
                 _get_names(
                     context,
                     version_status.names_by_datasource,
