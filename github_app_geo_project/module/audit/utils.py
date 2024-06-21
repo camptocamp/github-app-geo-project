@@ -296,7 +296,7 @@ async def _snyk_test(
         result.append(message)
 
     if test_json_str:
-        message = module_utils.HtmlMessage(utils.format_json_str(test_json_str))
+        message = module_utils.HtmlMessage(utils.format_json_str(test_json_str[:2000]))
         message.title = "Snyk test JSON output"
         _LOGGER.debug(message)
     else:
