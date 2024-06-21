@@ -158,21 +158,6 @@ async def _process_snyk_dpkg(
         key = f"Dpkg {context.module_event_data.version}"
     try:
         branch: str = cast(str, context.module_event_data.version)
-        if os.path.exists("ci/config.yaml"):
-            with open("ci/config.yaml", encoding="utf-8") as file:
-                ci_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
-            if "branch_to_version_re" in ci_config.get("version", {}):
-                branch_to_version_re = c2cciutils.compile_re(ci_config["version"]["branch-to-version-re"])
-
-                repo = context.github_project.repo
-                _LOGGER.debug("Find the branch name")
-                for github_branch in repo.get_branches():
-                    matched, conf, value = c2cciutils.match(github_branch.name, branch_to_version_re)
-                    version = c2cciutils.substitute(matched, conf, value)
-                    if version == branch:
-                        branch = github_branch.name
-                        break
-                _LOGGER.debug("Branch name: %s", branch)
 
         async with module_utils.WORKING_DIRECTORY_LOCK:
             # Checkout the right branch on a temporary directory
