@@ -29,7 +29,6 @@ _OUTDATED = "Outdated version"
 
 class _TransversalStatusTool(BaseModel):
     title: str
-    url: str | None = None
 
 
 class _TransversalStatusRepo(BaseModel):
@@ -95,7 +94,6 @@ def _process_error(
             _TransversalStatusRepo(),
         ).types[key] = _TransversalStatusTool(
             title=f"{key}: {message}" if message else key,
-            url=output_url,
         )
         issue_check.set_title(
             key, f"{key}: {message} ([Error]({output_url}))" if message else f"{key} ([Error]({output_url}))"
@@ -210,10 +208,12 @@ async def _process_snyk_dpkg(
                     message.title = "Output URL"
                     _LOGGER.debug(message)
                     if output_url is not None:
-                        short_message.append(f"[See also]({output_url})")
+                        short_message.append(f"[Output]({output_url})")
                     if body is not None:
                         body.html += f"\n\n[See output]({output_url})"
                         body.html += f"\n\n[See logs]({logs_url})"
+
+                    short_message.append(f"[Logs]({logs_url})")
 
                 if context.module_event_data.type == "dpkg":
                     body = module_utils.HtmlMessage("Update dpkg packages")
@@ -260,6 +260,8 @@ async def _process_snyk_dpkg(
                         else:
                             if pull_request is not None:
                                 issue_check.set_title(key, f"{key} ([Pull request]({pull_request.html_url}))")
+                                short_message.append(f"[Pull request]({pull_request.html_url})")
+
                 else:
                     _LOGGER.debug("No changes to commit")
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
