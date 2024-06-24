@@ -231,64 +231,65 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             assert context.module_event_data.version is not None
             version = context.module_event_data.version
             branch = context.module_config.get("version-mapping", {}).get(version, version)
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                if os.environ.get("TEST") != "TRUE":
-                    os.chdir(tmpdirname)
-                    success = module_utils.git_clone(context.github_project, branch)
-                    if not success:
-                        raise VersionException("Failed to clone the repository")
+            async with module_utils.WORKING_DIRECTORY_LOCK:
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    if os.environ.get("TEST") != "TRUE":
+                        os.chdir(tmpdirname)
+                        success = module_utils.git_clone(context.github_project, branch)
+                        if not success:
+                            raise VersionException("Failed to clone the repository")
 
-                version_status = status.versions[version]
-                version_status.names_by_datasource.clear()
-                version_status.dependencies_by_datasource.clear()
-                transversal_status = context.transversal_status
+                    version_status = status.versions[version]
+                    version_status.names_by_datasource.clear()
+                    version_status.dependencies_by_datasource.clear()
+                    transversal_status = context.transversal_status
 
-                message = module_utils.HtmlMessage(
-                    utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
-                )
-                message.title = "Names cleaned:"
-
-                _get_names(
-                    context,
-                    version_status.names_by_datasource,
-                    version,
-                    alternate_versions=context.module_event_data.alternate_versions,
-                )
-                message = module_utils.HtmlMessage(
-                    utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
-                )
-                message.title = "Names:"
-                _LOGGER.debug(message)
-                _get_dependencies(context, version_status.dependencies_by_datasource)
-                message = module_utils.HtmlMessage(
-                    utils.format_json(
-                        json.loads(version_status.model_dump_json())["dependencies_by_datasource"]
+                    message = module_utils.HtmlMessage(
+                        utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
                     )
-                )
-                message.title = "Dependencies:"
-                _LOGGER.debug(message)
+                    message.title = "Names cleaned:"
 
-                message = module_utils.HtmlMessage(
-                    utils.format_json_str(
-                        transversal_status.repositories[
-                            f"{context.github_project.owner}/{context.github_project.repository}"
-                        ]
-                        .versions[version]
-                        .model_dump_json(indent=2)
+                    _get_names(
+                        context,
+                        version_status.names_by_datasource,
+                        version,
+                        alternate_versions=context.module_event_data.alternate_versions,
                     )
-                )
-                message.title = f"Version ({version}):"
-                _LOGGER.debug(message)
+                    message = module_utils.HtmlMessage(
+                        utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
+                    )
+                    message.title = "Names:"
+                    _LOGGER.debug(message)
+                    _get_dependencies(context, version_status.dependencies_by_datasource)
+                    message = module_utils.HtmlMessage(
+                        utils.format_json(
+                            json.loads(version_status.model_dump_json())["dependencies_by_datasource"]
+                        )
+                    )
+                    message.title = "Dependencies:"
+                    _LOGGER.debug(message)
 
-                message = module_utils.HtmlMessage(
-                    utils.format_json_str(
-                        transversal_status.repositories[
-                            f"{context.github_project.owner}/{context.github_project.repository}"
-                        ].model_dump_json(indent=2)
+                    message = module_utils.HtmlMessage(
+                        utils.format_json_str(
+                            transversal_status.repositories[
+                                f"{context.github_project.owner}/{context.github_project.repository}"
+                            ]
+                            .versions[version]
+                            .model_dump_json(indent=2)
+                        )
                     )
-                )
-                message.title = "Repo:"
-                _LOGGER.debug(message)
+                    message.title = f"Version ({version}):"
+                    _LOGGER.debug(message)
+
+                    message = module_utils.HtmlMessage(
+                        utils.format_json_str(
+                            transversal_status.repositories[
+                                f"{context.github_project.owner}/{context.github_project.repository}"
+                            ].model_dump_json(indent=2)
+                        )
+                    )
+                    message.title = "Repo:"
+                    _LOGGER.debug(message)
 
             return ProcessOutput(transversal_status=context.transversal_status)
         raise VersionException("Invalid step")
