@@ -65,7 +65,6 @@ async def snyk(
         logs_url,
         result,
         env_no_debug,
-        fixable_vulnerabilities,
         fixable_vulnerabilities_summary,
     )
     npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result)
@@ -394,12 +393,11 @@ async def _snyk_fix(
     logs_url: str,
     result: list[module_utils.Message],
     env_no_debug: dict[str, str],
-    fixable_vulnerabilities: dict[str, int],
     fixable_vulnerabilities_summary: dict[str, str],
 ) -> tuple[bool, module_utils.HtmlMessage | None]:
     snyk_fix_success = True
     snyk_fix_message = None
-    if fixable_vulnerabilities:
+    if fixable_vulnerabilities_summary:
         subprocess.run(["git", "reset", "--hard"], timeout=30)  # nosec # pylint: disable=subprocess-run-check
 
         command = [
@@ -433,7 +431,7 @@ async def _snyk_fix(
                     ]
                 )
             )
-            message.title = f"Unable to fix {len(fixable_vulnerabilities)} vulnerabilities"
+            message.title = f"Unable to fix {len(fixable_vulnerabilities_summary)} vulnerabilities"
             _LOGGER.error(message)
 
             await module_utils.run_timeout(
