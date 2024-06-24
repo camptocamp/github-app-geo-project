@@ -397,6 +397,15 @@ async def _snyk_fix(
     env_debug: dict[str, str],
     fixable_vulnerabilities_summary: dict[str, str],
 ) -> tuple[bool, module_utils.HtmlMessage | None]:
+    await module_utils.run_timeout(
+        ["poetry", "--version"],
+        os.environ.copy(),
+        10,
+        "Poetry version",
+        "Error while getting the Poetry version",
+        "Timeout while getting the Poetry version",
+    )
+
     snyk_fix_success = True
     snyk_fix_message = None
     subprocess.run(["git", "reset", "--hard"], timeout=30)  # nosec # pylint: disable=subprocess-run-check
@@ -444,14 +453,6 @@ async def _snyk_fix(
             message.title = f"Unable to fix {len(fixable_vulnerabilities_summary)} vulnerabilities"
             _LOGGER.error(message)
 
-            await module_utils.run_timeout(
-                ["poetry", "--version"],
-                os.environ.copy(),
-                10,
-                "Poetry version",
-                "Error while getting the Poetry version",
-                "Timeout while getting the Poetry version",
-            )
     return snyk_fix_success, snyk_fix_message
 
 
