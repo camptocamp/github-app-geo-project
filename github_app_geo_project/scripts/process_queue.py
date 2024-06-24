@@ -34,7 +34,6 @@ _LOGGER = logging.getLogger(__name__)
 _LOGGER_WSGI = logging.getLogger("prometheus_client.wsgi")
 
 _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
-_JOBS = Info("ghci_jobs", "Running jobs")
 
 
 class _JobInfo(NamedTuple):
@@ -810,14 +809,10 @@ class _PrometheusWatch:
                     _NB_JOBS.labels(status.name).set(
                         session.query(models.Queue).filter(models.Queue.status == status).count()
                     )
-            info = {}
             text = []
             for id_, job in _RUNNING_JOBS.items():
                 text.append(
                     f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})"
-                )
-                info[f"job-id-{id_}"] = (
-                    f"{job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})"
                 )
             try:
                 for task in asyncio.all_tasks():
@@ -825,10 +820,8 @@ class _PrometheusWatch:
                     task.print_stack(file=txt)
                     text.append("-" * 30)
                     text.append(txt.getvalue())
-                    info[f"task-{id(task)}"] = txt.getvalue()
             except RuntimeError as exception:
                 text.append(str(exception))
-            _JOBS.info(info)
 
             if time.time() - self.last_run > 300:
                 error_message = ["Old Status"]
