@@ -552,7 +552,8 @@ async def run_timeout(
             _LOGGER.warning(message)
             return None, False, message
         else:
-            raise
+            _LOGGER.exception("TimeoutError: %s", exception)
+            return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
 
 
 def has_changes(include_un_followed: bool = False) -> bool:
