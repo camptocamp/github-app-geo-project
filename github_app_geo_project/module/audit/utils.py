@@ -397,9 +397,8 @@ async def _snyk_fix(
 ) -> tuple[bool, module_utils.HtmlMessage | None]:
     snyk_fix_success = True
     snyk_fix_message = None
+    subprocess.run(["git", "reset", "--hard"], timeout=30)  # nosec # pylint: disable=subprocess-run-check
     if fixable_vulnerabilities_summary:
-        subprocess.run(["git", "reset", "--hard"], timeout=30)  # nosec # pylint: disable=subprocess-run-check
-
         command = [
             "snyk",
             "fix",
