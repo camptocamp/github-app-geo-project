@@ -65,6 +65,7 @@ async def snyk(
         logs_url,
         result,
         env_no_debug,
+        env,
         fixable_vulnerabilities_summary,
     )
     npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result)
@@ -393,6 +394,7 @@ async def _snyk_fix(
     logs_url: str,
     result: list[module_utils.Message],
     env_no_debug: dict[str, str],
+    env_debug: dict[str, str],
     fixable_vulnerabilities_summary: dict[str, str],
 ) -> tuple[bool, module_utils.HtmlMessage | None]:
     snyk_fix_success = True
@@ -419,6 +421,15 @@ async def _snyk_fix(
         if fix_message:
             snyk_fix_message = module_utils.AnsiMessage(fix_message.strip())
         if not snyk_fix_success:
+            await module_utils.run_timeout(
+                command,
+                env_debug,
+                int(os.environ.get("GHCI_SNYK_FIX_TIMEOUT", os.environ.get("GHCI_SNYK_TIMEOUT", "300"))),
+                "Snyk fix (debug)",
+                "Error while fixing the project (debug)",
+                "Timeout while fixing the project (debug)",
+            )
+
             cwd = module_utils.get_cwd()
             project = "-" if cwd is None else os.path.basename(cwd)
             message = module_utils.HtmlMessage(
