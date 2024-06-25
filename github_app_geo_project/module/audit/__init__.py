@@ -107,7 +107,7 @@ def _process_error(
         ] = _TransversalStatusTool(title=f"{key}: {message}")
         issue_check.set_title(key, f"{key}: {message}")
     else:
-        issue_check.set_title(key, key)
+        issue_check.set_title(key, f"{key}: everything is fine")
 
         if (
             full_repo in context.transversal_status.repositories
@@ -207,12 +207,14 @@ async def _process_snyk_dpkg(
                     )
                     message.title = "Output URL"
                     _LOGGER.debug(message)
+                    if body is not None:
+                        body.html += "\n"
                     if output_url is not None:
                         short_message.append(f"[Output]({output_url})")
+                        if body is not None:
+                            body.html += f"\n<a href='{output_url}'>Output</a>"
                     if body is not None:
-                        body.html += f"\n\n[See output]({output_url})"
-                        body.html += f"\n\n[See logs]({logs_url})"
-
+                        body.html += f"\n<a href='{logs_url}'>Logs</a>"
                     short_message.append(f"[Logs]({logs_url})")
 
                 if context.module_event_data.type == "dpkg":

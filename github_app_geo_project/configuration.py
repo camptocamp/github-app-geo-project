@@ -106,13 +106,12 @@ def get_github_project(
     """Get the Github Application by name."""
     objects = get_github_application(config, application) if isinstance(application, str) else application
 
-    token = objects.integration.get_access_token(
-        objects.integration.get_installation(owner, repository).id
-    ).token
-    github_application = github.Github(login_or_token=token)
+    token = objects.integration.get_access_token(objects.integration.get_installation(owner, repository).id)
+    _LOGGER.debug("Generate token for %s/%s that expire at: %s", owner, repository, token.expires_at)
+    github_application = github.Github(login_or_token=token.token)
     repo = github_application.get_repo(f"{owner}/{repository}")
 
-    return GithubProject(objects, token, github_application, owner, repository, repo)
+    return GithubProject(objects, token.token, github_application, owner, repository, repo)
 
 
 def get_configuration(
