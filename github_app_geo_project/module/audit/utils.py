@@ -169,7 +169,7 @@ async def _install_pipenv_dependencies(
             _, _, proc_message = await module_utils.run_timeout(
                 [
                     "pipenv",
-                    "install",
+                    "sync",
                     *local_config.get("pipenv-sync-arguments", config.get("pipenv-sync-arguments", [])),
                 ],
                 env,
