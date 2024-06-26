@@ -44,6 +44,14 @@ async def snyk(
     _LOGGER.debug("Updated path: %s", env["PATH"])
 
     await _install_requirements_dependencies(config, local_config, result, env)
+
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
+        ["pip", "freeze"], timeout=30, capture_output=True, encoding="utf-8"
+    )  # nosec
+    message = module_utils.ansi_proc_message(proc)
+    message.title = "Pip freeze"
+    _LOGGER.info(message)
+
     await _install_pipenv_dependencies(config, local_config, result, env)
     await _install_poetry_dependencies(config, local_config, result, env)
 
