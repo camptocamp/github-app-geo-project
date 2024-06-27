@@ -608,6 +608,7 @@ async def dpkg(
                     continue
                 if versions[package_full] is None or versions[package_full] == "None":
                     versions[package_full] = version
+                    continue
                 try:
                     current_version = debian_inspector.version.Version.from_string(versions[package_full])
                 except ValueError as exception:
