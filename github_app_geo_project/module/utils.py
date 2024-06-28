@@ -498,10 +498,15 @@ async def run_timeout(
     ------
     The standard output, the success, the logged message
     """
+    log_message = "Run command: %s"
+    args: list[Any] = [shlex.join(command)]
     if cwd:
-        _LOGGER.debug("Run command: %s, in %s", shlex.join(command), cwd)
-    else:
-        _LOGGER.debug("Run command: %s", shlex.join(command))
+        log_message += ", in %s"
+        args.append(cwd)
+    if timeout:
+        log_message += ", timeout %ds"
+        args.append(timeout)
+    _LOGGER.debug(log_message, *args)
     async_proc = None
     start = datetime.datetime.now()
     try:

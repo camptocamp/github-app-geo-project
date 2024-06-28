@@ -266,6 +266,17 @@ async def _process_snyk_dpkg(
 
                 else:
                     _LOGGER.debug("No changes to commit")
+
+        if short_message:
+            full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
+            transversal_message = ", ".join(short_message)
+            context.transversal_status.repositories.setdefault(
+                full_repo,
+                _TransversalStatusRepo(),
+            ).types[key] = _TransversalStatusTool(
+                title=f"{key}: {transversal_message}",
+            )
+
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
         message = module_utils.ansi_proc_message(proc_error)
         _LOGGER.exception("Audit %s process error", key)
