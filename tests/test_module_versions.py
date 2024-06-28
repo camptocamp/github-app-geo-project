@@ -289,6 +289,66 @@ def test_get_transversal_dashboard_repo_forward_docker() -> None:
     )
 
 
+def test_get_transversal_dashboard_repo_forward_docker_2() -> None:
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="27/06/2027",
+                        dependencies_by_datasource={
+                            "docker": _TransversalStatusNameInDatasource(
+                                versions_by_names={
+                                    "ghcr.io/osgeo/gdal": _TransversalStatusVersions(
+                                        versions=["ubuntu-small-3.8.5"]
+                                    ),
+                                }
+                            )
+                        },
+                    )
+                },
+            ),
+            "camptocamp/other": _TransversalStatusRepo(
+                versions={
+                    "2.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        names_by_datasource={
+                            "docker": _TransversalStatusNameByDatasource(
+                                names=[
+                                    "osgeo/gdal:ubuntu-small-3.8.5",
+                                    "ghcr.io/osgeo/gdal:ubuntu-small-3.8.5",
+                                ]
+                            )
+                        },
+                    )
+                },
+            ),
+        }
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={
+            "1.0": _Dependencies(
+                support="27/06/2027",
+                forward=[
+                    _Dependency(
+                        name="ghcr.io/osgeo/gdal",
+                        datasource="docker",
+                        version="ubuntu-small-3.8.5",
+                        support="Best effort",
+                        color="--bs-danger",
+                        repo="camptocamp/other",
+                    )
+                ],
+                reverse=[],
+            )
+        }
+    )
+
+
 def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
     versions = Versions()
     context = Mock()
