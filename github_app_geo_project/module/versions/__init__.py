@@ -728,10 +728,14 @@ def _build_internal_dependencies(
                     continue
                 dependency_package_data = dependency_data.by_package[full_dependency_name]
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
-                support = dependency_package_data.status_by_version.get(
-                    dependency_minor,
-                    "Unsupported",
-                )
+                if datasource_name == "docker":
+                    assert len(dependency_package_data.status_by_version) == 1
+                    support = list(dependency_package_data.status_by_version.values())[0]
+                else:
+                    support = dependency_package_data.status_by_version.get(
+                        dependency_minor,
+                        "Unsupported",
+                    )
                 clean_dependency_version = _clean_version(dependency_version)
                 dependencies_branch.forward.append(
                     _Dependency(
