@@ -490,11 +490,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             and event_data.get("pull_request", {}).get("state") == "closed"
             and event_data.get("pull_request", {}).get("milestone")
         ):
-            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "pull_request"})]
+            return [module.Action(priority=module.PRIORITY_CRON, data={"type": "pull_request"})]
         if event_data.get("action") == "edited" and "milestone" in event_data:
-            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "milestone"})]
+            return [module.Action(priority=module.PRIORITY_CRON, data={"type": "milestone"})]
         if event_data.get("action") in ("created", "closed") and "discussion" in event_data:
-            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "discussion"})]
+            return [module.Action(priority=module.PRIORITY_CRON, data={"type": "discussion"})]
 
         return []
 
