@@ -156,6 +156,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                                 "summary": "Failed to apply the diff, you should probably rebase your branch"
                                             },
                                         )
+                                    else:
+                                        break
                                 message.title = f"Applied the diff {artifact.name}"
                                 _LOGGER.info(message)
 
