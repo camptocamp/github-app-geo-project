@@ -149,12 +149,13 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                 if proc.returncode != 0:
                                     message.title = f"Failed to apply the diff {artifact.name}"
                                     _LOGGER.warning(message)
-                                    return module.ProcessOutput(
-                                        success=False,
-                                        output={
-                                            "summary": "Failed to apply the diff, you should probably rebase your branch"
-                                        },
-                                    )
+                                    if not should_push:
+                                        return module.ProcessOutput(
+                                            success=False,
+                                            output={
+                                                "summary": "Failed to apply the diff, you should probably rebase your branch"
+                                            },
+                                        )
                                 message.title = f"Applied the diff {artifact.name}"
                                 _LOGGER.info(message)
 
