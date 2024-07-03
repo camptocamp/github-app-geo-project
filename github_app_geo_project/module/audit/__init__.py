@@ -77,7 +77,6 @@ def _process_error(
     error_message: list[str | models.OutputData] | None = None,
     message: str | None = None,
 ) -> str | None:
-    full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
     output_url = None
     if error_message:
         logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
@@ -89,33 +88,14 @@ def _process_error(
         )
 
         output_url = urllib.parse.urljoin(context.service_url, f"output/{output_id}")
-        context.transversal_status.repositories.setdefault(
-            full_repo,
-            _TransversalStatusRepo(),
-        ).types[key] = _TransversalStatusTool(
-            title=f"{key}: {message}" if message else key,
-        )
         issue_check.set_title(
             key, f"{key}: {message} ([Error]({output_url}))" if message else f"{key} ([Error]({output_url}))"
         )
     elif message:
-        context.transversal_status.repositories.setdefault(
-            full_repo,
-            _TransversalStatusRepo(),
-        ).types[
-            key
-        ] = _TransversalStatusTool(title=f"{key}: {message}")
         issue_check.set_title(key, f"{key}: {message}")
     else:
         issue_check.set_title(key, f"{key}: everything is fine")
 
-        if (
-            full_repo in context.transversal_status.repositories
-            and key in context.transversal_status.repositories[full_repo].types
-        ):
-            del context.transversal_status.repositories[full_repo].types[key]
-            if not context.transversal_status.repositories[full_repo].types:
-                del context.transversal_status.repositories[full_repo]
     return output_url
 
 
@@ -213,17 +193,18 @@ async def _process_snyk_dpkg(
                         short_message.append(f"[Output]({output_url})")
                         if body is not None:
                             body.html += f"\n<a href='{output_url}'>Output</a>"
-                    if body is not None:
-                        body.html += f"\n<a href='{logs_url}'>Logs</a>"
-                    short_message.append(f"[Logs]({logs_url})")
 
                 if context.module_event_data.type == "dpkg":
-                    body = module_utils.HtmlMessage("Update dpkg packages")
+                    body = module_utils.HtmlMessage("Update dpkg packages\n")
 
                     if os.path.exists("ci/dpkg-versions.yaml"):
                         await audit_utils.dpkg(
                             context.module_config.get("dpkg", {}), local_config.get("dpkg", {})
                         )
+
+                if body is not None:
+                    body.html += f"\n<a href='{logs_url}'>Logs</a>"
+                short_message.append(f"[Logs]({logs_url})")
 
                 diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
                     ["git", "diff", "--quiet"], timeout=30
@@ -267,15 +248,14 @@ async def _process_snyk_dpkg(
                 else:
                     _LOGGER.debug("No changes to commit")
 
-        if short_message:
-            full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
-            transversal_message = ", ".join(short_message)
-            context.transversal_status.repositories.setdefault(
-                full_repo,
-                _TransversalStatusRepo(),
-            ).types[key] = _TransversalStatusTool(
-                title=f"{key}: {transversal_message}",
-            )
+        full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
+        transversal_message = ", ".join(short_message)
+        context.transversal_status.repositories.setdefault(
+            full_repo,
+            _TransversalStatusRepo(),
+        ).types[key] = _TransversalStatusTool(
+            title=f"{key}: {transversal_message}",
+        )
 
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
         message = module_utils.ansi_proc_message(proc_error)
@@ -475,6 +455,12 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                     else:
                         for version in versions:
                             all_key_starts.append(f"{key}{version}")
+
+                full_repository = f"{context.github_project.owner}/{context.github_project.repository}"
+                if full_repository in context.transversal_status.repositories:
+                    for key in list(context.transversal_status.repositories[full_repository].types.keys()):
+                        if key not in all_key_starts:
+                            context.transversal_status.repositories[full_repository].types.pop(key)
 
                 # Audit is relay slow than add 15 to the cron priority
                 priority = (
