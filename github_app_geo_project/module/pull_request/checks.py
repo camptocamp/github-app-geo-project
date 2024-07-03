@@ -47,7 +47,7 @@ def _get_code_spell_command(
             content = context.github_project.repo.get_contents(spell_ignore_file)
             if isinstance(content, github.ContentFile.ContentFile):
                 ignore_file.write(content.decoded_content.decode("utf-8"))
-                ignore_file.cloase()
+                ignore_file.close()
                 command.append(f"--ignore-words={ignore_file.name}")
                 break
         except github.GithubException as exc:
