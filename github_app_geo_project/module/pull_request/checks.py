@@ -44,10 +44,12 @@ def _get_code_spell_command(
         ".spell-ignore-words.txt",
     ):
         try:
-            content = context.github_project.repo.get_contents(spell_ignore_file)
+            content = context.github_project.repo.get_contents(
+                spell_ignore_file, ref=context.event_data.get("pull_request", {}).get("head", {}).get("sha")
+            )
             if isinstance(content, github.ContentFile.ContentFile):
                 ignore_file.write(content.decoded_content.decode("utf-8"))
-                ignore_file.close()
+                ignore_file.flush()
                 command.append(f"--ignore-words={ignore_file.name}")
                 break
         except github.GithubException as exc:
