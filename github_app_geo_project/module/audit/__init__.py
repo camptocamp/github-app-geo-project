@@ -152,6 +152,7 @@ async def _process_snyk_dpkg(
                         with open(".github/ghci.yaml", encoding="utf-8") as file:
                             local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
 
+                logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
                 if context.module_event_data.type == "snyk":
                     python_version = ""
                     if os.path.exists(".tool-versions"):
@@ -166,7 +167,6 @@ async def _process_snyk_dpkg(
                     else:
                         env = os.environ.copy()
 
-                    logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
                     result, body, short_message, new_success = await audit_utils.snyk(
                         branch,
                         context.module_config.get("snyk", {}),
