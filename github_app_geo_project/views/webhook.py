@@ -30,21 +30,24 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
 
     github_secret = request.registry.settings.get(f"application.{application}.github_app_webhook_secret")
     if github_secret:
-        dry_run = os.environ.get("GHCI_WEBHOOK_SECRET_DRY_RUN", "false").lower() == "true"
+        dry_run = os.environ.get("GHCI_WEBHOOK_SECRET_DRY_RUN", "false").lower() in ("true", "1", "yes", "on")
         if "X-Hub-Signature-256" not in request.headers:
             _LOGGER.error("No signature in the request")
             if not dry_run:
                 raise pyramid.httpexceptions.HTTPBadRequest("No signature in the request")
 
-        our_signature = hmac.new(
-            key=github_secret.encode("utf-8"),
-            msg=request.body,
-            digestmod=hashlib.sha256,
-        ).hexdigest()
-        if not hmac.compare_digest(our_signature, request.headers["X-Hub-Signature-256"].split("=", 1)[1]):
-            _LOGGER.error("Invalid signature in the request")
-            if not dry_run:
-                raise pyramid.httpexceptions.HTTPBadRequest("Invalid signature in the request")
+        else:
+            our_signature = hmac.new(
+                key=github_secret.encode("utf-8"),
+                msg=request.body,
+                digestmod=hashlib.sha256,
+            ).hexdigest()
+            if not hmac.compare_digest(
+                our_signature, request.headers["X-Hub-Signature-256"].split("=", 1)[-1]
+            ):
+                _LOGGER.error("Invalid signature in the request")
+                if not dry_run:
+                    raise pyramid.httpexceptions.HTTPBadRequest("Invalid signature in the request")
 
     _LOGGER.debug(
         "Webhook received for %s on %s", request.headers.get("X-GitHub-Event", "undefined"), application
