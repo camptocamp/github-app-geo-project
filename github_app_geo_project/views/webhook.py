@@ -37,7 +37,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 raise pyramid.httpexceptions.HTTPBadRequest("No signature in the request")
 
         our_signature = hmac.new(
-            key=os.environ["GITHUB_SECRET"].encode("utf-8"),
+            key=github_secret.encode("utf-8"),
             msg=request.body,
             digestmod=hashlib.sha256,
         ).hexdigest()
