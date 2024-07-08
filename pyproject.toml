@@ -77,6 +77,7 @@ responses = "0.25.2"
 pytest-asyncio = "0.23.7"
 cryptography = "42.0.8"
 urllib3 = "2.2.2"
+certifi = "2024.7.4"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.0.8",  extras = ["test-images"] }
