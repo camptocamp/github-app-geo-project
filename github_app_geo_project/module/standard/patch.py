@@ -139,7 +139,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                 result_message.extend(["```diff", patch_input, "```"])
                             else:
                                 proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
-                                    ["patch", "--strip=1"],
+                                    ["git", "apply"],
                                     input=patch_input,
                                     encoding="utf-8",
                                     capture_output=True,

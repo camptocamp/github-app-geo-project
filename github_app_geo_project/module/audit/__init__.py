@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import os.path
+import shutil
 import subprocess  # nosec
 import tempfile
 import urllib.parse
@@ -297,6 +298,9 @@ def _use_python_version(python_version: str) -> dict[str, str]:
     message = module_utils.ansi_proc_message(proc)
     message.title = "Python version"
     _LOGGER.debug(message)
+
+    # Cleanup the packages
+    shutil.rmtree(f"/var/www/.local/lib/python{python_version}", ignore_errors=True)
 
     return env
 

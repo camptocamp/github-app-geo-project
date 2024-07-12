@@ -62,9 +62,13 @@ async def snyk(
 
     await _snyk_monitor(branch, config, local_config, result, env)
 
-    high_vulnerabilities, fixable_vulnerabilities, fixable_vulnerabilities_summary, fixable_files_npm = (
-        await _snyk_test(branch, config, local_config, result, env_no_debug)
-    )
+    (
+        high_vulnerabilities,
+        fixable_vulnerabilities,
+        fixable_vulnerabilities_summary,
+        fixable_files_npm,
+        vulnerabilities_in_requirements,
+    ) = await _snyk_test(branch, config, local_config, result, env_no_debug)
 
     snyk_fix_success, snyk_fix_message = await _snyk_fix(
         branch,
@@ -75,6 +79,7 @@ async def snyk(
         env_no_debug,
         env,
         fixable_vulnerabilities_summary,
+        vulnerabilities_in_requirements,
     )
     npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result)
     fix_message: module_utils.HtmlMessage | None = None
@@ -93,9 +98,13 @@ async def snyk(
         ["git", "diff", "--quiet"], timeout=30
     )
     if diff_proc.returncode != 0:
-        high_vulnerabilities, fixable_vulnerabilities, fixable_vulnerabilities_summary, fixable_files_npm = (
-            await _snyk_test(branch, config, local_config, result, env_no_debug)
-        )
+        (
+            high_vulnerabilities,
+            fixable_vulnerabilities,
+            fixable_vulnerabilities_summary,
+            fixable_files_npm,
+            vulnerabilities_in_requirements,
+        ) = await _snyk_test(branch, config, local_config, result, env_no_debug)
 
     return_message = [
         *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
@@ -287,7 +296,7 @@ async def _snyk_test(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env_no_debug: dict[str, str],
-) -> tuple[dict[str, int], dict[str, int], dict[str, str], dict[str, set[str]]]:
+) -> tuple[dict[str, int], dict[str, int], dict[str, str], dict[str, set[str]], bool]:
     command = [
         "snyk",
         "test",
@@ -326,6 +335,7 @@ async def _snyk_test(
     fixable_vulnerabilities: dict[str, int] = {}
     fixable_vulnerabilities_summary: dict[str, str] = {}
     fixable_files_npm: dict[str, set[str]] = {}
+    vulnerabilities_in_requirements = False
     for row in test_json:
         if "error" in row:
             _LOGGER.error(row["error"])
@@ -343,6 +353,8 @@ async def _snyk_test(
         )
         message.title = f'{row.get("summary", "Snyk test")} in {row.get("displayTargetFile", "-")}.'
         _LOGGER.info(message)
+
+        package_manager = row.get("packageManager")
 
         for vuln in row.get("vulnerabilities", []):
             fixable = vuln.get("fixedIn", []) or vuln.get("isPatchable", False)
@@ -376,6 +388,8 @@ async def _snyk_test(
                 fixable_vulnerabilities_summary[vuln["id"]] = title
                 if vuln.get("packageManager") == "npm":
                     fixable_files_npm.setdefault(row.get("displayTargetFile"), set()).add(title)
+            elif package_manager == "pip":
+                vulnerabilities_in_requirements = True
             message = module_utils.HtmlMessage(
                 "<br>\n".join(
                     [
@@ -392,7 +406,13 @@ async def _snyk_test(
             _LOGGER.warning(message)
             result.append(message)
     _LOGGER.debug("End parsing the vulnerabilities")
-    return high_vulnerabilities, fixable_vulnerabilities, fixable_vulnerabilities_summary, fixable_files_npm
+    return (
+        high_vulnerabilities,
+        fixable_vulnerabilities,
+        fixable_vulnerabilities_summary,
+        fixable_files_npm,
+        vulnerabilities_in_requirements,
+    )
 
 
 async def _snyk_fix(
@@ -404,6 +424,7 @@ async def _snyk_fix(
     env_no_debug: dict[str, str],
     env_debug: dict[str, str],
     fixable_vulnerabilities_summary: dict[str, str],
+    vulnerabilities_in_requirements: bool,
 ) -> tuple[bool, module_utils.HtmlMessage | None]:
     await module_utils.run_timeout(
         ["poetry", "--version"],
@@ -417,7 +438,7 @@ async def _snyk_fix(
     snyk_fix_success = True
     snyk_fix_message = None
     subprocess.run(["git", "reset", "--hard"], timeout=30)  # nosec # pylint: disable=subprocess-run-check
-    if fixable_vulnerabilities_summary:
+    if fixable_vulnerabilities_summary or vulnerabilities_in_requirements:
         command = [
             "snyk",
             "fix",
