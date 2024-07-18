@@ -93,8 +93,8 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libcap-ng0: 0.8.4-2build2
   ubuntu_24_04/libcap2: 1:2.66-5ubuntu2
   ubuntu_24_04/libcc1-0: 14-20240412-0ubuntu1
-  ubuntu_24_04/libcdt5: 2.42.2-9build1
-  ubuntu_24_04/libcgraph6: 2.42.2-9build1
+  ubuntu_24_04/libcdt5: 2.42.2-9ubuntu0.1
+  ubuntu_24_04/libcgraph6: 2.42.2-9ubuntu0.1
   ubuntu_24_04/libcom-err2: 1.47.0-2.4~exp1ubuntu4
   ubuntu_24_04/libcrypt-dev: 1:4.4.36-4build1
   ubuntu_24_04/libcrypt1: 1:4.4.36-4build1
@@ -145,14 +145,14 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libgpg-error0: 1.47-3build2
   ubuntu_24_04/libgprofng0: 2.42-4ubuntu2
   ubuntu_24_04/libgraphite2-3: 1.3.14-2build1
-  ubuntu_24_04/libgraphviz-dev: 2.42.2-9build1
+  ubuntu_24_04/libgraphviz-dev: 2.42.2-9ubuntu0.1
   ubuntu_24_04/libgssapi-krb5-2: 1.20.1-6ubuntu2
   ubuntu_24_04/libgtk2.0-0t64: 2.24.33-4ubuntu1.1
   ubuntu_24_04/libgtk2.0-common: 2.24.33-4ubuntu1.1
   ubuntu_24_04/libgts-0.7-5t64: 0.7.6+darcs121130-5.2build1
-  ubuntu_24_04/libgvc6: 2.42.2-9build1
-  ubuntu_24_04/libgvc6-plugins-gtk: 2.42.2-9build1
-  ubuntu_24_04/libgvpr2: 2.42.2-9build1
+  ubuntu_24_04/libgvc6: 2.42.2-9ubuntu0.1
+  ubuntu_24_04/libgvc6-plugins-gtk: 2.42.2-9ubuntu0.1
+  ubuntu_24_04/libgvpr2: 2.42.2-9ubuntu0.1
   ubuntu_24_04/libharfbuzz0b: 8.3.0-2build2
   ubuntu_24_04/libheif-plugin-aomdec: 1.17.6-1ubuntu4
   ubuntu_24_04/libheif-plugin-libde265: 1.17.6-1ubuntu4
@@ -183,7 +183,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libkrb5-3: 1.20.1-6ubuntu2
   ubuntu_24_04/libkrb5support0: 1.20.1-6ubuntu2
   ubuntu_24_04/libksba8: 1.6.6-1build1
-  ubuntu_24_04/liblab-gamut1: 2.42.2-9build1
+  ubuntu_24_04/liblab-gamut1: 2.42.2-9ubuntu0.1
   ubuntu_24_04/libldap2: 2.6.7+dfsg-1~exp1ubuntu8
   ubuntu_24_04/liblerc-dev: 4.0.0+ds-4ubuntu2
   ubuntu_24_04/liblerc4: 4.0.0+ds-4ubuntu2
@@ -216,7 +216,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libpango-1.0-0: 1.52.1+ds-1build1
   ubuntu_24_04/libpangocairo-1.0-0: 1.52.1+ds-1build1
   ubuntu_24_04/libpangoft2-1.0-0: 1.52.1+ds-1build1
-  ubuntu_24_04/libpathplan4: 2.42.2-9build1
+  ubuntu_24_04/libpathplan4: 2.42.2-9ubuntu0.1
   ubuntu_24_04/libpcre2-16-0: 10.42-4ubuntu2
   ubuntu_24_04/libpcre2-32-0: 10.42-4ubuntu2
   ubuntu_24_04/libpcre2-8-0: 10.42-4ubuntu2
@@ -302,7 +302,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libxdamage1: 1:1.1.6-1build1
   ubuntu_24_04/libxdmcp-dev: 1:1.1.3-0ubuntu6
   ubuntu_24_04/libxdmcp6: 1:1.1.3-0ubuntu6
-  ubuntu_24_04/libxdot4: 2.42.2-9build1
+  ubuntu_24_04/libxdot4: 2.42.2-9ubuntu0.1
   ubuntu_24_04/libxext-dev: 2:1.3.4-1build2
   ubuntu_24_04/libxext6: 2:1.3.4-1build2
   ubuntu_24_04/libxfixes3: 1:6.0.0-2build1
