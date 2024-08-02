@@ -44,7 +44,7 @@ class GithubApplicationProjectConfiguration(TypedDict, total=False):
     """
 
 
-MODULE_ENABLED5185_DEFAULT = True
+MODULE_ENABLED8624_DEFAULT = True
 """ Default value of the field path 'Example enabled' """
 
 
