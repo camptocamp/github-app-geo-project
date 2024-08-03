@@ -222,7 +222,7 @@ PIPENV_SYNC_ARGUMENTS_DEFAULT: list[Any] = []
 """ Default value of the field path 'Snyk configuration pipenv-sync-arguments' """
 
 
-PIP_INSTALL_ARGUMENTS6862_DEFAULT: list[Any] = []
+PIP_INSTALL_ARGUMENTS6064_DEFAULT: list[Any] = []
 """ Default value of the field path 'Snyk configuration poetry-install-arguments' """
 
 
