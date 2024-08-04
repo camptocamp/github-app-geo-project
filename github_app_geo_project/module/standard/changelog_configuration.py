@@ -12,39 +12,39 @@ CREATE_RELEASE_DEFAULT = True
 """ Default value of the field path 'Changelog create-release' """
 
 
-# Changelog.
-#
-# The changelog generation configuration
+# | Changelog.
+# |
+# | The changelog generation configuration
 Changelog = TypedDict(
     "Changelog",
     {
-        # Create labels.
-        #
-        # Automatically create the labels used in the changelog configuration
-        #
-        # default: False
+        # | Create labels.
+        # |
+        # | Automatically create the labels used in the changelog configuration
+        # |
+        # | default: False
         "create-labels": bool,
-        # Create release.
-        #
-        # Create a release based on the tag
-        #
-        # default: True
+        # | Create release.
+        # |
+        # | Create a release based on the tag
+        # |
+        # | default: True
         "create-release": bool,
-        # Changelog labels configuration.
-        #
-        # The labels configuration
+        # | Changelog labels configuration.
+        # |
+        # | The labels configuration
         "labels": dict[str, "ChangelogLabelConfiguration"],
-        # Changelog sections configuration.
-        #
-        # The sections configuration
+        # | Changelog sections configuration.
+        # |
+        # | The sections configuration
         "sections": list["Section"],
-        # Changelog default section.
-        #
-        # The default section for items
+        # | Changelog default section.
+        # |
+        # | The default section for items
         "default-section": str,
-        # Routing.
-        #
-        # The routing configuration
+        # | Routing.
+        # |
+        # | The routing configuration
         "routing": list["ChangelogRoutingConfiguration"],
     },
     total=False,

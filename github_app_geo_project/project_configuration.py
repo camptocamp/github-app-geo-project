@@ -4,21 +4,21 @@ Automatically generated file from a JSON schema.
 
 from typing import TypedDict
 
-# Example.
-#
-# An example of a module properties
+# | Example.
+# |
+# | An example of a module properties
 Example = TypedDict(
     "Example",
     {
-        # Module enabled.
-        #
-        # Enable the module
-        #
-        # default: True
+        # | Module enabled.
+        # |
+        # | Enable the module
+        # |
+        # | default: True
         "enabled": bool,
-        # Example property.
-        #
-        # An example property
+        # | Example property.
+        # |
+        # | An example property
         "example-property": str,
     },
     total=False,
@@ -44,8 +44,12 @@ class GithubApplicationProjectConfiguration(TypedDict, total=False):
     """
 
 
-MODULE_ENABLED_DEFAULT = True
+MODULE_ENABLED3948_DEFAULT = True
 """ Default value of the field path 'Example enabled' """
+
+
+MODULE_ENABLED_DEFAULT = True
+""" Default value of the field path 'Module configuration enabled' """
 
 
 class ModuleConfiguration(TypedDict, total=False):
