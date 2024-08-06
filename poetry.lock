@@ -32,13 +32,13 @@ files = [
 
 [[package]]
 name = "ansi2html"
-version = "1.9.1"
+version = "1.9.2"
 description = "Convert text with ANSI color codes to HTML or to LaTeX"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "ansi2html-1.9.1-py3-none-any.whl", hash = "sha256:29ccdb1e83520d648ebdc9c9544059ea4d424ecc33d3ef723657f7f5a9ae5225"},
-    {file = "ansi2html-1.9.1.tar.gz", hash = "sha256:5c6837a13ecc1903aab7a545353312049dfedfe5105362ad3a8d9d207871ec71"},
+    {file = "ansi2html-1.9.2-py3-none-any.whl", hash = "sha256:dccb75aa95fb018e5d299be2b45f802952377abfdce0504c17a6ee6ef0a420c5"},
+    {file = "ansi2html-1.9.2.tar.gz", hash = "sha256:3453bf87535d37b827b05245faaa756dbab4ec3d69925e352b6319c3c955c0a5"},
 ]
 
 [package.extras]
@@ -176,20 +176,22 @@ virtualenv = ["virtualenv (>=20.0.35)"]
 
 [[package]]
 name = "c2cciutils"
-version = "1.6.21"
+version = "1.6.22"
 description = "Common utilities for Camptocamp CI"
 optional = false
 python-versions = "<4.0,>=3.9"
 files = [
-    {file = "c2cciutils-1.6.21-py3-none-any.whl", hash = "sha256:69ad85294ce958fefd4ab036c874a0aa025bca947300c78a3801883767770766"},
-    {file = "c2cciutils-1.6.21.tar.gz", hash = "sha256:7adfb854e57a9c445c14cb0b649c97ecbdff20b5a15db48cc50920974f13b594"},
+    {file = "c2cciutils-1.6.22-py3-none-any.whl", hash = "sha256:b0e68cedea117ff42637e6a23aa1dd26bc512631de0a4a5130c80b36450e99e5"},
+    {file = "c2cciutils-1.6.22.tar.gz", hash = "sha256:d371d8b40715bb291e458874ee6915ca3ba97d59fe270ffb990e5c4588083e51"},
 ]
 
 [package.dependencies]
+certifi = "*"
 cryptography = "*"
 debian-inspector = ">=31.0.0,<32.0.0"
 defusedxml = ">=0.0.0,<1.0.0"
 idna = ">=3.0,<4.0"
+importlib-metadata = ">=6.0.0,<7.0.0"
 Markdown = ">=3.0.0,<4.0.0"
 markdown-table = ">=2020.0.0,<2021.0.0"
 python-magic = ">=0.0.0,<1.0.0"
@@ -198,6 +200,7 @@ requests = ">=2.0.0,<3.0.0"
 "ruamel.yaml" = ">=0.0.0,<1.0.0"
 toml = ">=0.0.0,<1.0.0"
 urllib3 = ">=2.0.0,<3.0.0"
+zipp = ">=3.0.0,<4.0.0"
 
 [package.extras]
 pr-checks = ["codespell (==2.2.6)"]
@@ -880,22 +883,22 @@ tifffile = ["tifffile"]
 
 [[package]]
 name = "importlib-metadata"
-version = "7.1.0"
+version = "6.11.0"
 description = "Read metadata from Python packages"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "importlib_metadata-7.1.0-py3-none-any.whl", hash = "sha256:30962b96c0c223483ed6cc7280e7f0199feb01a0e40cfae4d4450fc6fab1f570"},
-    {file = "importlib_metadata-7.1.0.tar.gz", hash = "sha256:b78938b926ee8d5f020fc4772d487045805a55ddbad2ecf21c6d60938dc7fcd2"},
+    {file = "importlib_metadata-6.11.0-py3-none-any.whl", hash = "sha256:f0afba6205ad8f8947c7d338b5342d5db2afbfd82f9cbef7879a9539cc12eb9b"},
+    {file = "importlib_metadata-6.11.0.tar.gz", hash = "sha256:1231cf92d825c9e03cfc4da076a16de6422c863558229ea0b22b675657463443"},
 ]
 
 [package.dependencies]
 zipp = ">=0.5"
 
 [package.extras]
-docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
+docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (<7.2.5)", "sphinx (>=3.5)", "sphinx-lint"]
 perf = ["ipython"]
-testing = ["flufl.flake8", "importlib-resources (>=1.3)", "jaraco.test (>=5.4)", "packaging", "pyfakefs", "pytest (>=6)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy", "pytest-perf (>=0.9.2)", "pytest-ruff (>=0.2.1)"]
+testing = ["flufl.flake8", "importlib-resources (>=1.3)", "packaging", "pyfakefs", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-mypy (>=0.9.1)", "pytest-perf (>=0.9.2)", "pytest-ruff"]
 
 [[package]]
 name = "iniconfig"
@@ -1859,13 +1862,13 @@ files = [
 
 [[package]]
 name = "pydantic"
-version = "2.7.3"
+version = "2.7.4"
 description = "Data validation using Python type hints"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "pydantic-2.7.3-py3-none-any.whl", hash = "sha256:ea91b002777bf643bb20dd717c028ec43216b24a6001a280f83877fd2655d0b4"},
-    {file = "pydantic-2.7.3.tar.gz", hash = "sha256:c46c76a40bb1296728d7a8b99aa73dd70a48c3510111ff290034f860c99c419e"},
+    {file = "pydantic-2.7.4-py3-none-any.whl", hash = "sha256:ee8538d41ccb9c0a9ad3e0e5f07bf15ed8015b481ced539a1759d8cc89ae90d0"},
+    {file = "pydantic-2.7.4.tar.gz", hash = "sha256:0c84efd9548d545f63ac0060c1e4d39bb9b14db8b3c0652338aecc07b5adec52"},
 ]
 
 [package.dependencies]
@@ -2285,13 +2288,13 @@ dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "pygments
 
 [[package]]
 name = "pytest-asyncio"
-version = "0.23.7"
+version = "0.23.8"
 description = "Pytest support for asyncio"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "pytest_asyncio-0.23.7-py3-none-any.whl", hash = "sha256:009b48127fbe44518a547bddd25611551b0e43ccdbf1e67d12479f569832c20b"},
-    {file = "pytest_asyncio-0.23.7.tar.gz", hash = "sha256:5f5c72948f4c49e7db4f29f2521d4031f1c27f86e57b046126654083d4770268"},
+    {file = "pytest_asyncio-0.23.8-py3-none-any.whl", hash = "sha256:50265d892689a5faefb84df80819d1ecef566eb3549cf915dfb33569359d1ce2"},
+    {file = "pytest_asyncio-0.23.8.tar.gz", hash = "sha256:759b10b33a6dc61cce40a8bd5205e302978bbbcc00e279a8b61d9a6a3c82e4d3"},
 ]
 
 [package.dependencies]
@@ -2463,13 +2466,13 @@ toml = ">=0.10.2,<0.11.0"
 
 [[package]]
 name = "responses"
-version = "0.25.2"
+version = "0.25.3"
 description = "A utility library for mocking out the `requests` Python library."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "responses-0.25.2-py3-none-any.whl", hash = "sha256:b59707ea25de536d324670791ab073fafd41f3a351cec9c51cb6147089a9a30a"},
-    {file = "responses-0.25.2.tar.gz", hash = "sha256:77a61ad7e6016ed2ac00739b7efa5f35c42351d5b9b5d26bb1be87f197632487"},
+    {file = "responses-0.25.3-py3-none-any.whl", hash = "sha256:521efcbc82081ab8daa588e08f7e8a64ce79b91c39f6e62199b19159bea7dbcb"},
+    {file = "responses-0.25.3.tar.gz", hash = "sha256:617b9247abd9ae28313d57a75880422d55ec63c29d33d629697590a034358dba"},
 ]
 
 [package.dependencies]
@@ -3137,24 +3140,24 @@ files = [
 
 [[package]]
 name = "types-pyyaml"
-version = "6.0.12.20240311"
+version = "6.0.12.20240724"
 description = "Typing stubs for PyYAML"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "types-PyYAML-6.0.12.20240311.tar.gz", hash = "sha256:a9e0f0f88dc835739b0c1ca51ee90d04ca2a897a71af79de9aec5f38cb0a5342"},
-    {file = "types_PyYAML-6.0.12.20240311-py3-none-any.whl", hash = "sha256:b845b06a1c7e54b8e5b4c683043de0d9caf205e7434b3edc678ff2411979b8f6"},
+    {file = "types-PyYAML-6.0.12.20240724.tar.gz", hash = "sha256:cf7b31ae67e0c5b2919c703d2affc415485099d3fe6666a6912f040fd05cb67f"},
+    {file = "types_PyYAML-6.0.12.20240724-py3-none-any.whl", hash = "sha256:e5becec598f3aa3a2ddf671de4a75fa1c6856fbf73b2840286c9d50fae2d5d48"},
 ]
 
 [[package]]
 name = "types-requests"
-version = "2.32.0.20240602"
+version = "2.32.0.20240712"
 description = "Typing stubs for requests"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "types-requests-2.32.0.20240602.tar.gz", hash = "sha256:3f98d7bbd0dd94ebd10ff43a7fbe20c3b8528acace6d8efafef0b6a184793f06"},
-    {file = "types_requests-2.32.0.20240602-py3-none-any.whl", hash = "sha256:ed3946063ea9fbc6b5fc0c44fa279188bae42d582cb63760be6cb4b9d06c3de8"},
+    {file = "types-requests-2.32.0.20240712.tar.gz", hash = "sha256:90c079ff05e549f6bf50e02e910210b98b8ff1ebdd18e19c873cd237737c1358"},
+    {file = "types_requests-2.32.0.20240712-py3-none-any.whl", hash = "sha256:f754283e152c752e46e70942fa2a146b5bc70393522257bb85bd1ef7e019dcc3"},
 ]
 
 [package.dependencies]
@@ -3551,4 +3554,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "db61159f759b4085c77ef544d9c129bdf25a7bb2081378cedb0c07e027f43af4"
+content-hash = "55d7b0d6fb7a175a1268ba379f9c6914fb10bb02fca507cc9fb104f6f0afb7bb"
