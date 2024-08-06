@@ -599,7 +599,7 @@ async def create_commit(message: str, pre_commit_check: bool = True) -> bool:
 
 
 def create_pull_request(
-    branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
+    branch: str, new_branch: str, message: str, body: str, project: configuration.GithubProject
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
     proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -614,7 +614,7 @@ def create_pull_request(
         _LOGGER.warning(proc_message)
         return False, None
 
-    pulls = repo.get_pulls(state="open", head=f"{repo.full_name.split('/')[0]}:{new_branch}")
+    pulls = project.repo.get_pulls(state="open", head=f"{project.repo.full_name.split('/')[0]}:{new_branch}")
     if pulls.totalCount > 0:
         pull_request = pulls[0]
         _LOGGER.debug(
@@ -627,14 +627,28 @@ def create_pull_request(
         if pull_request.created_at < datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(
             days=5
         ):
-            issue = repo.create_issue(
-                title=f"Pull request {message} is open for 5 days",
-                body=f"See: #{pull_request.number}",
+            _LOGGER.warning("Pull request #%s is open for 5 days", pull_request.number)
+            title = f"Pull request {message} is open for 5 days"
+            body = f"See: #{pull_request.number}"
+            found = False
+            issues = project.repo.get_issues(
+                state="open", creator=project.application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
             )
-            _LOGGER.warning("Pull request #%s is open for 5 days: #%s", pull_request.number, issue.number)
+            if issues.totalCount > 0:
+                for candidate in issues:
+                    if title == candidate.title:
+                        candidate.create_comment("The pull request is still open.")
+                        found = True
+                        if body != candidate.body:
+                            candidate.edit(body=body)
+            if not found:
+                project.repo.create_issue(
+                    title=title,
+                    body=body,
+                )
             return False, pull_request
     else:
-        pull_request = repo.create_pull(
+        pull_request = project.repo.create_pull(
             title=message,
             body=body,
             head=new_branch,
@@ -646,7 +660,7 @@ def create_pull_request(
 
 
 async def create_commit_pull_request(
-    branch: str, new_branch: str, message: str, body: str, repo: github.Repository.Repository
+    branch: str, new_branch: str, message: str, body: str, project: configuration.GithubProject
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
     if os.path.exists(".pre-commit-config.yaml"):
@@ -664,7 +678,22 @@ async def create_commit_pull_request(
             _LOGGER.debug("pre-commit not installed")
     if not await create_commit(message):
         return False, None
-    return create_pull_request(branch, new_branch, message, body, repo)
+    return create_pull_request(branch, new_branch, message, body, project)
+
+
+def close_pull_request_issues(message: str, project: configuration.GithubProject) -> None:
+    """
+    Close the pull request issues.
+
+    If the pull request is open for 5 days, create an issue.
+    """
+    title = f"Pull request {message} is open for 5 days"
+    issues = project.repo.get_issues(
+        state="open", creator=project.application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
+    )
+    for issue in issues:
+        if title == issue.title:
+            issue.edit(state="closed")
 
 
 def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:

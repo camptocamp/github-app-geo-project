@@ -230,13 +230,12 @@ async def _process_snyk_dpkg(
                         _LOGGER.error(message)
 
                     else:
-                        repo = context.github_project.repo
                         new_success, pull_request = await module_utils.create_commit_pull_request(
                             branch,
                             new_branch,
                             f"Audit {key}",
                             "" if body is None else body.to_markdown(),
-                            repo,
+                            context.github_project,
                         )
                         success &= new_success
                         if not new_success:
@@ -248,6 +247,7 @@ async def _process_snyk_dpkg(
 
                 else:
                     _LOGGER.debug("No changes to commit")
+                    module_utils.close_pull_request_issues(f"Audit {key}", context.github_project)
 
         full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
         transversal_message = ", ".join(short_message)
