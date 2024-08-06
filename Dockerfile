@@ -163,6 +163,9 @@ RUN --mount=type=cache,target=/root/.cache \
     --mount=type=bind,from=poetry,source=/tmp,target=/poetry \
     python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements-dev.txt
 
+# hadolint ignore=DL3003
+RUN cd /usr/local/lib/python3.12/dist-packages/c2cwsgiutils/acceptance/ && npm install
+
 COPY . ./
 RUN --mount=type=cache,target=/root/.cache \
     POETRY_DYNAMIC_VERSIONING_BYPASS=0.0.0 python3 -m pip install --disable-pip-version-check --no-deps --editable=. \

@@ -85,11 +85,13 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
 
         if admin:
             try:
-                github = (
-                    configuration.get_github_application(request.registry.settings, app) if admin else None
-                )
-
                 if "TEST_APPLICATION" not in os.environ:
+                    github = (
+                        configuration.get_github_application(request.registry.settings, app)
+                        if admin
+                        else None
+                    )
+
                     github_events = set(github.integration.get_app().events)
                     # test that all events are in github_events
                     if not events.issubset(github_events):
