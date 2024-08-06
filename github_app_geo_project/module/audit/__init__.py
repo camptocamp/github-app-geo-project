@@ -247,7 +247,7 @@ async def _process_snyk_dpkg(
 
                 else:
                     _LOGGER.debug("No changes to commit")
-                    module_utils.close_pull_request_issues(f"Audit {key}", context.github_project)
+                    module_utils.close_pull_request_issues(new_branch, f"Audit {key}", context.github_project)
 
         full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
         transversal_message = ", ".join(short_message)

@@ -681,12 +681,19 @@ async def create_commit_pull_request(
     return create_pull_request(branch, new_branch, message, body, project)
 
 
-def close_pull_request_issues(message: str, project: configuration.GithubProject) -> None:
+def close_pull_request_issues(new_branch: str, message: str, project: configuration.GithubProject) -> None:
     """
-    Close the pull request issues.
+    Close the pull request, issue and delete the branch.
 
-    If the pull request is open for 5 days, create an issue.
+    The 'Pull request is open for 5 days' issue.
     """
+    pulls = project.repo.get_pulls(state="open", head=f"{project.repo.full_name.split('/')[0]}:{new_branch}")
+    if pulls.totalCount > 0:
+        pull_request = pulls[0]
+        pull_request.edit(state="closed")
+
+        project.repo.get_git_ref(f"heads/{new_branch}").delete()
+
     title = f"Pull request {message} is open for 5 days"
     issues = project.repo.get_issues(
         state="open", creator=project.application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
