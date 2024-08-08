@@ -511,14 +511,17 @@ async def run_timeout(
     start = datetime.datetime.now()
     try:
         async with asyncio.timeout(timeout):
-            async_proc = await asyncio.create_subprocess_exec(
-                *command,
-                cwd=cwd or get_cwd(),
-                env=env,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await async_proc.communicate()
+            try:
+                async_proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    cwd=cwd or get_cwd(),
+                    env=env,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await async_proc.communicate()
+            finally:
+                _LOGGER.debug("Command %s finished", shlex.join(command))
             assert async_proc.returncode is not None
             message: Message = AnsiProcessMessage(
                 command, async_proc.returncode, stdout.decode(), stderr.decode()
