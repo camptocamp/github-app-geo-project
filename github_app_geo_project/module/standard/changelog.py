@@ -489,7 +489,8 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             )
             and event_data.get("pull_request", {}).get("state") == "closed"
             and event_data.get("pull_request", {}).get("milestone")
-            and event_data.get("sender", {}).get("login") != context.github_application.name + "[bot]"
+            and event_data.get("sender", {}).get("login")
+            != context.github_application.integration.get_app().slug + "[bot]"
         ):
             return [module.Action(priority=module.PRIORITY_CRON, data={"type": "pull_request"})]
         if event_data.get("action") == "edited" and "milestone" in event_data:
