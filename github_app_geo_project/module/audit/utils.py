@@ -92,7 +92,9 @@ async def snyk(
         if npm_audit_fix_message:
             assert isinstance(fix_message, module_utils.HtmlMessage)
             fix_message.html = f"{fix_message.html}<br>\n<br>\n{npm_audit_fix_message}"
-    fix_success = snyk_fix_success and npm_audit_fix_success
+    fix_success = (
+        True if len(fixable_vulnerabilities_summary) == 0 else (snyk_fix_success and npm_audit_fix_success)
+    )
 
     diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "diff", "--quiet"], timeout=30
