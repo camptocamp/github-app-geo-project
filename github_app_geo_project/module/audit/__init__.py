@@ -188,12 +188,8 @@ async def _process_snyk_dpkg(
                     )
                     message.title = "Output URL"
                     _LOGGER.debug(message)
-                    if body is not None:
-                        body.html += "\n"
                     if output_url is not None:
                         short_message.append(f"[Output]({output_url})")
-                        if body is not None:
-                            body.html += f"\n<a href='{output_url}'>Output</a>"
 
                 if context.module_event_data.type == "dpkg":
                     body = module_utils.HtmlMessage("Update dpkg packages\n")
@@ -203,8 +199,11 @@ async def _process_snyk_dpkg(
                             context.module_config.get("dpkg", {}), local_config.get("dpkg", {})
                         )
 
-                if body is not None:
-                    body.html += f"\n<a href='{logs_url}'>Logs</a>"
+                body_md = body.to_markdown() if body is not None else ""
+                del body
+                body_md += "\n" if body_md else ""
+                body_md += f"[Logs]({logs_url})"
+                body_md += f"\n[Output]({output_url})" if output_url is not None else ""
                 short_message.append(f"[Logs]({logs_url})")
 
                 diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
@@ -234,7 +233,7 @@ async def _process_snyk_dpkg(
                             branch,
                             new_branch,
                             f"Audit {key}",
-                            "" if body is None else body.to_markdown(),
+                            body_md,
                             context.github_project,
                         )
                         success &= new_success
