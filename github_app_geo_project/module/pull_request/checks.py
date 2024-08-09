@@ -37,7 +37,7 @@ def _get_code_spell_command(
     config = context.module_config
     code_spell_config = config.get("codespell", {})
     code_spell_config = code_spell_config if isinstance(code_spell_config, dict) else {}
-    command = ["codespell"]
+    command = ["/usr/local/bin/codespell"]
     for spell_ignore_file in (
         ".github/spell-ignore-words.txt",
         "spell-ignore-words.txt",
