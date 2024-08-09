@@ -435,6 +435,7 @@ async def _snyk_fix(
         "Poetry version",
         "Error while getting the Poetry version",
         "Timeout while getting the Poetry version",
+        error=False,
     )
 
     snyk_fix_success = True

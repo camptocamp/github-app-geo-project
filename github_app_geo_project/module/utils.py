@@ -480,6 +480,7 @@ async def run_timeout(
     error_message: str,
     timeout_message: str,
     cwd: str | None = None,
+    error: bool = True,
 ) -> tuple[str | None, bool, Message | None]:
     """
     Run a command with a timeout.
@@ -493,6 +494,7 @@ async def run_timeout(
     error_message: The message on error
     timeout_message: The message on timeout
     cwd: The working directory
+    error: Set to false to don't get error log (silent mode)
 
     Return:
     ------
@@ -535,7 +537,10 @@ async def run_timeout(
                 _LOGGER.warning(message)
             return stdout.decode(), success, message
     except FileNotFoundError as exception:
-        _LOGGER.exception("%s not found: %s", command[0], exception)
+        if error:
+            _LOGGER.exception("%s not found: %s", command[0], exception)
+        else:
+            _LOGGER.warning("%s not found")
         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
             ["find", "/", "-name", command[0]],
             capture_output=True,
@@ -560,7 +565,10 @@ async def run_timeout(
             _LOGGER.warning(message)
             return None, False, message
         else:
-            _LOGGER.exception("TimeoutError: %s", exception)
+            if error:
+                _LOGGER.exception("TimeoutError for %s: %s", command[0], exception)
+            else:
+                _LOGGER.warning("TimeoutError for %s", command[0])
             return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
 
 
