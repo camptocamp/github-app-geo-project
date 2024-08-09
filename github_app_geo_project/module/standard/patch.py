@@ -55,7 +55,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
             context.event_data.get("action") == "completed"
             and context.event_data.get("workflow_run", {}).get("conclusion") == "failure"
             # Don't run on dynamic workflows like CodeQL
-            and context.event_data.get("workflow", {}).get("path", {}).startswith("dynamic/")
+            and not context.event_data.get("workflow", {}).get("path", {}).startswith("dynamic/")
         ):
             return [module.Action(priority=module.PRIORITY_STANDARD, data={})]
         return []
