@@ -175,6 +175,8 @@ async def _process_snyk_dpkg(
                         logs_url,
                         env,
                     )
+                    body_md = body.to_markdown() if body is not None else ""
+                    del body
                     success &= new_success
                     output_url = _process_error(
                         context,
@@ -190,20 +192,20 @@ async def _process_snyk_dpkg(
                     _LOGGER.debug(message)
                     if output_url is not None:
                         short_message.append(f"[Output]({output_url})")
+                        if body_md:
+                            body_md += "\n"
+                        body_md += f"[Output]({output_url})" if output_url is not None else ""
 
                 if context.module_event_data.type == "dpkg":
-                    body = module_utils.HtmlMessage("Update dpkg packages\n")
+                    body_md = "Update dpkg packages"
 
                     if os.path.exists("ci/dpkg-versions.yaml"):
                         await audit_utils.dpkg(
                             context.module_config.get("dpkg", {}), local_config.get("dpkg", {})
                         )
 
-                body_md = body.to_markdown() if body is not None else ""
-                del body
                 body_md += "\n" if body_md else ""
                 body_md += f"[Logs]({logs_url})"
-                body_md += f"\n[Output]({output_url})" if output_url is not None else ""
                 short_message.append(f"[Logs]({logs_url})")
 
                 diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
