@@ -114,7 +114,7 @@ async def snyk(
             f"{number} {severity} vulnerabilities can be fixed"
             for severity, number in fixable_vulnerabilities.items()
         ],
-        *([] if snyk_fix_success else ["Error while fixing the vulnerabilities"]),
+        *([] if fix_success else ["Error while fixing the vulnerabilities"]),
     ]
 
     return result, fix_message, return_message, fix_success
@@ -299,6 +299,24 @@ async def _snyk_test(
     result: list[module_utils.Message],
     env_no_debug: dict[str, str],
 ) -> tuple[dict[str, int], dict[str, int], dict[str, str], dict[str, set[str]], bool]:
+    # Test with human output
+    command = [
+        "snyk",
+        "test",
+        "--severity-threshold=high",
+        *local_config.get(
+            "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
+        ),
+    ]
+    await module_utils.run_timeout(
+        command,
+        env_no_debug,
+        int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+        "Snyk test (human)",
+        "Error while testing the project",
+        "Timeout while testing the project",
+    )
+
     command = [
         "snyk",
         "test",
