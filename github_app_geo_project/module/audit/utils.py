@@ -114,7 +114,7 @@ async def snyk(
             f"{number} {severity} vulnerabilities can be fixed"
             for severity, number in fixable_vulnerabilities.items()
         ],
-        *([] if snyk_fix_success else ["Error while fixing the vulnerabilities"]),
+        *([] if fix_success else ["Error while fixing the vulnerabilities"]),
     ]
 
     return result, fix_message, return_message, fix_success
