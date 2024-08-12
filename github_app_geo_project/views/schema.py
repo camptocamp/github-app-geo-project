@@ -29,15 +29,21 @@ def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
     ) as schema_file:
         schema: dict[str, Any] = json.loads(schema_file.read())
 
-    example = schema["properties"]["example"]
+    del schema["properties"]["module-configuration"]
     del schema["properties"]["example"]
 
     for module_name in module_names:
         if module_name not in modules.MODULES:
             _LOGGER.error("Unknown module %s", module_name)
             continue
-        module_schema = example.copy()
-        module_schema["allOf"] = [example["allOf"][0].copy(), modules.MODULES[module_name].get_json_schema()]
-        schema["properties"][module_name] = module_schema
+        schema["properties"][module_name] = {
+            "type": "object",
+            "title": modules.MODULES[module_name].title(),
+            "description": modules.MODULES[module_name].description(),
+            "allOf": [
+                {"$ref": "#/$defs/module-configuration"},
+                modules.MODULES[module_name].get_json_schema(),
+            ],
+        }
 
     return schema

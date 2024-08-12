@@ -23,24 +23,35 @@
       "title": "Profile",
       "description": "The profile to use for the project"
     },
+    "module-configuration": {
+      "type": "object",
+      "title": "Module configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Module enabled",
+          "description": "Enable the module",
+          "default": true
+        }
+      }
+    },
     "example": {
       "type": "object",
       "title": "Example",
       "description": "An example of a module properties",
-      "allOf": [
-        {
-          "$ref": "#/$defs/module-configuration"
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Example module enabled",
+          "description": "Enable the module",
+          "default": true
         },
-        {
-          "properties": {
-            "example-property": {
-              "type": "string",
-              "title": "Example property",
-              "description": "An example property"
-            }
-          }
+        "example-property": {
+          "type": "string",
+          "title": "Example property",
+          "description": "An example property"
         }
-      ]
+      }
     }
   }
 }
