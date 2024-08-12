@@ -395,7 +395,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/ncurses-base: 6.4+20240113-1ubuntu2
   ubuntu_24_04/ncurses-bin: 6.4+20240113-1ubuntu2
   ubuntu_24_04/netbase: '6.4'
-  ubuntu_24_04/nodejs: 18.20.4-1nodesource1
+  ubuntu_24_04/nodejs: 20.16.0-1nodesource1
   ubuntu_24_04/openjdk-21-jre: 21.0.4+7-1ubuntu2~24.04
   ubuntu_24_04/openjdk-21-jre-headless: 21.0.4+7-1ubuntu2~24.04
   ubuntu_24_04/openssl: 3.0.13-0ubuntu3.2
@@ -417,12 +417,16 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/python3-minimal: 3.12.3-0ubuntu1
   ubuntu_24_04/python3-packaging: 24.0-1
   ubuntu_24_04/python3-pip: 24.0+dfsg-1ubuntu1
+  ubuntu_24_04/python3-pip-whl: 24.0+dfsg-1ubuntu1
   ubuntu_24_04/python3-pkg-resources: 68.1.2-2ubuntu1
   ubuntu_24_04/python3-setuptools: 68.1.2-2ubuntu1
+  ubuntu_24_04/python3-setuptools-whl: 68.1.2-2ubuntu1
+  ubuntu_24_04/python3-venv: 3.12.3-0ubuntu1
   ubuntu_24_04/python3-wheel: 0.42.0-2
   ubuntu_24_04/python3.12: 3.12.3-1ubuntu0.1
   ubuntu_24_04/python3.12-dev: 3.12.3-1ubuntu0.1
   ubuntu_24_04/python3.12-minimal: 3.12.3-1ubuntu0.1
+  ubuntu_24_04/python3.12-venv: 3.12.3-1ubuntu0.1
   ubuntu_24_04/readline-common: 8.2-4build1
   ubuntu_24_04/rpcsvc-proto: 1.4.2-0ubuntu7
   ubuntu_24_04/runc: 1.1.12-0ubuntu3
