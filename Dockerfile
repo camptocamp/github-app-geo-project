@@ -1,5 +1,5 @@
 # Base of all section, install the apt packages
-FROM ubuntu:24.04 as base-all
+FROM ubuntu:24.04 AS base-all
 LABEL maintainer Camptocamp "info@camptocamp.com"
 
 # Fail on error on pipe, see: https://github.com/hadolint/hadolint/wiki/DL4006.
@@ -11,13 +11,14 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     apt-get update \
     && apt-get upgrade --assume-yes \
-    && apt-get install --assume-yes --no-install-recommends python3-pip postgresql-client docker.io libmagic1 git curl gnupg zlib1g libpq5
+    && apt-get install --assume-yes --no-install-recommends python3-pip python3-venv postgresql-client docker.io libmagic1 git curl gnupg zlib1g libpq5 \
+    && python3 -m venv /venv
 
-RUN rm -rf /usr/lib/python3.*/EXTERNALLY-MANAGED
+ENV PATH=/venv/bin:$PATH
 
 # Used to convert the locked packages by poetry to pip requirements format
 # We don't directly use `poetry install` because it force to use a virtual environment.
-FROM base-all as poetry
+FROM base-all AS poetry
 
 # Fail on error on pipe, see: https://github.com/hadolint/hadolint/wiki/DL4006.
 # Treat unset variables as an error when substituting.
@@ -37,7 +38,7 @@ RUN poetry export --output=requirements.txt \
     && poetry export --with=dev --output=requirements-dev.txt
 
 # Base, the biggest thing is to install the Python packages
-FROM base-all as base
+FROM base-all AS base
 
 # Fail on error on pipe, see: https://github.com/hadolint/hadolint/wiki/DL4006.
 # Treat unset variables as an error when substituting.
@@ -102,7 +103,7 @@ EXPOSE 8080
 WORKDIR /app/
 
 # The final part
-FROM base as runner
+FROM base AS runner
 
 ENV PATH=/pyenv/shims:/pyenv/bin:/var/www/.local/bin/:${PATH} \
     PYENV_ROOT=/pyenv
@@ -154,7 +155,7 @@ RUN mkdir -p /prometheus-metrics \
 ENV PROMETHEUS_MULTIPROC_DIR=/prometheus-metrics
 
 # Do the lint, used by the tests
-FROM base as tests
+FROM base AS tests
 
 # Fail on error on pipe, see: https://github.com/hadolint/hadolint/wiki/DL4006.
 # Treat unset variables as an error when substituting.
@@ -172,7 +173,7 @@ RUN --mount=type=cache,target=/root/.cache \
     python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements-dev.txt
 
 # hadolint ignore=DL3003
-RUN cd /usr/local/lib/python3.12/dist-packages/c2cwsgiutils/acceptance/ && npm install
+RUN cd /venv/lib/python3.12/site-packages/c2cwsgiutils/acceptance/ && npm install
 
 COPY . ./
 RUN --mount=type=cache,target=/root/.cache \
