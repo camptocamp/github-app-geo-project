@@ -437,6 +437,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/tzdata: 2024a-3ubuntu1.1
   ubuntu_24_04/ubuntu-keyring: 2023.11.28.1
   ubuntu_24_04/ubuntu-mono: 24.04-0ubuntu1
+  ubuntu_24_04/unzip: 6.0-28ubuntu4
   ubuntu_24_04/util-linux: 2.39.3-9ubuntu6
   ubuntu_24_04/uuid-dev: 2.39.3-9ubuntu6
   ubuntu_24_04/x11-common: 1:7.7+23ubuntu3
