@@ -16,21 +16,21 @@ class AutoPullRequest(TypedDict, total=False):
     """ Conditions. """
 
 
-# Auto pull request modules configuration base.
+# | Auto pull request modules configuration base.
 AutoPullRequestModulesConfigurationBase = TypedDict(
     "AutoPullRequestModulesConfigurationBase",
     {
-        # Auto pull request.
-        #
-        # auto pull request configuration
+        # | Auto pull request.
+        # |
+        # | auto pull request configuration
         "auto-review": "AutoPullRequest",
-        # Auto pull request.
-        #
-        # auto pull request configuration
+        # | Auto pull request.
+        # |
+        # | auto pull request configuration
         "auto-merge": "AutoPullRequest",
-        # Auto pull request.
-        #
-        # auto pull request configuration
+        # | Auto pull request.
+        # |
+        # | auto pull request configuration
         "auto-close": "AutoPullRequest",
     },
     total=False,
