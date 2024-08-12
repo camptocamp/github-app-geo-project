@@ -4,20 +4,20 @@ Automatically generated file from a JSON schema.
 
 from typing import Any, Literal, TypedDict, Union
 
-# Audit configuration.
+# | Audit configuration.
 AuditConfiguration = TypedDict(
     "AuditConfiguration",
     {
-        # Snyk configuration.
+        # | Snyk configuration.
         "snyk": "SnykConfiguration",
-        # Dpkg configuration.
+        # | Dpkg configuration.
         "dpkg": "DpkgConfiguration",
-        # Version mapping.
-        #
-        # Mapping of version to the branch name
-        #
-        # default:
-        #   {}
+        # | Version mapping.
+        # |
+        # | Mapping of version to the branch name
+        # |
+        # | default:
+        # |   {}
         "version-mapping": dict[str, str],
     },
     total=False,
@@ -226,6 +226,10 @@ PIP_INSTALL_ARGUMENTS_DEFAULT: list[Any] = []
 """ Default value of the field path 'Snyk configuration pip-install-arguments' """
 
 
+POETRY_INSTALL_ARGUMENTS_DEFAULT: list[Any] = []
+""" Default value of the field path 'Snyk configuration poetry-install-arguments' """
+
+
 SNYK_FIX_ARGUMENTS_DEFAULT = ["--all-projects"]
 """ Default value of the field path 'Snyk configuration fix-arguments' """
 
@@ -238,96 +242,96 @@ SNYK_TEST_ARGUMENTS_DEFAULT = ["--all-projects", "--severity-threshold=medium"]
 """ Default value of the field path 'Snyk configuration test-arguments' """
 
 
-# Snyk configuration.
+# | Snyk configuration.
 SnykConfiguration = TypedDict(
     "SnykConfiguration",
     {
-        # Enable Snyk.
-        #
-        # Enable Snyk audit
-        #
-        # default: True
+        # | Enable Snyk.
+        # |
+        # | Enable Snyk audit
+        # |
+        # | default: True
         "enabled": bool,
-        # Files not to install.
-        #
-        # Dependency files that will not be installed
-        #
-        # default:
-        #   []
+        # | Files not to install.
+        # |
+        # | Dependency files that will not be installed
+        # |
+        # | default:
+        # |   []
         "files-no-install": list[str],
-        # Pip install arguments.
-        #
-        # Arguments to pass to pip install
-        #
-        # default:
-        #   []
+        # | Pip install arguments.
+        # |
+        # | Arguments to pass to pip install
+        # |
+        # | default:
+        # |   []
         "pip-install-arguments": list[str],
-        # Pipenv sync arguments.
-        #
-        # Arguments to pass to pipenv sync
-        #
-        # default:
-        #   []
+        # | Pipenv sync arguments.
+        # |
+        # | Arguments to pass to pipenv sync
+        # |
+        # | default:
+        # |   []
         "pipenv-sync-arguments": list[str],
-        # Pip install arguments.
-        #
-        # Arguments to pass to pip install
-        #
-        # default:
-        #   []
+        # | Poetry install arguments.
+        # |
+        # | Arguments to pass to pip install
+        # |
+        # | default:
+        # |   []
         "poetry-install-arguments": list[str],
-        # Snyk monitor arguments.
-        #
-        # Arguments to pass to Snyk monitor
-        #
-        # default:
-        #   - --all-projects
+        # | Snyk monitor arguments.
+        # |
+        # | Arguments to pass to Snyk monitor
+        # |
+        # | default:
+        # |   - --all-projects
         "monitor-arguments": list[str],
-        # Snyk test arguments.
-        #
-        # Arguments to pass to Snyk test
-        #
-        # default:
-        #   - --all-projects
-        #   - --severity-threshold=medium
+        # | Snyk test arguments.
+        # |
+        # | Arguments to pass to Snyk test
+        # |
+        # | default:
+        # |   - --all-projects
+        # |   - --severity-threshold=medium
         "test-arguments": list[str],
-        # Snyk fix arguments.
-        #
-        # Arguments to pass to Snyk fix
-        #
-        # default:
-        #   - --all-projects
+        # | Snyk fix arguments.
+        # |
+        # | Arguments to pass to Snyk fix
+        # |
+        # | default:
+        # |   - --all-projects
         "fix-arguments": list[str],
-        # Snyk monitor configuration.
+        # | Snyk monitor configuration.
         "monitor": "SnykMonitorConfiguration",
     },
     total=False,
 )
 
 
-# Snyk monitor configuration.
+# | Snyk monitor configuration.
 SnykMonitorConfiguration = TypedDict(
     "SnykMonitorConfiguration",
     {
-        # Snyk monitor environment.
-        #
-        # Set the project environment project attribute. To clear the project environment set empty array.
-        # For more information see Project attributes https://docs.snyk.io/getting-started/introduction-to-snyk-projects/view-project-information/project-attributes
+        # | Snyk monitor environment.
+        # |
+        # | Set the project environment project attribute. To clear the project environment set empty array.
+        # | For more information see Project attributes https://docs.snyk.io/getting-started/introduction-to-snyk-projects/view-project-information/project-attributes
         "project-environment": list["_SnykMonitorEnvironmentItem"],
-        # Snyk monitor lifecycle.
-        #
-        # Set the project lifecycle project attribute. To clear the project lifecycle set empty array.
-        # For more information see Project attributes https://docs.snyk.io/snyk-admin/snyk-projects/project-tags
+        # | Snyk monitor lifecycle.
+        # |
+        # | Set the project lifecycle project attribute. To clear the project lifecycle set empty array.
+        # | For more information see Project attributes https://docs.snyk.io/snyk-admin/snyk-projects/project-tags
         "project-lifecycle": list["_SnykMonitorLifecycleItem"],
-        # Snyk monitor business criticality.
-        #
-        # Set the project business criticality project attribute. To clear the project business criticality set empty array.
-        # For more information see Project attributes https://docs.snyk.io/snyk-admin/snyk-projects/project-tags
+        # | Snyk monitor business criticality.
+        # |
+        # | Set the project business criticality project attribute. To clear the project business criticality set empty array.
+        # | For more information see Project attributes https://docs.snyk.io/snyk-admin/snyk-projects/project-tags
         "project-business-criticality": list["_SnykMonitorBusinessCriticalityItem"],
-        # Snyk monitor tags.
-        #
-        # Set the project tags to one or more values.
-        # To clear the project tags set empty dictionary.
+        # | Snyk monitor tags.
+        # |
+        # | Set the project tags to one or more values.
+        # | To clear the project tags set empty dictionary.
         "project-tags": dict[str, str],
     },
     total=False,

@@ -13,13 +13,13 @@ class DeleteOldWorkflowRunsConfiguration(TypedDict, total=False):
     rules: list["Rule"]
 
 
-# Rule.
-#
-# A rule to filter the list of workflow runs
+# | Rule.
+# |
+# | A rule to filter the list of workflow runs
 Rule = TypedDict(
     "Rule",
     {
-        # Required property
+        # | Required property
         "older-than-days": Required[int],
         "workflow": str,
         "actor": str,
