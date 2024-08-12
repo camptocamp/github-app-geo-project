@@ -69,7 +69,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     apt-get update \
-    && apt-get install --assume-yes --no-install-recommends libproj-dev pkgconf libcairo2-dev libgraphviz-dev default-jre
+    && apt-get install --assume-yes --no-install-recommends libproj-dev pkgconf libcairo2-dev libgraphviz-dev default-jre unzip
 
 # From c2cwsgiutils
 
@@ -134,6 +134,15 @@ RUN --mount=type=cache,target=/root/.cache \
 RUN pyenv global 3.10 \
     && chmod a+rw -R /pyenv/
 
+# Install Gradle
+ENV GRADLE_VERSION=8.9
+RUN --mount=type=cache,target=/tmp \
+    curl --location "https://github.com/gradle/gradle-distributions/releases/download/v${GRADLE_VERSION}.0/gradle-${GRADLE_VERSION}-bin.zip" --output /tmp/gradle.zip \
+    && mkdir /opt/gradle \
+    && unzip /tmp/gradle.zip -d /tmp \
+    && mv /tmp/gradle-*/* /opt/gradle
+ENV PATH=${PATH}:/opt/gradle/bin
+
 # Create the home of www-data
 RUN mkdir /var/www \
     && chmod a+rwx /var/www \
@@ -141,7 +150,6 @@ RUN mkdir /var/www \
 
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
-
 
 ENV PROMETHEUS_MULTIPROC_DIR=/prometheus-metrics
 
