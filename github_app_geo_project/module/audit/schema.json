@@ -50,7 +50,7 @@
             },
             "poetry-install-arguments": {
               "type": "array",
-              "title": "Pip install arguments",
+              "title": "Poetry install arguments",
               "description": "Arguments to pass to pip install",
               "default": [],
               "items": {

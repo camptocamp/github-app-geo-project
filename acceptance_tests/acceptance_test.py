@@ -45,8 +45,8 @@ def test_schema() -> None:
             },
             "test": {
                 "type": "object",
-                "title": "Example",
-                "description": "An example of a module properties",
+                "title": "Test Module",
+                "description": "This module is used to test the application",
                 "allOf": [
                     {"$ref": "#/$defs/module-configuration"},
                     {"type": "object", "properties": {"test": {"type": "string"}}},
