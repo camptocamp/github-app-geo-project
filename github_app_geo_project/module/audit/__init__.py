@@ -193,7 +193,7 @@ async def _process_snyk_dpkg(
                     if output_url is not None:
                         short_message.append(f"[Output]({output_url})")
                         if body_md:
-                            body_md += "\n"
+                            body_md += "\n\n"
                         body_md += f"[Output]({output_url})" if output_url is not None else ""
 
                 if context.module_event_data.type == "dpkg":
