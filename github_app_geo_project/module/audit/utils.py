@@ -41,6 +41,9 @@ async def snyk(
     result: list[module_utils.Message] = []
 
     env["PATH"] = f'{env["HOME"]}/.local/bin:{env["PATH"]}'
+
+    await _select_java_version(config, local_config, env)
+
     _LOGGER.debug("Updated path: %s", env["PATH"])
 
     await _install_requirements_dependencies(config, local_config, result, env)
@@ -118,6 +121,35 @@ async def snyk(
     ]
 
     return result, fix_message, return_message, fix_success
+
+
+async def _select_java_version(
+    config: configuration.SnykConfiguration,
+    local_config: configuration.SnykConfiguration,
+    env: dict[str, str],
+) -> None:
+
+    if not os.path.exists("gradlew"):
+        return
+
+    gradle_version_out = subprocess.run(  # nosec
+        ["./gradlew", "--version"], capture_output=True, check=True, encoding="utf-8"
+    ).stdout.splitlines()
+    gradle_version_out = [line for line in gradle_version_out if "Gradle" in line]
+    gradle_version = gradle_version_out[0].split()[1]
+
+    minor_gradle_version = ".".join(gradle_version.split(".")[0:2])
+
+    java_path_for_gradle = local_config.get("java-path-for-gradle", config.get("java-path-for-gradle", {}))
+    if minor_gradle_version not in java_path_for_gradle:
+        _LOGGER.warning(
+            "Gradle version %s is not in the configuration: %s.",
+            gradle_version,
+            ", ".join(java_path_for_gradle.keys()),
+        )
+        return
+
+    env["PATH"] = f'{java_path_for_gradle[minor_gradle_version]}:{env["PATH"]}'
 
 
 async def _install_requirements_dependencies(

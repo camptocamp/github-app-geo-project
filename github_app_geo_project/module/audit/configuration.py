@@ -218,6 +218,10 @@ FILES_NOT_TO_INSTALL_DEFAULT: list[Any] = []
 """ Default value of the field path 'Snyk configuration files-no-install' """
 
 
+JAVA_PATH_BY_GRADLE_VERSION_DEFAULT: dict[str, Any] = {}
+""" Default value of the field path 'Snyk configuration java-path-for-gradle' """
+
+
 PIPENV_SYNC_ARGUMENTS_DEFAULT: list[Any] = []
 """ Default value of the field path 'Snyk configuration pipenv-sync-arguments' """
 
@@ -280,6 +284,13 @@ SnykConfiguration = TypedDict(
         # | default:
         # |   []
         "poetry-install-arguments": list[str],
+        # | Java path by Gradle version.
+        # |
+        # | Path to the directory that contains Java executable to use for the Gradle minor version
+        # |
+        # | default:
+        # |   {}
+        "java-path-for-gradle": dict[str, str],
         # | Snyk monitor arguments.
         # |
         # | Arguments to pass to Snyk monitor
