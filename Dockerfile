@@ -70,7 +70,8 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     apt-get update \
-    && apt-get install --assume-yes --no-install-recommends libproj-dev pkgconf libcairo2-dev libgraphviz-dev default-jre unzip
+    && apt-get install --assume-yes --no-install-recommends libproj-dev pkgconf libcairo2-dev libgraphviz-dev unzip \
+    default-jre-headless openjdk-11-jre-headless openjdk-17-jre-headless openjdk-21-jre-headless
 
 # From c2cwsgiutils
 

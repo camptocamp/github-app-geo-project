@@ -57,6 +57,15 @@
                 "type": "string"
               }
             },
+            "java-path-for-gradle": {
+              "type": "object",
+              "title": "Java path by Gradle version",
+              "description": "Path to the directory that contains Java executable to use for the Gradle minor version",
+              "default": {},
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
             "monitor-arguments": {
               "type": "array",
               "title": "Snyk monitor arguments",
