@@ -541,7 +541,7 @@ async def _snyk_fix(
                 )
             )
             message.title = f"Unable to fix {len(fixable_vulnerabilities_summary)} vulnerabilities"
-            _LOGGER.error(message)
+            _LOGGER.warning(message)
 
     return snyk_fix_success, snyk_fix_message
 
