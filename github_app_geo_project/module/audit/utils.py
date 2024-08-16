@@ -144,8 +144,16 @@ async def _select_java_version(
     if minor_gradle_version not in java_path_for_gradle:
         _LOGGER.warning(
             "Gradle version %s is not in the configuration: %s.",
-            gradle_version,
+            minor_gradle_version,
             ", ".join(java_path_for_gradle.keys()),
+        )
+        await module_utils.run_timeout(
+            ["gradle", "--version"],
+            env,
+            10,
+            "Gradle version",
+            "Error on getting Gradle version",
+            "Timeout on getting Gradle version",
         )
         return
 
@@ -533,7 +541,7 @@ async def _snyk_fix(
                 )
             )
             message.title = f"Unable to fix {len(fixable_vulnerabilities_summary)} vulnerabilities"
-            _LOGGER.error(message)
+            _LOGGER.warning(message)
 
     return snyk_fix_success, snyk_fix_message
 
