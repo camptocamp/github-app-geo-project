@@ -148,7 +148,7 @@ async def _select_java_version(
             ", ".join(java_path_for_gradle.keys()),
         )
         await module_utils.run_timeout(
-            ["gradle", "--version"],
+            ["./gradlew", "--version"],
             env,
             10,
             "Gradle version",
