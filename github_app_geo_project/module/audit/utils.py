@@ -135,10 +135,14 @@ async def _select_java_version(
     gradle_version_out = subprocess.run(  # nosec
         ["./gradlew", "--version"], capture_output=True, check=True, encoding="utf-8"
     ).stdout.splitlines()
+    _LOGGER.debug("Gradle version out: %s", "\n".join(gradle_version_out))
     gradle_version_out = [line for line in gradle_version_out if "Gradle" in line]
+    _LOGGER.debug("Gradle version out filter: %s", "\n".join(gradle_version_out))
     gradle_version = gradle_version_out[0].split()[1]
+    _LOGGER.debug("Gradle version: %s", gradle_version)
 
     minor_gradle_version = ".".join(gradle_version.split(".")[0:2])
+    _LOGGER.debug("Gradle minor version: %s", gradle_version)
 
     java_path_for_gradle = local_config.get("java-path-for-gradle", config.get("java-path-for-gradle", {}))
     if minor_gradle_version not in java_path_for_gradle:
