@@ -242,8 +242,8 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libproj25: 9.4.0-1build2
   ubuntu_24_04/libpsl5t64: 0.21.2-1.1build1
   ubuntu_24_04/libpthread-stubs0-dev: 0.4-1build3
-  ubuntu_24_04/libpython3-dev: 3.12.3-0ubuntu1
-  ubuntu_24_04/libpython3-stdlib: 3.12.3-0ubuntu1
+  ubuntu_24_04/libpython3-dev: 3.12.3-0ubuntu2
+  ubuntu_24_04/libpython3-stdlib: 3.12.3-0ubuntu2
   ubuntu_24_04/libpython3.12-dev: 3.12.3-1ubuntu0.1
   ubuntu_24_04/libpython3.12-minimal: 3.12.3-1ubuntu0.1
   ubuntu_24_04/libpython3.12-stdlib: 3.12.3-1ubuntu0.1
@@ -353,16 +353,16 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/postgresql-client-common: 257build1.1
   ubuntu_24_04/procps: 2:4.0.4-4ubuntu3
   ubuntu_24_04/proj-data: 9.4.0-1build2
-  ubuntu_24_04/python3: 3.12.3-0ubuntu1
-  ubuntu_24_04/python3-dev: 3.12.3-0ubuntu1
-  ubuntu_24_04/python3-minimal: 3.12.3-0ubuntu1
+  ubuntu_24_04/python3: 3.12.3-0ubuntu2
+  ubuntu_24_04/python3-dev: 3.12.3-0ubuntu2
+  ubuntu_24_04/python3-minimal: 3.12.3-0ubuntu2
   ubuntu_24_04/python3-packaging: 24.0-1
   ubuntu_24_04/python3-pip: 24.0+dfsg-1ubuntu1
   ubuntu_24_04/python3-pip-whl: 24.0+dfsg-1ubuntu1
   ubuntu_24_04/python3-pkg-resources: 68.1.2-2ubuntu1
   ubuntu_24_04/python3-setuptools: 68.1.2-2ubuntu1
   ubuntu_24_04/python3-setuptools-whl: 68.1.2-2ubuntu1
-  ubuntu_24_04/python3-venv: 3.12.3-0ubuntu1
+  ubuntu_24_04/python3-venv: 3.12.3-0ubuntu2
   ubuntu_24_04/python3-wheel: 0.42.0-2
   ubuntu_24_04/python3.12: 3.12.3-1ubuntu0.1
   ubuntu_24_04/python3.12-dev: 3.12.3-1ubuntu0.1
