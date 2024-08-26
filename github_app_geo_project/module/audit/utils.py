@@ -136,7 +136,7 @@ async def _select_java_version(
         ["./gradlew", "--version"], capture_output=True, check=True, encoding="utf-8"
     ).stdout.splitlines()
     _LOGGER.debug("Gradle version out: %s", "\n".join(gradle_version_out))
-    gradle_version_out = [line for line in gradle_version_out if "Gradle" in line]
+    gradle_version_out = [line for line in gradle_version_out if line.startswith("Gradle ")]
     _LOGGER.debug("Gradle version out filter: %s", "\n".join(gradle_version_out))
     gradle_version = gradle_version_out[0].split()[1]
     _LOGGER.debug("Gradle version: %s", gradle_version)
