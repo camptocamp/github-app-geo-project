@@ -58,7 +58,6 @@ async def snyk(
     await _install_pipenv_dependencies(config, local_config, result, env)
     await _install_poetry_dependencies(config, local_config, result, env)
 
-    env = {**os.environ}
     env["FORCE_COLOR"] = "true"
     env_no_debug = {**env}
     env["DEBUG"] = "*snyk*"  # debug mode
