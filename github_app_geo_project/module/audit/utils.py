@@ -58,7 +58,6 @@ async def snyk(
     await _install_pipenv_dependencies(config, local_config, result, env)
     await _install_poetry_dependencies(config, local_config, result, env)
 
-    env = {**os.environ}
     env["FORCE_COLOR"] = "true"
     env_no_debug = {**env}
     env["DEBUG"] = "*snyk*"  # debug mode
@@ -135,14 +134,10 @@ async def _select_java_version(
     gradle_version_out = subprocess.run(  # nosec
         ["./gradlew", "--version"], capture_output=True, check=True, encoding="utf-8"
     ).stdout.splitlines()
-    _LOGGER.debug("Gradle version out: %s", "\n".join(gradle_version_out))
-    gradle_version_out = [line for line in gradle_version_out if line.startswith("Gradle ")]
-    _LOGGER.debug("Gradle version out filter: %s", "\n".join(gradle_version_out))
-    gradle_version = gradle_version_out[0].split()[1]
-    _LOGGER.debug("Gradle version: %s", gradle_version)
+    gradle_version_out_filter = [line for line in gradle_version_out if line.startswith("Gradle ")]
+    gradle_version = gradle_version_out_filter[0].split()[1]
 
     minor_gradle_version = ".".join(gradle_version.split(".")[0:2])
-    _LOGGER.debug("Gradle minor version: %s", gradle_version)
 
     java_path_for_gradle = local_config.get("java-path-for-gradle", config.get("java-path-for-gradle", {}))
     if minor_gradle_version not in java_path_for_gradle:
@@ -151,6 +146,7 @@ async def _select_java_version(
             minor_gradle_version,
             ", ".join(java_path_for_gradle.keys()),
         )
+        _LOGGER.debug("Gradle version out: %s", "\n".join(gradle_version_out))
         await module_utils.run_timeout(
             ["./gradlew", "--version"],
             env,
