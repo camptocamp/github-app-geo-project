@@ -8,6 +8,7 @@ import json
 import logging
 import os.path
 import subprocess  # nosec
+from typing import NamedTuple
 
 import apt_repo
 import c2cciutils.security
@@ -416,6 +417,14 @@ async def _snyk_test(
 
         package_manager = row.get("packageManager")
 
+        class _Vulnerability(NamedTuple):
+            link: str
+            title: str
+            identifiers: list[str]
+            paths: list[str] = []
+
+        vulnerabilities: dict[str, _Vulnerability] = {}
+
         for vuln in row.get("vulnerabilities", []):
             fixable = vuln.get("fixedIn", []) or vuln.get("isPatchable", False)
             severity = vuln["severity"]
@@ -450,15 +459,28 @@ async def _snyk_test(
                     fixable_files_npm.setdefault(row.get("displayTargetFile"), set()).add(title)
             elif package_manager == "pip":
                 vulnerabilities_in_requirements = True
-            message = module_utils.HtmlMessage(
-                "<br>\n".join(
+
+            if title not in vulnerabilities:
+                vulnerabilities[title] = _Vulnerability(
+                    f'<a href="https://security.snyk.io/vuln/{vuln["id"]}">{vuln["id"]}</a>',
+                    vuln["title"],
                     [
-                        f'<a href="https://security.snyk.io/vuln/{vuln["id"]}">{vuln["title"]}</a>',
-                        " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]]),
-                        *[", ".join(identifiers) for identifiers in vuln.get("identifiers", {}).values()],
-                        # *[f'<a href="{reference['url']}>{reference["title"]}</a>' for reference in vuln["references"]],
-                        # "",
-                        # markdown.markdown(vuln["description"]),
+                        f"{identifier}: {', '.join(values)}"
+                        for identifier, values in vuln.get("identifiers", {}).items()
+                    ],
+                )
+            vulnerabilities[title].paths.append(
+                " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]])
+            )
+
+        for title, vulnerability in vulnerabilities.items():
+            message = module_utils.HtmlMessage(
+                "<br>".join(
+                    [
+                        f"{vulnerability.title} [{vulnerability.link}]",
+                        *vulnerability.identifiers,
+                        "",
+                        *vulnerability.paths,
                     ]
                 ),
                 title,
