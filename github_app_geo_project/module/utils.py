@@ -540,7 +540,7 @@ async def run_timeout(
         if error:
             _LOGGER.exception("%s not found: %s", command[0], exception)
         else:
-            _LOGGER.warning("%s not found")
+            _LOGGER.warning("%s not found", command[0])
         proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
             ["find", "/", "-name", command[0]],
             capture_output=True,
