@@ -48,7 +48,7 @@ class ChangelogItem(NamedTuple):
     github: github.PullRequest.PullRequest | github.Commit.Commit
     ref: str
     title: str
-    author: Author
+    author: Author | None
     authors: set[Author]
     branch: str | None
     files: set[str]
@@ -151,6 +151,8 @@ def match_branch(item: ChangelogItem, condition: changelog_configuration.Conditi
 
 def match_author(item: ChangelogItem, condition: changelog_configuration.ConditionAuthor) -> bool:
     """Match the author of the pull request."""
+    if item.author is None:
+        return False
     return condition["value"] == item.author.name
 
 
@@ -390,13 +392,14 @@ def generate_changelog(
                 )
             )
         if not has_pr:
+            author = Author(commit.author.login, commit.author.html_url) if commit.author else None
             changelog_items.add(
                 ChangelogItem(
                     github=commit,
                     ref=commit.sha,
                     title=commit.commit.message.split("\n")[0],
-                    author=Author(commit.author.login, commit.author.html_url),
-                    authors={Author(commit.author.login, commit.author.html_url)},
+                    author=author,
+                    authors={author} if author else set(),
                     branch=None,
                     files={f.filename for f in commit.files},
                     labels=set(),
@@ -442,7 +445,7 @@ def generate_changelog(
         result.append("")
         for matched_item in sections[section_config["name"]]:
             item = matched_item.item
-            item_authors = [item.author]
+            item_authors = [item.author] if item.author else []
             item_authors.extend(a for a in item.authors if a != item.author)
             authors_str = [a.markdown() for a in item_authors]
             result.append(f"- {item.ref} {item.title} ({', '.join(authors_str)})")
