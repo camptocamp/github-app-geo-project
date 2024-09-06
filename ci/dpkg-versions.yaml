@@ -114,7 +114,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libdebconfclient0: 0.271ubuntu3
   ubuntu_24_04/libdeflate-dev: 1.19-1build1.1
   ubuntu_24_04/libdeflate0: 1.19-1build1.1
-  ubuntu_24_04/libdevmapper1.02.1: 2:1.02.185-3ubuntu3
+  ubuntu_24_04/libdevmapper1.02.1: 2:1.02.185-3ubuntu3.1
   ubuntu_24_04/libdpkg-perl: 1.22.6ubuntu6.1
   ubuntu_24_04/libelf1t64: 0.190-1.1build4
   ubuntu_24_04/liberror-perl: 0.17029-2
