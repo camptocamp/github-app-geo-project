@@ -279,9 +279,9 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libtasn1-6: 4.19.0-3build1
   ubuntu_24_04/libthai-data: 0.1.29-2build1
   ubuntu_24_04/libthai0: 0.1.29-2build1
-  ubuntu_24_04/libtiff-dev: 4.5.1+git230720-4ubuntu2.1
-  ubuntu_24_04/libtiff6: 4.5.1+git230720-4ubuntu2.1
-  ubuntu_24_04/libtiffxx6: 4.5.1+git230720-4ubuntu2.1
+  ubuntu_24_04/libtiff-dev: 4.5.1+git230720-4ubuntu2.2
+  ubuntu_24_04/libtiff6: 4.5.1+git230720-4ubuntu2.2
+  ubuntu_24_04/libtiffxx6: 4.5.1+git230720-4ubuntu2.2
   ubuntu_24_04/libtinfo6: 6.4+20240113-1ubuntu2
   ubuntu_24_04/libtsan2: 14-20240412-0ubuntu1
   ubuntu_24_04/libubsan1: 14-20240412-0ubuntu1
