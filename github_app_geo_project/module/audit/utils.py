@@ -344,7 +344,6 @@ async def _snyk_test(
     command = [
         "snyk",
         "test",
-        "--severity-threshold=high",
         *local_config.get(
             "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
         ),
