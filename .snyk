@@ -1,0 +1,20 @@
+# Snyk (https://snyk.io) policy file, patches or ignores known vulnerabilities.
+version: v1.25.0
+# ignores vulnerabilities until expiry date; change duration by modifying expiry date
+ignore:
+  SNYK-JS-FASTXMLPARSER-7573289:
+    - '*':
+        reason: Relation to dependency not found
+        expires: 2024-12-31T11:38:08.332Z
+        created: 2024-09-13T09:38:08.333Z
+  SNYK-JS-SHESCAPE-5734237:
+    - '*':
+        reason: Relation to dependency not found
+        expires: 2024-12-31T11:38:08.332Z
+        created: 2024-09-13T09:38:48.306Z
+  SNYK-JS-SHESCAPE-5849592:
+    - '*':
+        reason: Relation to dependency not found
+        expires: 2024-12-31T11:38:08.332Z
+        created: 2024-09-13T09:38:58.994Z
+patch: {}
