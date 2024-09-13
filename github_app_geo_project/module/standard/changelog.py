@@ -254,10 +254,22 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Tag | None:
             return tags[test_tag]
         return _previous_tag(test_tag, tags)
     if tag.major != 0:
-        test_tag = Tag(".".join(str(e) for e in (tag.major - 1, 0, 0)))
-        if test_tag in tags:
-            return tags[test_tag]
-        return _previous_tag(test_tag, tags)
+        # Get previous version
+        tags_list = sorted([t for t in tags.keys() if t.major < tag.major])
+        if not tags_list:
+            return None
+        previous_major_minor = tags_list[-1]
+
+        # Get all patch for the previous major.minor version
+        tags_list = sorted(
+            [
+                t
+                for t in tags.keys()
+                if t.major == previous_major_minor.major and t.minor == previous_major_minor.minor
+            ]
+        )
+        # Return the first one
+        return tags_list[0]
     return None
 
 
