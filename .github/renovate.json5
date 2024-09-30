@@ -35,7 +35,6 @@
   packageRules: [
     /** Automerge the patch, the minor and the dev dependency */
     {
-      matchBaseBranches: ['master'],
       matchUpdateTypes: ['minor', 'patch'],
       automerge: true,
     },
@@ -56,12 +55,6 @@
       groupName: 'all minor versions',
       automerge: true,
     },
-    /** Accept only the patch on the stabilization branches */
-    {
-      matchBaseBranches: ['/[0-9]\\..*/'],
-      matchUpdateTypes: ['major', 'minor', 'pin', 'digest', 'lockFileMaintenance', 'rollback', 'bump'],
-      enabled: false,
-    },
     /** Group Poetry packages */
     {
       matchPackagePrefixes: ['poetry-'],
@@ -73,12 +66,6 @@
     {
       versioning: 'regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)\\.(?<build>\\d+)$',
       matchDepNames: ['shellcheck-py/shellcheck-py'],
-    },
-    /** Accept only the patch on stabilization branches */
-    {
-      matchBaseBranches: ['/^[0-9]+\\.[0-9]+$/'],
-      matchUpdateTypes: ['major', 'minor', 'pin', 'digest', 'lockFileMaintenance', 'rollback', 'bump'],
-      enabled: false,
     },
     /** Group and auto merge the CI dependencies */
     {
