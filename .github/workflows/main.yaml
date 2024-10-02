@@ -32,8 +32,14 @@ jobs:
           github-gopass-ci-token: ${{secrets.GOPASS_CI_GITHUB_TOKEN}}
           patterns: pypi docker
 
-      - run: echo "${HOME}/.local/bin" >> ${GITHUB_PATH}
-      - run: python3 -m pip install --user --requirement=ci/requirements.txt
+      # Use Python 3.11
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - run: python3 -m pip install --requirement=ci/requirements.txt
+      - name: Environment
+        run: c2cciutils-env
 
       - uses: actions/cache@v4
         with:
@@ -51,14 +57,6 @@ jobs:
           path: /tmp/pre-commit.patch
           retention-days: 1
         if: failure()
-
-      # Use Python 3.11
-      - uses: actions/setup-python@v5
-        with:
-          python-version: 3.11
-
-      - name: Environment
-        run: c2cciutils-env
 
       - run: pip install --requirement=requirements.txt
       - run: poetry install
