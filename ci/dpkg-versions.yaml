@@ -325,7 +325,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libzstd-dev: 1.5.5+dfsg2-2build1.1
   ubuntu_24_04/libzstd1: 1.5.5+dfsg2-2build1.1
   ubuntu_24_04/linux-libc-dev: 6.8.0-45.45
-  ubuntu_24_04/login: 1:4.13+dfsg1-4ubuntu3
+  ubuntu_24_04/login: 1:4.13+dfsg1-4ubuntu3.2
   ubuntu_24_04/logsave: 1.47.0-2.4~exp1ubuntu4.1
   ubuntu_24_04/lto-disabled-list: '47'
   ubuntu_24_04/make: 4.3-4.1build2
@@ -340,7 +340,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/openjdk-17-jre-headless: 17.0.12+7-1ubuntu2~24.04
   ubuntu_24_04/openjdk-21-jre-headless: 21.0.4+7-1ubuntu2~24.04
   ubuntu_24_04/openssl: 3.0.13-0ubuntu3.4
-  ubuntu_24_04/passwd: 1:4.13+dfsg1-4ubuntu3
+  ubuntu_24_04/passwd: 1:4.13+dfsg1-4ubuntu3.2
   ubuntu_24_04/patch: 2.7.6-7build3
   ubuntu_24_04/perl: 5.38.2-3.2build2
   ubuntu_24_04/perl-base: 5.38.2-3.2build2
