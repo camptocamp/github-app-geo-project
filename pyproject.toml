@@ -80,6 +80,7 @@ urllib3 = "2.2.3"
 certifi = "2024.8.30"
 sentry-sdk = "2.15.0"
 webob = "1.8.8"
+waitress = "3.0.1"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.0.8",  extras = ["test-images"] }
