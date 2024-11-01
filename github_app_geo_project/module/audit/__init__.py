@@ -12,8 +12,8 @@ import tempfile
 import urllib.parse
 from typing import Any, cast
 
-import c2cciutils.security
 import github
+import security_md
 import yaml
 from pydantic import BaseModel
 
@@ -108,7 +108,7 @@ def _process_outdated(
     try:
         security_file = repo.get_contents("SECURITY.md")
         assert isinstance(security_file, github.ContentFile.ContentFile)
-        security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
+        security = security_md.Security(security_file.decoded_content.decode("utf-8"))
 
         error_message = audit_utils.outdated_versions(security)
         _process_error(context, _OUTDATED, issue_check, error_message)
@@ -445,7 +445,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                 versions = []
                 if security_file is not None:
                     assert isinstance(security_file, github.ContentFile.ContentFile)
-                    security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
+                    security = security_md.Security(security_file.decoded_content.decode("utf-8"))
 
                     versions = module_utils.get_stabilization_versions(security)
                 else:

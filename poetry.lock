@@ -2856,6 +2856,22 @@ doc = ["jupyterlite-pyodide-kernel", "jupyterlite-sphinx (>=0.13.1)", "jupytext"
 test = ["Cython", "array-api-strict (>=2.0)", "asv", "gmpy2", "hypothesis (>=6.30)", "meson", "mpmath", "ninja", "pooch", "pytest", "pytest-cov", "pytest-timeout", "pytest-xdist", "scikit-umfpack", "threadpoolctl"]
 
 [[package]]
+name = "security-md"
+version = "0.2.3"
+description = "Common utilities for Camptocamp CI"
+optional = false
+python-versions = ">=3.9"
+files = [
+    {file = "security_md-0.2.3-py3-none-any.whl", hash = "sha256:e95e454d7c7b9786a7af16c8d5fa657cdad575d76b74c69d4b1f3f88548bbd82"},
+    {file = "security_md-0.2.3.tar.gz", hash = "sha256:cc766d03b01d1f5e49ed616480cc5f92469eb5e278466f71066b7acbd011adad"},
+]
+
+[package.dependencies]
+defusedxml = ">=0.0.0,<1.0.0"
+markdown = ">=3.0,<4.0"
+markdown-table = ">=2020.0.0,<2021.0.0"
+
+[[package]]
 name = "semver"
 version = "3.0.2"
 description = "Python helper for Semantic Versioning (https://semver.org)"
@@ -3651,4 +3667,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10,<3.13"
-content-hash = "c21063219583bd81b4d55be3df949822967aec1f803aed21345b21703643eac1"
+content-hash = "80ba6c504f46ef69696daacdee0aeae40b2e67bd62c2130fb58a313f7c257546"

@@ -9,10 +9,10 @@ import shlex
 import subprocess  # nosec
 from typing import Any, Union, cast
 
-import c2cciutils.security
 import github
 import html_sanitizer
 import markdownify
+import security_md
 from ansi2html import Ansi2HTMLConverter
 
 from github_app_geo_project import configuration, models, module
@@ -796,7 +796,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     return True
 
 
-def get_stabilization_versions(security: c2cciutils.security.Security) -> list[str]:
+def get_stabilization_versions(security: security_md.Security) -> list[str]:
     """Get the stabilization versions."""
     version_index = security.version_index
     supported_until_index = security.support_until_index
@@ -819,7 +819,7 @@ def get_stabilization_versions(security: c2cciutils.security.Security) -> list[s
     return [v for v in versions if v not in alternate_tags]
 
 
-def get_alternate_versions(security: c2cciutils.security.Security, branch: str) -> list[str]:
+def get_alternate_versions(security: security_md.Security, branch: str) -> list[str]:
     """Get the stabilization versions."""
     alternate_index = security.alternate_tag_index
     version_index = security.version_index
