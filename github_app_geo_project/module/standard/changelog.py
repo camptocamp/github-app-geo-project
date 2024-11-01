@@ -351,10 +351,12 @@ def generate_changelog(
     configuration: changelog_configuration.Changelog,
     repository: str,
     tag_str: str,
-    milestone: github.Milestone.Milestone,
 ) -> str:
     """Generate the changelog for a tag."""
     repo = github_application.get_repo(repository)
+
+    milestones = [m for m in repo.get_milestones() if m.title == tag_str]
+    milestone = milestones[0] if milestones else repo.create_milestone(tag_str)
 
     discussion_url = _get_discussion_url(repo, tag_str)
 
@@ -484,6 +486,10 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Changelog"
 
+    def jobs_unique_on(self) -> list[str] | None:
+        """Indicate fields used to ship other jobs."""
+        return ["repository", "owner", "module_data"]
+
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
@@ -493,26 +499,70 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         """
         event_data = context.event_data
         if "release" in event_data and event_data.get("action") == "created":
-            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "release"})]
+            return [
+                module.Action(
+                    priority=module.PRIORITY_STATUS,
+                    data={"version": event_data["release"]["tag_name"]},
+                )
+            ]
         if event_data.get("ref_type") == "tag":
-            return [module.Action(priority=module.PRIORITY_STATUS, data={"type": "tag"})]
+            return [
+                module.Action(
+                    priority=module.PRIORITY_STATUS, data={"type": "tag", "version": event_data["ref"]}
+                )
+            ]
         if (
-            (
-                event_data.get("action") == "edited"
-                or event_data.get("action") == "labeled"
-                or event_data.get("action") == "unlabeled"
-                or event_data.get("action") == "milestoned"
-            )
+            event_data.get("action") in ("edited", "labelled", "unlabelled", "milestoned", "demilestoned")
             and event_data.get("pull_request", {}).get("state") == "closed"
-            and event_data.get("pull_request", {}).get("milestone")
             and event_data.get("sender", {}).get("login")
             != context.github_application.integration.get_app().slug + "[bot]"
         ):
-            return [module.Action(priority=module.PRIORITY_CRON, data={"type": "pull_request"})]
-        if event_data.get("action") == "edited" and "milestone" in event_data:
-            return [module.Action(priority=module.PRIORITY_CRON, data={"type": "milestone"})]
+            versions = set()
+            milestone_version = event_data.get("milestone", {}).get("title")
+            if milestone_version is not None:
+                versions.add(milestone_version)
+            pull_request_version = event_data.get("pull_request", {}).get("milestone", {}).get("title")
+            if pull_request_version is not None:
+                versions.add(pull_request_version)
+            return [
+                module.Action(
+                    priority=module.PRIORITY_CRON,
+                    data={"version": version},
+                )
+                for version in versions
+            ]
+
+        if (
+            event_data.get("action") == "edited"
+            and "milestone" in event_data
+            and event_data.get("sender", {}).get("login")
+            != context.github_application.integration.get_app().slug + "[bot]"
+        ):
+            versions = {event_data["milestone"]["title"]}
+            if "changes" in event_data and "title" in event_data["changes"]:
+                versions.add(event_data["changes"]["title"]["from"])
+
+            return [
+                module.Action(
+                    priority=module.PRIORITY_CRON,
+                    data={"version": version},
+                )
+                for version in versions
+            ]
         if event_data.get("action") in ("created", "closed") and "discussion" in event_data:
-            return [module.Action(priority=module.PRIORITY_CRON, data={"type": "discussion"})]
+            return [
+                module.Action(
+                    priority=module.PRIORITY_STATUS,
+                    data={"type": "discussion"},
+                )
+            ]
+        if event_data.get("action") == "edited" and "title" in event_data.get("changes", {}):
+            return [
+                module.Action(
+                    priority=module.PRIORITY_STATUS,
+                    data={"type": "discussion"},
+                )
+            ]
 
         return []
 
@@ -538,16 +588,13 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                         description=config.get("description", ""),
                     )
 
-        assert isinstance(repository, str)
-        tag_str = ""
-        milestone = None
-        release = None
+        tag_str = cast(str, context.module_event_data.get("version"))
         if context.module_event_data.get("type") == "tag":
             if not context.module_config.get(
                 "create-release", changelog_configuration.CREATE_RELEASE_DEFAULT
             ):
                 return module.ProcessOutput()
-            tag_str = cast(str, context.event_data["ref"])
+
             prerelease = False
             try:
                 latest_release = repo.get_latest_release()
@@ -558,26 +605,20 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             except github.UnknownObjectException as exception:
                 if exception.status != 404:
                     raise
-            release = repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
-        elif context.module_event_data.get("type") == "release":
-            if context.module_config.get("create-release", changelog_configuration.CREATE_RELEASE_DEFAULT):
-                return module.ProcessOutput()
-            tag_str = context.event_data.get("release", {}).get("tag_name")
-            release = repo.get_release(tag_str)
-        elif context.module_event_data.get("type") == "milestone":
-            tag_str = context.event_data.get("milestone", {}).get("title")
-            tags = [tag for tag in repo.get_tags() if tag.name == tag_str]
-            if not tags:
-                _LOGGER.info(
-                    "No tag found via for milestone %s on repository %s",
-                    context.event_data.get("milestone", {}).get("title"),
-                    repository,
-                )
-                return module.ProcessOutput()
-            tag = tags[0]
-            release = repo.get_release(tag_str)
+            repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
+            return module.ProcessOutput(
+                actions=[
+                    module.Action(
+                        priority=module.PRIORITY_CRON,
+                        data={"version": tag_str},
+                    )
+                ]
+            )
         elif context.module_event_data.get("type") == "discussion":
-            title = context.event_data.get("discussion", {}).get("title", "").split()
+            title = set()
+            title.update(context.event_data.get("discussion", {}).get("title", "").split())
+            if "title" in context.event_data.get("changes", {}):
+                title.update(context.event_data["changes"]["title"]["from"].split())
             tags = [tag for tag in repo.get_tags() if tag.name in title]
             if not tags:
                 _LOGGER.info(
@@ -586,48 +627,27 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                     repository,
                 )
                 return module.ProcessOutput()
-            tag = tags[0]
-            tag_str = tag.name
-            release = repo.get_release(tag_str)
-        elif context.module_event_data.get("type") == "pull_request":
-            # Get the milestone
-            tag_str = context.event_data.get("pull_request", {}).get("milestone", {}).get("title")
-            try:
-                release = repo.get_release(tag_str)
-            except github.UnknownObjectException as exception:
-                if exception.status == 404:
-                    # Create a release
-                    prerelease = False
-                    latest_release = repo.get_latest_release()
-                    if latest_release is not None:
-                        prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
-                            latest_release.tag_name
-                        )
-                    release = repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
-                else:
-                    raise
-            tag = [tag for tag in repo.get_tags() if tag.name == tag_str][0]
-            if tag is None:
-                _LOGGER.info(
-                    "No tag found via the milestone for pull request %s on repository %s",
-                    context.event_data.get("pull_request", {}).get("number"),
-                    repository,
-                )
-                return module.ProcessOutput()
+            return module.ProcessOutput(
+                actions=[
+                    module.Action(
+                        priority=module.PRIORITY_CRON,
+                        data={"version": tags[0].name},
+                    )
+                ]
+            )
 
-        if milestone is None:
-            milestones = [m for m in repo.get_milestones() if m.title == tag_str]
-            if milestones:
-                milestone = milestones[0]
-            else:
-                milestone = repo.create_milestone(tag_str)
+        tags = [tag for tag in repo.get_tags() if tag.name == tag_str]
+        if not tags:
+            _LOGGER.info("No tag found '%s' on repository '%s'.", tag_str, repository)
+            return module.ProcessOutput()
 
+        release = repo.get_release(tag_str)
         assert release is not None
         release.update_release(
             tag_str,
             tag_name=tag_str,
             message=generate_changelog(
-                context.github_project.github, context.module_config, repository, tag_str, milestone
+                context.github_project.github, context.module_config, repository, tag_str
             ),
         )
         return module.ProcessOutput()
