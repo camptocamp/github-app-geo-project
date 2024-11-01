@@ -496,7 +496,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                                 title=f"dpkg ({version})",
                             )
                         )
-                return ProcessOutput(actions=actions)
+                return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
             else:
                 short_message, success = await _process_snyk_dpkg(context, issue_check)
 
