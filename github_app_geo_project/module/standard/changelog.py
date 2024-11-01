@@ -386,7 +386,7 @@ def generate_changelog(
         has_pr = False
         for pull_request in commit.get_pulls():
             has_pr = True
-            if pull_request.milestone is None:
+            if pull_request.milestone is None or pull_request.milestone.number == milestone.number:
                 authors = {Author(pull_request.user.login, pull_request.user.html_url)}
                 for commit_ in pull_request.get_commits():
                     if commit_.author is not None:
