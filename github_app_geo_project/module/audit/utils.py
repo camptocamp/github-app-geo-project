@@ -11,8 +11,8 @@ import subprocess  # nosec
 from typing import NamedTuple
 
 import apt_repo
-import c2cciutils.security
 import debian_inspector.version
+import security_md
 import yaml  # nosec
 
 from github_app_geo_project import models, utils
@@ -605,7 +605,7 @@ async def _npm_audit_fix(
 
 
 def outdated_versions(
-    security: c2cciutils.security.Security,
+    security: security_md.Security,
 ) -> list[str | models.OutputData]:
     """
     Check that the versions from the SECURITY.md are not outdated.
