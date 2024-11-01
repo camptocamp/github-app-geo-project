@@ -131,10 +131,10 @@
     <div class="alert alert-danger event" role="alert">
       %else:
       <!---->
-      %if job.status.value == 'done':
-      <div class="alert alert-secondary event" role="alert">
+      %if job.status.value in ['new', 'pending']:
+      <div class="alert alert-primary event" role="alert">
         %else:
-        <div class="alert alert-primary event" role="alert">
+        <div class="alert alert-secondary event" role="alert">
           %endif
           <!---->
           %endif
@@ -194,7 +194,7 @@
           <!---->
           %if job.log:
           <a href="${request.route_url('logs', id=job.id)}">Logs</a>
-          %else:
+          %elif job.status.value in ['new', 'pending']:
           <a href="${request.route_url('logs', id=job.id)}">Status</a>
           %endif
         </div>
