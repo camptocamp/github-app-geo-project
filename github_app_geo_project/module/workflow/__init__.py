@@ -5,6 +5,7 @@ from typing import Any
 
 import c2cciutils
 import github
+import security_md
 
 from github_app_geo_project import module, utils
 from github_app_geo_project.module import utils as module_utils
@@ -68,7 +69,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
                 raise
         if security_file is not None:
             assert isinstance(security_file, github.ContentFile.ContentFile)
-            security = c2cciutils.security.Security(security_file.decoded_content.decode("utf-8"))
+            security = security_md.Security(security_file.decoded_content.decode("utf-8"))
 
             stabilization_branches += module_utils.get_stabilization_versions(security)
 
