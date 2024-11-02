@@ -90,9 +90,10 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             return module.ProcessOutput()
 
         branch_data = repo_data.setdefault(head_branch, {})
+        workflow_name = context.event_data.get("workflow", {}).get("name", "Un named")
         if context.event_data.get("workflow_run", {}).get("conclusion") == "success":
-            if context.event_data.get("workflow", {}).get("name", "-") in branch_data:
-                del branch_data[context.event_data.get("workflow", {}).get("name", "-")]
+            if workflow_name in branch_data:
+                del branch_data[workflow_name]
             if not branch_data:
                 del repo_data[head_branch]
             if not repo_data:
@@ -101,7 +102,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
                 ]
             _LOGGER.info(
                 "Workflow '%s' is successful, removing it from the status",
-                context.event_data.get("workflow", {}).get("name", "-"),
+                workflow_name,
             )
             return module.ProcessOutput(transversal_status=context.transversal_status)
 
@@ -110,10 +111,10 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             "date": context.event_data.get("workflow_run", {}).get("created_at"),
             "jobs": [],
         }
-        branch_data[context.event_data.get("workflow", {}).get("name", "-")] = workflow_data
+        branch_data[workflow_name] = workflow_data
         _LOGGER.info(
             "Workflow '%s' is not successful, adding it to the status",
-            context.event_data.get("workflow", {}).get("name", "-"),
+            workflow_name,
         )
 
         workflow_run = repo.get_workflow_run(context.event_data.get("workflow_run", {}).get("id"))
