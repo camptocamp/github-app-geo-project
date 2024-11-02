@@ -71,7 +71,8 @@ async def test_process_failure() -> None:
     # Call the process method
     output = await workflow.process(context)
 
-    print(output)
+    assert "updated" in output.transversal_status["owner/repository"]
+    del output.transversal_status["owner/repository"]["updated"]
     # Assert the expected output
     assert output.transversal_status == {
         "owner/repository": {
