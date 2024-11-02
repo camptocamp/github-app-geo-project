@@ -74,10 +74,9 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
 
         else:
             _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
-            stabilization_branches = [repo.default_branch]
 
         for key in list(repo_data.keys()):
-            if key not in stabilization_branches or key == "updated":
+            if key not in stabilization_branches and key != "updated":
                 del repo_data[key]
 
         head_branch = context.event_data.get("workflow_run", {}).get("head_branch")
@@ -96,7 +95,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
                 del branch_data[workflow_name]
             if not branch_data:
                 del repo_data[head_branch]
-            if not repo_data:
+            if repo_data.keys() == {"updated"}:
                 del context.transversal_status[
                     context.github_project.owner + "/" + context.github_project.repository
                 ]
