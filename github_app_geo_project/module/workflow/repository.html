@@ -2,7 +2,7 @@
 
 %for branch_name, branch_values in data_json.items():
 <!---->
-%if branch_values != 'updated':
+%if branch_name != 'updated':
 <h3>${branch_name}</h3>
 %for workflow_name, workflow_value in branch_values.items():
 <p><a href="${workflow_value['url']}">${workflow_name}</a></p>
