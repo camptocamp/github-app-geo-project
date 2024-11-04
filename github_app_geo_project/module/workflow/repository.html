@@ -1,6 +1,8 @@
 <h2>${title}</h2>
 
 %for branch_name, branch_values in data_json.items():
+<!---->
+%if branch_values != 'updated':
 <h3>${branch_name}</h3>
 %for workflow_name, workflow_value in branch_values.items():
 <p><a href="${workflow_value['url']}">${workflow_name}</a></p>
@@ -10,6 +12,8 @@
   %endfor
 </ul>
 %endfor
+<!---->
+%endif
 <!---->
 %endfor
 
