@@ -1,3 +1,20 @@
-%for repository in repositories:
-<p><a href="?repository=${repository}">${repository}</a></p>
+%for repository, data_json in repositories.items():
+<h2><a href="?repository=${repository}">${repository}</a></h2>
+%for branch_name, branch_values in data_json.items():
+<!---->
+%if branch_name != 'updated':
+<h3>${branch_name}</h3>
+%for workflow_name, workflow_value in branch_values.items():
+<p><a href="${workflow_value['url']}">${workflow_name}</a></p>
+<ul>
+  %for job_value in workflow_value['jobs']:
+  <li><a href="${job_value['run_url']}">${job_value['name']}</a>.</li>
+  %endfor
+</ul>
+%endfor
+<!---->
+%endif
+<!---->
+%endfor
+<!---->
 %endfor
