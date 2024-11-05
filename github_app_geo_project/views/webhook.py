@@ -11,6 +11,7 @@ import github
 import pyramid.request
 import sqlalchemy.engine
 import sqlalchemy.orm
+from numpy import where
 from pyramid.view import view_config
 from sqlalchemy.orm import Session
 
@@ -229,15 +230,52 @@ def process_event(context: ProcessContext) -> None:
                     github_application=context.github_application,
                 )
             ):
+                priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
+                event_name = action.title or context.event_name
+                module_data = current_module.event_data_to_json(action.data)
+
+                jobs_unique_on = current_module.jobs_unique_on()
+                if jobs_unique_on:
+
+                    update = (
+                        sqlalchemy.update(models.Queue)
+                        .where(models.Queue.status == models.JobStatus.NEW)
+                        .where(models.Queue.application == context.application)
+                        .where(models.Queue.module == name)
+                    )
+                    for key in jobs_unique_on:
+                        if key == "priority":
+                            update = update.where(models.Queue.priority == priority)
+                        elif key == "owner":
+                            update = update.where(models.Queue.owner == context.owner)
+                        elif key == "repository":
+                            update = update.where(models.Queue.repository == context.repository)
+                        elif key == "event_name":
+                            update = update.where(models.Queue.event_name == event_name)
+                        elif key == "event_data":
+                            update = update.where(models.Queue.event_data == context.event_data)
+                        elif key == "module_data":
+                            update = update.where(models.Queue.module_data == module_data)
+                        else:
+                            _LOGGER.error("Unknown jobs_unique_on key: %s", key)
+
+                    update = update.values(
+                        {
+                            "status": models.JobStatus.SKIPPED,
+                        }
+                    )
+
+                    context.session.execute(update)
+
                 job = models.Queue()
-                job.priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
+                job.priority = priority
                 job.application = context.application
                 job.owner = context.owner
                 job.repository = context.repository
-                job.event_name = action.title or context.event_name
+                job.event_name = event_name
                 job.event_data = context.event_data
                 job.module = name
-                job.module_data = current_module.event_data_to_json(action.data)
+                job.module_data = module_data
                 context.session.add(job)
                 context.session.flush()
 

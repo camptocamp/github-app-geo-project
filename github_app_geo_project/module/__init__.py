@@ -321,6 +321,14 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         """Get the URL to the documentation page of the module."""
         return ""
 
+    def jobs_unique_on(self) -> list[str] | None:
+        """
+        Return the list of fields that should be unique for the jobs.
+
+        If not unique, the other jobs will be skipped.
+        """
+        return None
+
     @abstractmethod
     def get_actions(self, context: GetActionContext) -> list[Action[_EVENT_DATA]]:
         """
