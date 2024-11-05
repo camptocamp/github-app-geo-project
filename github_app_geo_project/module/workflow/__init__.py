@@ -152,5 +152,5 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
 
         return module.TransversalDashboardOutput(
             renderer="github_app_geo_project:module/workflow/dashboard.html",
-            data={"repositories": context.status.keys()},
+            data={"status": context.status},
         )
