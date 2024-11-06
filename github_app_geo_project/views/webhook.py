@@ -253,9 +253,15 @@ def process_event(context: ProcessContext) -> None:
                         elif key == "event_name":
                             update = update.where(models.Queue.event_name == event_name)
                         elif key == "event_data":
-                            update = update.where(models.Queue.event_data == context.event_data)
+                            update = update.where(
+                                sqlalchemy.cast(models.Queue.event_data, sqlalchemy.TEXT)
+                                == sqlalchemy.cast(context.event_data, sqlalchemy.TEXT)
+                            )
                         elif key == "module_data":
-                            update = update.where(models.Queue.module_data == module_data)
+                            update = update.where(
+                                sqlalchemy.cast(models.Queue.module_data, sqlalchemy.TEXT)
+                                == sqlalchemy.cast(module_data, sqlalchemy.TEXT)
+                            )
                         else:
                             _LOGGER.error("Unknown jobs_unique_on key: %s", key)
 
