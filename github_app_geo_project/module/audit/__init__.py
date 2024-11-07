@@ -199,7 +199,9 @@ async def _process_snyk_dpkg(
                 if context.module_event_data.type == "dpkg":
                     body_md = "Update dpkg packages"
 
-                    if os.path.exists("ci/dpkg-versions.yaml"):
+                    if os.path.exists("ci/dpkg-versions.yaml") or os.path.exists(
+                        ".github/dpkg-versions.yaml"
+                    ):
                         await audit_utils.dpkg(
                             context.module_config.get("dpkg", {}), local_config.get("dpkg", {})
                         )
@@ -422,10 +424,16 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
 
         dpkg_version = None
         try:
-            dpkg_version = repo.get_contents("ci/dpkg-versions.yaml")
+            dpkg_version = repo.get_contents(".github/dpkg-versions.yaml")
         except github.GithubException as exception:
             if exception.status == 404:
-                _LOGGER.debug("No dpkg-versions.yaml file in the repository")
+                try:
+                    dpkg_version = repo.get_contents("ci/dpkg-versions.yaml")
+                except github.GithubException as exception2:
+                    if exception2.status == 404:
+                        _LOGGER.debug("No dpkg-versions.yaml file in the repository")
+                    else:
+                        raise
             else:
                 raise
         if (

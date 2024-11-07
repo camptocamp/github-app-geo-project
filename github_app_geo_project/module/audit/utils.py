@@ -697,11 +697,16 @@ async def _get_packages_version(
 async def dpkg(
     config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
 ) -> None:
-    """Update the version of packages in the file ci/dpkg-versions.yaml."""
-    if not os.path.exists("ci/dpkg-versions.yaml"):
-        _LOGGER.warning("The file ci/dpkg-versions.yaml does not exist")
+    """Update the version of packages in the file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml."""
+    if not os.path.exists("ci/dpkg-versions.yaml") and not os.path.exists(".github/dpkg-versions.yaml"):
+        _LOGGER.warning("The file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml does not exist")
 
-    with open("ci/dpkg-versions.yaml", encoding="utf-8") as versions_file:
+    dpkg_versions_filename = (
+        ".github/dpkg-versions.yaml"
+        if os.path.exists(".github/dpkg-versions.yaml")
+        else "ci/dpkg-versions.yaml"
+    )
+    with open(dpkg_versions_filename, encoding="utf-8") as versions_file:
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)
         for versions in versions_config.values():
             for package_full in versions.keys():
@@ -734,5 +739,5 @@ async def dpkg(
                         exception,
                     )
 
-    with open("ci/dpkg-versions.yaml", "w", encoding="utf-8") as versions_file:
+    with open(dpkg_versions_filename, "w", encoding="utf-8") as versions_file:
         yaml.dump(versions_config, versions_file, Dumper=yaml.SafeDumper)
