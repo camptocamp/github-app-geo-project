@@ -336,9 +336,9 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/ncurses-bin: 6.4+20240113-1ubuntu2
   ubuntu_24_04/netbase: '6.4'
   ubuntu_24_04/nodejs: 20.16.0-1nodesource1
-  ubuntu_24_04/openjdk-11-jre-headless: 11.0.24+8-1ubuntu3~24.04.1
-  ubuntu_24_04/openjdk-17-jre-headless: 17.0.12+7-1ubuntu2~24.04
-  ubuntu_24_04/openjdk-21-jre-headless: 21.0.4+7-1ubuntu2~24.04
+  ubuntu_24_04/openjdk-11-jre-headless: 11.0.25+9-1ubuntu1~24.04
+  ubuntu_24_04/openjdk-17-jre-headless: 17.0.13+11-2ubuntu1~24.04
+  ubuntu_24_04/openjdk-21-jre-headless: 21.0.5+11-1ubuntu1~24.04
   ubuntu_24_04/openssl: 3.0.13-0ubuntu3.4
   ubuntu_24_04/passwd: 1:4.13+dfsg1-4ubuntu3.2
   ubuntu_24_04/patch: 2.7.6-7build3
