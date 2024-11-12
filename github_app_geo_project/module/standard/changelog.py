@@ -512,7 +512,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 )
             ]
         if (
-            event_data.get("action") in ("edited", "labelled", "unlabelled", "milestoned", "demilestoned")
+            event_data.get("action") in ("edited", "labeled", "unlabeled", "milestoned", "demilestoned")
             and event_data.get("pull_request", {}).get("state") == "closed"
             and event_data.get("sender", {}).get("login")
             != context.github_application.integration.get_app().slug + "[bot]"
