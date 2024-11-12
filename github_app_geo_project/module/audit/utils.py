@@ -84,20 +84,7 @@ async def snyk(
         fixable_vulnerabilities_summary,
         vulnerabilities_in_requirements,
     )
-    npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result)
-    fix_message: module_utils.HtmlMessage | None = None
-    if snyk_fix_message is None:
-        if npm_audit_fix_message:
-            fix_message = module_utils.HtmlMessage(npm_audit_fix_message)
-            fix_message.title = "Npm audit fix"
-    else:
-        fix_message = snyk_fix_message
-        if npm_audit_fix_message:
-            assert isinstance(fix_message, module_utils.HtmlMessage)
-            fix_message.html = f"{fix_message.html}<br>\n<br>\n{npm_audit_fix_message}"
-    fix_success = (
-        True if len(fixable_vulnerabilities_summary) == 0 else (snyk_fix_success and npm_audit_fix_success)
-    )
+    fix_success = True if len(fixable_vulnerabilities_summary) == 0 else snyk_fix_success
 
     diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
         ["git", "diff", "--quiet"], timeout=30
@@ -120,7 +107,7 @@ async def snyk(
         *([] if fix_success else ["Error while fixing the vulnerabilities"]),
     ]
 
-    return result, fix_message, return_message, fix_success
+    return result, snyk_fix_message, return_message, fix_success
 
 
 async def _select_java_version(
@@ -565,43 +552,6 @@ async def _snyk_fix(
             _LOGGER.warning(message)
 
     return snyk_fix_success, snyk_fix_message
-
-
-async def _npm_audit_fix(
-    fixable_files_npm: dict[str, set[str]], result: list[module_utils.Message]
-) -> tuple[str, bool]:
-    messages: set[str] = set()
-    fix_success = True
-    for package_lock_file_name, file_messages in fixable_files_npm.items():
-        directory = os.path.dirname(os.path.abspath(package_lock_file_name))
-        messages.update(file_messages)
-        _LOGGER.debug("Fixing vulnerabilities in %s with npm audit fix --force", package_lock_file_name)
-        command = ["npm", "audit", "fix", "--force"]
-        _, success, message = await module_utils.run_timeout(
-            command,
-            os.environ.copy(),
-            int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
-            "Npm audit fix",
-            "Error while fixing the project",
-            "Timeout while fixing the project",
-            directory,
-        )
-        if message is not None:
-            result.append(message)
-        _LOGGER.debug("Fixing version in %s", package_lock_file_name)
-        # Remove the add '~' in the version in the package.json
-        with open(os.path.join(directory, "package.json"), encoding="utf-8") as package_file:
-            package_json = json.load(package_file)
-            for dependencies_type in ("dependencies", "devDependencies"):
-                for package, version in package_json.get(dependencies_type, {}).items():
-                    if version.startswith("^"):
-                        package_json[dependencies_type][package] = version[1:]
-            with open(os.path.join(directory, "package.json"), "w", encoding="utf-8") as package_file:
-                json.dump(package_json, package_file, indent=2)
-        _LOGGER.debug("Succeeded fix %s", package_lock_file_name)
-
-        fix_success &= success
-    return "\n".join(messages), fix_success
 
 
 def outdated_versions(
