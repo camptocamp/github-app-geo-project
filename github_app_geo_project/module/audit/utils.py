@@ -575,8 +575,8 @@ async def _npm_audit_fix(
     for package_lock_file_name, file_messages in fixable_files_npm.items():
         directory = os.path.dirname(os.path.abspath(package_lock_file_name))
         messages.update(file_messages)
-        _LOGGER.debug("Fixing vulnerabilities in %s with npm audit fix --force", package_lock_file_name)
-        command = ["npm", "audit", "fix", "--force"]
+        _LOGGER.debug("Fixing vulnerabilities in %s with npm audit fix", package_lock_file_name)
+        command = ["npm", "audit", "fix"]
         _, success, message = await module_utils.run_timeout(
             command,
             os.environ.copy(),
