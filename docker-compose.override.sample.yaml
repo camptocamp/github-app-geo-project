@@ -1,7 +1,5 @@
-version: '2.2'
-
 services:
-  application: &app
+  application:
     command:
       - pserve
       - --reload
