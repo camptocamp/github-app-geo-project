@@ -90,7 +90,7 @@ repos:
     hooks:
       - id: black
   - repo: https://github.com/PyCQA/prospector
-    rev: v1.12.1
+    rev: v1.13.2
     hooks:
       - id: prospector
         args:
@@ -99,7 +99,7 @@ repos:
           - --output-format=pylint
         additional_dependencies:
           - prospector-profile-duplicated==1.6.0 # pypi
-          - prospector-profile-utils==1.9.1 # pypi
+          - prospector-profile-utils==1.11.1 # pypi
   - repo: https://github.com/camptocamp/jsonschema-gentypes
     rev: 2.8.1
     hooks:
