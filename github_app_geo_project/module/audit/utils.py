@@ -97,7 +97,7 @@ async def snyk(
         True if len(fixable_vulnerabilities_summary) == 0 else (snyk_fix_success and npm_audit_fix_success)
     )
 
-    diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    diff_proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "diff", "--quiet"], timeout=30
     )
     if diff_proc.returncode != 0:
@@ -164,7 +164,7 @@ async def _install_requirements_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
 ) -> None:
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "ls-files", "requirements.txt", "*/requirements.txt"],
         capture_output=True,
         encoding="utf-8",
@@ -207,7 +207,7 @@ async def _install_pipenv_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
 ) -> None:
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8", timeout=30
     )
     if proc.returncode != 0:
@@ -246,7 +246,7 @@ async def _install_poetry_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
 ) -> None:
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "ls-files", "poetry.lock", "*/poetry.lock"],
         capture_output=True,
         encoding="utf-8",
@@ -516,7 +516,7 @@ async def _snyk_fix(
 
     snyk_fix_success = True
     snyk_fix_message = None
-    subprocess.run(["git", "reset", "--hard"], timeout=30)  # nosec # pylint: disable=subprocess-run-check
+    subprocess.run(["git", "reset", "--hard"], timeout=30)  # pylint: disable=subprocess-run-check
     if fixable_vulnerabilities_summary or vulnerabilities_in_requirements:
         command = [
             "snyk",

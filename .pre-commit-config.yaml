@@ -77,7 +77,7 @@ repos:
           - --die-on-tool-error
           - --output-format=pylint
         additional_dependencies:
-          - prospector-profile-duplicated==1.6.0 # pypi
+          - prospector-profile-duplicated==1.8.0 # pypi
           - prospector-profile-utils==1.11.1 # pypi
           - ruff==0.7.3 # pypi
   - repo: https://github.com/camptocamp/jsonschema-gentypes

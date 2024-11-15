@@ -428,7 +428,7 @@ def _get_names(
     version: str,
     alternate_versions: list[str] | None = None,
 ) -> None:
-    for filename in subprocess.run(  # nosec
+    for filename in subprocess.run(
         ["git", "ls-files", "pyproject.toml", "*/pyproject.toml"],
         check=True,
         capture_output=True,
@@ -445,7 +445,7 @@ def _get_names(
                 name = data.get("tool", {}).get("poetry", {}).get("name")
                 if name and name not in names:
                     names.append(name)
-    for filename in subprocess.run(  # nosec
+    for filename in subprocess.run(
         ["git", "ls-files", "setup.py", "*/setup.py"],
         check=True,
         capture_output=True,
@@ -488,7 +488,7 @@ def _get_names(
                             if add_name not in names:
                                 names.append(add_name)
 
-    for filename in subprocess.run(  # nosec
+    for filename in subprocess.run(
         ["git", "ls-files", "package.json", "*/package.json"],
         check=True,
         capture_output=True,
@@ -513,7 +513,7 @@ def _get_dependencies(
     result: dict[str, _TransversalStatusNameInDatasource],
 ) -> None:
     if os.environ.get("TEST") != "TRUE":
-        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        proc = subprocess.run(  # pylint: disable=subprocess-run-check
             ["renovate-graph", "--platform=local"],
             env={
                 **os.environ,

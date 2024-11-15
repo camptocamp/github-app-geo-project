@@ -185,7 +185,7 @@ def _commits_spell(
             else:
                 temp_file.write(commit.commit.message)
             temp_file.flush()
-            spell = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+            spell = subprocess.run(  # pylint: disable=subprocess-run-check
                 spellcheck_cmd + [temp_file.name], capture_output=True, encoding="utf-8"
             )
             message = module_utils.ansi_proc_message(spell)
@@ -224,7 +224,7 @@ def _pull_request_spell(
             temp_file.write(pull_request.body)
             temp_file.write("\n")
         temp_file.flush()
-        spell = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        spell = subprocess.run(  # pylint: disable=subprocess-run-check
             spellcheck_cmd + [temp_file.name], capture_output=True, encoding="utf-8"
         )
         message = module_utils.ansi_proc_message(spell)

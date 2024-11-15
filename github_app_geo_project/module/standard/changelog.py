@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from collections.abc import Callable
-from typing import Any, NamedTuple, Union, cast
+from typing import Any, NamedTuple, cast
 
 import github
 import packaging.version
@@ -65,16 +65,16 @@ class ChangelogItem(NamedTuple):
         return hash(self.ref)
 
 
-Condition = Union[
-    changelog_configuration.ConditionConst,
-    changelog_configuration.ConditionAndSolidusOr,
-    changelog_configuration.ConditionNot,
-    changelog_configuration.ConditionLabel,
-    changelog_configuration.ConditionFiles,
-    changelog_configuration.ConditionAuthor,
-    changelog_configuration.ConditionTitle,
-    changelog_configuration.ConditionBranch,
-]
+Condition = (
+    changelog_configuration.ConditionConst
+    | changelog_configuration.ConditionAndSolidusOr
+    | changelog_configuration.ConditionNot
+    | changelog_configuration.ConditionLabel
+    | changelog_configuration.ConditionFiles
+    | changelog_configuration.ConditionAuthor
+    | changelog_configuration.ConditionTitle
+    | changelog_configuration.ConditionBranch
+)
 
 
 def match(item: ChangelogItem, condition: Condition) -> bool:

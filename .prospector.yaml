@@ -9,6 +9,8 @@ inherits:
 ignore-paths:
   - github_app_geo_project/project_configuration.py
   - github_app_geo_project/application_configuration.py
+  - github_app_geo_project/module/standard/changelog_configuration.py
+  - github_app_geo_project/module/audit/configuration.py
 
 mypy:
   options:

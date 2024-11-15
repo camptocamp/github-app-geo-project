@@ -148,10 +148,9 @@ async def _process_snyk_dpkg(
                     return ["Fail to clone the repository"], success
 
                 local_config: configuration.AuditConfiguration = {}
-                if context.module_event_data.type in ("snyk", "dpkg"):
-                    if os.path.exists(".github/ghci.yaml"):
-                        with open(".github/ghci.yaml", encoding="utf-8") as file:
-                            local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
+                if context.module_event_data.type in ("snyk", "dpkg") and os.path.exists(".github/ghci.yaml"):
+                    with open(".github/ghci.yaml", encoding="utf-8") as file:
+                        local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
 
                 logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
                 if context.module_event_data.type == "snyk":
@@ -207,18 +206,18 @@ async def _process_snyk_dpkg(
                 body_md += f"[Logs]({logs_url})"
                 short_message.append(f"[Logs]({logs_url})")
 
-                diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                diff_proc = subprocess.run(  # pylint: disable=subprocess-run-check
                     ["git", "diff", "--quiet"], timeout=30
                 )
                 if diff_proc.returncode != 0:
-                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                    proc = subprocess.run(  # pylint: disable=subprocess-run-check
                         ["git", "diff"], timeout=30, capture_output=True, encoding="utf-8"
                     )
                     message = module_utils.ansi_proc_message(proc)
                     message.title = "Changes to be committed"
                     _LOGGER.debug(message)
 
-                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                    proc = subprocess.run(  # pylint: disable=subprocess-run-check
                         ["git", "checkout", "-b", new_branch],
                         capture_output=True,
                         encoding="utf-8",
@@ -272,7 +271,7 @@ async def _process_snyk_dpkg(
 
 
 def _use_python_version(python_version: str) -> dict[str, str]:
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["pyenv", "local", python_version],
         capture_output=True,
         encoding="utf-8",
@@ -285,7 +284,7 @@ def _use_python_version(python_version: str) -> dict[str, str]:
     else:
         message.title = f"Setting the Python version to {python_version}"
         _LOGGER.debug(message)
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["python", "--version"], capture_output=True, encoding="utf-8", timeout=5
     )
 

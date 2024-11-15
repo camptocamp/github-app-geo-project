@@ -35,9 +35,11 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
     """Module that apply the patch present in the artifact on the branch of the pull request."""
 
     def title(self) -> str:
+        """Get the title of the module."""
         return "Apply the patch from the artifacts"
 
     def description(self) -> str:
+        """Get the description of the module."""
         return "This module apply the patch present in the artifact on the branch of the pull request."
 
     def documentation_url(self) -> str:
@@ -140,7 +142,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                             if is_clone:
                                 result_message.extend(["```diff", patch_input, "```"])
                             else:
-                                proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                                proc = subprocess.run(  # pylint: disable=subprocess-run-check
                                     ["git", "apply", "--allow-empty"],
                                     input=patch_input,
                                     encoding="utf-8",
@@ -173,7 +175,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                         )
                                     should_push = True
                 if should_push:
-                    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+                    proc = subprocess.run(  # pylint: disable=subprocess-run-check
                         ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"],
                         capture_output=True,
                         encoding="utf-8",

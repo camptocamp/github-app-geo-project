@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 
-import c2cciutils
 import github
 import security_md
 
@@ -17,15 +16,19 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
     """Module to display the status of the workflows in the transversal dashboard."""
 
     def title(self) -> str:
+        """Get the title of the module."""
         return "Workflow dashboard"
 
     def description(self) -> str:
+        """Get the description of the module."""
         return "Display the status of the workflows in the transversal dashboard"
 
     def documentation_url(self) -> str:
+        """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Workflow"
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
+        """Get the GitHub application permissions needed by the module."""
         return module.GitHubApplicationPermissions(
             {
                 "workflows": "read",
@@ -34,6 +37,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
         )
 
     def get_json_schema(self) -> dict[str, Any]:
+        """Get the JSON schema for the module."""
         return {
             "type": "object",
             "properties": {},
@@ -41,6 +45,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
         }
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+        """Get the action related to the module and the event."""
         if (
             context.event_data.get("action") == "completed"
             and context.event_data.get("workflow_run", {}).get("event", "pull_request") != "pull_request"
@@ -51,6 +56,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
     async def process(
         self, context: module.ProcessContext[None, dict[str, Any], dict[str, Any]]
     ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
+        """Process the action."""
         full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
 
         module_utils.manage_updated(context.transversal_status, full_repo, days_old=30)
@@ -133,11 +139,13 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
         return module.ProcessOutput(transversal_status=context.transversal_status)
 
     def has_transversal_dashboard(self) -> bool:
+        """Return True."""
         return True
 
     def get_transversal_dashboard(
         self, context: module.TransversalDashboardContext[dict[str, Any]]
     ) -> module.TransversalDashboardOutput:
+        """Return the transversal dashboard output."""
         if "repository" in context.params:
             data = utils.format_json(context.status.get(context.params["repository"], {}))
 
