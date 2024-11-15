@@ -11,7 +11,6 @@ import github
 import pyramid.request
 import sqlalchemy.engine
 import sqlalchemy.orm
-from numpy import where
 from pyramid.view import view_config
 from sqlalchemy.orm import Session
 
@@ -92,35 +91,38 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     engine = session_factory.rw_engine
     SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
     with SessionMaker() as session:
-        if data.get("action") == "rerequested" and data.get("check_suite", {}).get("id"):
-            if "TEST_APPLICATION" not in os.environ:
-                try:
-                    project_github = configuration.get_github_project(
-                        request.registry.settings, application, owner, repository
+        if (
+            data.get("action") == "rerequested"
+            and data.get("check_suite", {}).get("id")
+            and "TEST_APPLICATION" not in os.environ
+        ):
+            try:
+                project_github = configuration.get_github_project(
+                    request.registry.settings, application, owner, repository
+                )
+                check_suite = project_github.repo.get_check_suite(data["check_suite"]["id"])
+                for check_run in check_suite.get_check_runs():
+                    _LOGGER.info(
+                        "Rerequest the check run %s from check suite %s", check_run.id, check_suite.id
                     )
-                    check_suite = project_github.repo.get_check_suite(data["check_suite"]["id"])
-                    for check_run in check_suite.get_check_runs():
-                        _LOGGER.info(
-                            "Rerequest the check run %s from check suite %s", check_run.id, check_suite.id
+                    session.execute(
+                        sqlalchemy.update(models.Queue)
+                        .where(models.Queue.check_run_id == check_run.id)
+                        .values(
+                            {
+                                "status": models.JobStatus.NEW,
+                                "started_at": None,
+                                "finished_at": None,
+                            }
                         )
-                        session.execute(
-                            sqlalchemy.update(models.Queue)
-                            .where(models.Queue.check_run_id == check_run.id)
-                            .values(
-                                {
-                                    "status": models.JobStatus.NEW,
-                                    "started_at": None,
-                                    "finished_at": None,
-                                }
-                            )
-                        )
-                        session.commit()
-                        check_run.edit(status="queued")
-                except github.GithubException as exception:
-                    if exception.status == 404:
-                        _LOGGER.error("Repository not found: %s/%s", owner, repository)
-                    else:
-                        _LOGGER.exception("Error while getting check suite")
+                    )
+                    session.commit()
+                    check_run.edit(status="queued")
+            except github.GithubException as exception:
+                if exception.status == 404:
+                    _LOGGER.error("Repository not found: %s/%s", owner, repository)
+                else:
+                    _LOGGER.exception("Error while getting check suite")
 
         if data.get("action") == "rerequested" and data.get("check_run", {}).get("id"):
             _LOGGER.info("Rerequest the check run %s", data["check_run"]["id"])
@@ -147,23 +149,26 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                     else:
                         _LOGGER.exception("Error while getting check run")
 
-        if data.get("action") == "edited" and "issue" in data:
-            if "dashboard" in data["issue"]["title"].lower().split():
-                session.execute(
-                    sqlalchemy.insert(models.Queue).values(
-                        {
-                            "priority": module.PRIORITY_HIGH,
-                            "application": application,
-                            "owner": owner,
-                            "repository": repository,
-                            "event_name": "dashboard",
-                            "event_data": data,
-                            "module_data": {
-                                "type": "dashboard",
-                            },
-                        }
-                    )
+        if (
+            data.get("action") == "edited"
+            and "issue" in data
+            and "dashboard" in data["issue"]["title"].lower().split()
+        ):
+            session.execute(
+                sqlalchemy.insert(models.Queue).values(
+                    {
+                        "priority": module.PRIORITY_HIGH,
+                        "application": application,
+                        "owner": owner,
+                        "repository": repository,
+                        "event_name": "dashboard",
+                        "event_data": data,
+                        "module_data": {
+                            "type": "dashboard",
+                        },
+                    }
                 )
+            )
 
         process_event(
             ProcessContext(
@@ -236,7 +241,6 @@ def process_event(context: ProcessContext) -> None:
 
                 jobs_unique_on = current_module.jobs_unique_on()
                 if jobs_unique_on:
-
                     update = (
                         sqlalchemy.update(models.Queue)
                         .where(models.Queue.status == models.JobStatus.NEW)

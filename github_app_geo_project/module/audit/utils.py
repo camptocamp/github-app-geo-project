@@ -1,6 +1,4 @@
-"""
-The auditing functions.
-"""
+"""The auditing functions."""
 
 import asyncio
 import datetime
@@ -99,7 +97,7 @@ async def snyk(
         True if len(fixable_vulnerabilities_summary) == 0 else (snyk_fix_success and npm_audit_fix_success)
     )
 
-    diff_proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    diff_proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "diff", "--quiet"], timeout=30
     )
     if diff_proc.returncode != 0:
@@ -128,7 +126,6 @@ async def _select_java_version(
     local_config: configuration.SnykConfiguration,
     env: dict[str, str],
 ) -> None:
-
     if not os.path.exists("gradlew"):
         return
 
@@ -167,7 +164,7 @@ async def _install_requirements_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
 ) -> None:
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "ls-files", "requirements.txt", "*/requirements.txt"],
         capture_output=True,
         encoding="utf-8",
@@ -210,7 +207,7 @@ async def _install_pipenv_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
 ) -> None:
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8", timeout=30
     )
     if proc.returncode != 0:
@@ -249,7 +246,7 @@ async def _install_poetry_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
 ) -> None:
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "ls-files", "poetry.lock", "*/poetry.lock"],
         capture_output=True,
         encoding="utf-8",
@@ -519,7 +516,7 @@ async def _snyk_fix(
 
     snyk_fix_success = True
     snyk_fix_message = None
-    subprocess.run(["git", "reset", "--hard"], timeout=30)  # nosec # pylint: disable=subprocess-run-check
+    subprocess.run(["git", "reset", "--hard"], timeout=30)  # pylint: disable=subprocess-run-check
     if fixable_vulnerabilities_summary or vulnerabilities_in_requirements:
         command = [
             "snyk",
@@ -607,9 +604,7 @@ async def _npm_audit_fix(
 def outdated_versions(
     security: security_md.Security,
 ) -> list[str | models.OutputData]:
-    """
-    Check that the versions from the SECURITY.md are not outdated.
-    """
+    """Check that the versions from the SECURITY.md are not outdated."""
     version_index = security.headers.index("Version")
     date_index = security.headers.index("Supported Until")
 
@@ -635,9 +630,7 @@ _PACKAGE_VERSION: dict[str, debian_inspector.version.Version] = {}
 def _get_sources(
     dist: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
 ) -> apt_repo.APTSources:
-    """
-    Get the sources for the distribution.
-    """
+    """Get the sources for the distribution."""
     if dist not in _SOURCES:
         conf = local_config.get("sources", config.get("sources", configuration.DPKG_SOURCES_DEFAULT))
         if dist not in conf:
@@ -657,9 +650,7 @@ def _get_sources(
                 name = f"{dist}/{package.package}"
                 try:
                     version = debian_inspector.version.Version.from_string(package.version)
-                    if name not in _PACKAGE_VERSION:
-                        _PACKAGE_VERSION[name] = version
-                    elif version > _PACKAGE_VERSION[name]:
+                    if name not in _PACKAGE_VERSION or version > _PACKAGE_VERSION[name]:
                         _PACKAGE_VERSION[name] = version
                 except ValueError as exception:
                     _LOGGER.warning(
@@ -680,8 +671,10 @@ async def _get_packages_version(
 ) -> str | None:
     """Get the version of the package."""
     global _GENERATION_TIME  # pylint: disable=global-statement
-    if _GENERATION_TIME is None or _GENERATION_TIME < datetime.datetime.now() - utils.parse_duration(
-        os.environ.get("GHCI_DPKG_CACHE_DURATION", "3h")
+    if (
+        _GENERATION_TIME is None
+        or datetime.datetime.now() - utils.parse_duration(os.environ.get("GHCI_DPKG_CACHE_DURATION", "3h"))
+        > _GENERATION_TIME
     ):
         _PACKAGE_VERSION.clear()
         _SOURCES.clear()
@@ -709,7 +702,7 @@ async def dpkg(
     with open(dpkg_versions_filename, encoding="utf-8") as versions_file:
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)
         for versions in versions_config.values():
-            for package_full in versions.keys():
+            for package_full in versions:
                 version = await _get_packages_version(package_full, config, local_config)
                 if version is None:
                     _LOGGER.warning("No version found for %s", package_full)

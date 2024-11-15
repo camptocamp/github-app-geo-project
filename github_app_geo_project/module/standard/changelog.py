@@ -5,7 +5,7 @@ import logging
 import os
 import re
 from collections.abc import Callable
-from typing import Any, NamedTuple, Union, cast
+from typing import Any, NamedTuple, cast
 
 import github
 import packaging.version
@@ -65,16 +65,16 @@ class ChangelogItem(NamedTuple):
         return hash(self.ref)
 
 
-Condition = Union[
-    changelog_configuration.ConditionConst,
-    changelog_configuration.ConditionAndSolidusOr,
-    changelog_configuration.ConditionNot,
-    changelog_configuration.ConditionLabel,
-    changelog_configuration.ConditionFiles,
-    changelog_configuration.ConditionAuthor,
-    changelog_configuration.ConditionTitle,
-    changelog_configuration.ConditionBranch,
-]
+Condition = (
+    changelog_configuration.ConditionConst
+    | changelog_configuration.ConditionAndSolidusOr
+    | changelog_configuration.ConditionNot
+    | changelog_configuration.ConditionLabel
+    | changelog_configuration.ConditionFiles
+    | changelog_configuration.ConditionAuthor
+    | changelog_configuration.ConditionTitle
+    | changelog_configuration.ConditionBranch
+)
 
 
 def match(item: ChangelogItem, condition: Condition) -> bool:
@@ -98,18 +98,12 @@ def match(item: ChangelogItem, condition: Condition) -> bool:
 
 def match_and(item: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
     """Match all the conditions."""
-    for cond in condition["conditions"]:
-        if not match(item, cond):
-            return False
-    return True
+    return all(match(item, cond) for cond in condition["conditions"])
 
 
 def match_or(item: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
     """Match any of the conditions."""
-    for cond in condition["conditions"]:
-        if match(item, cond):
-            return True
-    return False
+    return any(match(item, cond) for cond in condition["conditions"])
 
 
 def match_not(item: ChangelogItem, condition: changelog_configuration.ConditionNot) -> bool:
@@ -131,10 +125,7 @@ def match_title(item: ChangelogItem, condition: changelog_configuration.Conditio
 def match_files(item: ChangelogItem, condition: changelog_configuration.ConditionFiles) -> bool:
     """Match all the files of the pull request."""
     file_re = re.compile("|".join(condition["regex"]))
-    for file_name in item.files:
-        if file_re.match(file_name) is None:
-            return False
-    return True
+    return all(file_re.match(file_name) is not None for file_name in item.files)
 
 
 def match_label(item: ChangelogItem, condition: changelog_configuration.ConditionLabel) -> bool:
@@ -255,7 +246,7 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Tag | None:
         return _previous_tag(test_tag, tags)
     if tag.major != 0:
         # Get previous version
-        tags_list = sorted([t for t in tags.keys() if t.major < tag.major])
+        tags_list = sorted([t for t in tags if t.major < tag.major])
         if not tags_list:
             return None
         previous_major_minor = tags_list[-1]
@@ -264,7 +255,7 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Tag | None:
         tags_list = sorted(
             [
                 t
-                for t in tags.keys()
+                for t in tags
                 if t.major == previous_major_minor.major and t.minor == previous_major_minor.minor
             ]
         )

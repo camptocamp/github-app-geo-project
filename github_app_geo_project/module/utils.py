@@ -7,7 +7,7 @@ import os
 import re
 import shlex
 import subprocess  # nosec
-from typing import Any, Union, cast
+from typing import Any, cast
 
 import github
 import html_sanitizer
@@ -56,7 +56,7 @@ class DashboardIssueItem:
         self.checked = checked
 
 
-DashboardIssueRaw = list[Union[DashboardIssueItem, str]]
+DashboardIssueRaw = list[DashboardIssueItem | str]
 
 _CHECK_RE = re.compile(r"- \[([ x])\] (.*)")
 _COMMENT_RE = re.compile(r"^(.*)<!--(.*)-->(.*)$")
@@ -541,7 +541,7 @@ async def run_timeout(
             _LOGGER.exception("%s not found: %s", command[0], exception)
         else:
             _LOGGER.warning("%s not found", command[0])
-        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        proc = subprocess.run(  # pylint: disable=subprocess-run-check
             ["find", "/", "-name", command[0]],
             capture_output=True,
             encoding="utf-8",
@@ -551,7 +551,7 @@ async def run_timeout(
         message.title = f"Find {command[0]}"
         _LOGGER.debug(message)
         return None, False, message
-    except asyncio.TimeoutError as exception:
+    except TimeoutError as exception:
         if async_proc:
             async_proc.kill()
             message = AnsiProcessMessage(
@@ -575,11 +575,11 @@ async def run_timeout(
 def has_changes(include_un_followed: bool = False) -> bool:
     """Check if there are changes."""
     if include_un_followed:
-        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        proc = subprocess.run(  # pylint: disable=subprocess-run-check
             ["git", "status", "--porcelain"], capture_output=True, encoding="utf-8", timeout=30
         )
         return bool(proc.stdout)
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "diff", "--exit-code"], capture_output=True, encoding="utf-8", timeout=30
     )
     return proc.returncode != 0
@@ -587,7 +587,7 @@ def has_changes(include_un_followed: bool = False) -> bool:
 
 async def create_commit(message: str, pre_commit_check: bool = True) -> bool:
     """Do a commit."""
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "add", "--all"], capture_output=True, encoding="utf-8", timeout=30
     )
     if proc.returncode != 0:
@@ -613,7 +613,7 @@ def create_pull_request(
     branch: str, new_branch: str, message: str, body: str, project: configuration.GithubProject
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "push", "--force", "origin", new_branch],
         capture_output=True,
         encoding="utf-8",
@@ -635,15 +635,14 @@ def create_pull_request(
             pull_request.head.ref,
         )
         # Create an issue it the pull request is open for 5 days
-        if pull_request.created_at < datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(
-            days=5
-        ):
+        if pull_request.created_at < datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=5):
             _LOGGER.warning("Pull request #%s is open for 5 days", pull_request.number)
             title = f"Pull request {message} is open for 5 days"
             body = f"See: #{pull_request.number}"
             found = False
             issues = project.repo.get_issues(
-                state="open", creator=project.application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
+                state="open",
+                creator=project.application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
             )
             if issues.totalCount > 0:
                 for candidate in issues:
@@ -676,7 +675,7 @@ async def create_commit_pull_request(
     """Do a commit, then create a pull request."""
     if os.path.exists(".pre-commit-config.yaml"):
         try:
-            proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+            proc = subprocess.run(  # pylint: disable=subprocess-run-check
                 ["pre-commit", "install"],
                 capture_output=True,
                 encoding="utf-8",
@@ -707,7 +706,8 @@ def close_pull_request_issues(new_branch: str, message: str, project: configurat
 
     title = f"Pull request {message} is open for 5 days"
     issues = project.repo.get_issues(
-        state="open", creator=project.application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
+        state="open",
+        creator=project.application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
     )
     for issue in issues:
         if title == issue.title:
@@ -723,7 +723,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     with open(os.path.join(directory, "id_rsa"), "w", encoding="utf-8") as file:
         file.write(github_project.application.auth.private_key)
 
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         [
             "git",
             "clone",
@@ -746,7 +746,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     os.chdir(github_project.repository.split("/")[-1])
     app = github_project.application.integration.get_app()
     user = github_project.github.get_user(app.slug + "[bot]")
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         [
             "git",
             "config",
@@ -765,7 +765,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     message.title = "Set email"
     _LOGGER.debug(message)
 
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "config", "user.name", user.login],
         capture_output=True,
         encoding="utf-8",
@@ -779,7 +779,7 @@ def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     message.title = "Set name"
     _LOGGER.debug(message)
 
-    proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
         ["git", "config", "gpg.format", "ssh"],
         capture_output=True,
         encoding="utf-8",

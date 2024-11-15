@@ -3,13 +3,19 @@ inherits:
   - utils:base
   - utils:fix
   - utils:no-design-checks
-
-doc-warnings: true
+  - utils:unsafe
+  - utils:c2cwsgiutils
 
 ignore-paths:
   - github_app_geo_project/project_configuration.py
   - github_app_geo_project/application_configuration.py
+  - github_app_geo_project/module/standard/changelog_configuration.py
+  - github_app_geo_project/module/audit/configuration.py
 
-bandit:
+mypy:
   options:
-    config: .bandit.yaml
+    python-version: '3.11'
+
+ruff:
+  options:
+    target-version: py311

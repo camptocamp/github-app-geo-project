@@ -1,6 +1,4 @@
-"""
-Process the jobs present in the database queue.
-"""
+"""Process the jobs present in the database queue."""
 
 import argparse
 import asyncio
@@ -23,7 +21,7 @@ import plaster
 import prometheus_client.exposition
 import sentry_sdk
 import sqlalchemy.orm
-from prometheus_client import Gauge, Info
+from prometheus_client import Gauge
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
 from github_app_geo_project.module import modules
@@ -102,7 +100,7 @@ def _validate_job(config: dict[str, Any], application: str, event_data: dict[str
     github_application = configuration.get_github_application(config, application)
     github_app = github_application.integration.get_app()
     installation_id = event_data.get("installation", {}).get("id", 0)
-    if not github_app.id != installation_id:
+    if github_app.id == installation_id:
         _LOGGER.error("Invalid installation id %i != %i", github_app.id, installation_id)
         return False
     return True
@@ -253,7 +251,7 @@ async def _process_job(
                     )
                     raise
             job.status = models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
-            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and result.transversal_status is not None:
@@ -304,7 +302,7 @@ async def _process_job(
             new_issue_data = result.dashboard if result is not None else None
         except github.GithubException as exception:
             job.status = models.JobStatus.ERROR
-            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             root_logger.addHandler(handler)
             try:
                 _LOGGER.exception(
@@ -352,7 +350,7 @@ async def _process_job(
             raise
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
             job.status = models.JobStatus.ERROR
-            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             message = module_utils.ansi_proc_message(proc_error)
             message.title = f"Error process job '{job.id}' on module: {job.module}"
             root_logger.addHandler(handler)
@@ -386,7 +384,7 @@ async def _process_job(
             raise
         except Exception as exception:
             job.status = models.JobStatus.ERROR
-            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             root_logger.addHandler(handler)
             try:
                 _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
@@ -510,7 +508,8 @@ def _get_dashboard_issue(
     github_application: configuration.GithubApplication, repo: github.Repository.Repository
 ) -> github.Issue.Issue | None:
     open_issues = repo.get_issues(
-        state="open", creator=github_application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
+        state="open",
+        creator=github_application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
     )
     if open_issues.totalCount > 0:
         for candidate in open_issues:
@@ -634,7 +633,7 @@ async def _process_one_job(
                 .where(
                     models.Queue.status == models.JobStatus.PENDING,
                     models.Queue.created_at
-                    < datetime.datetime.now(tz=datetime.timezone.utc)
+                    < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", 86400))),
                 )
                 .values(status=models.JobStatus.ERROR)
@@ -645,7 +644,7 @@ async def _process_one_job(
                 .where(
                     models.Queue.status == models.JobStatus.PENDING,
                     models.Queue.started_at
-                    < datetime.datetime.now(tz=datetime.timezone.utc)
+                    < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", 3600)) + 60),
                 )
                 .values(status=models.JobStatus.NEW)
@@ -678,14 +677,14 @@ async def _process_one_job(
         if make_pending:
             _LOGGER.info("Make job ID %s pending", job.id)
             job.status = models.JobStatus.PENDING
-            job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            job.started_at = datetime.datetime.now(tz=datetime.UTC)
             session.commit()
             _LOGGER.debug("Process one job (max priority: %i): Make pending", max_priority)
             return False
 
         try:
             job.status = models.JobStatus.PENDING
-            job.started_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            job.started_at = datetime.datetime.now(tz=datetime.UTC)
             session.commit()
             _NB_JOBS.labels(models.JobStatus.PENDING.name).set(
                 session.query(models.Queue).filter(models.Queue.status == models.JobStatus.PENDING).count()
@@ -696,7 +695,7 @@ async def _process_one_job(
                 if job.event_data.get("type") == "event":
                     _process_event(config, job.event_data, session)
                     job.status = models.JobStatus.DONE
-                    job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+                    job.finished_at = datetime.datetime.now(tz=datetime.UTC)
                 elif job.event_name == "dashboard":
                     success = _validate_job(config, job.application, job.event_data)
                     if success:
@@ -712,11 +711,11 @@ async def _process_one_job(
                         job.status = models.JobStatus.DONE
                     else:
                         job.status = models.JobStatus.ERROR
-                    job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+                    job.finished_at = datetime.datetime.now(tz=datetime.UTC)
                 else:
                     _LOGGER.error("Unknown event name: %s", job.event_name)
                     job.status = models.JobStatus.ERROR
-                    job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+                    job.finished_at = datetime.datetime.now(tz=datetime.UTC)
                     success = False
             else:
                 success = _validate_job(config, job.application, job.event_data)
@@ -737,7 +736,7 @@ async def _process_one_job(
             if job.status == models.JobStatus.PENDING:
                 _LOGGER.error("Job %s finished with pending status", job.id)
                 job.status = models.JobStatus.ERROR
-            job.finished_at = datetime.datetime.now(tz=datetime.timezone.utc)
+            job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             session.commit()
             _RUNNING_JOBS.pop(job.id)
 
@@ -777,7 +776,7 @@ class _Run:
                 )
                 if self.end_when_empty and empty:
                     return
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.exception("Timeout")
             except Exception:  # pylint: disable=broad-exception-caught
                 _LOGGER.exception("Failed to process job")

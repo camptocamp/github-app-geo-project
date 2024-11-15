@@ -20,9 +20,7 @@ if "GHCI_CONFIGURATION" in os.environ:
 
 
 def apply_profile_inheritance(profile_name: str, profiles: dict[str, Any]) -> None:
-    """
-    Apply the inheritance of the profile.
-    """
+    """Apply the inheritance of the profile."""
     for other_name, other_profile in APPLICATION_CONFIGURATION["profiles"].items():
         if other_profile.get("inherits") == profile_name:
             _LOGGER.debug("Apply inheritance %s -> %s", profile_name, other_name)

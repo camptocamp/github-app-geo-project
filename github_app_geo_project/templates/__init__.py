@@ -1,7 +1,7 @@
 """The mako templates to render the pages."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import html_sanitizer
 import markdown as markdown_lib  # mypy: ignore[import-untyped]
@@ -10,9 +10,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def sanitizer(text: str) -> str:
-    """
-    Sanitize the input string.
-    """
+    """Sanitize the input string."""
     sanitizer_instance = html_sanitizer.Sanitizer(
         {
             "tags": html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"] | {"span", "div", "pre", "code"},
@@ -47,22 +45,18 @@ def sanitizer(text: str) -> str:
 
 
 def markdown(text: str) -> str:
-    """
-    Convert the input string to markdown.
-    """
+    """Convert the input string to markdown."""
     return sanitizer(markdown_lib.markdown(text))
 
 
 def pprint_short_date(date_in: str | datetime) -> str:
-    """
-    Pretty print a short date (essentially time to current time).
-    """
+    """Pretty print a short date (essentially time to current time)."""
     if date_in == "None" or date_in is None:
         return "-"
 
     date = datetime.fromisoformat(date_in) if isinstance(date_in, str) else date_in
 
-    delta = datetime.now(timezone.utc) - date
+    delta = datetime.now(UTC) - date
     if delta.total_seconds() < 1:
         short_date = "now"
     elif delta.total_seconds() < 60:
@@ -80,9 +74,7 @@ def pprint_short_date(date_in: str | datetime) -> str:
 
 
 def pprint_full_date(date_in: str | datetime) -> str:
-    """
-    Pretty print a full date.
-    """
+    """Pretty print a full date."""
     if date_in == "None" or date_in is None:
         return "-"
 
@@ -106,9 +98,7 @@ def pprint_date(date_in: str | datetime) -> str:
 
 
 def pprint_duration(duration_in: str | timedelta) -> str:
-    """
-    Pretty print a duration.
-    """
+    """Pretty print a duration."""
     if duration_in == "None" or duration_in is None:
         return "-"
 

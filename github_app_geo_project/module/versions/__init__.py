@@ -8,6 +8,7 @@ import os.path
 import re
 import subprocess  # nosec
 import tempfile
+import tomllib
 from collections.abc import Iterable
 from typing import Any
 
@@ -15,7 +16,6 @@ import c2cciutils.configuration
 import github
 import requests
 import security_md
-import toml
 from pydantic import BaseModel
 
 from github_app_geo_project import module, utils
@@ -428,7 +428,7 @@ def _get_names(
     version: str,
     alternate_versions: list[str] | None = None,
 ) -> None:
-    for filename in subprocess.run(  # nosec
+    for filename in subprocess.run(
         ["git", "ls-files", "pyproject.toml", "*/pyproject.toml"],
         check=True,
         capture_output=True,
@@ -436,7 +436,7 @@ def _get_names(
         timeout=30,
     ).stdout.splitlines():
         with open(filename, encoding="utf-8") as file:
-            data = toml.load(file)
+            data = tomllib.loads(file.read())
             name = data.get("project", {}).get("name")
             names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
             if name and name not in names:
@@ -445,7 +445,7 @@ def _get_names(
                 name = data.get("tool", {}).get("poetry", {}).get("name")
                 if name and name not in names:
                     names.append(name)
-    for filename in subprocess.run(  # nosec
+    for filename in subprocess.run(
         ["git", "ls-files", "setup.py", "*/setup.py"],
         check=True,
         capture_output=True,
@@ -456,9 +456,8 @@ def _get_names(
             names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
             for line in file:
                 match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
-                if match:
-                    if match.group(1) not in names:
-                        names.append(match.group(1))
+                if match and match.group(1) not in names:
+                    names.append(match.group(1))
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     data = c2cciutils.get_config()
     docker_config = data.get("publish", {}).get("docker", {})
@@ -489,7 +488,7 @@ def _get_names(
                             if add_name not in names:
                                 names.append(add_name)
 
-    for filename in subprocess.run(  # nosec
+    for filename in subprocess.run(
         ["git", "ls-files", "package.json", "*/package.json"],
         check=True,
         capture_output=True,
@@ -514,7 +513,7 @@ def _get_dependencies(
     result: dict[str, _TransversalStatusNameInDatasource],
 ) -> None:
     if os.environ.get("TEST") != "TRUE":
-        proc = subprocess.run(  # nosec # pylint: disable=subprocess-run-check
+        proc = subprocess.run(  # pylint: disable=subprocess-run-check
             ["renovate-graph", "--platform=local"],
             env={
                 **os.environ,

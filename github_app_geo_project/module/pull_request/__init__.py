@@ -1,3 +1,1 @@
-"""
-The modules related to the pull request.
-"""
+"""The modules related to the pull request."""

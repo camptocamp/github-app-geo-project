@@ -17,7 +17,7 @@
     automerge: true,
   },
   'pre-commit': { enabled: true },
-  regexManagers: [
+  customManagers: [
     /** Do update on the schema present in the ci/config.yaml */
     {
       fileMatch: ['^ci/config\\.yaml$'],
@@ -25,11 +25,13 @@
         '.*https://raw\\.githubusercontent\\.com/(?<depName>[^\\s]+)/(?<currentValue>[0-9\\.]+)/.*',
       ],
       datasourceTemplate: 'github-tags',
+      customType: 'regex',
     },
     /** Do updates on pre-commit additional dependencies */
     {
       fileMatch: ['^\\.pre\\-commit\\-config\\.yaml$'],
       matchStrings: [" +- '?(?<depName>[^' @=]+)(@|==)(?<currentValue>[^' @=]+)'? # (?<datasource>.+)"],
+      customType: 'regex',
     },
     /** Python version in actions/setup-python action */
     {
@@ -37,6 +39,7 @@
       matchStrings: [' python-version: [\'"](?<currentValue>[0-9\\.]+)[\'"]'],
       datasourceTemplate: 'python-version',
       depNameTemplate: 'python',
+      customType: 'regex',
     },
   ],
   packageRules: [
@@ -64,10 +67,10 @@
     },
     /** Group Poetry packages */
     {
-      matchPackagePrefixes: ['poetry-'],
       groupName: 'Poetry',
       automerge: true,
       matchDepNames: ['poetry', 'pip'],
+      matchPackageNames: ['/^poetry\\-.*/'],
     },
     /** Support the 4 parts of shellcheck-py version with a v prefix */
     {
