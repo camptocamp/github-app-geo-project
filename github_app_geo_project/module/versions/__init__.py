@@ -8,6 +8,7 @@ import os.path
 import re
 import subprocess  # nosec
 import tempfile
+import tomllib
 from collections.abc import Iterable
 from typing import Any
 
@@ -15,7 +16,6 @@ import c2cciutils.configuration
 import github
 import requests
 import security_md
-import toml
 from pydantic import BaseModel
 
 from github_app_geo_project import module, utils
@@ -436,7 +436,7 @@ def _get_names(
         timeout=30,
     ).stdout.splitlines():
         with open(filename, encoding="utf-8") as file:
-            data = toml.load(file)
+            data = tomllib.loads(file)
             name = data.get("project", {}).get("name")
             names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
             if name and name not in names:

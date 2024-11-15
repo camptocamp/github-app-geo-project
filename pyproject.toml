@@ -17,7 +17,6 @@ classifiers = [
     'Operating System :: OS Independent',
     'Programming Language :: Python',
     'Programming Language :: Python :: 3',
-    'Programming Language :: Python :: 3.10',
     'Programming Language :: Python :: 3.11',
     'Programming Language :: Python :: 3.12',
     'Typing :: Typed',
@@ -46,7 +45,7 @@ pull-request-links = "github_app_geo_project.module.pull_request.links:Links"
 delete-old-workflow-runs = "github_app_geo_project.module.delete_old_workflow_runs:DeleteOldWorkflowRuns"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13"
+python = ">=3.11,<3.13"
 c2cwsgiutils = { version = "6.1.3",  extras = ["standard", "debug", "dev"] }
 c2cciutils = "1.7.1"
 security-md = "0.2.3"
@@ -82,10 +81,9 @@ types-pyyaml = "6.0.12.20240917"
 types-setuptools = "75.3.0.20241112"
 types-markdown = "3.7.0.20240822"
 types-requests = "2.32.0.20241016"
-types-toml = "0.10.8.20240310"
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py311"
 line-length = 110
 
 [tool.ruff.lint.pydocstyle]
