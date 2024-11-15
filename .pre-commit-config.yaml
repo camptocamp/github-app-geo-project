@@ -73,7 +73,7 @@ repos:
     hooks:
       - id: prospector
         args:
-          - --tool=pydocstyle
+          - --tool=ruff
           - --die-on-tool-error
           - --output-format=pylint
         additional_dependencies:
