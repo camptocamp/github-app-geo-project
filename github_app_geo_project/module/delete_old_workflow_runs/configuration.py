@@ -1,8 +1,6 @@
 """Automatically generated file from a JSON schema."""
 
-from typing import TypedDict
-
-from typing_extensions import Required
+from typing import Required, TypedDict
 
 
 class DeleteOldWorkflowRunsConfiguration(TypedDict, total=False):

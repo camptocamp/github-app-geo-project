@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from github_app_geo_project.templates import markdown, pprint_date, pprint_duration, sanitizer
 
@@ -34,7 +34,7 @@ def test_pprint_date() -> None:
     assert pprint_date(date_str) == expected_output
 
     # Test case when date is now
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     date_str = now.isoformat()
     expected_output = '<span title="{}">now</span>'.format(now.strftime("%Y-%m-%d %H:%M:%S"))
     assert pprint_date(date_str) == expected_output

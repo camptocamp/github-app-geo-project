@@ -1,7 +1,7 @@
 """The mako templates to render the pages."""
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import html_sanitizer
 import markdown as markdown_lib  # mypy: ignore[import-untyped]
@@ -56,7 +56,7 @@ def pprint_short_date(date_in: str | datetime) -> str:
 
     date = datetime.fromisoformat(date_in) if isinstance(date_in, str) else date_in
 
-    delta = datetime.now(timezone.utc) - date
+    delta = datetime.now(UTC) - date
     if delta.total_seconds() < 1:
         short_date = "now"
     elif delta.total_seconds() < 60:

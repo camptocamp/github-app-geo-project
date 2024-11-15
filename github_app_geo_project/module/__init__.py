@@ -4,11 +4,10 @@ import json
 import logging
 from abc import abstractmethod
 from types import GenericAlias
-from typing import Any, Generic, Literal, NamedTuple, TypedDict, TypeVar
+from typing import Any, Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar
 
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
-from typing_extensions import NotRequired
 
 from github_app_geo_project import configuration
 

@@ -551,7 +551,7 @@ async def run_timeout(
         message.title = f"Find {command[0]}"
         _LOGGER.debug(message)
         return None, False, message
-    except asyncio.TimeoutError as exception:
+    except TimeoutError as exception:
         if async_proc:
             async_proc.kill()
             message = AnsiProcessMessage(
@@ -635,9 +635,7 @@ def create_pull_request(
             pull_request.head.ref,
         )
         # Create an issue it the pull request is open for 5 days
-        if pull_request.created_at < datetime.datetime.now(tz=datetime.timezone.utc) - datetime.timedelta(
-            days=5
-        ):
+        if pull_request.created_at < datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=5):
             _LOGGER.warning("Pull request #%s is open for 5 days", pull_request.number)
             title = f"Pull request {message} is open for 5 days"
             body = f"See: #{pull_request.number}"
