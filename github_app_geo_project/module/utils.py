@@ -512,7 +512,7 @@ async def run_timeout(
     async_proc = None
     start = datetime.datetime.now()
     try:
-        async with asyncio.timeout(timeout):  # type: ignore[attr-defined]
+        async with asyncio.timeout(timeout):
             try:
                 async_proc = await asyncio.create_subprocess_exec(
                     *command,

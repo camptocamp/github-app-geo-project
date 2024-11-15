@@ -189,7 +189,7 @@ async def _process_job(
             root_logger.addHandler(handler)
             try:
                 job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", 3600))
-                async with asyncio.timeout(job_timeout):  # type: ignore[attr-defined]
+                async with asyncio.timeout(job_timeout):
                     result = await current_module.process(context)
 
                 if result is not None:

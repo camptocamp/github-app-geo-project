@@ -436,7 +436,7 @@ def _get_names(
         timeout=30,
     ).stdout.splitlines():
         with open(filename, encoding="utf-8") as file:
-            data = tomllib.loads(file)
+            data = tomllib.loads(file.read())
             name = data.get("project", {}).get("name")
             names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
             if name and name not in names:
