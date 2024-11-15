@@ -8,7 +8,7 @@ from typing import Any
 import github
 import github.PullRequest
 
-from github_app_geo_project import configuration, module
+from github_app_geo_project import module
 from github_app_geo_project.module.pull_request import links_configuration
 
 

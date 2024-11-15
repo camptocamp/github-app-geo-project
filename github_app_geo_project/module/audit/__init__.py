@@ -163,10 +163,7 @@ async def _process_snyk_dpkg(
                                     python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
                                     break
 
-                    if python_version:
-                        env = _use_python_version(python_version)
-                    else:
-                        env = os.environ.copy()
+                    env = _use_python_version(python_version) if python_version else os.environ.copy()
 
                     result, body, short_message, new_success = await audit_utils.snyk(
                         branch,
@@ -186,7 +183,7 @@ async def _process_snyk_dpkg(
                         ", ".join(short_message),
                     )
                     message: module_utils.Message = module_utils.HtmlMessage(
-                        "<a href='%s'>Output</a>" % output_url
+                        f"<a href='{output_url}'>Output</a>"
                     )
                     message.title = "Output URL"
                     _LOGGER.debug(message)

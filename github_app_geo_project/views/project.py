@@ -10,7 +10,6 @@ import pyramid.request
 import pyramid.response
 import pyramid.security
 import sqlalchemy
-import yaml
 from pyramid.view import view_config
 
 from github_app_geo_project import configuration, models, project_configuration, utils

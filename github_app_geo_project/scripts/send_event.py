@@ -1,6 +1,4 @@
-"""
-Send an event in the database queue.
-"""
+"""Send an event in the database queue."""
 
 import argparse
 

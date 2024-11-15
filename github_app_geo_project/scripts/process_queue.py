@@ -1,6 +1,4 @@
-"""
-Process the jobs present in the database queue.
-"""
+"""Process the jobs present in the database queue."""
 
 import argparse
 import asyncio
@@ -23,7 +21,7 @@ import plaster
 import prometheus_client.exposition
 import sentry_sdk
 import sqlalchemy.orm
-from prometheus_client import Gauge, Info
+from prometheus_client import Gauge
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
 from github_app_geo_project.module import modules
@@ -102,7 +100,7 @@ def _validate_job(config: dict[str, Any], application: str, event_data: dict[str
     github_application = configuration.get_github_application(config, application)
     github_app = github_application.integration.get_app()
     installation_id = event_data.get("installation", {}).get("id", 0)
-    if not github_app.id != installation_id:
+    if github_app.id == installation_id:
         _LOGGER.error("Invalid installation id %i != %i", github_app.id, installation_id)
         return False
     return True
@@ -510,7 +508,8 @@ def _get_dashboard_issue(
     github_application: configuration.GithubApplication, repo: github.Repository.Repository
 ) -> github.Issue.Issue | None:
     open_issues = repo.get_issues(
-        state="open", creator=github_application.integration.get_app().slug + "[bot]"  # type: ignore[arg-type]
+        state="open",
+        creator=github_application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
     )
     if open_issues.totalCount > 0:
         for candidate in open_issues:

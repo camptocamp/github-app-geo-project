@@ -12,11 +12,11 @@ def test_parse_dashboard_issue() -> None:
     assert isinstance(result[1], utils.DashboardIssueItem)
     assert result[1].title == "title"
     assert result[1].comment == "comment"
-    assert result[1].checked == True
+    assert result[1].checked is True
     assert isinstance(result[2], utils.DashboardIssueItem)
     assert result[2].title == "title2"
     assert result[2].comment == ""
-    assert result[2].checked == False
+    assert result[2].checked is False
     assert result[3] == "other"
 
 
@@ -36,26 +36,26 @@ def test_dashboard_issue() -> None:
     dashboard_issue = utils.DashboardIssue(issue_data)
 
     # Test is_checked
-    assert dashboard_issue.is_checked("comment") == True
-    assert dashboard_issue.is_checked("nonexistent") == None
+    assert dashboard_issue.is_checked("comment") is True
+    assert dashboard_issue.is_checked("nonexistent") is None
 
     # Test get_title
     assert dashboard_issue.get_title("comment") == "title"
-    assert dashboard_issue.get_title("nonexistent") == None
+    assert dashboard_issue.get_title("nonexistent") is None
 
     # Test set_check
-    assert dashboard_issue.set_check("comment", False) == True
-    assert dashboard_issue.is_checked("comment") == False
-    assert dashboard_issue.set_check("nonexistent", False) == False
+    assert dashboard_issue.set_check("comment", False) is True
+    assert dashboard_issue.is_checked("comment") is False
+    assert dashboard_issue.set_check("nonexistent", False) is False
 
     # Test set_title
-    assert dashboard_issue.set_title("comment", "new title") == True
+    assert dashboard_issue.set_title("comment", "new title") is True
     assert dashboard_issue.get_title("comment") == "new title"
-    assert dashboard_issue.set_title("nonexistent", "new title") == False
+    assert dashboard_issue.set_title("nonexistent", "new title") is False
 
     # Test add_check
     dashboard_issue.add_check("new", "new title", True)
-    assert dashboard_issue.is_checked("new") == True
+    assert dashboard_issue.is_checked("new") is True
     assert dashboard_issue.get_title("new") == "new title"
 
     # Test to_string and __str__

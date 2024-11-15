@@ -31,9 +31,7 @@ def _get_code_spell_command(
     ],
     ignore_file: NamedTemporaryFileStr,
 ) -> list[str]:
-    """
-    Get the codespell command.
-    """
+    """Get the codespell command."""
     config = context.module_config
     code_spell_config = config.get("codespell", {})
     code_spell_config = code_spell_config if isinstance(code_spell_config, dict) else {}

@@ -5,7 +5,6 @@ import pytest
 import responses
 
 from github_app_geo_project.module.versions import (
-    ProcessOutput,
     Versions,
     _canonical_minor_version,
     _Dependencies,
@@ -56,9 +55,7 @@ async def test_process_step_2() -> None:
     context.github_project.repository = "test"
     context.module_config = {}
     os.environ["TEST"] = "TRUE"
-    os.environ[
-        "RENOVATE_GRAPH"
-    ] = """WARN: GitHub token is required for some dependencies
+    os.environ["RENOVATE_GRAPH"] = """WARN: GitHub token is required for some dependencies
        "githubDeps": [
          "camptocamp/backport-action",
          "actions/checkout",

@@ -108,7 +108,7 @@ body:
                 else:
                     user = User("anonymous", None, None, None, False, None, request)
 
-            setattr(request, "user", user)
+            request.user = user
 
         return request.user  # type: ignore
 

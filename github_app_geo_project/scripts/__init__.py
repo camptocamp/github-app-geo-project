@@ -1,3 +1,1 @@
-"""
-The scripts module.
-"""
+"""The scripts module."""

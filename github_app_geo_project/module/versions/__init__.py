@@ -456,9 +456,8 @@ def _get_names(
             names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
             for line in file:
                 match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
-                if match:
-                    if match.group(1) not in names:
-                        names.append(match.group(1))
+                if match and match.group(1) not in names:
+                    names.append(match.group(1))
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     data = c2cciutils.get_config()
     docker_config = data.get("publish", {}).get("docker", {})

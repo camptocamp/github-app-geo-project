@@ -11,7 +11,6 @@ import github
 import pyramid.request
 import sqlalchemy.engine
 import sqlalchemy.orm
-from numpy import where
 from pyramid.view import view_config
 from sqlalchemy.orm import Session
 
@@ -236,7 +235,6 @@ def process_event(context: ProcessContext) -> None:
 
                 jobs_unique_on = current_module.jobs_unique_on()
                 if jobs_unique_on:
-
                     update = (
                         sqlalchemy.update(models.Queue)
                         .where(models.Queue.status == models.JobStatus.NEW)

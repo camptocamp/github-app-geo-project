@@ -1,6 +1,4 @@
-"""
-Script used to check the health of the process-queue daemon.
-"""
+"""Script used to check the health of the process-queue daemon."""
 
 import argparse
 import os
@@ -10,9 +8,7 @@ import time
 
 
 def main() -> None:
-    """
-    Check the health of the process-queue daemon.
-    """
+    """Check the health of the process-queue daemon."""
     parser = argparse.ArgumentParser(description="Check the health of the process-queue daemon")
     parser.add_argument("--timeout", type=int, help="Timeout in seconds")
     args = parser.parse_args()
