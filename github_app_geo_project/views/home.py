@@ -119,8 +119,8 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     # Test that all permissions are in github_permissions
                     for permission, access in permissions.items():
                         if permission not in github_permissions or _gt_access(
-                            access,
-                            github_permissions[permission],  # type: ignore[arg-type,literal-required]
+                            access,  # type: ignore[arg-type]
+                            github_permissions[permission],  # type: ignore[literal-required]
                         ):
                             application["errors"].append(
                                 f"Missing permission ({permission}={access}) in the GitHub application, "
@@ -138,8 +138,8 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                                 "\n".join([f"{k}={v}" for k, v in github_permissions.items()]),
                             )
                         elif _gt_access(
-                            github_permissions[permission],
-                            access,  # type: ignore[arg-type,literal-required]
+                            github_permissions[permission],  # type: ignore[literal-required]
+                            access,  # type: ignore[arg-type]
                         ):
                             _LOGGER.error(
                                 "The GitHub application '%s' has more permission (%s=%s) than required, "
