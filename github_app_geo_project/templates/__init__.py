@@ -1,7 +1,7 @@
 """The mako templates to render the pages."""
 
 import logging
-from datetime import UTC, datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import html_sanitizer
 import markdown as markdown_lib  # mypy: ignore[import-untyped]
