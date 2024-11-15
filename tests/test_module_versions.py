@@ -114,8 +114,6 @@ DEBUG: writePackageDataToFile called for github//local
                         "docker": {
                             "names": [
                                 "ghcr.io/camptocamp/github-app-geo-project:master",
-                                "camptocamp/github-app-geo-project:master",
-                                "docker.io/camptocamp/github-app-geo-project:master",
                             ],
                         },
                         "github-release": {
