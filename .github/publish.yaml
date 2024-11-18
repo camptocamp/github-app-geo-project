@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/camptocamp/tag-publish/0.8.2/c2cciutils/schema.json
 
 docker:
+  auto_login: true
   repository:
     github:
       server: ghcr.io
