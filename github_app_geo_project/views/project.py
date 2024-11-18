@@ -96,7 +96,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                 if module.required_issue_dashboard():
                     applications[app]["issue_required"] = True
 
-        except:  # nosec, pylint: disable=bare-except
+        except:  # pylint: disable=bare-except
             _LOGGER.debug(
                 "The repository %s/%s is not installed in the application %s", owner, repository, app
             )
