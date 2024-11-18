@@ -16,6 +16,7 @@ import c2cciutils.configuration
 import github
 import requests
 import security_md
+import yaml
 from pydantic import BaseModel
 
 from github_app_geo_project import module, utils
@@ -459,8 +460,13 @@ def _get_names(
                 if match and match.group(1) not in names:
                     names.append(match.group(1))
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
-    data = c2cciutils.get_config()
-    docker_config = data.get("publish", {}).get("docker", {})
+    docker_config = {}
+    if os.path.exists(".github/publish.yaml"):
+        with open(".github/publish.yaml", encoding="utf-8") as file:
+            docker_config = yaml.load(file, Loader=yaml.SafeLoader).get("docker", {})
+    else:
+        data = c2cciutils.get_config()
+        docker_config = data.get("publish", {}).get("docker", {})
     if docker_config:
         names = names_by_datasource.setdefault("docker", _TransversalStatusNameByDatasource()).names
         all_versions = [version]

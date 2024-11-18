@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/camptocamp/tag-publish/0.8.2/c2cciutils/schema.json
+
+docker:
+  repository:
+    github:
+      server: ghcr.io
+      versions:
+        - version_tag
+        - version_branch
+        - rebuild
+  images:
+    - name: camptocamp/github-app-geo-project
