@@ -18,6 +18,9 @@ _LOGGER = logging.getLogger(__name__)
 @view_config(route_name="logs", renderer="github_app_geo_project:templates/logs.html")  # type: ignore
 def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the logs of a job."""
+    if not request.is_authenticated:
+        raise pyramid.httpexceptions.HTTPForbidden()
+
     title = f"Logs of job {request.matchdict['id']}"
     logs = "Element not found"
     has_access = True
@@ -37,8 +40,7 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
             if has_access:
                 logs = job.log
             else:
-                request.response.status = 302
-                logs = "Access Denied"
+                raise pyramid.httpexceptions.HTTPUnauthorized()
             return {
                 "title": title,
                 "logs": logs,
@@ -51,10 +53,4 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
                 ),
             }
         else:
-            request.response.status = 404
-            return {
-                "title": title,
-                "logs": logs,
-                "reload": False,
-                "favicon_postfix": "red",
-            }
+            raise pyramid.httpexceptions.HTTPNotFound()
