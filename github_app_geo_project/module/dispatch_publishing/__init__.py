@@ -22,9 +22,9 @@ class _Destination(BaseModel):
     """The event type to dispatch"""
     legacy: bool = False
     """Transform the content to the legacy format"""
-    version_type: str
+    version_type: str | None = None
     """The version type to dispatch"""
-    package_type: str
+    package_type: str | None = None
     """The package type to dispatch"""
     image_re: str = ".*"
     """The image regular expression to dispatch"""
@@ -37,7 +37,11 @@ class _Config(BaseModel):
     """The destinations to dispatch to"""
 
 
-CONFIG = _Config(**json.loads(os.environ.get("DISPATCH_PUBLISH_CONFIG", "{}")))
+try:
+    CONFIG = _Config(**json.loads(os.environ.get("DISPATCH_PUBLISH_CONFIG", "{}")))
+except Exception:  # pylint: disable=broad-exception-caught
+    _LOGGER.exception("Error loading the configuration")
+    CONFIG = _Config()
 
 
 class DispatchPublishing(module.Module[None, None, None]):
