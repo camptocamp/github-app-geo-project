@@ -67,6 +67,12 @@ class DispatchPublishing(module.Module[None, None, None]):
         """Get the JSON schema for the configuration."""
         return {}
 
+    def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
+        """Get the GitHub application permissions needed by the module."""
+        return module.GitHubApplicationPermissions(
+            permissions={"contents": "write"}, events={"repository_dispatch"}
+        )
+
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[None]]:
         """
         Get the action related to the module and the event.
@@ -74,15 +80,12 @@ class DispatchPublishing(module.Module[None, None, None]):
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_name == "repository_dispatch" and context.event_data.get("event_type") == "publish":
+        if (
+            context.event_name == " repository_dispatch.published"
+            and context.event_data.get("action") == "published"
+        ):
             return [module.Action(None)]
         return []
-
-    def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
-        """Get the GitHub application permissions needed by the module."""
-        return module.GitHubApplicationPermissions(
-            permissions={"contents": "write"}, events={"repository_dispatch"}
-        )
 
     async def process(
         self,
@@ -93,8 +96,9 @@ class DispatchPublishing(module.Module[None, None, None]):
 
         Note that this method is called in the queue consuming Pod
         """
+        content = context.event_data.get("client_payload", {}).get("content", {})
+
         for destination in CONFIG.destinations:
-            content = context.event_data.get("payloads", {}).get("content", {})
             if destination.version_type and destination.package_type != content.get("version_type"):
                 continue
 
