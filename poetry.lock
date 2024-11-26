@@ -189,13 +189,13 @@ version = ["multi-repo-automation (>=1.0.0,<2.0.0)"]
 
 [[package]]
 name = "c2cwsgiutils"
-version = "6.1.3"
+version = "6.1.4"
 description = "Common utilities for Camptocamp WSGI applications"
 optional = false
 python-versions = ">=3.10"
 files = [
-    {file = "c2cwsgiutils-6.1.3-py3-none-any.whl", hash = "sha256:3e537c6ef3f72bd00ef519aa5f8e4948c7f1f584a95e99aa8159388805674ae6"},
-    {file = "c2cwsgiutils-6.1.3.tar.gz", hash = "sha256:afa5c7c5450512d3661be2375325cb673b8b7c2e520d487582927d099589d311"},
+    {file = "c2cwsgiutils-6.1.4-py3-none-any.whl", hash = "sha256:40237b9ab0378b956198c75a408fb2f6396ea65caaa4487ef6101a5a86a4e6e0"},
+    {file = "c2cwsgiutils-6.1.4.tar.gz", hash = "sha256:8c061fad7ad3d47399a2981246484ca371adfca3e487c0b4f379de872dcb0a10"},
 ]
 
 [package.dependencies]
@@ -1136,13 +1136,13 @@ source = ["Cython (>=3.0.11)"]
 
 [[package]]
 name = "lxml-html-clean"
-version = "0.4.0"
+version = "0.4.1"
 description = "HTML cleaner from lxml project"
 optional = false
 python-versions = "*"
 files = [
-    {file = "lxml_html_clean-0.4.0-py3-none-any.whl", hash = "sha256:3b5aedb6c2b4b684c0fbc8d4f1b901aae0a92c1ce525de84e71cc6dd1d9d4e3d"},
-    {file = "lxml_html_clean-0.4.0.tar.gz", hash = "sha256:a8b517d3f46c19e9303eafb2a1b4b422fe724ad42ae53793637a8e5cc36ffbc1"},
+    {file = "lxml_html_clean-0.4.1-py3-none-any.whl", hash = "sha256:b704f2757e61d793b1c08bf5ad69e4c0b68d6696f4c3c1429982caf90050bcaf"},
+    {file = "lxml_html_clean-0.4.1.tar.gz", hash = "sha256:40c838bbcf1fc72ba4ce811fbb3135913017b27820d7c16e8bc412ae1d8bc00b"},
 ]
 
 [package.dependencies]
@@ -1721,13 +1721,13 @@ twisted = ["twisted"]
 
 [[package]]
 name = "prospector"
-version = "1.13.2"
+version = "1.13.3"
 description = "Prospector is a tool to analyse Python code by aggregating the result of other tools."
 optional = false
 python-versions = "<4.0,>=3.9"
 files = [
-    {file = "prospector-1.13.2-py3-none-any.whl", hash = "sha256:4f3a654d35c37845b8388856dae851678b1040a828dba071c19cc97f484675b2"},
-    {file = "prospector-1.13.2.tar.gz", hash = "sha256:819f5c17386772c41755509411df3e0dc27b3c0fa95ebe151bacdf0457b9a90f"},
+    {file = "prospector-1.13.3-py3-none-any.whl", hash = "sha256:e7261c222ba54bc8aef8c9e31b2dcf5ed2a656c9b76fc0cceab294cd5ec3db6b"},
+    {file = "prospector-1.13.3.tar.gz", hash = "sha256:36ccb13f69aa27c5c4682afd4cc46219b9e0c80723e30dc64ff30c71f7b877a1"},
 ]
 
 [package.dependencies]
@@ -3331,18 +3331,18 @@ testing = ["coverage", "pytest", "pytest-cov"]
 
 [[package]]
 name = "waitress"
-version = "3.0.1"
+version = "3.0.2"
 description = "Waitress WSGI server"
 optional = false
 python-versions = ">=3.9.0"
 files = [
-    {file = "waitress-3.0.1-py3-none-any.whl", hash = "sha256:26cdbc593093a15119351690752c99adc13cbc6786d75f7b6341d1234a3730ac"},
-    {file = "waitress-3.0.1.tar.gz", hash = "sha256:ef0c1f020d9f12a515c4ec65c07920a702613afcad1dbfdc3bcec256b6c072b3"},
+    {file = "waitress-3.0.2-py3-none-any.whl", hash = "sha256:c56d67fd6e87c2ee598b76abdd4e96cfad1f24cacdea5078d382b1f9d7b5ed2e"},
+    {file = "waitress-3.0.2.tar.gz", hash = "sha256:682aaaf2af0c44ada4abfb70ded36393f0e307f4ab9456a215ce0020baefc31f"},
 ]
 
 [package.extras]
 docs = ["Sphinx (>=1.8.1)", "docutils", "pylons-sphinx-themes (>=1.0.9)"]
-testing = ["coverage (>=5.0)", "pytest", "pytest-cov"]
+testing = ["coverage (>=7.6.0)", "pytest", "pytest-cov"]
 
 [[package]]
 name = "webob"
@@ -3554,4 +3554,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.13"
-content-hash = "adef72de57f5ac876cc974a6aab63e9a06b0424a0654930b5e6aa985a628b39d"
+content-hash = "78a0cd4901e502517f66676036883c5c906b33ffb059711ff5527118614a51b1"
