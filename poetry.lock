@@ -189,13 +189,13 @@ version = ["multi-repo-automation (>=1.0.0,<2.0.0)"]
 
 [[package]]
 name = "c2cwsgiutils"
-version = "6.1.4"
+version = "6.1.5"
 description = "Common utilities for Camptocamp WSGI applications"
 optional = false
 python-versions = ">=3.10"
 files = [
-    {file = "c2cwsgiutils-6.1.4-py3-none-any.whl", hash = "sha256:40237b9ab0378b956198c75a408fb2f6396ea65caaa4487ef6101a5a86a4e6e0"},
-    {file = "c2cwsgiutils-6.1.4.tar.gz", hash = "sha256:8c061fad7ad3d47399a2981246484ca371adfca3e487c0b4f379de872dcb0a10"},
+    {file = "c2cwsgiutils-6.1.5-py3-none-any.whl", hash = "sha256:37337c84004fcaabbaa18fcb711534926d7bea94c5719f9fbe8afe66b8f6b6c5"},
+    {file = "c2cwsgiutils-6.1.5.tar.gz", hash = "sha256:b5d8f8529a9b7bfb01b5f11aba6a3b60bc3f3f4aacf6fdb236b009d28643b59b"},
 ]
 
 [package.dependencies]
@@ -2254,13 +2254,13 @@ test = ["setuptools (>=60)", "zest.releaser[recommended]"]
 
 [[package]]
 name = "pytest"
-version = "8.3.3"
+version = "8.3.4"
 description = "pytest: simple powerful testing with Python"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "pytest-8.3.3-py3-none-any.whl", hash = "sha256:a6853c7375b2663155079443d2e45de913a911a11d669df02a50814944db57b2"},
-    {file = "pytest-8.3.3.tar.gz", hash = "sha256:70b98107bd648308a7952b06e6ca9a50bc660be218d53c257cc1fc94fda10181"},
+    {file = "pytest-8.3.4-py3-none-any.whl", hash = "sha256:50e16d954148559c9a74109af1eaf0c945ba2d8f30f0a3d3335edde19788b6f6"},
+    {file = "pytest-8.3.4.tar.gz", hash = "sha256:965370d062bce11e73868e0335abac31b4d3de0e82f4007408d242b4f8610761"},
 ]
 
 [package.dependencies]
@@ -3361,18 +3361,18 @@ testing = ["coverage", "pytest (>=3.1.0)", "pytest-cov", "pytest-xdist"]
 
 [[package]]
 name = "webtest"
-version = "3.0.1"
+version = "3.0.2"
 description = "Helper to test WSGI applications"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "WebTest-3.0.1-py3-none-any.whl", hash = "sha256:b3bc75d020d0576ee93a5f149666045e58fe2400ea5f0c214d7430d7d213d0d0"},
-    {file = "webtest-3.0.1.tar.gz", hash = "sha256:493b5c802f8948a65b5e3a1ad5b2524ee5e1ab60cd713d9a3da3b8da082c06fe"},
+    {file = "WebTest-3.0.2-py3-none-any.whl", hash = "sha256:799846e169d15e0c1233ab4ab00ee4de59a5d964407d6f2945d89249328dbbdb"},
+    {file = "webtest-3.0.2.tar.gz", hash = "sha256:0b2de681c16f57b31da5cce6e94ff03cdc77bd86c37a57ba0ee27fed8e065ceb"},
 ]
 
 [package.dependencies]
 beautifulsoup4 = "*"
-waitress = ">=0.8.5"
+waitress = ">=3.0.2"
 WebOb = ">=1.2"
 
 [package.extras]
@@ -3549,4 +3549,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.13"
-content-hash = "ca7509cbd2c26a352187cc78d40cbc5e6e5bd0cd36edeef4325771e3efb6e539"
+content-hash = "8e4defa637622a204ec3071cf0ff3f6ed83800ecf1d4c01d36fbda67c93c8007"
