@@ -47,7 +47,7 @@ dispatch-publishing = "github_app_geo_project.module.dispatch_publishing:Dispatc
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-c2cwsgiutils = { version = "6.1.4",  extras = ["standard", "debug", "dev"] }
+c2cwsgiutils = { version = "6.1.5",  extras = ["standard", "debug", "dev"] }
 c2cciutils = "1.7.1"
 security-md = "0.2.3"
 pyramid-mako = "1.1.0"
@@ -73,12 +73,12 @@ waitress = "3.0.2"
 lxml-html-clean = "0.4.1"
 
 [tool.poetry.group.dev.dependencies]
-c2cwsgiutils = { version = "6.1.4",  extras = ["test-images"] }
+c2cwsgiutils = { version = "6.1.5",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.13.3" }
 prospector-profile-duplicated = "1.8.0"
 prospector-profile-utils = "1.12.2"
-pytest = "8.3.3"
-WebTest = "3.0.1"
+pytest = "8.3.4"
+WebTest = "3.0.2"
 types-pyyaml = "6.0.12.20240917"
 types-setuptools = "75.6.0.20241126"
 types-markdown = "3.7.0.20240822"
