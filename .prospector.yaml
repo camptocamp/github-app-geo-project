@@ -11,6 +11,7 @@ ignore-paths:
   - github_app_geo_project/application_configuration.py
   - github_app_geo_project/module/standard/changelog_configuration.py
   - github_app_geo_project/module/audit/configuration.py
+  - github_app_geo_project/module/clean/configuration.py
 
 mypy:
   options:

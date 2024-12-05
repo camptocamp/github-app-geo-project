@@ -71,6 +71,7 @@ sentry-sdk = "2.19.0"
 webob = "1.8.9"
 waitress = "3.0.2"
 lxml-html-clean = "0.4.1"
+tag-publish = "0.13.3"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.5",  extras = ["test-images"] }

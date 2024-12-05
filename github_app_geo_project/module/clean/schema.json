@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/module/audit/schema.json",
+  "type": "object",
+  "title": "Clean modules configuration",
+  "additionalProperties": false,
+  "properties": {
+    "clean": {
+      "type": "object",
+      "title": "Clean configuration",
+      "additionalProperties": false,
+      "properties": {
+        "docker": {
+          "title": "docker",
+          "type": "boolean",
+          "description": "Clean the docker images made from feature branches and pull requests",
+          "default": true
+        },
+        "git": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "title": "git",
+            "description": "Clean a folder from a branch",
+            "additionalProperties": false,
+            "properties": {
+              "on-type": {
+                "title": "on-type",
+                "type": "string",
+                "description": "feature_branch, pull_request or all",
+                "default": "all",
+                "enum": ["feature_branch", "pull_request", "all"]
+              },
+              "branch": {
+                "title": "branch",
+                "type": "string",
+                "description": "The branch on witch one the folder will be cleaned",
+                "default": "gh-pages"
+              },
+              "folder": {
+                "title": "folder",
+                "type": "string",
+                "description": "The folder to be cleaned, can contains {name}, that will be replaced with the branch name or pull request number",
+                "default": "{name}"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
