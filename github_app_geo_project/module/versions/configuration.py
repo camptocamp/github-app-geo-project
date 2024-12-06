@@ -2,10 +2,6 @@
 
 from typing import Any, Required, TypedDict
 
-VERSION_MAPPING_DEFAULT: dict[str, Any] = {}
-""" Default value of the field path 'Versions configuration version-mapping' """
-
-
 # | Versions configuration.
 VersionsConfiguration = TypedDict(
     "VersionsConfiguration",
