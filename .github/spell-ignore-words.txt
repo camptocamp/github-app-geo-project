@@ -3,3 +3,5 @@ dpkg
 pipenv
 datasource
 lifecycle
+feature_branch
+pull_request

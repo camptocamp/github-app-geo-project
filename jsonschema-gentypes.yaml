@@ -33,3 +33,5 @@ generate:
     destination: github_app_geo_project/module/delete_old_workflow_runs/configuration.py
   - source: github_app_geo_project/module/versions/schema.json
     destination: github_app_geo_project/module/versions/configuration.py
+  - source: github_app_geo_project/module/clean/schema.json
+    destination: github_app_geo_project/module/clean/configuration.py
