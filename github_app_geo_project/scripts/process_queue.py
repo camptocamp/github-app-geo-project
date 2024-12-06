@@ -230,6 +230,10 @@ async def _process_job(
                 if result is not None and result.output:
                     check_output.update(result.output)
                 assert check_run is not None
+                if len(check_output["summary"]) > 65535:
+                    check_output["summary"] = check_output["summary"][:65532] + "..."
+                if len(check_output["text"]) > 65535:
+                    check_output["text"] = check_output["text"][:65532] + "..."
                 try:
                     check_run.edit(
                         status="completed",
