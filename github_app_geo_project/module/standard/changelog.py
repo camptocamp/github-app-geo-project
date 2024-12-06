@@ -512,7 +512,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             milestone_version = event_data.get("milestone", {}).get("title")
             if milestone_version is not None:
                 versions.add(milestone_version)
-            pull_request_version = event_data.get("pull_request", {}).get("milestone", {}).get("title")
+            pull_request_version = (
+                event_data["pull_request"]["milestone"].get("title")
+                if event_data.get("pull_request", {}).get("milestone")
+                else None
+            )
             if pull_request_version is not None:
                 versions.add(pull_request_version)
             return [
