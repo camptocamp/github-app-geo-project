@@ -3,6 +3,7 @@
 import asyncio
 import datetime
 import logging
+import math
 import os
 import re
 import shlex
@@ -609,7 +610,7 @@ async def create_commit(message: str, pre_commit_check: bool = True) -> bool:
     return success
 
 
-def create_pull_request(
+async def create_pull_request(
     branch: str, new_branch: str, message: str, body: str, project: configuration.GithubProject
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
@@ -664,9 +665,31 @@ def create_pull_request(
             head=new_branch,
             base=branch,
         )
-        pull_request.enable_automerge(merge_method="SQUASH")
+        await auto_merge_pull_request(pull_request)
         return True, pull_request
     return True, None
+
+
+async def auto_merge_pull_request(pull_request: github.PullRequest.PullRequest) -> None:
+    """Enable the automerge of a pull request."""
+    exception: Exception | None = None
+    for n in range(10):
+        try:
+            if n != 0:
+                await asyncio.sleep(math.pow(n, 2))
+            pull_request.enable_automerge(merge_method="MERGE")
+            return
+        except github.GithubException as exception:
+            errors = exception.data.get("errors", [])
+            if (
+                exception.status == 400
+                and len(errors) == 1
+                and errors[0].get("message") == "Pull request Pull request is in clean status"
+            ):
+                continue
+            raise
+    if exception is not None:
+        raise exception
 
 
 async def create_commit_pull_request(
@@ -688,7 +711,7 @@ async def create_commit_pull_request(
             _LOGGER.debug("pre-commit not installed")
     if not await create_commit(message):
         return False, None
-    return create_pull_request(branch, new_branch, message, body, project)
+    return await create_pull_request(branch, new_branch, message, body, project)
 
 
 def close_pull_request_issues(new_branch: str, message: str, project: configuration.GithubProject) -> None:
