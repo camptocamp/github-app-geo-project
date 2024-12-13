@@ -28,7 +28,7 @@ class _ActionData(BaseModel):
 
 
 class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
-    """Module to display the status of the workflows in the transversal dashboard."""
+    """Module used to clean the related artifacts on deleting a feature branch or on closing a pull request."""
 
     def title(self) -> str:
         """Get the title of the module."""
@@ -54,7 +54,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module."""
         with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
-            return json.loads(schema_file.read()).get("properties", {}).get("audit")  # type: ignore[no-any-return]
+            return json.loads(schema_file.read()).get("properties", {}).get("clean")  # type: ignore[no-any-return]
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
         """Get the action related to the module and the event."""

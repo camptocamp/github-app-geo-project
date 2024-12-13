@@ -35,3 +35,5 @@ generate:
     destination: github_app_geo_project/module/versions/configuration.py
   - source: github_app_geo_project/module/clean/schema.json
     destination: github_app_geo_project/module/clean/configuration.py
+  - source: github_app_geo_project/module/backport/schema.json
+    destination: github_app_geo_project/module/backport/configuration.py
