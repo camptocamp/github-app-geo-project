@@ -25,7 +25,7 @@ class _ActionData(BaseModel):
     branch: str | None = None
 
 
-class Clean(module.Module[configuration.BackportConfiguration, _ActionData, None]):
+class Backport(module.Module[configuration.BackportConfiguration, _ActionData, None]):
     """Module used to backport a pull request to an other branch."""
 
     def title(self) -> str:
