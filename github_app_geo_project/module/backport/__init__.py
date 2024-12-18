@@ -221,3 +221,5 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     "\n".join(message),
                     project=context.github_project,
                 )
+                # Remove backport label
+                pull_request.remove_from_labels(f"backport {target_branch}")
