@@ -44,6 +44,8 @@ pull-request-checks = "github_app_geo_project.module.pull_request.checks:Checks"
 pull-request-links = "github_app_geo_project.module.pull_request.links:Links"
 delete-old-workflow-runs = "github_app_geo_project.module.delete_old_workflow_runs:DeleteOldWorkflowRuns"
 dispatch-publishing = "github_app_geo_project.module.dispatch_publishing:DispatchPublishing"
+clean = "github_app_geo_project.module.clean:Clean"
+backport = "github_app_geo_project.module.backport:Backport"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
