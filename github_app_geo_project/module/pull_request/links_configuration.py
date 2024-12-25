@@ -2,15 +2,6 @@
 
 from typing import TypedDict
 
-BRANCH_PATTERNS_DEFAULT = [
-    "^(?P<project>[A-Z]{3,6})-(?P<issue>[0-9]+)-.*$",
-    "^(?P<project>[a-z]{3,6})-(?P<issue>[0-9]+)-.*$",
-    "^.*-(?P<project>[A-Z]{3,6})-(?P<issue>[0-9]+)$",
-    "^.*-(?P<project>[a-z]{3,6})-(?P<issue>[0-9]+)$",
-]
-""" Default value of the field path 'Pull request add links configuration branch-patterns' """
-
-
 # | Pull request add links configuration.
 PullRequestAddLinksConfiguration = TypedDict(
     "PullRequestAddLinksConfiguration",
