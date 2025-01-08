@@ -10,6 +10,11 @@
       "title": "Audit configuration",
       "additionalProperties": false,
       "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Enable audit",
+          "default": true
+        },
         "snyk": {
           "type": "object",
           "title": "Snyk configuration",

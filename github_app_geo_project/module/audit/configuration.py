@@ -6,6 +6,10 @@ from typing import Any, Literal, TypedDict, Union
 AuditConfiguration = TypedDict(
     "AuditConfiguration",
     {
+        # | Enable audit.
+        # |
+        # | default: True
+        "enabled": bool,
         # | Snyk configuration.
         "snyk": "SnykConfiguration",
         # | Dpkg configuration.
@@ -202,6 +206,10 @@ class DpkgConfiguration(TypedDict, total=False):
         distribution: noble-updates
         url: http://security.ubuntu.com/ubuntu
     """
+
+
+ENABLE_AUDIT_DEFAULT = True
+""" Default value of the field path 'Audit configuration enabled' """
 
 
 ENABLE_DPKG_DEFAULT = True
