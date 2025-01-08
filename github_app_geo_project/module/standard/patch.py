@@ -182,7 +182,10 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                         timeout=60,
                     )
                     if proc.returncode != 0:
-                        raise PatchException(f"Failed to push the changes{format_process_output(proc)}")
+                        return module.ProcessOutput(
+                            success=False,
+                            output={"summary": f"Failed to push the changes{format_process_output(proc)}"},
+                        )
                 os.chdir("/")
         if is_clone and result_message:
             return module.ProcessOutput(
