@@ -83,6 +83,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
         )
         should_push = False
         result_message = []
+        error_messages = []
 
         async with module_utils.WORKING_DIRECTORY_LOCK:
             with tempfile.TemporaryDirectory() as tmpdirname:
@@ -153,7 +154,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                 if proc.returncode != 0:
                                     message.title = f"Failed to apply the diff {artifact.name}"
                                     _LOGGER.warning(message)
-                                    result_message.append(
+                                    error_messages.append(
                                         f"Failed to apply the diff '{artifact.name}', you should probably rebase your branch"
                                     )
                                     continue
@@ -186,8 +187,10 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
         if is_clone and result_message:
             return module.ProcessOutput(
                 success=False,
-                output={"summary": "\n".join(["Patch to be applied", *result_message])},
+                output={"summary": "\n".join([*error_messages, "", "Patch to be applied", *result_message])},
             )
+        if error_messages:
+            return module.ProcessOutput(success=False, output={"summary": "\n".join(error_messages)})
         return module.ProcessOutput()
 
     def get_json_schema(self) -> dict[str, Any]:
