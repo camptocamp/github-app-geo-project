@@ -24,7 +24,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class _ActionData(BaseModel):
     type: str
-    name: str
+    names: list[str]
 
 
 class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
@@ -58,9 +58,25 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
         """Get the action related to the module and the event."""
-        if context.event_data.get("action") == "delete":
+        if context.event_data.get("action") == "closed" and "pull_request" in context.event_data:
             return [
-                module.Action(_ActionData(type="pull_request", name="123"), priority=module.PRIORITY_CRON)
+                module.Action(
+                    _ActionData(
+                        type="pull_request",
+                        names=[
+                            str(context.event_data.get("number")),
+                            context.event_data.get("pull_request", {}).get("head", {}).get("ref"),
+                        ],
+                    ),
+                    priority=module.PRIORITY_CRON,
+                )
+            ]
+        if context.event_name == "delete" and context.event_data.get("ref_type") == "branch":
+            return [
+                module.Action(
+                    _ActionData(type="branch", names=[context.event_data.get("ref", "")]),
+                    priority=module.PRIORITY_CRON,
+                )
             ]
         return []
 
@@ -93,51 +109,53 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                 raise
             return
 
-        name = context.module_event_data.name
-        if context.module_event_data.type == "pull_request":
-            transformers = publish_config.get(
-                "transformers",
-                cast(tag_publish.configuration.Transformers, tag_publish.configuration.TRANSFORMERS_DEFAULT),
-            )
-            pull_match = tag_publish.match(
-                name.split("/", 2)[2],
-                tag_publish.compile_re(
-                    transformers.get(
-                        "pull_request_to_version", cast(tag_publish.configuration.Transform, [{}])
-                    )
-                ),
-            )
-            name = tag_publish.get_value(*pull_match)
+        for name in context.module_event_data.names:
+            if context.module_event_data.type == "pull_request":
+                transformers = publish_config.get(
+                    "transformers",
+                    cast(
+                        tag_publish.configuration.Transformers, tag_publish.configuration.TRANSFORMERS_DEFAULT
+                    ),
+                )
+                pull_match = tag_publish.match(
+                    name.split("/", 2)[2],
+                    tag_publish.compile_re(
+                        transformers.get(
+                            "pull_request_to_version", cast(tag_publish.configuration.Transform, [{}])
+                        )
+                    ),
+                )
+                name = tag_publish.get_value(*pull_match)
 
-        for repo in (
-            publish_config.get("docker", {})
-            .get(
-                "repository",
-                cast(
-                    dict[str, tag_publish.configuration.DockerRepository],
-                    tag_publish.configuration.DOCKER_REPOSITORY_DEFAULT,
-                ),
-            )
-            .values()
-        ):
-            if context.module_event_data.type not in repo.get(
-                "versions_type",
-                tag_publish.configuration.DOCKER_REPOSITORY_VERSIONS_DEFAULT,
+            for repo in (
+                publish_config.get("docker", {})
+                .get(
+                    "repository",
+                    cast(
+                        dict[str, tag_publish.configuration.DockerRepository],
+                        tag_publish.configuration.DOCKER_REPOSITORY_DEFAULT,
+                    ),
+                )
+                .values()
             ):
-                continue
-            host = repo.get("host", "docker.io")
-            if host not in ["docker.io", "ghcr.io"]:
-                _LOGGER.warning("Unsupported host %s", host)
-                continue
-            for image in publish_config.get("docker", {}).get("images", []):
-                for tag in image.get("tags", []):
-                    tag = tag.format(version=name)
-                    _LOGGER.info("Cleaning %s/%s:%s", host, image["name"], tag)
+                if context.module_event_data.type not in repo.get(
+                    "versions_type",
+                    tag_publish.configuration.DOCKER_REPOSITORY_VERSIONS_DEFAULT,
+                ):
+                    continue
+                host = repo.get("host", "docker.io")
+                if host not in ["docker.io", "ghcr.io"]:
+                    _LOGGER.warning("Unsupported host %s", host)
+                    continue
+                for image in publish_config.get("docker", {}).get("images", []):
+                    for tag in image.get("tags", []):
+                        tag = tag.format(version=name)
+                        _LOGGER.info("Cleaning %s/%s:%s", host, image["name"], tag)
 
-                    if host == "docker.io":
-                        self._clean_docker_hub_image(image["name"], tag)
-                    else:
-                        self._clean_ghcr_image(image["name"], tag, context.github_project)
+                        if host == "docker.io":
+                            self._clean_docker_hub_image(image["name"], tag)
+                        else:
+                            self._clean_ghcr_image(image["name"], tag, context.github_project)
 
     def _clean_docker_hub_image(self, image: str, tag: str) -> None:
         username = os.environ["DOCKERHUB_USERNAME"]
@@ -195,30 +213,31 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
             return
 
         branch = git.get("branch", configuration.BRANCH_DEFAULT)
-        folder = git.get("folder", configuration.FOLDER_DEFAULT).format(name=context.module_event_data.name)
+        for name in context.module_event_data.names:
+            folder = git.get("folder", configuration.FOLDER_DEFAULT).format(name=name)
 
-        async with module_utils.WORKING_DIRECTORY_LOCK:
-            # Checkout the right branch on a temporary directory
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                os.chdir(tmpdirname)
-                _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-                success = module_utils.git_clone(context.github_project, branch)
-                if not success:
-                    _LOGGER.error(
-                        "Error on cloning the repository %s/%s",
-                        context.github_project.owner,
-                        context.github_project.repository,
+            async with module_utils.WORKING_DIRECTORY_LOCK:
+                # Checkout the right branch on a temporary directory
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    os.chdir(tmpdirname)
+                    _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
+                    success = module_utils.git_clone(context.github_project, branch)
+                    if not success:
+                        _LOGGER.error(
+                            "Error on cloning the repository %s/%s",
+                            context.github_project.owner,
+                            context.github_project.repository,
+                        )
+
+                    os.chdir(context.github_project.repository)
+                    subprocess.run(["git", "rm", folder], check=True)
+                    subprocess.run(
+                        [
+                            "git",
+                            "commit",
+                            "-m",
+                            f"Delete {folder} to clean {context.module_event_data.type} {name}",
+                        ],
+                        check=True,
                     )
-
-                os.chdir(context.github_project.repository)
-                subprocess.run(["git", "rm", folder], check=True)
-                subprocess.run(
-                    [
-                        "git",
-                        "commit",
-                        "-m",
-                        f"Delete {folder} to clean {context.module_event_data.type} {context.module_event_data.name}",
-                    ],
-                    check=True,
-                )
                 subprocess.run(["git", "push", "origin", branch], check=True)
