@@ -141,8 +141,14 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             assert context.module_event_data.pull_request_number is not None
             pull_request = context.github_project.repo.get_pull(context.module_event_data.pull_request_number)
             assert context.module_event_data.branch is not None
-            await self._backport(context, pull_request, context.module_event_data.branch)
-            return module.ProcessOutput()
+            if await self._backport(context, pull_request, context.module_event_data.branch):
+                return module.ProcessOutput()
+            return module.ProcessOutput(
+                success=False,
+                output={
+                    "summary": "Error while backporting the pull request",
+                },
+            )
 
         return module.ProcessOutput()
 
@@ -151,13 +157,13 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         context: module.ProcessContext[configuration.BackportConfiguration, _ActionData, None],
         pull_request: github.PullRequest.PullRequest,
         target_branch: str,
-    ) -> None:
+    ) -> bool:
         """Backport the pull request to the target branch."""
         backport_branch = f"backport/{pull_request.number}-to-{target_branch}"
         try:
             if context.github_project.repo.get_branch(backport_branch):
-                _LOGGER.debug("Branch %s already exists", backport_branch)
-                return
+                _LOGGER.error("Branch %s already exists", backport_branch)
+                return False
         except github.GithubException as exception:
             if exception.status != 404:
                 _LOGGER.exception("Error while getting branch %s", backport_branch)
@@ -175,8 +181,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         context.github_project.owner,
                         context.github_project.repository,
                     )
-
-                os.chdir(context.github_project.repository)
+                    return False
 
                 # Checkout the branch
                 subprocess.run(["git", "checkout", "-b", backport_branch], check=True)
@@ -223,3 +228,4 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 )
                 # Remove backport label
                 pull_request.remove_from_labels(f"backport {target_branch}")
+        return True
