@@ -198,13 +198,13 @@ virtualenv = ["virtualenv (>=20.0.35)"]
 
 [[package]]
 name = "c2cciutils"
-version = "1.7.1"
+version = "1.7.2"
 description = "Common utilities for Camptocamp CI"
 optional = false
 python-versions = "<4.0,>=3.9"
 files = [
-    {file = "c2cciutils-1.7.1-py3-none-any.whl", hash = "sha256:fe2cc42b822a28dca76a9598d5b19a168625241dab502716020ad1b8fe1af096"},
-    {file = "c2cciutils-1.7.1.tar.gz", hash = "sha256:b7101acac74888fe9ad1d763d827350dd2038bffda01bb40708bf7b6361ccd8b"},
+    {file = "c2cciutils-1.7.2-py3-none-any.whl", hash = "sha256:273084fda8d0d35ef2eec5b2bc53e7ee296d8359e5dc8213a36e7ce5cf68ab48"},
+    {file = "c2cciutils-1.7.2.tar.gz", hash = "sha256:9c437027576a37493d746b965bbc3abea63a5290383ece1be24804f9724a7b18"},
 ]
 
 [package.dependencies]
@@ -221,13 +221,13 @@ version = ["multi-repo-automation (>=1.0.0,<2.0.0)"]
 
 [[package]]
 name = "c2cwsgiutils"
-version = "6.1.5"
+version = "6.1.6"
 description = "Common utilities for Camptocamp WSGI applications"
 optional = false
 python-versions = ">=3.10"
 files = [
-    {file = "c2cwsgiutils-6.1.5-py3-none-any.whl", hash = "sha256:37337c84004fcaabbaa18fcb711534926d7bea94c5719f9fbe8afe66b8f6b6c5"},
-    {file = "c2cwsgiutils-6.1.5.tar.gz", hash = "sha256:b5d8f8529a9b7bfb01b5f11aba6a3b60bc3f3f4aacf6fdb236b009d28643b59b"},
+    {file = "c2cwsgiutils-6.1.6-py3-none-any.whl", hash = "sha256:8dc69e2a28da1303662f65cdc54c5a93ac754dc630f8c5e724e0964f15a23cfb"},
+    {file = "c2cwsgiutils-6.1.6.tar.gz", hash = "sha256:9af0d0e1eb9fa3e74771034a80ed40121483c9a8f73dc0e22013fcea1478e389"},
 ]
 
 [package.dependencies]
@@ -2072,13 +2072,13 @@ with-vulture = ["vulture (>=1.5)"]
 
 [[package]]
 name = "prospector-profile-duplicated"
-version = "1.10.0"
+version = "1.10.4"
 description = "Profile that can be used to disable the duplicated or conflict rules between Prospector and other tools"
 optional = false
 python-versions = "*"
 files = [
-    {file = "prospector_profile_duplicated-1.10.0-py2.py3-none-any.whl", hash = "sha256:1ab48125d90834cab9c65bb0cecf33e53c3b196b9c3dad2e917fda8acedb3916"},
-    {file = "prospector_profile_duplicated-1.10.0.tar.gz", hash = "sha256:1164697b6898d485d660b2d4133ff13548375bc9722abd324d0dd87fcc4b0a64"},
+    {file = "prospector_profile_duplicated-1.10.4-py2.py3-none-any.whl", hash = "sha256:a856990f949e3e5c10d4bd561eb537468c817784a80fa6885c39e2afa98f29c9"},
+    {file = "prospector_profile_duplicated-1.10.4.tar.gz", hash = "sha256:833504584b236c3c9de7255571a96a09be73b7d01939b78138fd8a63ccaddb34"},
 ]
 
 [[package]]
@@ -2108,6 +2108,7 @@ files = [
     {file = "psycopg2-2.9.10-cp311-cp311-win_amd64.whl", hash = "sha256:0435034157049f6846e95103bd8f5a668788dd913a7c30162ca9503fdf542cb4"},
     {file = "psycopg2-2.9.10-cp312-cp312-win32.whl", hash = "sha256:65a63d7ab0e067e2cdb3cf266de39663203d38d6a8ed97f5ca0cb315c73fe067"},
     {file = "psycopg2-2.9.10-cp312-cp312-win_amd64.whl", hash = "sha256:4a579d6243da40a7b3182e0430493dbd55950c493d8c68f4eec0b302f6bbf20e"},
+    {file = "psycopg2-2.9.10-cp313-cp313-win_amd64.whl", hash = "sha256:91fd603a2155da8d0cfcdbf8ab24a2d54bca72795b90d2a3ed2b6da8d979dee2"},
     {file = "psycopg2-2.9.10-cp39-cp39-win32.whl", hash = "sha256:9d5b3b94b79a844a986d029eee38998232451119ad653aea42bb9220a8c5066b"},
     {file = "psycopg2-2.9.10-cp39-cp39-win_amd64.whl", hash = "sha256:88138c8dedcbfa96408023ea2b0c369eda40fe5d75002c0964c78f46f11fa442"},
     {file = "psycopg2-2.9.10.tar.gz", hash = "sha256:12ec0b40b0273f95296233e8750441339298e6a572f7039da5b260e3c8b60e11"},
@@ -2137,13 +2138,13 @@ files = [
 
 [[package]]
 name = "pydantic"
-version = "2.10.4"
+version = "2.10.5"
 description = "Data validation using Python type hints"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "pydantic-2.10.4-py3-none-any.whl", hash = "sha256:597e135ea68be3a37552fb524bc7d0d66dcf93d395acd93a00682f1efcb8ee3d"},
-    {file = "pydantic-2.10.4.tar.gz", hash = "sha256:82f12e9723da6de4fe2ba888b5971157b3be7ad914267dea8f05f82b28254f06"},
+    {file = "pydantic-2.10.5-py3-none-any.whl", hash = "sha256:4dd4e322dbe55472cb7ca7e73f4b63574eecccf2835ffa2af9021ce113c83c53"},
+    {file = "pydantic-2.10.5.tar.gz", hash = "sha256:278b38dbbaec562011d659ee05f63346951b3a248a6f3642e1bc68894ea2b4ff"},
 ]
 
 [package.dependencies]
@@ -2581,13 +2582,13 @@ dev = ["argcomplete", "attrs (>=19.2)", "hypothesis (>=3.56)", "mock", "pygments
 
 [[package]]
 name = "pytest-asyncio"
-version = "0.25.0"
+version = "0.25.2"
 description = "Pytest support for asyncio"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "pytest_asyncio-0.25.0-py3-none-any.whl", hash = "sha256:db5432d18eac6b7e28b46dcd9b69921b55c3b1086e85febfe04e70b18d9e81b3"},
-    {file = "pytest_asyncio-0.25.0.tar.gz", hash = "sha256:8c0610303c9e0442a5db8604505fc0f545456ba1528824842b37b4a626cbf609"},
+    {file = "pytest_asyncio-0.25.2-py3-none-any.whl", hash = "sha256:0d0bb693f7b99da304a0634afc0a4b19e49d5e0de2d670f38dc4bfa5727c5075"},
+    {file = "pytest_asyncio-0.25.2.tar.gz", hash = "sha256:3f8ef9a98f45948ea91a0ed3dc4268b5326c0e7bce73892acc654df4262ad45f"},
 ]
 
 [package.dependencies]
@@ -2793,13 +2794,13 @@ semver = ">=3.0.0,<4.0.0"
 
 [[package]]
 name = "responses"
-version = "0.25.3"
+version = "0.25.6"
 description = "A utility library for mocking out the `requests` Python library."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "responses-0.25.3-py3-none-any.whl", hash = "sha256:521efcbc82081ab8daa588e08f7e8a64ce79b91c39f6e62199b19159bea7dbcb"},
-    {file = "responses-0.25.3.tar.gz", hash = "sha256:617b9247abd9ae28313d57a75880422d55ec63c29d33d629697590a034358dba"},
+    {file = "responses-0.25.6-py3-none-any.whl", hash = "sha256:9cac8f21e1193bb150ec557875377e41ed56248aed94e4567ed644db564bacf1"},
+    {file = "responses-0.25.6.tar.gz", hash = "sha256:eae7ce61a9603004e76c05691e7c389e59652d91e94b419623c12bbfb8e331d8"},
 ]
 
 [package.dependencies]
@@ -4011,4 +4012,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.13"
-content-hash = "206243d1a12f93d889c5fb031b3c6a901b8d281c64fbfd3c20cf939384bc0665"
+content-hash = "09fb81454cb691c5849458c8a6cbda6e42ca080b65f68e4fd4b31ddc86a98762"
