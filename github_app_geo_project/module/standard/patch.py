@@ -1,5 +1,6 @@
 """Utility functions for the auto* modules."""
 
+import asyncio
 import io
 import logging
 import os
@@ -22,12 +23,22 @@ class PatchException(Exception):
 
 def format_process_output(output: subprocess.CompletedProcess[str]) -> str:
     """Format the output of the process."""
-    if output.stdout and output.stderr:
-        return f"\n{output.stdout}\nError:\n{output.stderr}"
-    if output.stdout:
-        return f"\n{output.stdout}"
-    if output.stderr:
-        return f"\n{output.stderr}"
+    return format_process_out(output.stdout, output.stderr)
+
+
+def format_process_bytes(stdout: bytes | None, stderr: bytes | None) -> str:
+    """Format the output of the process."""
+    return format_process_out(stdout.decode() if stdout else None, stderr.decode() if stderr else None)
+
+
+def format_process_out(stdout: str | None, stderr: str | None) -> str:
+    """Format the output of the process."""
+    if stdout and stderr:
+        return f"\n{stdout}\nError:\n{stderr}"
+    if stdout:
+        return f"\n{stdout}"
+    if stderr:
+        return f"\n{stderr}"
     return ""
 
 
@@ -89,7 +100,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
             with tempfile.TemporaryDirectory() as tmpdirname:
                 os.chdir(tmpdirname)
                 if not is_clone:
-                    success = module_utils.git_clone(context.github_project, workflow_run.head_branch)
+                    success = await module_utils.git_clone(context.github_project, workflow_run.head_branch)
                     if not success:
                         return module.ProcessOutput(
                             success=False,
@@ -143,14 +154,18 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                             if is_clone:
                                 result_message.extend(["```diff", patch_input, "```"])
                             else:
-                                proc = subprocess.run(  # pylint: disable=subprocess-run-check
-                                    ["git", "apply", "--allow-empty"],
-                                    input=patch_input,
-                                    encoding="utf-8",
-                                    capture_output=True,
-                                    timeout=30,
+                                command = ["git", "apply", "--allow-empty"]
+                                proc = await asyncio.create_subprocess_exec(
+                                    *command,
+                                    stdin=asyncio.subprocess.PIPE,
+                                    stdout=asyncio.subprocess.PIPE,
                                 )
-                                message = module_utils.ansi_proc_message(proc)
+                                stdout, stderr = await asyncio.wait_for(
+                                    proc.communicate(patch_input.encode()), timeout=30
+                                )
+                                message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                                    command, proc, stdout, stderr
+                                )
                                 if proc.returncode != 0:
                                     message.title = f"Failed to apply the diff {artifact.name}"
                                     _LOGGER.warning(message)
@@ -172,16 +187,19 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                         )
                                     should_push = True
                 if should_push:
-                    proc = subprocess.run(  # pylint: disable=subprocess-run-check
-                        ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"],
-                        capture_output=True,
-                        encoding="utf-8",
-                        timeout=60,
+                    command = ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"]
+                    proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdin=asyncio.subprocess.PIPE,
+                        stdout=asyncio.subprocess.PIPE,
                     )
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
                     if proc.returncode != 0:
                         return module.ProcessOutput(
                             success=False,
-                            output={"summary": f"Failed to push the changes{format_process_output(proc)}"},
+                            output={
+                                "summary": f"Failed to push the changes{format_process_bytes(stdout, stderr)}"
+                            },
                         )
                 os.chdir("/")
         if is_clone and result_message:

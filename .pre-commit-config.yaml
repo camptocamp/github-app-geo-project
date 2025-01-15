@@ -76,6 +76,7 @@ repos:
           - --tool=ruff
           - --die-on-tool-error
           - --output-format=pylint
+          - --profile=.prospector-fix.yaml
         additional_dependencies:
           - prospector-profile-duplicated==1.8.1 # pypi
           - prospector-profile-utils==1.11.1 # pypi

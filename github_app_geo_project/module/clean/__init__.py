@@ -1,5 +1,6 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
+import asyncio
 import json
 import logging
 import os.path
@@ -230,14 +231,29 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         )
 
                     os.chdir(context.github_project.repository)
-                    subprocess.run(["git", "rm", folder], check=True)
-                    subprocess.run(
-                        [
-                            "git",
-                            "commit",
-                            "-m",
-                            f"Delete {folder} to clean {context.module_event_data.type} {name}",
-                        ],
-                        check=True,
+                    command = ["git", "rm", folder]
+                    proc = await asyncio.create_subprocess_exec(*command)
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    if proc.returncode != 0:
+                        raise subprocess.CalledProcessError(
+                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                        )
+                    command = [
+                        "git",
+                        "commit",
+                        "-m",
+                        f"Delete {folder} to clean {context.module_event_data.type} {name}",
+                    ]
+                    proc = await asyncio.create_subprocess_exec(*command)
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    if proc.returncode != 0:
+                        raise subprocess.CalledProcessError(
+                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                        )
+                command = ["git", "push", "origin", branch]
+                proc = await asyncio.create_subprocess_exec(*command)
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
                     )
-                subprocess.run(["git", "push", "origin", branch], check=True)

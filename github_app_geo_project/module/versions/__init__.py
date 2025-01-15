@@ -1,5 +1,6 @@
 """Utility functions for the auto* modules."""
 
+import asyncio
 import datetime
 import json
 import logging
@@ -249,7 +250,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     )
                     message.title = "Names cleaned:"
 
-                    _get_names(
+                    await _get_names(
                         context,
                         version_status.names_by_datasource,
                         version,
@@ -260,7 +261,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     )
                     message.title = "Names:"
                     _LOGGER.debug(message)
-                    _get_dependencies(context, version_status.dependencies_by_datasource)
+                    await _get_dependencies(context, version_status.dependencies_by_datasource)
                     message = module_utils.HtmlMessage(
                         utils.format_json(
                             json.loads(version_status.model_dump_json())["dependencies_by_datasource"]
@@ -423,19 +424,24 @@ def _canonical_minor_version(datasource: str, version: str) -> str:
     return version
 
 
-def _get_names(
+async def _get_names(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource],
     version: str,
     alternate_versions: list[str] | None = None,
 ) -> None:
-    for filename in subprocess.run(
-        ["git", "ls-files", "pyproject.toml", "*/pyproject.toml"],
-        check=True,
-        capture_output=True,
-        encoding="utf-8",
-        timeout=30,
-    ).stdout.splitlines():
+    command = ["git", "ls-files", "pyproject.toml", "*/pyproject.toml"]
+    proc = await asyncio.create_subprocess_exec(
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(
+            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+        )
+    for filename in stdout.decode().splitlines():
         with open(filename, encoding="utf-8") as file:
             data = tomllib.loads(file.read())
             name = data.get("project", {}).get("name")
@@ -446,13 +452,16 @@ def _get_names(
                 name = data.get("tool", {}).get("poetry", {}).get("name")
                 if name and name not in names:
                     names.append(name)
-    for filename in subprocess.run(
-        ["git", "ls-files", "setup.py", "*/setup.py"],
-        check=True,
-        capture_output=True,
-        encoding="utf-8",
-        timeout=30,
-    ).stdout.splitlines():
+    command = ["git", "ls-files", "setup.py", "*/setup.py"]
+    proc = await asyncio.create_subprocess_exec(
+        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(
+            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+        )
+    for filename in stdout.decode().splitlines():
         with open(filename, encoding="utf-8") as file:
             names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
             for line in file:
@@ -494,13 +503,15 @@ def _get_names(
                             if add_name not in names:
                                 names.append(add_name)
 
-    for filename in subprocess.run(
-        ["git", "ls-files", "package.json", "*/package.json"],
-        check=True,
-        capture_output=True,
-        encoding="utf-8",
-        timeout=30,
-    ).stdout.splitlines():
+    command = ["git", "ls-files", "package.json", "*/package.json"]
+    proc = await asyncio.create_subprocess_exec(
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    assert proc.returncode == 0
+    for filename in stdout.decode().splitlines():
         with open(filename, encoding="utf-8") as file:
             data = json.load(file)
             name = data.get("name")
@@ -514,24 +525,27 @@ def _get_names(
         names.append(add_name)
 
 
-def _get_dependencies(
+async def _get_dependencies(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
     result: dict[str, _TransversalStatusNameInDatasource],
 ) -> None:
     if os.environ.get("TEST") != "TRUE":
-        proc = subprocess.run(  # pylint: disable=subprocess-run-check
-            ["renovate-graph", "--platform=local"],
+        command = ["renovate-graph", "--platform=local"]
+        proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
+            *command,
             env={
                 **os.environ,
                 "RG_LOCAL_PLATFORM": "github",
                 "RG_LOCAL_ORGANISATION": context.github_project.owner,
                 "RG_LOCAL_REPO": context.github_project.repository,
             },
-            capture_output=True,
-            encoding="utf-8",
-            timeout=300,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
         )
-        message = module_utils.ansi_proc_message(proc)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+        message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
+            command, proc, stdout, stderr
+        )
         if proc.returncode != 0:
             message.title = "Failed to get the dependencies"
             _LOGGER.error(message)
@@ -539,7 +553,7 @@ def _get_dependencies(
         message.title = "Got the dependencies"
         _LOGGER.debug(message)
 
-        lines = proc.stdout.splitlines()
+        lines = stdout.decode().splitlines() if stdout else []
     else:
         lines = os.environ["RENOVATE_GRAPH"].splitlines()
 

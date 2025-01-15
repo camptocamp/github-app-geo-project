@@ -1,5 +1,6 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
+import asyncio
 import json
 import logging
 import os.path
@@ -235,7 +236,13 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     return False
 
                 # Checkout the branch
-                subprocess.run(["git", "checkout", "-b", backport_branch], check=True)
+                command = ["git", "checkout", "-b", backport_branch]
+                proc = await asyncio.create_subprocess_exec(*command)
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                    )
 
                 failed_commits: list[str] = []
                 # For all commits in the pull request
@@ -245,7 +252,16 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         failed_commits.append(commit.sha)
                     else:
                         try:
-                            subprocess.run(["git", "cherry-pick", commit.sha], check=True)
+                            command = ["git", "cherry-pick", commit.sha]
+                            proc = await asyncio.create_subprocess_exec(*command)
+                            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                            if proc.returncode != 0:
+                                raise subprocess.CalledProcessError(
+                                    proc.returncode if proc.returncode is not None else -999,
+                                    command,
+                                    stdout,
+                                    stderr,
+                                )
                         except subprocess.CalledProcessError:
                             failed_commits.append(commit.sha)
 
@@ -265,11 +281,20 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     )
                     with open("BACKPORT_TODO", "w", encoding="utf-8") as f:
                         f.write("\n".join(message))
-                    subprocess.run(["git", "add", "BACKPORT_TODO"], check=True)
-                    subprocess.run(
-                        ["git", "commit", "--message=[skip ci] Add instructions to finish the backport"],
-                        check=True,
-                    )
+                    command = ["git", "add", "BACKPORT_TODO"]
+                    proc = await asyncio.create_subprocess_exec(*command)
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    if proc.returncode != 0:
+                        raise subprocess.CalledProcessError(
+                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                        )
+                    command = ["git", "commit", "--message=[skip ci] Add instructions to finish the backport"]
+                    proc = await asyncio.create_subprocess_exec(*command)
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    if proc.returncode != 0:
+                        raise subprocess.CalledProcessError(
+                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                        )
                 await module_utils.create_pull_request(
                     target_branch,
                     backport_branch,
