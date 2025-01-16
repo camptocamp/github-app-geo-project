@@ -18,6 +18,12 @@ from . import configuration
 
 _LOGGER = logging.getLogger(__name__)
 
+_BRANCH_PREFIX = "ghci/backport/"
+_BRANCH_PREFIXES = [
+    "ghci/backport/",
+    "backport/",
+]
+
 
 class _ActionData(BaseModel):
     type: str
@@ -57,6 +63,21 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
         """Get the action related to the module and the event."""
         # SECURITY.md update
+        if (
+            context.event_data.get("action") in ("opened", "reopened", "synchronize")
+            and "pull_request" in context.event_data
+        ):
+            for prefix in _BRANCH_PREFIXES:
+                if context.event_data["pull_request"]["head"]["ref"].startswith(prefix):
+                    return [
+                        module.Action(
+                            _ActionData(
+                                type="check", branch=context.event_data["pull_request"]["head"]["ref"]
+                            ),
+                            checks=True,
+                            priority=module.PRIORITY_STATUS,
+                        )
+                    ]
         security_md_update = False
         for commit in context.event_data.get("commits", []):
             for file in {*commit.get("added", []), *commit.get("modified", []), *commit.get("removed", [])}:
@@ -78,7 +99,37 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         self, context: module.ProcessContext[configuration.BackportConfiguration, _ActionData, None]
     ) -> module.ProcessOutput[_ActionData, None]:
         """Process the action."""
-        if context.module_event_data.type == "SECURITY.md":
+        if context.module_event_data.type == "check":
+            # get the BACKPORT_TODO file
+            repo = context.github_project.repo
+            try:
+                branch = context.module_event_data.branch
+                assert branch is not None
+                backport_todo = repo.get_contents("BACKPORT_TODO", ref=branch)
+                assert isinstance(backport_todo, github.ContentFile.ContentFile)
+                return module.ProcessOutput(
+                    success=False,
+                    output={
+                        "title": "BACKPORT_TODO file found",
+                        "summary": "There is a BACKPORT_TODO file in the branch, he should be threaded and removed\n\n"
+                        + backport_todo.decoded_content.decode("utf-8"),
+                    },
+                )
+
+            except github.GithubException as exception:
+                if exception.status == 404:
+                    return module.ProcessOutput()
+                else:
+                    _LOGGER.exception("Error while getting BACKPORT_TODO file")
+                    return module.ProcessOutput(
+                        success=False,
+                        output={
+                            "title": "BACKPORT_TODO error",
+                            "summary": "Error while getting BACKPORT_TODO file",
+                        },
+                    )
+
+        elif context.module_event_data.type == "SECURITY.md":
             repo = context.github_project.repo
             if context.event_data.get("ref") == f"refs/heads/{repo.default_branch}":
                 try:
@@ -159,7 +210,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         target_branch: str,
     ) -> bool:
         """Backport the pull request to the target branch."""
-        backport_branch = f"backport/{pull_request.number}-to-{target_branch}"
+        backport_branch = f"{_BRANCH_PREFIX}{pull_request.number}-to-{target_branch}"
         try:
             if context.github_project.repo.get_branch(backport_branch):
                 _LOGGER.error("Branch %s already exists", backport_branch)
