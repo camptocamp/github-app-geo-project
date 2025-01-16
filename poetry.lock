@@ -221,13 +221,13 @@ version = ["multi-repo-automation (>=1.0.0,<2.0.0)"]
 
 [[package]]
 name = "c2cwsgiutils"
-version = "6.1.6"
+version = "6.1.7"
 description = "Common utilities for Camptocamp WSGI applications"
 optional = false
 python-versions = ">=3.10"
 files = [
-    {file = "c2cwsgiutils-6.1.6-py3-none-any.whl", hash = "sha256:8dc69e2a28da1303662f65cdc54c5a93ac754dc630f8c5e724e0964f15a23cfb"},
-    {file = "c2cwsgiutils-6.1.6.tar.gz", hash = "sha256:9af0d0e1eb9fa3e74771034a80ed40121483c9a8f73dc0e22013fcea1478e389"},
+    {file = "c2cwsgiutils-6.1.7-py3-none-any.whl", hash = "sha256:ca141a151a0dd19975f76aba91cac12c4a28aec69fb29cf665d8018d0ace6d61"},
+    {file = "c2cwsgiutils-6.1.7.tar.gz", hash = "sha256:21b43e9b476bc73540279817a2ad4eb69a08216f78c0cdecc4e5c979bf0795e4"},
 ]
 
 [package.dependencies]
@@ -3805,13 +3805,13 @@ testing = ["coverage", "pytest (>=3.1.0)", "pytest-cov", "pytest-xdist"]
 
 [[package]]
 name = "webtest"
-version = "3.0.2"
+version = "3.0.3"
 description = "Helper to test WSGI applications"
 optional = false
-python-versions = ">=3.7"
+python-versions = ">=3.9"
 files = [
-    {file = "WebTest-3.0.2-py3-none-any.whl", hash = "sha256:799846e169d15e0c1233ab4ab00ee4de59a5d964407d6f2945d89249328dbbdb"},
-    {file = "webtest-3.0.2.tar.gz", hash = "sha256:0b2de681c16f57b31da5cce6e94ff03cdc77bd86c37a57ba0ee27fed8e065ceb"},
+    {file = "WebTest-3.0.3-py3-none-any.whl", hash = "sha256:25a2f3b1ad273655ed22fdb4f9eff62d02f22d9d5ffeb0b58627759b1f62edff"},
+    {file = "webtest-3.0.3.tar.gz", hash = "sha256:b635f6fe6584bc9737496b687155e9373f3d01bcb1b46169007da0f7ba6238f9"},
 ]
 
 [package.dependencies]
@@ -4012,4 +4012,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.11,<3.13"
-content-hash = "09fb81454cb691c5849458c8a6cbda6e42ca080b65f68e4fd4b31ddc86a98762"
+content-hash = "ecd2f12659694c235ac5d977af7680179f03b48968e610359ca0c2b17eacbd4c"
