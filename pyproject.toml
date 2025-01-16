@@ -49,7 +49,7 @@ backport = "github_app_geo_project.module.backport:Backport"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-c2cwsgiutils = { version = "6.1.6",  extras = ["standard", "debug", "dev"] }
+c2cwsgiutils = { version = "6.1.7",  extras = ["standard", "debug", "dev"] }
 c2cciutils = "1.7.2"
 security-md = "0.2.3"
 pyramid-mako = "1.1.0"
@@ -76,12 +76,12 @@ lxml-html-clean = "0.4.1"
 tag-publish = "0.13.3"
 
 [tool.poetry.group.dev.dependencies]
-c2cwsgiutils = { version = "6.1.6",  extras = ["test-images"] }
+c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.13.3" }
 prospector-profile-duplicated = "1.10.4"
 prospector-profile-utils = "1.14.1"
 pytest = "8.3.4"
-WebTest = "3.0.2"
+WebTest = "3.0.3"
 types-pyyaml = "6.0.12.20241230"
 types-setuptools = "75.6.0.20241223"
 types-markdown = "3.7.0.20241204"
