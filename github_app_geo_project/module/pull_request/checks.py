@@ -1,13 +1,13 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
+import asyncio
 import json
 import logging
 import os
 import re
-import subprocess  # nosec
 import tempfile
 import typing
-from typing import Any, cast
+from typing import Any
 
 import github
 import github.Commit
@@ -167,7 +167,7 @@ def _commits_messages(
     return success, messages
 
 
-def _commits_spell(
+async def _commits_spell(
     config: checks_configuration.PullRequestChecksConfiguration,
     commits: list[github.Commit.Commit],
     spellcheck_cmd: list[str],
@@ -185,20 +185,17 @@ def _commits_spell(
             else:
                 temp_file.write(commit.commit.message)
             temp_file.flush()
-            spell = subprocess.run(  # pylint: disable=subprocess-run-check
-                spellcheck_cmd + [temp_file.name], capture_output=True, encoding="utf-8"
+            command = [*spellcheck_cmd, temp_file.name]
+            spell = await asyncio.create_subprocess_exec(
+                *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
             )
-            message = module_utils.ansi_proc_message(spell)
+            stdout, stderr = await asyncio.wait_for(spell.communicate(), timeout=30)
+            message = module_utils.AnsiProcessMessage.from_async_artifacts(command, spell, stdout, stderr)
             if spell.returncode != 0:
                 message.title = f"Code spell error in commit {commit.sha}"
                 _LOGGER.warning(message)
                 success = False
-                messages.append(
-                    ":x: "
-                    + message.title
-                    + "\n"
-                    + module_utils.html_to_markdown(cast(module_utils.AnsiProcessMessage, message).stdout)
-                )
+                messages.append(":x: " + message.title + "\n" + module_utils.html_to_markdown(message.stdout))
             else:
                 messages.append(f":heavy_check_mark: Code spell on commit {commit.sha} are correct")
             message.title = f"Code spell in commit {commit.sha}"
@@ -206,7 +203,7 @@ def _commits_spell(
     return success, messages
 
 
-def _pull_request_spell(
+async def _pull_request_spell(
     config: checks_configuration.PullRequestChecksConfiguration,
     pull_request: github.PullRequest.PullRequest,
     spellcheck_cmd: list[str],
@@ -224,19 +221,16 @@ def _pull_request_spell(
             temp_file.write(pull_request.body)
             temp_file.write("\n")
         temp_file.flush()
-        spell = subprocess.run(  # pylint: disable=subprocess-run-check
-            spellcheck_cmd + [temp_file.name], capture_output=True, encoding="utf-8"
+        command = [*spellcheck_cmd, temp_file.name]
+        spell = await asyncio.create_subprocess_exec(
+            *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
         )
-        message = module_utils.ansi_proc_message(spell)
+        stdout, stderr = await asyncio.wait_for(spell.communicate(), timeout=30)
+        message = module_utils.AnsiProcessMessage.from_async_artifacts(command, spell, stdout, stderr)
         if spell.returncode != 0:
             message.title = "Code spell error in pull request"
             _LOGGER.warning(message)
-            messages.append(
-                ":x: "
-                + message.title
-                + "\n"
-                + module_utils.html_to_markdown(cast(module_utils.AnsiProcessMessage, message).stdout)
-            )
+            messages.append(":x: " + message.title + "\n" + module_utils.html_to_markdown(message.stdout))
             return False, messages
         else:
             messages.append(
@@ -321,8 +315,10 @@ class Checks(
         with tempfile.NamedTemporaryFile("w+t", encoding="utf-8") as ignore_file:
             spellcheck_cmd = _get_code_spell_command(context, ignore_file)
             success_1, messages_1 = _commits_messages(context.module_config, commits)
-            success_2, messages_2 = _commits_spell(context.module_config, commits, spellcheck_cmd)
-            success_3, messages_3 = _pull_request_spell(context.module_config, pull_request, spellcheck_cmd)
+            success_2, messages_2 = await _commits_spell(context.module_config, commits, spellcheck_cmd)
+            success_3, messages_3 = await _pull_request_spell(
+                context.module_config, pull_request, spellcheck_cmd
+            )
         success = success_1 and success_2 and success_3
         message = "\n".join([*messages_1, *messages_2, *messages_3])
 

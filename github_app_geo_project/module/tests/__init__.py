@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import subprocess
@@ -95,21 +96,27 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                 _LOGGER.info("Line 1\n  Line 2\nLine 3")
 
             if type_ == "log-command":
-                proc = subprocess.run(
-                    ["echo", "-e", r"plain \e[0;31mRED MESSAGE\e[0m reset"],
-                    capture_output=True,
-                    encoding="utf-8",
-                    check=True,
+                command = ["echo", "-e", r"plain \e[0;31mRED MESSAGE\e[0m reset"]
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
                 )
-                message = module_utils.ansi_proc_message(proc)
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
+                message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
                 _LOGGER.info(message)
-                proc = subprocess.run(
-                    ["echo", "-e", r"plain \e[0;31mRED MESSAGE\e[0m reset"],
-                    capture_output=True,
-                    encoding="utf-8",
-                    check=True,
+                command = ["echo", "-e", r"plain \e[0;31mRED MESSAGE\e[0m reset"]
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
                 )
-                message = module_utils.ansi_proc_message(proc)
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
+                message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
                 message.title = "Command with title"
                 _LOGGER.info(message)
 
@@ -138,6 +145,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
         }
 
     def has_transversal_dashboard(self) -> bool:
+        """Check if the module has a transversal dashboard."""
         return True
 
     def get_transversal_dashboard(

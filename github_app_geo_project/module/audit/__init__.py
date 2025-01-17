@@ -1,5 +1,6 @@
 """the audit modules."""
 
+import asyncio
 import datetime
 import glob
 import json
@@ -143,7 +144,7 @@ async def _process_snyk_dpkg(
             with tempfile.TemporaryDirectory() as tmpdirname:
                 os.chdir(tmpdirname)
                 _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-                success &= module_utils.git_clone(context.github_project, branch)
+                success &= await module_utils.git_clone(context.github_project, branch)
                 if not success:
                     return ["Fail to clone the repository"], success
 
@@ -162,7 +163,7 @@ async def _process_snyk_dpkg(
                                     python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
                                     break
 
-                    env = _use_python_version(python_version) if python_version else os.environ.copy()
+                    env = await _use_python_version(python_version) if python_version else os.environ.copy()
 
                     result, body, short_message, new_success = await audit_utils.snyk(
                         branch,
@@ -206,25 +207,30 @@ async def _process_snyk_dpkg(
                 body_md += f"[Logs]({logs_url})"
                 short_message.append(f"[Logs]({logs_url})")
 
-                diff_proc = subprocess.run(  # pylint: disable=subprocess-run-check
-                    ["git", "diff", "--quiet"], timeout=30
-                )
+                command = ["git", "diff", "--quiet"]
+                diff_proc = await asyncio.create_subprocess_exec(*command)
+                stdout, stderr = await asyncio.wait_for(diff_proc.communicate(), timeout=30)
                 if diff_proc.returncode != 0:
-                    proc = subprocess.run(  # pylint: disable=subprocess-run-check
-                        ["git", "diff"], timeout=30, capture_output=True, encoding="utf-8"
+                    command = ["git", "diff"]
+                    proc = await asyncio.create_subprocess_exec(
+                        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
                     )
-                    message = module_utils.ansi_proc_message(proc)
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                    message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                        command, proc, stdout, stderr
+                    )
                     message.title = "Changes to be committed"
                     _LOGGER.debug(message)
 
-                    proc = subprocess.run(  # pylint: disable=subprocess-run-check
-                        ["git", "checkout", "-b", new_branch],
-                        capture_output=True,
-                        encoding="utf-8",
-                        timeout=30,
+                    command = ["git", "checkout", "-b", new_branch]
+                    proc = await asyncio.create_subprocess_exec(
+                        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
                     )
+                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
                     if proc.returncode != 0:
-                        message = module_utils.ansi_proc_message(proc)
+                        message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                            command, proc, stdout, stderr
+                        )
                         message.title = "Error while creating the new branch"
                         _LOGGER.error(message)
 
@@ -258,7 +264,12 @@ async def _process_snyk_dpkg(
         )
 
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
-        message = module_utils.ansi_proc_message(proc_error)
+        message = module_utils.AnsiProcessMessage(
+            cast(list[str], proc_error.args),
+            None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode,
+            proc_error.output,
+            cast(str, proc_error.stderr),
+        )
         _LOGGER.exception("Audit %s process error", key)
         return [f"Error while processing the audit {key}: {proc_error}"], False
     except Exception as exception:  # pylint: disable=broad-except
@@ -270,23 +281,24 @@ async def _process_snyk_dpkg(
     return short_message, success
 
 
-def _use_python_version(python_version: str) -> dict[str, str]:
-    proc = subprocess.run(  # pylint: disable=subprocess-run-check
-        ["pyenv", "local", python_version],
-        capture_output=True,
-        encoding="utf-8",
-        timeout=300,
+async def _use_python_version(python_version: str) -> dict[str, str]:
+    command = ["pyenv", "local", python_version]
+    proc = await asyncio.create_subprocess_exec(
+        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
     )
-    message = module_utils.ansi_proc_message(proc)
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+    message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     if proc.returncode != 0:
         message.title = f"Error while setting the Python version to {python_version}"
         _LOGGER.error(message)
     else:
         message.title = f"Setting the Python version to {python_version}"
         _LOGGER.debug(message)
-    proc = subprocess.run(  # pylint: disable=subprocess-run-check
-        ["python", "--version"], capture_output=True, encoding="utf-8", timeout=5
+    command = ["python", "--version"]
+    proc = await asyncio.create_subprocess_exec(
+        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
     )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
 
     # Get path from /pyenv/versions/{python_version}.*/bin/
     env = os.environ.copy()
@@ -294,7 +306,7 @@ def _use_python_version(python_version: str) -> dict[str, str]:
     if bin_paths:
         env["PATH"] = f'{bin_paths[0]}:{env["PATH"]}'
 
-    message = module_utils.ansi_proc_message(proc)
+    message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     message.title = "Python version"
     _LOGGER.debug(message)
 

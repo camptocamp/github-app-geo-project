@@ -5,7 +5,7 @@ import datetime
 import json
 import logging
 import os.path
-import subprocess  # nosec
+import subprocess
 from typing import NamedTuple
 
 import apt_repo
@@ -47,10 +47,12 @@ async def snyk(
 
     await _install_requirements_dependencies(config, local_config, result, env)
 
-    proc = subprocess.run(  # pylint: disable=subprocess-run-check
-        ["pip", "freeze"], timeout=30, capture_output=True, encoding="utf-8"
+    command = ["pip", "freeze"]
+    proc = await asyncio.create_subprocess_exec(
+        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
     )  # nosec
-    message = module_utils.ansi_proc_message(proc)
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     message.title = "Pip freeze"
     _LOGGER.info(message)
 
@@ -97,9 +99,9 @@ async def snyk(
         True if len(fixable_vulnerabilities_summary) == 0 else (snyk_fix_success and npm_audit_fix_success)
     )
 
-    diff_proc = subprocess.run(  # pylint: disable=subprocess-run-check
-        ["git", "diff", "--quiet"], timeout=30
-    )
+    command = ["git", "diff", "--quiet"]
+    diff_proc = await asyncio.create_subprocess_exec(*command)
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if diff_proc.returncode != 0:
         (
             high_vulnerabilities,
@@ -129,9 +131,16 @@ async def _select_java_version(
     if not os.path.exists("gradlew"):
         return
 
-    gradle_version_out = subprocess.run(  # nosec
-        ["./gradlew", "--version"], capture_output=True, check=True, encoding="utf-8"
-    ).stdout.splitlines()
+    command = ["./gradlew", "--version"]
+    proc = await asyncio.create_subprocess_exec(  # nosec
+        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    if proc.returncode != 0:
+        raise subprocess.CalledProcessError(
+            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+        )
+    gradle_version_out = stdout.decode().splitlines()
     gradle_version_out_filter = [line for line in gradle_version_out if line.startswith("Gradle ")]
     gradle_version = gradle_version_out_filter[0].split()[1]
 
@@ -164,19 +173,18 @@ async def _install_requirements_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
 ) -> None:
-    proc = subprocess.run(  # pylint: disable=subprocess-run-check
-        ["git", "ls-files", "requirements.txt", "*/requirements.txt"],
-        capture_output=True,
-        encoding="utf-8",
-        timeout=30,
+    command = ["git", "ls-files", "requirements.txt", "*/requirements.txt"]
+    proc = await asyncio.create_subprocess_exec(
+        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
     )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
-        message = module_utils.ansi_proc_message(proc)
+        message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
         message.title = "Error in ls-files"
         _LOGGER.warning(message)
         result.append(message)
     else:
-        for file in proc.stdout.strip().split("\n"):
+        for file in stdout.decode().strip().split("\n"):
             if not file:
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
@@ -207,16 +215,18 @@ async def _install_pipenv_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
 ) -> None:
-    proc = subprocess.run(  # pylint: disable=subprocess-run-check
-        ["git", "ls-files", "Pipfile", "*/Pipfile"], capture_output=True, encoding="utf-8", timeout=30
+    command = ["git", "ls-files", "Pipfile", "*/Pipfile"]
+    proc = await asyncio.create_subprocess_exec(
+        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
     )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
-        message = module_utils.ansi_proc_message(proc)
+        message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
         message.title = "Error in ls-files"
         _LOGGER.warning(message)
         result.append(message)
     else:
-        for file in proc.stdout.strip().split("\n"):
+        for file in stdout.decode().strip().split("\n"):
             if not file:
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
@@ -246,19 +256,18 @@ async def _install_poetry_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
 ) -> None:
-    proc = subprocess.run(  # pylint: disable=subprocess-run-check
-        ["git", "ls-files", "poetry.lock", "*/poetry.lock"],
-        capture_output=True,
-        encoding="utf-8",
-        timeout=30,
+    command = ["git", "ls-files", "poetry.lock", "*/poetry.lock"]
+    proc = await asyncio.create_subprocess_exec(
+        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
     )
+    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
-        message = module_utils.ansi_proc_message(proc)
+        message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
         message.title = "Error in ls-files"
         _LOGGER.warning(message)
         result.append(message)
     else:
-        for file in proc.stdout.strip().split("\n"):
+        for file in stdout.decode().strip().split("\n"):
             if not file:
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
@@ -516,7 +525,9 @@ async def _snyk_fix(
 
     snyk_fix_success = True
     snyk_fix_message = None
-    subprocess.run(["git", "reset", "--hard"], timeout=30)  # pylint: disable=subprocess-run-check
+    command = ["git", "reset", "--hard"]
+    proc = await asyncio.create_subprocess_exec(*command)
+    await asyncio.wait_for(proc.communicate(), timeout=30)
     if fixable_vulnerabilities_summary or vulnerabilities_in_requirements:
         command = [
             "snyk",

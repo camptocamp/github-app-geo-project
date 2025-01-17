@@ -355,7 +355,13 @@ async def _process_job(
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
             job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-            message = module_utils.ansi_proc_message(proc_error)
+
+            message = module_utils.AnsiProcessMessage(
+                cast(list[str], proc_error.args),
+                None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode,
+                proc_error.output,
+                cast(str, proc_error.stderr),
+            )
             message.title = f"Error process job '{job.id}' on module: {job.module}"
             root_logger.addHandler(handler)
             try:
