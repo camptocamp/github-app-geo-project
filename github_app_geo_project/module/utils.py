@@ -371,8 +371,10 @@ class AnsiProcessMessage(AnsiMessage):
         """Initialize the process message."""
         self.args: list[str] = []
 
+        args = [str(arg) for arg in args]
+
         for arg in args:
-            if "x-access-token" in str(arg):
+            if "x-access-token" in arg:
                 self.args.append(re.sub(r"x-access-token:[0-9a-zA-Z_]*", "x-access-token:***", arg))
             else:
                 self.args.append(arg)
