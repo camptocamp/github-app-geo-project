@@ -119,7 +119,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                     ),
                 )
                 pull_match = tag_publish.match(
-                    name.split("/", 2)[2],
+                    name,
                     tag_publish.compile_re(
                         transformers.get(
                             "pull_request_to_version", cast(tag_publish.configuration.Transform, [{}])
