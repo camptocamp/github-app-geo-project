@@ -209,50 +209,63 @@ async def _process_snyk_dpkg(
 
                 command = ["git", "diff", "--quiet"]
                 diff_proc = await asyncio.create_subprocess_exec(*command)
-                stdout, stderr = await asyncio.wait_for(diff_proc.communicate(), timeout=30)
-                if diff_proc.returncode != 0:
-                    command = ["git", "diff"]
-                    proc = await asyncio.create_subprocess_exec(
-                        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
-                    )
-                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-                    message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                        command, proc, stdout, stderr
-                    )
-                    message.title = "Changes to be committed"
-                    _LOGGER.debug(message)
-
-                    command = ["git", "checkout", "-b", new_branch]
-                    proc = await asyncio.create_subprocess_exec(
-                        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
-                    )
-                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-                    if proc.returncode != 0:
-                        message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                            command, proc, stdout, stderr
+                try:
+                    stdout, stderr = await asyncio.wait_for(diff_proc.communicate(), timeout=30)
+                    if diff_proc.returncode != 0:
+                        command = ["git", "diff"]
+                        proc = await asyncio.create_subprocess_exec(
+                            *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
                         )
-                        message.title = "Error while creating the new branch"
-                        _LOGGER.error(message)
+                        try:
+                            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                            message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                                command, proc, stdout, stderr
+                            )
+                            message.title = "Changes to be committed"
+                            _LOGGER.debug(message)
+                        finally:
+                            proc.kill()
+
+                        command = ["git", "checkout", "-b", new_branch]
+                        proc = await asyncio.create_subprocess_exec(
+                            *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+                        )
+                        try:
+                            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                            if proc.returncode != 0:
+                                message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                                    command, proc, stdout, stderr
+                                )
+                                message.title = "Error while creating the new branch"
+                                _LOGGER.error(message)
+
+                            else:
+                                new_success, pull_request = await module_utils.create_commit_pull_request(
+                                    branch,
+                                    new_branch,
+                                    f"Audit {key}",
+                                    body_md,
+                                    context.github_project,
+                                )
+                                success &= new_success
+                                if not new_success:
+                                    _LOGGER.error("Error while create commit or pull request")
+                                else:
+                                    if pull_request is not None:
+                                        issue_check.set_title(
+                                            key, f"{key} ([Pull request]({pull_request.html_url}))"
+                                        )
+                                        short_message.append(f"[Pull request]({pull_request.html_url})")
+                        finally:
+                            proc.kill()
 
                     else:
-                        new_success, pull_request = await module_utils.create_commit_pull_request(
-                            branch,
-                            new_branch,
-                            f"Audit {key}",
-                            body_md,
-                            context.github_project,
+                        _LOGGER.debug("No changes to commit")
+                        module_utils.close_pull_request_issues(
+                            new_branch, f"Audit {key}", context.github_project
                         )
-                        success &= new_success
-                        if not new_success:
-                            _LOGGER.error("Error while create commit or pull request")
-                        else:
-                            if pull_request is not None:
-                                issue_check.set_title(key, f"{key} ([Pull request]({pull_request.html_url}))")
-                                short_message.append(f"[Pull request]({pull_request.html_url})")
-
-                else:
-                    _LOGGER.debug("No changes to commit")
-                    module_utils.close_pull_request_issues(new_branch, f"Audit {key}", context.github_project)
+                finally:
+                    diff_proc.kill()
 
         full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
         transversal_message = ", ".join(short_message)
