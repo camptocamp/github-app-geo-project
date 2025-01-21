@@ -13,9 +13,9 @@ import tomllib
 from collections.abc import Iterable
 from typing import Any
 
+import aiohttp
 import c2cciutils.configuration
 import github
-import requests
 import security_md
 import yaml
 from pydantic import BaseModel
@@ -169,7 +169,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             )
 
             _apply_additional_packages(context)
-            _update_upstream_versions(context)
+            await _update_upstream_versions(context)
 
             repo = context.github_project.repo
             stabilization_versions = []
@@ -637,7 +637,7 @@ def _dependency_extractor(
     return result
 
 
-def _update_upstream_versions(
+async def _update_upstream_versions(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
 ) -> None:
     transversal_status = context.transversal_status
@@ -663,12 +663,16 @@ def _update_upstream_versions(
             return
         package_status.upstream_updated = datetime.datetime.now()
 
-        response = requests.get(f"https://endoflife.date/api/{package}.json", timeout=10)
-        if not response.ok:
-            _LOGGER.error("Failed to get the data for %s", package)
-            package_status.upstream_updated = None
-            return
-        cycles = response.json()
+        async with (
+            aiohttp.ClientSession() as session,
+            asyncio.timeout(10),
+            session.get(f"https://endoflife.date/api/{package}.json") as response,
+        ):
+            if not response.ok:
+                _LOGGER.error("Failed to get the data for %s", package)
+                package_status.upstream_updated = None
+                return
+            cycles = await response.json()
         message = module_utils.HtmlMessage(utils.format_json(cycles))
         message.title = f"Cycles {package}:"
         _LOGGER.debug(message)

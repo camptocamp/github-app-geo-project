@@ -64,7 +64,7 @@ debian-inspector = "31.1.0"
 codespell = "2.3.0"
 pydantic = "2.10.5"
 markdownify = "0.14.1"
-responses = "0.25.6"
+aioresponses = "0.7.8"
 pytest-asyncio = "0.25.2"
 cryptography = "44.0.0"
 urllib3 = "2.3.0"
@@ -74,6 +74,7 @@ webob = "1.8.9"
 waitress = "3.0.2"
 lxml-html-clean = "0.4.1"
 tag-publish = "0.13.3"
+aiohttp = "3.11.11"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }
