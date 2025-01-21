@@ -8,8 +8,8 @@ import subprocess  # nosec
 import tempfile
 from typing import Any, cast
 
+import aiohttp
 import github
-import requests
 import tag_publish.configuration
 import yaml
 from pydantic import BaseModel
@@ -154,55 +154,66 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         _LOGGER.info("Cleaning %s/%s:%s", host, image["name"], tag)
 
                         if host == "docker.io":
-                            self._clean_docker_hub_image(image["name"], tag)
+                            await self._clean_docker_hub_image(image["name"], tag)
                         else:
-                            self._clean_ghcr_image(image["name"], tag, context.github_project)
+                            await self._clean_ghcr_image(image["name"], tag, context.github_project)
 
-    def _clean_docker_hub_image(self, image: str, tag: str) -> None:
-        username = os.environ["DOCKERHUB_USERNAME"]
-        password = os.environ["DOCKERHUB_PASSWORD"]
-        token = requests.post(
-            "https://hub.docker.com/v2/users/login/",
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(
-                {
-                    "username": username,
-                    "password": password,
-                }
-            ),
-            timeout=int(os.environ.get("GHCI_REQUESTS_TIMEOUT", "30")),
-        ).json()["token"]
+    async def _clean_docker_hub_image(self, image: str, tag: str) -> None:
+        async with aiohttp.ClientSession() as session:
+            username = os.environ["DOCKERHUB_USERNAME"]
+            password = os.environ["DOCKERHUB_PASSWORD"]
+            async with (
+                asyncio.timeout(int(os.environ.get("C2CCIUTILS_TIMEOUT", "30"))),
+                session.post(
+                    "https://hub.docker.com/v2/users/login/",
+                    headers={"Content-Type": "application/json"},
+                    data=json.dumps(
+                        {
+                            "username": username,
+                            "password": password,
+                        }
+                    ),
+                ) as response,
+            ):
+                token = (await response.json())["token"]
 
-        response = requests.head(
-            f"https://hub.docker.com/v2/repositories/{image}/tags/{tag}/",
-            headers={"Authorization": "JWT " + token},
-            timeout=int(os.environ.get("C2CCIUTILS_TIMEOUT", "30")),
-        )
-        if response.status_code == 404:
-            return
-        if not response.ok:
-            _LOGGER.error("Error checking image: docker.io/%s:%s", image, tag)
+            async with (
+                asyncio.timeout(int(os.environ.get("C2CCIUTILS_TIMEOUT", "30"))),
+                session.head(
+                    f"https://hub.docker.com/v2/repositories/{image}/tags/{tag}/",
+                    headers={"Authorization": "JWT " + token},
+                ) as response,
+            ):
+                if response.status == 404:
+                    return
+                if not response.ok:
+                    _LOGGER.error("Error checking image: docker.io/%s:%s", image, tag)
 
-        response = requests.delete(
-            f"https://hub.docker.com/v2/repositories/{image}/tags/{tag}/",
-            headers={"Authorization": "JWT " + token},
-            timeout=int(os.environ.get("C2CCIUTILS_TIMEOUT", "30")),
-        )
-        if not response.ok:
-            _LOGGER.error("Error on deleting image: docker.io/%s:%s", image, tag)
+            async with (
+                asyncio.timeout(int(os.environ.get("C2CCIUTILS_TIMEOUT", "30"))),
+                session.delete(
+                    f"https://hub.docker.com/v2/repositories/{image}/tags/{tag}/",
+                    headers={"Authorization": "JWT " + token},
+                ) as response,
+            ):
+                if not response.ok:
+                    _LOGGER.error("Error on deleting image: docker.io/%s:%s", image, tag)
 
-    def _clean_ghcr_image(self, image: str, tag: str, github_project: GithubProject) -> None:
+    async def _clean_ghcr_image(self, image: str, tag: str, github_project: GithubProject) -> None:
         image_split = image.split("/", 1)
-        response = requests.delete(
-            f"https://api.github.com/orgs/{image_split[0]}/packages/container/{image_split[1]}/versions/{tag}",
-            headers={
-                "Authorization": "Bearer " + github_project.token,
-                "Accept": "application/vnd.github.v3+json",
-                "X-GitHub-Api-Version": "2022-11-28",
-            },
-        )
-        if not response.ok:
-            _LOGGER.error("Error on deleting image: ghcr.io/%s:%s", image, tag)
+        async with (
+            aiohttp.ClientSession() as session,
+            session.delete(
+                f"https://api.github.com/orgs/{image_split[0]}/packages/container/{image_split[1]}/versions/{tag}",
+                headers={
+                    "Authorization": "Bearer " + github_project.token,
+                    "Accept": "application/vnd.github.v3+json",
+                    "X-GitHub-Api-Version": "2022-11-28",
+                },
+            ) as response,
+        ):
+            if not response.ok:
+                _LOGGER.error("Error on deleting image: ghcr.io/%s:%s", image, tag)
 
     async def _clean_git(
         self,

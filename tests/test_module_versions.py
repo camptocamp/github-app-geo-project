@@ -2,7 +2,7 @@ import os
 from unittest.mock import Mock
 
 import pytest
-import responses
+from aioresponses import aioresponses
 
 from github_app_geo_project.module.versions import (
     Versions,
@@ -759,67 +759,67 @@ def test_canonical_minor_version(datasource, version, expected) -> None:
     assert result == expected
 
 
-@responses.activate
-def test_update_upstream_versions() -> None:
-    context = Mock()
-    context.transversal_status = _TransversalStatus()
-    context.module_config = {
-        "external-packages": [
-            {"package": "package1", "datasource": "datasource1"},
-            {"package": "package2", "datasource": "datasource2"},
-        ]
-    }
+async def test_update_upstream_versions() -> None:
+    with aioresponses() as responses:
+        context = Mock()
+        context.transversal_status = _TransversalStatus()
+        context.module_config = {
+            "external-packages": [
+                {"package": "package1", "datasource": "datasource1"},
+                {"package": "package2", "datasource": "datasource2"},
+            ]
+        }
 
-    responses.get(
-        "https://endoflife.date/api/package1.json",
-        json=[
-            {
-                "eol": "2038-12-31",
-                "cycle": "1.0",
-            }
-        ],
-        status=200,
-    )
-    responses.get(
-        "https://endoflife.date/api/package2.json",
-        json=[{"eol": "2038-12-31", "cycle": "v1.0"}, {"eol": "2039-12-31", "cycle": "v2.0"}],
-        status=200,
-    )
-
-    _update_upstream_versions(context)
-
-    assert list(context.transversal_status.updated.keys()) == [
-        "endoflife.date/package1",
-        "endoflife.date/package2",
-    ]
-    assert list(context.transversal_status.repositories.keys()) == [
-        "endoflife.date/package1",
-        "endoflife.date/package2",
-    ]
-    assert (
-        context.transversal_status.repositories["endoflife.date/package1"].url
-        == "https://endoflife.date/package1"
-    )
-    assert (
-        context.transversal_status.repositories["endoflife.date/package2"].url
-        == "https://endoflife.date/package2"
-    )
-    assert context.transversal_status.repositories["endoflife.date/package1"].versions == {
-        "1.0": _TransversalStatusVersion(
-            support="2038-12-31",
-            names_by_datasource={"datasource1": _TransversalStatusNameByDatasource(names=["package1"])},
+        responses.get(
+            "https://endoflife.date/api/package1.json",
+            payload=[
+                {
+                    "eol": "2038-12-31",
+                    "cycle": "1.0",
+                }
+            ],
+            status=200,
         )
-    }
-    assert context.transversal_status.repositories["endoflife.date/package2"].versions == {
-        "v1.0": _TransversalStatusVersion(
-            support="2038-12-31",
-            names_by_datasource={"datasource2": _TransversalStatusNameByDatasource(names=["package2"])},
-        ),
-        "v2.0": _TransversalStatusVersion(
-            support="2039-12-31",
-            names_by_datasource={"datasource2": _TransversalStatusNameByDatasource(names=["package2"])},
-        ),
-    }
+        responses.get(
+            "https://endoflife.date/api/package2.json",
+            payload=[{"eol": "2038-12-31", "cycle": "v1.0"}, {"eol": "2039-12-31", "cycle": "v2.0"}],
+            status=200,
+        )
+
+        await _update_upstream_versions(context)
+
+        assert list(context.transversal_status.updated.keys()) == [
+            "endoflife.date/package1",
+            "endoflife.date/package2",
+        ]
+        assert list(context.transversal_status.repositories.keys()) == [
+            "endoflife.date/package1",
+            "endoflife.date/package2",
+        ]
+        assert (
+            context.transversal_status.repositories["endoflife.date/package1"].url
+            == "https://endoflife.date/package1"
+        )
+        assert (
+            context.transversal_status.repositories["endoflife.date/package2"].url
+            == "https://endoflife.date/package2"
+        )
+        assert context.transversal_status.repositories["endoflife.date/package1"].versions == {
+            "1.0": _TransversalStatusVersion(
+                support="2038-12-31",
+                names_by_datasource={"datasource1": _TransversalStatusNameByDatasource(names=["package1"])},
+            )
+        }
+        assert context.transversal_status.repositories["endoflife.date/package2"].versions == {
+            "v1.0": _TransversalStatusVersion(
+                support="2038-12-31",
+                names_by_datasource={"datasource2": _TransversalStatusNameByDatasource(names=["package2"])},
+            ),
+            "v2.0": _TransversalStatusVersion(
+                support="2039-12-31",
+                names_by_datasource={"datasource2": _TransversalStatusNameByDatasource(names=["package2"])},
+            ),
+        }
 
 
 def test_read_dependency() -> None:
