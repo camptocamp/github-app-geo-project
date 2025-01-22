@@ -223,8 +223,9 @@ async def _process_snyk_dpkg(
                             )
                             message.title = "Changes to be committed"
                             _LOGGER.debug(message)
-                        finally:
+                        except TimeoutError:
                             proc.kill()
+                            raise
 
                         command = ["git", "checkout", "-b", new_branch]
                         proc = await asyncio.create_subprocess_exec(
@@ -256,16 +257,21 @@ async def _process_snyk_dpkg(
                                             key, f"{key} ([Pull request]({pull_request.html_url}))"
                                         )
                                         short_message.append(f"[Pull request]({pull_request.html_url})")
-                        finally:
+                        except TimeoutError:
                             proc.kill()
+                            raise
 
                     else:
                         _LOGGER.debug("No changes to commit")
                         module_utils.close_pull_request_issues(
                             new_branch, f"Audit {key}", context.github_project
                         )
-                finally:
-                    diff_proc.kill()
+                except TimeoutError:
+                    try:
+                        diff_proc.kill()
+                    except:  # pylint: disable=bare-except
+                        pass
+                    raise
 
         full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
         transversal_message = ", ".join(short_message)
