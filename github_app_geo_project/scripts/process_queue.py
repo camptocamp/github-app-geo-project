@@ -357,7 +357,7 @@ async def _process_job(
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
             message = module_utils.AnsiProcessMessage(
-                cast(list[str], proc_error.args),
+                cast(list[str], proc_error.cmd),
                 None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode,
                 proc_error.output,
                 cast(str, proc_error.stderr),

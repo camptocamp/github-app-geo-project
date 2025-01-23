@@ -7,7 +7,6 @@ import logging
 import os
 import os.path
 import re
-import subprocess  # nosec
 import tempfile
 import tomllib
 from collections.abc import Iterable
@@ -438,36 +437,48 @@ async def _get_names(
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
-        raise subprocess.CalledProcessError(
-            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+        message = module_utils.AnsiProcessMessage(
+            command,
+            proc.returncode,
+            None if stdout is None else stdout.decode(),
+            None if stderr is None else stderr.decode(),
         )
-    for filename in stdout.decode().splitlines():
-        with open(filename, encoding="utf-8") as file:
-            data = tomllib.loads(file.read())
-            name = data.get("project", {}).get("name")
-            names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
-            if name and name not in names:
-                names.append(name)
-            else:
-                name = data.get("tool", {}).get("poetry", {}).get("name")
+        message.title = "Unable to get the pyproject.toml files"
+        _LOGGER.error(message)
+    else:
+        for filename in stdout.decode().splitlines():
+            with open(filename, encoding="utf-8") as file:
+                data = tomllib.loads(file.read())
+                name = data.get("project", {}).get("name")
+                names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
                 if name and name not in names:
                     names.append(name)
+                else:
+                    name = data.get("tool", {}).get("poetry", {}).get("name")
+                    if name and name not in names:
+                        names.append(name)
     command = ["git", "ls-files", "setup.py", "*/setup.py"]
     proc = await asyncio.create_subprocess_exec(
         *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
-        raise subprocess.CalledProcessError(
-            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+        message = module_utils.AnsiProcessMessage(
+            command,
+            proc.returncode,
+            None if stdout is None else stdout.decode(),
+            None if stderr is None else stderr.decode(),
         )
-    for filename in stdout.decode().splitlines():
-        with open(filename, encoding="utf-8") as file:
-            names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
-            for line in file:
-                match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
-                if match and match.group(1) not in names:
-                    names.append(match.group(1))
+        message.title = "Unable to get the setup.py files"
+        _LOGGER.error(message)
+    else:
+        for filename in stdout.decode().splitlines():
+            with open(filename, encoding="utf-8") as file:
+                names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
+                for line in file:
+                    match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
+                    if match and match.group(1) not in names:
+                        names.append(match.group(1))
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     docker_config = {}
     if os.path.exists(".github/publish.yaml"):
@@ -510,14 +521,23 @@ async def _get_names(
         stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
-    assert proc.returncode == 0
-    for filename in stdout.decode().splitlines():
-        with open(filename, encoding="utf-8") as file:
-            data = json.load(file)
-            name = data.get("name")
-            names = names_by_datasource.setdefault("npm", _TransversalStatusNameByDatasource()).names
-            if name and name not in names:
-                names.append(name)
+    if proc.returncode != 0:
+        message = module_utils.AnsiProcessMessage(
+            command,
+            proc.returncode,
+            None if stdout is None else stdout.decode(),
+            None if stderr is None else stderr.decode(),
+        )
+        message.title = "Unable to get the package.json files"
+        _LOGGER.error(message)
+    else:
+        for filename in stdout.decode().splitlines():
+            with open(filename, encoding="utf-8") as file:
+                data = json.load(file)
+                name = data.get("name")
+                names = names_by_datasource.setdefault("npm", _TransversalStatusNameByDatasource()).names
+                if name and name not in names:
+                    names.append(name)
 
     names = names_by_datasource.setdefault("github-release", _TransversalStatusNameByDatasource()).names
     add_name = f"{context.github_project.owner}/{context.github_project.repository}"
