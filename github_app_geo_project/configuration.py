@@ -130,7 +130,7 @@ def get_configuration(
         project_custom_configuration = yaml.load(
             project_configuration_content.decoded_content, Loader=yaml.SafeLoader
         )
-    except github.UnknownObjectException as exception:
+    except github.GithubException as exception:
         if exception.status != 404:
             raise
 
