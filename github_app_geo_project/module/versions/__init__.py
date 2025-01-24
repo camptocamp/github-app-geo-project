@@ -128,11 +128,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
         if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
-            return [
-                module.Action(
-                    data=_EventData(step=1),
-                )
-            ]
+            return [module.Action(data=_EventData(step=1), priority=module.PRIORITY_CRON)]
         return []
 
     def get_json_schema(self) -> dict[str, Any]:
@@ -224,6 +220,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                             ),
                         ),
                         title=version,
+                        priority=module.PRIORITY_CRON,
                     )
                 )
             return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
