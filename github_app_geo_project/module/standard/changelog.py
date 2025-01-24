@@ -597,7 +597,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                     prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
                         latest_release.tag_name
                     )
-            except github.UnknownObjectException as exception:
+            except github.GithubException as exception:
                 if exception.status != 404:
                     raise
             repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)

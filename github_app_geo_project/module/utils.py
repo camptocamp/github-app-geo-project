@@ -540,7 +540,10 @@ async def run_timeout(
         return None, False, message
     except TimeoutError as exception:
         if async_proc:
-            async_proc.kill()
+            try:
+                async_proc.kill()
+            except ProcessLookupError:
+                pass
             message = AnsiProcessMessage(
                 command,
                 None,

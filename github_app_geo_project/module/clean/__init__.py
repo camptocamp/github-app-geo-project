@@ -105,7 +105,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                 tag_publish.configuration.Configuration,
                 yaml.load(publish_configuration_content.decoded_content, Loader=yaml.SafeLoader),
             )
-        except github.UnknownObjectException as exception:
+        except github.GithubException as exception:
             if exception.status != 404:
                 raise
             return
