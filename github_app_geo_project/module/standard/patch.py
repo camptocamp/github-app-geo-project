@@ -181,7 +181,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                     message.title = f"Applied the diff {artifact.name}"
                                     _LOGGER.info(message)
 
-                                    if module_utils.has_changes():
+                                    if await module_utils.has_changes():
                                         success = await module_utils.create_commit(
                                             f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
                                         )
