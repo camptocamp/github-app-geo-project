@@ -198,13 +198,21 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                         stdout=asyncio.subprocess.PIPE,
                     )
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                    message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                        command, proc, stdout, stderr
+                    )
                     if proc.returncode != 0:
+                        message.title = "Failed to push the changes"
+                        _LOGGER.warning(message)
                         return module.ProcessOutput(
                             success=False,
                             output={
                                 "summary": f"Failed to push the changes{format_process_bytes(stdout, stderr)}"
                             },
                         )
+                    else:
+                        message.title = "Pushed the changes"
+                        _LOGGER.debug(message)
                 os.chdir("/")
         if is_clone and result_message:
             return module.ProcessOutput(
