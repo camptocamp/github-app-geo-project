@@ -813,6 +813,10 @@ class _PrometheusWatch:
     def _watch(self) -> None:
         while True:
             _LOGGER.debug("Prometheus watch: alive")
+            try:
+                _NB_JOBS.labels("Tasks").set(len(asyncio.all_tasks()))
+            except RuntimeError:
+                pass
             with self.Session() as session:
                 for status in models.JobStatus:
                     _NB_JOBS.labels(status.name).set(
