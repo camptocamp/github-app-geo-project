@@ -1,4 +1,4 @@
-c2cciutils[checks,publish]==1.7.2
+c2cciutils[checks,publish]==1.7.3
 importlib-metadata<8.5.1 # issue with twine, see: https://github.com/python/importlib_metadata/issues/492
 poetry==1.8.5
 pre-commit==4.0.1
