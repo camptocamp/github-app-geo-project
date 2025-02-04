@@ -4,9 +4,11 @@ import argparse
 import asyncio
 import contextvars
 import datetime
+import functools
 import io
 import logging
 import os
+import signal
 import socket
 import subprocess  # nosec
 import sys
@@ -900,8 +902,23 @@ async def _async_main() -> None:
     parser.add_argument("--only-one", action="store_true", help="Exit after processing one job")
     parser.add_argument("--make-pending", action="store_true", help="Make one job in pending")
     c2cwsgiutils.setup_process.fill_arguments(parser)
+
     args = parser.parse_args()
+
     c2cwsgiutils.setup_process.init(args.config_uri)
+
+    loop = asyncio.get_running_loop()
+    loop.slow_callback_duration = float(
+        os.environ.get("GHCI_SLOW_CALLBACK_DURATION", 60)
+    )  # 1 minute by default
+
+    def do_exit(loop: asyncio.AbstractEventLoop) -> None:
+        print("Exiting...")
+        loop.stop()
+
+    for signal_type in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(signal_type, functools.partial(do_exit, loop))
+
     loader = plaster.get_loader(args.config_uri)
     config = loader.get_settings("app:app")
     engine = sqlalchemy.engine_from_config(config, "sqlalchemy.")
