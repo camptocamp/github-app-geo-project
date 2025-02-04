@@ -136,7 +136,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                     # Follow redirect.
                     async with (
                         aiohttp.ClientSession() as session,
-                        asyncio.timeout(120),
+                        asyncio.timeout(180),
                         session.get(headers["location"]) as response,
                     ):
                         if not response.ok:
