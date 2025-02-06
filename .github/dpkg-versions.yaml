@@ -85,10 +85,10 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libbsd0: 0.12.1-1build1.1
   ubuntu_24_04/libbz2-1.0: 1.0.8-5.1build0.1
   ubuntu_24_04/libbz2-dev: 1.0.8-5.1build0.1
-  ubuntu_24_04/libc-bin: 2.39-0ubuntu8.3
-  ubuntu_24_04/libc-dev-bin: 2.39-0ubuntu8.3
-  ubuntu_24_04/libc6: 2.39-0ubuntu8.3
-  ubuntu_24_04/libc6-dev: 2.39-0ubuntu8.3
+  ubuntu_24_04/libc-bin: 2.39-0ubuntu8.4
+  ubuntu_24_04/libc-dev-bin: 2.39-0ubuntu8.4
+  ubuntu_24_04/libc6: 2.39-0ubuntu8.4
+  ubuntu_24_04/libc6-dev: 2.39-0ubuntu8.4
   ubuntu_24_04/libcairo-gobject2: 1.18.0-3build1
   ubuntu_24_04/libcairo-script-interpreter2: 1.18.0-3build1
   ubuntu_24_04/libcairo2: 1.18.0-3build1
