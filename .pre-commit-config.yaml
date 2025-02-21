@@ -43,7 +43,8 @@ repos:
     hooks:
       - id: poetry2-lock
         additional_dependencies:
-          - poetry==2.1.1 # pypi
+          - poetry==2.0.1 # pypi
+      - id: canonicalize
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:
@@ -69,9 +70,6 @@ repos:
         args:
           - --builtin-schema
           - github-workflows-require-timeout
-      - id: check-renovate
-        additional_dependencies:
-          - pyjson5==1.6.8 # pypi
   - repo: https://github.com/sirwart/ripsecrets
     rev: v0.1.8
     hooks:
@@ -83,11 +81,21 @@ repos:
         args:
           - --die-on-tool-error
           - --output-format=pylint
-          - --profile=utils:pre-commit
           - --profile=.prospector.yaml
+          - --profile=utils:autofix
         additional_dependencies:
-          - prospector-profile-duplicated==1.10.4 # pypi
-          - prospector-profile-utils==1.21.6 # pypi
+          - prospector-profile-duplicated==1.8.1 # pypi
+          - prospector-profile-utils==1.11.1 # pypi
+          - ruff==0.7.4 # pypi
+      - id: prospector
+        args:
+          - --die-on-tool-error
+          - --output-format=pylint
+          - --profile=utils:tests
+          - --profile=utils:autofix
+        additional_dependencies:
+          - prospector-profile-utils==1.20.2  # pypi
+          - ruff==0.9.6 # pypi
   - repo: https://github.com/camptocamp/jsonschema-gentypes
     rev: 2.10.0
     hooks:
@@ -174,11 +182,14 @@ repos:
       - id: jsonschema-validator
         files: |-
           (?x)^(
-            ci/config\.yaml
-            |github_app_geo_project/project-schema\.json
+            github_app_geo_project/project-schema\.json
             |github_app_geo_project/application-schema\.json
             |github_app_geo_project/module/.*/schema\.json
             |github_app_geo_project/module/.*/.*-schema\.json
+            |\.github/publish\.yaml
+            |example/changelog\-config\.yaml
+            |jsonschema\-gentypes\.yaml
+            |docker/test\-app/config\.yaml
           )$
   - repo: https://github.com/mheap/json-schema-spell-checker
     rev: main
