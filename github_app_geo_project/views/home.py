@@ -17,7 +17,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def _gt_access(
-    access_1: Literal["read", "write", "admin"], access_2: Literal["read", "write", "admin"]
+    access_1: Literal["read", "write", "admin"],
+    access_2: Literal["read", "write", "admin"],
 ) -> bool:
     access_number = {"read": 1, "write": 2, "admin": 3}
     return access_number[access_1] > access_number[access_2]
@@ -72,7 +73,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                     "description": module_instance.description(),
                     "documentation_url": module_instance.documentation_url(),
                     "has_transversal_dashboard": module_instance.has_transversal_dashboard() and admin,
-                }
+                },
             )
             if module_instance.required_issue_dashboard():
                 permissions["issues"] = "write"
@@ -98,7 +99,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                         application["errors"].append(
                             f"Missing events ({', '.join(events - github_events)}) "
                             f"in the GitHub application, please add them in the "
-                            "GitHub configuration interface."
+                            "GitHub configuration interface.",
                         )
                         _LOGGER.error(
                             "Missing events (%s) in the GitHub application '%s', please add them in the "
@@ -124,7 +125,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                         ):
                             application["errors"].append(
                                 f"Missing permission ({permission}={access}) in the GitHub application, "
-                                "please add it in the GitHub configuration interface."
+                                "please add it in the GitHub configuration interface.",
                             )
                             _LOGGER.error(
                                 "Missing permission (%s=%s) in the GitHub application (%s) "

@@ -55,7 +55,8 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
         ]
 
     async def process(
-        self, context: module.ProcessContext[_ConfigType, _EventData, _TransversalDashboardData]
+        self,
+        context: module.ProcessContext[_ConfigType, _EventData, _TransversalDashboardData],
     ) -> module.ProcessOutput[_EventData, _TransversalDashboardData]:
         """
         Process the action.
@@ -86,10 +87,15 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
 
             if type_ == "success":
                 result["output-multi-line-id"] = module_utils.add_output(
-                    context, "Test", ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}]
+                    context,
+                    "Test",
+                    ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}],
                 )
                 result["output-error-id"] = module_utils.add_output(
-                    context, "Test", ["Test error"], status=models.OutputStatus.ERROR
+                    context,
+                    "Test",
+                    ["Test error"],
+                    status=models.OutputStatus.ERROR,
                 )
 
             if type_ == "log-multiline":
@@ -126,7 +132,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
             with open("/tmp/test-result.yaml", "w", encoding="utf-8") as file:
                 yaml.dump(result, file)
             return module.ProcessOutput(
-                transversal_status=_TransversalDashboardData(content="<b>Some content</b>")
+                transversal_status=_TransversalDashboardData(content="<b>Some content</b>"),
             )
 
         finally:
@@ -140,7 +146,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
             "properties": {
                 "test": {
                     "type": "string",
-                }
+                },
             },
         }
 
@@ -149,7 +155,8 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
         return True
 
     def get_transversal_dashboard(
-        self, context: module.TransversalDashboardContext[_TransversalDashboardData]
+        self,
+        context: module.TransversalDashboardContext[_TransversalDashboardData],
     ) -> module.TransversalDashboardOutput:
         return module.TransversalDashboardOutput(
             renderer="github_app_geo_project:module/tests/dashboard.html",

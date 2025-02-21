@@ -27,7 +27,9 @@ else:
 
 def _get_code_spell_command(
     context: module.ProcessContext[
-        checks_configuration.PullRequestChecksConfiguration, dict[str, Any], dict[str, Any]
+        checks_configuration.PullRequestChecksConfiguration,
+        dict[str, Any],
+        dict[str, Any],
     ],
     ignore_file: NamedTemporaryFileStr,
 ) -> list[str]:
@@ -43,7 +45,8 @@ def _get_code_spell_command(
     ):
         try:
             content = context.github_project.repo.get_contents(
-                spell_ignore_file, ref=context.event_data.get("pull_request", {}).get("head", {}).get("sha")
+                spell_ignore_file,
+                ref=context.event_data.get("pull_request", {}).get("head", {}).get("sha"),
             )
             if isinstance(content, github.ContentFile.ContentFile):
                 ignore_file.write(content.decoded_content.decode("utf-8"))
@@ -54,7 +57,8 @@ def _get_code_spell_command(
             if exc.status != 404:
                 raise
     dictionaries = code_spell_config.get(
-        "internal-dictionaries", checks_configuration.CODESPELL_DICTIONARIES_DEFAULT
+        "internal-dictionaries",
+        checks_configuration.CODESPELL_DICTIONARIES_DEFAULT,
     )
     if dictionaries:
         command.append("--builtin=" + ",".join(dictionaries))
@@ -89,7 +93,8 @@ def _commits_messages(
         message_lines = commit.commit.message.split("\n")
         head = message_lines[0]
         if commit_message_config.get(
-            "check-fixup", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_FIXUP_DEFAULT
+            "check-fixup",
+            checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_FIXUP_DEFAULT,
         ) and head.startswith("fixup! "):
             _LOGGER.warning("Fixup message not allowed")
             messages.append(f":x: Fixup message not allowed in commit {commit.sha}")
@@ -97,7 +102,8 @@ def _commits_messages(
         else:
             messages.append(f":heavy_check_mark: The commit {commit.sha} is not a fixup commit")
         if commit_message_config.get(
-            "check-squash", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_SQUASH_DEFAULT
+            "check-squash",
+            checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_SQUASH_DEFAULT,
         ) and head.startswith("squash! "):
             _LOGGER.warning("Squash message not allowed")
             messages.append(f":x: Squash message not allowed in commit {commit.sha}")
@@ -113,12 +119,12 @@ def _commits_messages(
         ):
             _LOGGER.warning("The first letter of message head should be a capital")
             messages.append(
-                f":x: The first letter of message head should be a capital in commit {commit.sha}"
+                f":x: The first letter of message head should be a capital in commit {commit.sha}",
             )
             success = False
         else:
             messages.append(
-                f":heavy_check_mark: The first letter of message head in commit {commit.sha} is a capital"
+                f":heavy_check_mark: The first letter of message head in commit {commit.sha} is a capital",
             )
         min_length = commit_message_config.get(
             "min-head-length",
@@ -127,12 +133,12 @@ def _commits_messages(
         if min_length > 0 and len(head) < min_length:
             _LOGGER.warning("The message head should be at least %i characters long", min_length)
             messages.append(
-                f":x: The message head should be at least {min_length} characters long in commit {commit.sha}"
+                f":x: The message head should be at least {min_length} characters long in commit {commit.sha}",
             )
             success = False
         else:
             messages.append(
-                f":heavy_check_mark: The message head in commit {commit.sha} is at least {min_length} characters long"
+                f":heavy_check_mark: The message head in commit {commit.sha} is at least {min_length} characters long",
             )
         if (
             commit_message_config.get(
@@ -158,12 +164,11 @@ def _commits_messages(
             if revert_commit_hash in commit_hash:
                 _LOGGER.warning("Revert own commits is not allowed (%s)", revert_commit_hash)
                 messages.append(
-                    f":heavy_check_mark: Revert own commits is not allowed in commit {commit.sha}"
+                    f":heavy_check_mark: Revert own commits is not allowed in commit {commit.sha}",
                 )
                 success = False
                 continue
-            else:
-                messages.append(f":heavy_check_mark: The commit {commit.sha} is not an own revert commit")
+            messages.append(f":heavy_check_mark: The commit {commit.sha} is not an own revert commit")
     return success, messages
 
 
@@ -178,7 +183,8 @@ async def _commits_spell(
     for commit in commits:
         with tempfile.NamedTemporaryFile("w+t", encoding="utf-8", suffix=".yaml") as temp_file:
             if config.get(
-                "only-head", checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_ONLY_HEAD_DEFAULT
+                "only-head",
+                checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_ONLY_HEAD_DEFAULT,
             ):
                 head = commit.commit.message.split("\n")[0]
                 temp_file.write(head)
@@ -187,7 +193,9 @@ async def _commits_spell(
             temp_file.flush()
             command = [*spellcheck_cmd, temp_file.name]
             spell = await asyncio.create_subprocess_exec(
-                *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+                *command,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(spell.communicate(), timeout=120)
             message = module_utils.AnsiProcessMessage.from_async_artifacts(command, spell, stdout, stderr)
@@ -223,7 +231,9 @@ async def _pull_request_spell(
         temp_file.flush()
         command = [*spellcheck_cmd, temp_file.name]
         spell = await asyncio.create_subprocess_exec(
-            *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+            *command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
         )
         stdout, stderr = await asyncio.wait_for(spell.communicate(), timeout=60)
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, spell, stdout, stderr)
@@ -232,12 +242,11 @@ async def _pull_request_spell(
             _LOGGER.warning(message)
             messages.append(":x: " + message.title + "\n" + module_utils.html_to_markdown(message.stdout))
             return False, messages
-        else:
-            messages.append(
-                ":heavy_check_mark: Pull request title is correct"
-                if config.get("only_head", checks_configuration.PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT)
-                else ":heavy_check_mark: Pull request title and body are correct"
-            )
+        messages.append(
+            ":heavy_check_mark: Pull request title is correct"
+            if config.get("only_head", checks_configuration.PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT)
+            else ":heavy_check_mark: Pull request title and body are correct",
+        )
 
         message.title = "Code spell in pull request"
         _LOGGER.debug(message)
@@ -245,7 +254,7 @@ async def _pull_request_spell(
 
 
 class Checks(
-    module.Module[checks_configuration.PullRequestChecksConfiguration, dict[str, Any], dict[str, Any]]
+    module.Module[checks_configuration.PullRequestChecksConfiguration, dict[str, Any], dict[str, Any]],
 ):
     """Module to check the pull request message and commits."""
 
@@ -273,7 +282,8 @@ class Checks(
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
         with open(
-            os.path.join(os.path.dirname(__file__), "checks-schema.json"), encoding="utf-8"
+            os.path.join(os.path.dirname(__file__), "checks-schema.json"),
+            encoding="utf-8",
         ) as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
@@ -294,14 +304,16 @@ class Checks(
                     },
                     checks=True,
                     priority=module.PRIORITY_STATUS,
-                )
+                ),
             ]
         return []
 
     async def process(
         self,
         context: module.ProcessContext[
-            checks_configuration.PullRequestChecksConfiguration, dict[str, Any], dict[str, Any]
+            checks_configuration.PullRequestChecksConfiguration,
+            dict[str, Any],
+            dict[str, Any],
         ],
     ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """Process the module."""
@@ -317,7 +329,9 @@ class Checks(
             success_1, messages_1 = _commits_messages(context.module_config, commits)
             success_2, messages_2 = await _commits_spell(context.module_config, commits, spellcheck_cmd)
             success_3, messages_3 = await _pull_request_spell(
-                context.module_config, pull_request, spellcheck_cmd
+                context.module_config,
+                pull_request,
+                spellcheck_cmd,
             )
         success = success_1 and success_2 and success_3
         message = "\n".join([*messages_1, *messages_2, *messages_3])

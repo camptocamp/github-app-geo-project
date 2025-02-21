@@ -39,7 +39,7 @@ def sanitizer(text: str) -> str:
             "empty": {"hr", "br"},
             "keep_typographic_whitespace": True,
             "element_preprocessors": [],
-        }
+        },
     )
     return sanitizer_instance.sanitize(text)  # type: ignore[no-any-return]
 
@@ -113,7 +113,11 @@ def pprint_duration(duration_in: str | timedelta) -> str:
             day = 0
             date = datetime.strptime(duration_in, "%H:%M:%S.%f" if "." in duration_in else "%H:%M:%S")
         duration = timedelta(
-            days=day, hours=date.hour, minutes=date.minute, seconds=date.second, microseconds=date.microsecond
+            days=day,
+            hours=date.hour,
+            minutes=date.minute,
+            seconds=date.second,
+            microseconds=date.microsecond,
         )
     else:
         duration = duration_in
@@ -122,12 +126,11 @@ def pprint_duration(duration_in: str | timedelta) -> str:
     if secounds_abs < 60:
         plurial = "" if int(round(secounds_abs)) == 1 else "s"
         return f"{int(round(duration.total_seconds()))} second{plurial}"
-    elif secounds_abs < 3600:
+    if secounds_abs < 3600:
         plurial = "" if int(round(secounds_abs / 60)) == 1 else "s"
         return f"{int(round(duration.total_seconds() / 60))} minute{plurial}"
-    elif secounds_abs < 86400:
+    if secounds_abs < 86400:
         plurial = "" if int(round(secounds_abs / 3600)) == 1 else "s"
         return f"{int(round(duration.total_seconds() / 3600))} hour{plurial}"
-    else:
-        plurial = "" if int(round(secounds_abs / 86400)) == 1 else "s"
-        return f"{int(round(duration.total_seconds() / 86400))} day{plurial}"
+    plurial = "" if int(round(secounds_abs / 86400)) == 1 else "s"
+    return f"{int(round(duration.total_seconds() / 86400))} day{plurial}"

@@ -74,7 +74,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
         return []
 
     async def process(
-        self, context: module.ProcessContext[dict[str, Any], dict[str, Any], dict[str, Any]]
+        self,
+        context: module.ProcessContext[dict[str, Any], dict[str, Any], dict[str, Any]],
     ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """
         Process the action.
@@ -88,9 +89,11 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
             return module.ProcessOutput()
 
         is_clone = context.event_data.get("workflow_run", {}).get("head_repository", {}).get("owner", {}).get(
-            "login", ""
+            "login",
+            "",
         ) != context.event_data.get("workflow_run", {}).get("repository", {}).get("owner", {}).get(
-            "login", ""
+            "login",
+            "",
         )
         should_push = False
         result_message = []
@@ -105,7 +108,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                         return module.ProcessOutput(
                             success=False,
                             output={
-                                "summary": "Failed to clone the repository, see details on the application for details (link below)"
+                                "summary": "Failed to clone the repository, see details on the application for details (link below)",
                             },
                         )
 
@@ -122,7 +125,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                         headers,
                         response_redirect,
                     ) = workflow_run._requester.requestJson(  # pylint: disable=protected-access
-                        "GET", artifact.archive_download_url
+                        "GET",
+                        artifact.archive_download_url,
                     )
                     if status != 302:
                         _LOGGER.error(
@@ -152,7 +156,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                             with diff.open(diff.namelist()[0]) as file:
                                 patch_input = file.read().decode("utf-8")
                                 message: module_utils.Message = module_utils.HtmlMessage(
-                                    patch_input, "Applied the patch input"
+                                    patch_input,
+                                    "Applied the patch input",
                                 )
                                 _LOGGER.debug(message)
                                 if is_clone:
@@ -165,16 +170,20 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                         stdout=asyncio.subprocess.PIPE,
                                     )
                                     stdout, stderr = await asyncio.wait_for(
-                                        proc.communicate(patch_input.encode()), timeout=30
+                                        proc.communicate(patch_input.encode()),
+                                        timeout=30,
                                     )
                                     message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                                        command, proc, stdout, stderr
+                                        command,
+                                        proc,
+                                        stdout,
+                                        stderr,
                                     )
                                     if proc.returncode != 0:
                                         message.title = f"Failed to apply the diff {artifact.name}"
                                         _LOGGER.warning(message)
                                         error_messages.append(
-                                            f"Failed to apply the diff '{artifact.name}', you should probably rebase your branch"
+                                            f"Failed to apply the diff '{artifact.name}', you should probably rebase your branch",
                                         )
                                         continue
 
@@ -183,11 +192,11 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
 
                                     if await module_utils.has_changes():
                                         success = await module_utils.create_commit(
-                                            f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run"
+                                            f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run",
                                         )
                                         if not success:
                                             raise PatchException(
-                                                "Failed to commit the changes, see logs for details"
+                                                "Failed to commit the changes, see logs for details",
                                             )
                                         should_push = True
                 if should_push:
@@ -199,7 +208,10 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                     )
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
                     message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                        command, proc, stdout, stderr
+                        command,
+                        proc,
+                        stdout,
+                        stderr,
                     )
                     if proc.returncode != 0:
                         message.title = "Failed to push the changes"
@@ -207,12 +219,11 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                         return module.ProcessOutput(
                             success=False,
                             output={
-                                "summary": f"Failed to push the changes{format_process_bytes(stdout, stderr)}"
+                                "summary": f"Failed to push the changes{format_process_bytes(stdout, stderr)}",
                             },
                         )
-                    else:
-                        message.title = "Pushed the changes"
-                        _LOGGER.debug(message)
+                    message.title = "Pushed the changes"
+                    _LOGGER.debug(message)
                 os.chdir("/")
         if is_clone and result_message:
             return module.ProcessOutput(

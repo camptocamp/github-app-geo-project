@@ -67,7 +67,8 @@ def test_pprint_date() -> None:
     date = now - timedelta(days=60)
     date_str = date.isoformat()
     expected_output = '<span title="{}">{}</span>'.format(
-        date.strftime("%Y-%m-%d %H:%M:%S"), date.strftime("%Y-%m-%d")
+        date.strftime("%Y-%m-%d %H:%M:%S"),
+        date.strftime("%Y-%m-%d"),
     )
     assert pprint_date(date_str) == expected_output
 

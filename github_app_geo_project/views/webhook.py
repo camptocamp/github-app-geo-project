@@ -43,14 +43,17 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 digestmod=hashlib.sha256,
             ).hexdigest()
             if not hmac.compare_digest(
-                our_signature, request.headers["X-Hub-Signature-256"].split("=", 1)[-1]
+                our_signature,
+                request.headers["X-Hub-Signature-256"].split("=", 1)[-1],
             ):
                 _LOGGER.error("Invalid signature in the request")
                 if not dry_run:
                     raise pyramid.httpexceptions.HTTPBadRequest("Invalid signature in the request")
 
     _LOGGER.debug(
-        "Webhook received for %s on %s", request.headers.get("X-GitHub-Event", "undefined"), application
+        "Webhook received for %s on %s",
+        request.headers.get("X-GitHub-Event", "undefined"),
+        application,
     )
 
     application_object = None
@@ -98,12 +101,17 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
         ):
             try:
                 project_github = configuration.get_github_project(
-                    request.registry.settings, application, owner, repository
+                    request.registry.settings,
+                    application,
+                    owner,
+                    repository,
                 )
                 check_suite = project_github.repo.get_check_suite(data["check_suite"]["id"])
                 for check_run in check_suite.get_check_runs():
                     _LOGGER.info(
-                        "Rerequest the check run %s from check suite %s", check_run.id, check_suite.id
+                        "Rerequest the check run %s from check suite %s",
+                        check_run.id,
+                        check_suite.id,
                     )
                     session.execute(
                         sqlalchemy.update(models.Queue)
@@ -113,8 +121,8 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                                 "status": models.JobStatus.NEW,
                                 "started_at": None,
                                 "finished_at": None,
-                            }
-                        )
+                            },
+                        ),
                     )
                     session.commit()
                     check_run.edit(status="queued")
@@ -134,13 +142,16 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                         "status": models.JobStatus.NEW,
                         "started_at": None,
                         "finished_at": None,
-                    }
-                )
+                    },
+                ),
             )
             if "TEST_APPLICATION" not in os.environ:
                 try:
                     project_github = configuration.get_github_project(
-                        request.registry.settings, application, owner, repository
+                        request.registry.settings,
+                        application,
+                        owner,
+                        repository,
                     )
                     project_github.repo.get_check_run(data["check_run"]["id"]).edit(status="queued")
                 except github.GithubException as exception:
@@ -166,8 +177,8 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                         "module_data": {
                             "type": "dashboard",
                         },
-                    }
-                )
+                    },
+                ),
             )
 
         process_event(
@@ -181,7 +192,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 session=session,
                 github_application=application_object,
                 service_url=request.route_url("home"),
-            )
+            ),
         )
         session.commit()
     return {}
@@ -233,7 +244,7 @@ def process_event(context: ProcessContext) -> None:
                     owner=context.owner,
                     repository=context.repository,
                     github_application=context.github_application,
-                )
+                ),
             ):
                 priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
                 event_name = action.title or context.event_name
@@ -259,12 +270,12 @@ def process_event(context: ProcessContext) -> None:
                         elif key == "event_data":
                             update = update.where(
                                 sqlalchemy.cast(models.Queue.event_data, sqlalchemy.TEXT)
-                                == sqlalchemy.cast(context.event_data, sqlalchemy.TEXT)
+                                == sqlalchemy.cast(context.event_data, sqlalchemy.TEXT),
                             )
                         elif key == "module_data":
                             update = update.where(
                                 sqlalchemy.cast(models.Queue.module_data, sqlalchemy.TEXT)
-                                == sqlalchemy.cast(module_data, sqlalchemy.TEXT)
+                                == sqlalchemy.cast(module_data, sqlalchemy.TEXT),
                             )
                         else:
                             _LOGGER.error("Unknown jobs_unique_on key: %s", key)
@@ -272,7 +283,7 @@ def process_event(context: ProcessContext) -> None:
                     update = update.values(
                         {
                             "status": models.JobStatus.SKIPPED,
-                        }
+                        },
                     )
 
                     context.session.execute(update)
@@ -292,7 +303,10 @@ def process_event(context: ProcessContext) -> None:
                 repo = None
                 if "TEST_APPLICATION" not in os.environ:
                     github_project = configuration.get_github_project(
-                        context.config, context.application, context.owner, context.repository
+                        context.config,
+                        context.application,
+                        context.owner,
+                        context.repository,
                     )
                     repo = github_project.repo
 

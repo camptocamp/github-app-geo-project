@@ -47,7 +47,10 @@ class Queue(Base):
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=sqlalchemy.sql.functions.now(),
+        index=True,
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -99,15 +102,21 @@ class Output(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, server_default=sqlalchemy.sql.functions.now(), index=True
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=sqlalchemy.sql.functions.now(),
+        index=True,
     )
     status: Mapped[OutputStatus] = mapped_column(
-        Enum(OutputStatus, create_type=False, native_enum=False), nullable=False, index=True
+        Enum(OutputStatus, create_type=False, native_enum=False),
+        nullable=False,
+        index=True,
     )
     owner: Mapped[str] = mapped_column(Unicode, nullable=False)
     repository: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
     access_type: Mapped[AccessType] = mapped_column(
-        Enum(AccessType, create_type=False, native_enum=False), nullable=False
+        Enum(AccessType, create_type=False, native_enum=False),
+        nullable=False,
     )
     title: Mapped[str] = mapped_column(Unicode, nullable=False)
     data: Mapped[list[str | OutputData]] = mapped_column(JSON, nullable=False)

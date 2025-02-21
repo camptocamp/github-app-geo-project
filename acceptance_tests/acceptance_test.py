@@ -33,9 +33,9 @@ def test_schema() -> None:
                         "description": "Enable the module",
                         "title": "Module enabled",
                         "default": True,
-                    }
+                    },
                 },
-            }
+            },
         },
         "properties": {
             "profile": {

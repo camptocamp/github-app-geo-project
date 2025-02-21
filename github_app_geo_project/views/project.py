@@ -98,7 +98,10 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
 
         except:  # pylint: disable=bare-except
             _LOGGER.debug(
-                "The repository %s/%s is not installed in the application %s", owner, repository, app
+                "The repository %s/%s is not installed in the application %s",
+                owner,
+                repository,
+                app,
             )
     module_config = []
     for module_name in module_names:
@@ -113,7 +116,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                 "description": module.description(),
                 "documentation_url": module.documentation_url(),
                 "configuration": utils.format_yaml(config.get(module_name, {})),  # type: ignore[arg-type]
-            }
+            },
         )
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.ro_engine

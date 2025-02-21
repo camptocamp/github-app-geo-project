@@ -70,19 +70,20 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         ],
                     ),
                     priority=module.PRIORITY_CRON,
-                )
+                ),
             ]
         if context.event_name == "delete" and context.event_data.get("ref_type") == "branch":
             return [
                 module.Action(
                     _ActionData(type="branch", names=[context.event_data.get("ref", "")]),
                     priority=module.PRIORITY_CRON,
-                )
+                ),
             ]
         return []
 
     async def process(
-        self, context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None]
+        self,
+        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None],
     ) -> module.ProcessOutput[_ActionData, None]:
         """Process the action."""
         if context.module_config.get("docker", True):
@@ -93,7 +94,8 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
         return module.ProcessOutput()
 
     async def _clean_docker(
-        self, context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None]
+        self,
+        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None],
     ) -> None:
         """Clean the Docker images on Docker Hub for the branch we delete."""
         # get the .github/publish.yaml
@@ -115,15 +117,17 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                 transformers = publish_config.get(
                     "transformers",
                     cast(
-                        tag_publish.configuration.Transformers, tag_publish.configuration.TRANSFORMERS_DEFAULT
+                        tag_publish.configuration.Transformers,
+                        tag_publish.configuration.TRANSFORMERS_DEFAULT,
                     ),
                 )
                 pull_match = tag_publish.match(
                     name,
                     tag_publish.compile_re(
                         transformers.get(
-                            "pull_request_to_version", cast(tag_publish.configuration.Transform, [{}])
-                        )
+                            "pull_request_to_version",
+                            cast(tag_publish.configuration.Transform, [{}]),
+                        ),
                     ),
                 )
                 name = tag_publish.get_value(*pull_match)
@@ -171,7 +175,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         {
                             "username": username,
                             "password": password,
-                        }
+                        },
                     ),
                 ) as response,
             ):
@@ -247,7 +251,10 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                            proc.returncode if proc.returncode is not None else -999,
+                            command,
+                            stdout,
+                            stderr,
                         )
                     command = [
                         "git",
@@ -259,12 +266,18 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                            proc.returncode if proc.returncode is not None else -999,
+                            command,
+                            stdout,
+                            stderr,
                         )
                 command = ["git", "push", "origin", branch]
                 proc = await asyncio.create_subprocess_exec(*command)
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(
-                        proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                        proc.returncode if proc.returncode is not None else -999,
+                        command,
+                        stdout,
+                        stderr,
                     )

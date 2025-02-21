@@ -65,7 +65,8 @@ class _VersionsConfigurationExternalPackagesItem(TypedDict, total=False):
 
 
 _VersionsConfigurationPackageExtractorAdditionalproperties = dict[
-    str, list["_VersionsConfigurationPackageExtractorAdditionalpropertiesAdditionalpropertiesItem"]
+    str,
+    list["_VersionsConfigurationPackageExtractorAdditionalpropertiesAdditionalpropertiesItem"],
 ]
 """ The package extractor by package name """
 

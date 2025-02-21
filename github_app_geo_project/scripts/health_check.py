@@ -16,8 +16,8 @@ def main() -> None:
     blocked_time = time.time() - os.path.getmtime("/var/ghci/watch_dog")
 
     if blocked_time > args.timeout / 2:
-        subprocess.run(["ls", "-l", "/var/ghci/"])  # pylint: disable=subprocess-run-check
-        subprocess.run(["cat", "/var/ghci/job_info"])  # pylint: disable=subprocess-run-check
-        subprocess.run(["ps", "aux"])  # pylint: disable=subprocess-run-check
+        subprocess.run(["ls", "-l", "/var/ghci/"], check=False)  # pylint: disable=subprocess-run-check
+        subprocess.run(["cat", "/var/ghci/job_info"], check=False)  # pylint: disable=subprocess-run-check
+        subprocess.run(["ps", "aux"], check=False)  # pylint: disable=subprocess-run-check
     if blocked_time > args.timeout:
         sys.exit(1)

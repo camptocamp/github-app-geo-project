@@ -133,7 +133,10 @@ async def _process_job(
     if "TEST_APPLICATION" not in os.environ:
         github_application = configuration.get_github_application(config, job.application)
         github_project = configuration.get_github_project(
-            config, github_application, job.owner, job.repository
+            config,
+            github_application,
+            job.owner,
+            job.repository,
         )
         repo = github_project.repo
 
@@ -146,7 +149,8 @@ async def _process_job(
         module_config = cast(
             project_configuration.ModuleConfiguration,
             configuration.get_configuration(config, job.owner, job.repository, job.application).get(
-                job.module, {}
+                job.module,
+                {},
             ),
         )
         if job.check_run_id is not None:
@@ -183,7 +187,7 @@ async def _process_job(
                 module_event_data=current_module.event_data_from_json(job.module_data),
                 issue_data=issue_data,
                 transversal_status=current_module.transversal_status_from_json(
-                    module_status.data if module_status is not None else None
+                    module_status.data if module_status is not None else None,
                 ),
                 job_id=job.id,
                 service_url=config["service-url"],
@@ -279,7 +283,7 @@ async def _process_job(
                     session.execute(
                         sqlalchemy.update(models.ModuleStatus)
                         .where(models.ModuleStatus.module == job.module)
-                        .values(data=current_module.transversal_status_to_json(result.transversal_status))
+                        .values(data=current_module.transversal_status_to_json(result.transversal_status)),
                     )
             if result is not None:
                 _LOGGER.debug("Process actions")
@@ -442,7 +446,7 @@ async def _process_job(
                     event_name="event",
                     event_data=job.event_data,
                     module_data=job.module_data,
-                )
+                ),
             )
         except Exception:
             _LOGGER.exception(
@@ -459,7 +463,10 @@ async def _process_job(
 
         if dashboard_issue:
             issue_full_data = utils.update_dashboard_issue_module(
-                dashboard_issue.body, job.module, current_module, new_issue_data
+                dashboard_issue.body,
+                job.module,
+                current_module,
+                new_issue_data,
             )
             _LOGGER.debug("Update issue %s, with:\n%s", dashboard_issue.number, issue_full_data)
             dashboard_issue.edit(body=issue_full_data)
@@ -478,7 +485,9 @@ async def _process_job(
 
 
 def _process_event(
-    config: dict[str, str], event_data: dict[str, str], session: sqlalchemy.orm.Session
+    config: dict[str, str],
+    event_data: dict[str, str],
+    session: sqlalchemy.orm.Session,
 ) -> None:
     for application in config["applications"].split():
         _LOGGER.info("Process the event: %s, application: %s", event_data.get("name"), application)
@@ -495,7 +504,7 @@ def _process_event(
                     session=session,
                     github_application=None,  # type: ignore[arg-type]
                     service_url=config["service-url"],
-                )
+                ),
             )
         else:
             github_application = configuration.get_github_application(config, application)
@@ -512,12 +521,13 @@ def _process_event(
                             session=session,
                             github_application=github_application,
                             service_url=config["service-url"],
-                        )
+                        ),
                     )
 
 
 def _get_dashboard_issue(
-    github_application: configuration.GithubApplication, repo: github.Repository.Repository
+    github_application: configuration.GithubApplication,
+    repo: github.Repository.Repository,
 ) -> github.Issue.Issue | None:
     open_issues = repo.get_issues(
         state="open",
@@ -572,7 +582,7 @@ def _process_dashboard_issue(
                                 owner=github_project.owner,
                                 repository=github_project.repository,
                                 github_application=github_project.application,
-                            )
+                            ),
                         ):
                             job = models.Queue()
                             job.priority = (
@@ -648,7 +658,7 @@ async def _get_process_one_job(
                     < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", 86400))),
                 )
-                .values(status=models.JobStatus.ERROR)
+                .values(status=models.JobStatus.ERROR),
             )
             # Get too old pending jobs
             session.execute(
@@ -659,7 +669,7 @@ async def _get_process_one_job(
                     < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", 3600)) + 60),
                 )
-                .values(status=models.JobStatus.NEW)
+                .values(status=models.JobStatus.NEW),
             )
             session.commit()
 
@@ -691,13 +701,17 @@ async def _process_one_job(
     module_data_formatted = utils.format_json(job.module_data)
     event_data_formatted = utils.format_json(job.event_data)
     message = module_utils.HtmlMessage(
-        f"<p>module data:</p>{module_data_formatted}<p>event data:</p>{event_data_formatted}"
+        f"<p>module data:</p>{module_data_formatted}<p>event data:</p>{event_data_formatted}",
     )
     message.title = f"Start process job '{job.event_name}' id: {job.id}, on {job.owner}/{job.repository} on module: {job.module}, on application {job.application}"
     root_logger.addHandler(handler)
     _LOGGER.info(message)
     _RUNNING_JOBS[job.id] = _JobInfo(
-        job.module or "-", job.event_name, job.repository, job.priority, max_priority
+        job.module or "-",
+        job.event_name,
+        job.repository,
+        job.priority,
+        max_priority,
     )
     root_logger.removeHandler(handler)
 
@@ -714,7 +728,7 @@ async def _process_one_job(
         job.started_at = datetime.datetime.now(tz=datetime.UTC)
         session.commit()
         _NB_JOBS.labels(models.JobStatus.PENDING.name).set(
-            session.query(models.Queue).filter(models.Queue.status == models.JobStatus.PENDING).count()
+            session.query(models.Queue).filter(models.Queue.status == models.JobStatus.PENDING).count(),
         )
 
         success = True
@@ -848,12 +862,12 @@ class _PrometheusWatch:
             with self.Session() as session:
                 for status in models.JobStatus:
                     _NB_JOBS.labels(status.name).set(
-                        session.query(models.Queue).filter(models.Queue.status == status).count()
+                        session.query(models.Queue).filter(models.Queue.status == status).count(),
                     )
             text = []
             for id_, job in _RUNNING_JOBS.items():
                 text.append(
-                    f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})"
+                    f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})",
                 )
             try:
                 for task in asyncio.all_tasks():
@@ -909,7 +923,7 @@ async def _async_main() -> None:
 
     loop = asyncio.get_running_loop()
     loop.slow_callback_duration = float(
-        os.environ.get("GHCI_SLOW_CALLBACK_DURATION", 60)
+        os.environ.get("GHCI_SLOW_CALLBACK_DURATION", 60),
     )  # 1 minute by default
 
     def do_exit(loop: asyncio.AbstractEventLoop) -> None:
@@ -927,12 +941,18 @@ async def _async_main() -> None:
     models.Base.metadata.create_all(engine)
     if args.only_one:
         await _get_process_one_job(
-            config, Session, no_steal_long_pending=args.exit_when_empty, make_pending=args.make_pending
+            config,
+            Session,
+            no_steal_long_pending=args.exit_when_empty,
+            make_pending=args.make_pending,
         )
         sys.exit(0)
     if args.make_pending:
         await _get_process_one_job(
-            config, Session, no_steal_long_pending=args.exit_when_empty, make_pending=True
+            config,
+            Session,
+            no_steal_long_pending=args.exit_when_empty,
+            make_pending=True,
         )
         sys.exit(0)
 
@@ -958,8 +978,9 @@ async def _async_main() -> None:
     for priority in priority_groups:
         tasks.append(
             asyncio.create_task(
-                _Run(config, Session, args.exit_when_empty, priority)(), name=f"Run ({priority})"
-            )
+                _Run(config, Session, args.exit_when_empty, priority)(),
+                name=f"Run ({priority})",
+            ),
         )
     await asyncio.gather(*tasks)
 

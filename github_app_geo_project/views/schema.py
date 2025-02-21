@@ -25,7 +25,8 @@ def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
 
     # get project-schema-content
     with open(
-        os.path.join(os.path.dirname(os.path.dirname(__file__)), "project-schema.json"), encoding="utf-8"
+        os.path.join(os.path.dirname(os.path.dirname(__file__)), "project-schema.json"),
+        encoding="utf-8",
     ) as schema_file:
         schema: dict[str, Any] = json.loads(schema_file.read())
 

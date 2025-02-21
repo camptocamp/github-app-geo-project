@@ -41,14 +41,15 @@ def dashboard(request: pyramid.request.Request) -> dict[str, Any]:
     SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
     with SessionMaker() as session:
         module_status = session.execute(
-            sqlalchemy.sql.select(models.ModuleStatus.data).where(models.ModuleStatus.module == module_name)
+            sqlalchemy.sql.select(models.ModuleStatus.data).where(models.ModuleStatus.module == module_name),
         ).scalar()
         if module_status is None:
             module_status = {}
         output = module_instance.get_transversal_dashboard(
             module.TransversalDashboardContext(
-                module_instance.transversal_status_from_json(module_status or {}), dict(request.params)
-            )
+                module_instance.transversal_status_from_json(module_status or {}),
+                dict(request.params),
+            ),
         )
         data = output.data
 

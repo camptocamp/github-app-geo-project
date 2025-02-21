@@ -74,7 +74,8 @@ class SecurityPolicy:
                     digestmod=hashlib.sha256,
                 ).hexdigest()
                 if hmac.compare_digest(
-                    our_signature, request.headers["X-Hub-Signature-256"].split("=", 1)[1]
+                    our_signature,
+                    request.headers["X-Hub-Signature-256"].split("=", 1)[1],
                 ):
                     user = User("github_webhook", None, None, None, True, None, request)
                 else:
@@ -122,7 +123,10 @@ body:
         return identity.login
 
     def permits(
-        self, request: pyramid.request.Request, auth_config: c2cwsgiutils.auth.AuthConfig, permission: str
+        self,
+        request: pyramid.request.Request,
+        auth_config: c2cwsgiutils.auth.AuthConfig,
+        permission: str,
     ) -> Allowed | Denied:
         """Allow access to everything if signed in."""
         identity = self.identity(request)

@@ -25,7 +25,8 @@ def apply_profile_inheritance(profile_name: str, profiles: dict[str, Any]) -> No
         if other_profile.get("inherits") == profile_name:
             _LOGGER.debug("Apply inheritance %s -> %s", profile_name, other_name)
             APPLICATION_CONFIGURATION["profiles"][other_name] = jsonmerge.merge(
-                profiles[profile_name], other_profile
+                profiles[profile_name],
+                other_profile,
             )
             del APPLICATION_CONFIGURATION["profiles"][other_name]["inherits"]
             apply_profile_inheritance(name, profiles)
@@ -76,14 +77,14 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
     applications = config.get("applications", "").split()
     if application_name not in applications:
         raise ValueError(
-            f"Application {application_name} not found, available applications: {', '.join(applications)}"
+            f"Application {application_name} not found, available applications: {', '.join(applications)}",
         )
-    if application_name not in GITHUB_APPLICATIONS:  # pylint: disable=undefined-variable # noqa
+    if application_name not in GITHUB_APPLICATIONS:  # pylint: disable=undefined-variable
         private_key = "\n".join(
             [
                 e.strip()
                 for e in config[f"application.{application_name}.github_app_private_key"].strip().split("\n")
-            ]
+            ],
         )
         auth = github.Auth.AppAuth(
             config[f"application.{application_name}.github_app_id"],
@@ -91,15 +92,18 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
         )
         objects = GithubApplication(auth, github.GithubIntegration(auth=auth, retry=3), application_name)
 
-        GITHUB_APPLICATIONS[application_name] = objects  # noqa
+        GITHUB_APPLICATIONS[application_name] = objects
 
-    objects = GITHUB_APPLICATIONS[application_name]  # noqa
+    objects = GITHUB_APPLICATIONS[application_name]
 
     return objects
 
 
 def get_github_project(
-    config: dict[str, Any], application: GithubApplication | str, owner: str, repository: str
+    config: dict[str, Any],
+    application: GithubApplication | str,
+    owner: str,
+    repository: str,
 ) -> GithubProject:
     """Get the Github Application by name."""
     objects = get_github_application(config, application) if isinstance(application, str) else application
@@ -113,7 +117,10 @@ def get_github_project(
 
 
 def get_configuration(
-    config: dict[str, Any], owner: str, repository: str, application: str
+    config: dict[str, Any],
+    owner: str,
+    repository: str,
+    application: str,
 ) -> project_configuration.GithubApplicationProjectConfiguration:
     """
     Get the Configuration for the repository.
@@ -128,7 +135,8 @@ def get_configuration(
         project_configuration_content = repo.get_contents(".github/ghci.yaml")
         assert not isinstance(project_configuration_content, list)
         project_custom_configuration = yaml.load(
-            project_configuration_content.decoded_content, Loader=yaml.SafeLoader
+            project_configuration_content.decoded_content,
+            Loader=yaml.SafeLoader,
         )
     except github.GithubException as exception:
         if exception.status != 404:
@@ -136,7 +144,8 @@ def get_configuration(
 
     return jsonmerge.merge(  # type: ignore[no-any-return]
         APPLICATION_CONFIGURATION.get("profiles", {}).get(
-            project_custom_configuration.get("profile", APPLICATION_CONFIGURATION.get("default-profile")), {}
+            project_custom_configuration.get("profile", APPLICATION_CONFIGURATION.get("default-profile")),
+            {},
         ),
         project_custom_configuration,
     )

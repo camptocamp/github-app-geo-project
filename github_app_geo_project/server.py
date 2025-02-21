@@ -31,7 +31,7 @@ def forbidden(request: pyramid.request.Request) -> pyramid.response.Response:
         location=request.route_url(
             "c2c_github_login",
             _query={"came_from": request.current_route_url()},
-        )
+        ),
     )
 
 
@@ -49,7 +49,7 @@ def main(global_config: Any, **settings: Any) -> Router:
             salt=os.environ["GHCI_SESSION_SALT"],
             httponly=True,
             secure=True,
-        )
+        ),
     )
 
     config.include(c2cwsgiutils.pyramid.includeme)

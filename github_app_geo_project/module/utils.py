@@ -224,7 +224,8 @@ class HtmlMessage(Message):
 
         # interpret template parameters
         html = self.html.replace("{pre}", "<pre>" if style != "collapse" else "").replace(
-            "{post}", "</pre>" if style != "collapse" else ""
+            "{post}",
+            "</pre>" if style != "collapse" else "",
         )
         if self.title and style != "no-title":
             if style == "collapse":
@@ -249,7 +250,7 @@ class HtmlMessage(Message):
                         html,
                         "</div>",
                         "</div>",
-                    ]
+                    ],
                 )
             else:
                 html = "\n".join([f"<{style}>{self.title}</{style}>", html])
@@ -283,7 +284,7 @@ class HtmlMessage(Message):
                     "code",
                 },
                 "keep_typographic_whitespace": True,
-            }
+            },
         )
         return cast(str, sanitizer.sanitize(html))
 
@@ -300,7 +301,7 @@ class HtmlMessage(Message):
                     f"<summary>{self.title}</summary>",
                     markdown,
                     "</details>",
-                ]
+                ],
             )
         elif self.title:
             markdown = f"#### {self.title}\n{markdown}"
@@ -325,7 +326,7 @@ class HtmlMessage(Message):
                 "empty": set(),
                 "separate": set(),
                 "keep_typographic_whitespace": True,
-            }
+            },
         )
         message = cast(
             str,
@@ -366,7 +367,12 @@ class AnsiProcessMessage(AnsiMessage):
     """Represent a message from a subprocess."""
 
     def __init__(
-        self, args: list[str], returncode: int | None, stdout: str, stderr: str, error: str | None = None
+        self,
+        args: list[str],
+        returncode: int | None,
+        stdout: str,
+        stderr: str,
+        error: str | None = None,
     ) -> None:
         """Initialize the process message."""
         self.args: list[str] = []
@@ -432,12 +438,15 @@ class AnsiProcessMessage(AnsiMessage):
                     if self.stderr.strip()
                     else []
                 ),
-            ]
+            ],
         )
 
     @staticmethod
     def from_async_artifacts(
-        command: list[str], proc: asyncio.subprocess.Process, stdout: bytes | None, stderr: bytes | None
+        command: list[str],
+        proc: asyncio.subprocess.Process,
+        stdout: bytes | None,
+        stderr: bytes | None,
     ) -> "AnsiProcessMessage":
         """Create an AnsiProcessMessage from async artifacts."""
         return AnsiProcessMessage(
@@ -554,12 +563,11 @@ async def run_timeout(
             message.title = timeout_message
             _LOGGER.warning(message)
             return None, False, message
+        if error:
+            _LOGGER.exception("TimeoutError for %s: %s", command[0], exception)
         else:
-            if error:
-                _LOGGER.exception("TimeoutError for %s: %s", command[0], exception)
-            else:
-                _LOGGER.warning("TimeoutError for %s", command[0])
-            return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
+            _LOGGER.warning("TimeoutError for %s", command[0])
+        return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
 
 
 async def has_changes(include_un_followed: bool = False) -> bool:
@@ -614,7 +622,11 @@ async def create_commit(message: str, pre_commit_check: bool = True) -> bool:
 
 
 async def create_pull_request(
-    branch: str, new_branch: str, message: str, body: str, project: configuration.GithubProject
+    branch: str,
+    new_branch: str,
+    message: str,
+    body: str,
+    project: configuration.GithubProject,
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
     command = ["git", "push", "--force", "origin", new_branch]
@@ -697,7 +709,11 @@ async def auto_merge_pull_request(pull_request: github.PullRequest.PullRequest) 
 
 
 async def create_commit_pull_request(
-    branch: str, new_branch: str, message: str, body: str, project: configuration.GithubProject
+    branch: str,
+    new_branch: str,
+    message: str,
+    body: str,
+    project: configuration.GithubProject,
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
     if os.path.exists(".pre-commit-config.yaml"):
@@ -905,7 +921,10 @@ def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
 
 
 def manage_updated_separated(
-    updated: dict[str, datetime.datetime], data: dict[str, Any], key: str, days_old: int = 2
+    updated: dict[str, datetime.datetime],
+    data: dict[str, Any],
+    key: str,
+    days_old: int = 2,
 ) -> None:
     """
     Manage the updated status.

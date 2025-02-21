@@ -49,7 +49,9 @@ async def snyk(
 
     command = ["pip", "freeze"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )  # nosec
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -133,12 +135,17 @@ async def _select_java_version(
 
     command = ["./gradlew", "--version"]
     proc = await asyncio.create_subprocess_exec(  # nosec
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(
-            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+            proc.returncode if proc.returncode is not None else -999,
+            command,
+            stdout,
+            stderr,
         )
     gradle_version_out = stdout.decode().splitlines()
     gradle_version_out_filter = [line for line in gradle_version_out if line.startswith("Gradle ")]
@@ -175,7 +182,9 @@ async def _install_requirements_dependencies(
 ) -> None:
     command = ["git", "ls-files", "requirements.txt", "*/requirements.txt"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
@@ -217,7 +226,9 @@ async def _install_pipenv_dependencies(
 ) -> None:
     command = ["git", "ls-files", "Pipfile", "*/Pipfile"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
@@ -258,7 +269,9 @@ async def _install_poetry_dependencies(
 ) -> None:
     command = ["git", "ls-files", "poetry.lock", "*/poetry.lock"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
@@ -302,29 +315,30 @@ async def _snyk_monitor(
         "monitor",
         f"--target-reference={branch}",
         *local_config.get(
-            "monitor-arguments", config.get("monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT)
+            "monitor-arguments",
+            config.get("monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT),
         ),
     ]
     local_monitor_config = local_config.get("monitor", {})
     monitor_config = config.get("monitor", {})
     if "project-environment" in local_monitor_config or "project-environment" in monitor_config:
         command.append(
-            f"--project-environment={','.join(local_monitor_config.get('project-environment', monitor_config.get('project-environment', [])))}"
+            f"--project-environment={','.join(local_monitor_config.get('project-environment', monitor_config.get('project-environment', [])))}",
         )
     if "project-lifecycle" in local_monitor_config or "project-lifecycle" in monitor_config:
         command.append(
-            f"--project-lifecycle={','.join(local_monitor_config.get('project-lifecycle', monitor_config.get('project-lifecycle', [])))}"
+            f"--project-lifecycle={','.join(local_monitor_config.get('project-lifecycle', monitor_config.get('project-lifecycle', [])))}",
         )
     if (
         "project-business-criticality" in local_monitor_config
         or "project-business-criticality" in monitor_config
     ):
         command.append(
-            f"--project-business-criticality={','.join(local_monitor_config.get('project-business-criticality', monitor_config.get('project-business-criticality', [])))}"
+            f"--project-business-criticality={','.join(local_monitor_config.get('project-business-criticality', monitor_config.get('project-business-criticality', [])))}",
         )
     if "project-tags" in local_monitor_config or "project-tags" in monitor_config:
         command.append(
-            f"--project-tags={','.join(['='.join(tag) for tag in local_monitor_config.get('project-tags', monitor_config.get('project-tags', {}))])}"
+            f"--project-tags={','.join(['='.join(tag) for tag in local_monitor_config.get('project-tags', monitor_config.get('project-tags', {}))])}",
         )
 
     _, _, message = await module_utils.run_timeout(
@@ -351,7 +365,8 @@ async def _snyk_test(
         "snyk",
         "test",
         *local_config.get(
-            "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
+            "test-arguments",
+            config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT),
         ),
     ]
     await module_utils.run_timeout(
@@ -368,7 +383,8 @@ async def _snyk_test(
         "test",
         "--json",
         *local_config.get(
-            "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
+            "test-arguments",
+            config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT),
         ),
     ]
     test_json_str, _, message = await module_utils.run_timeout(
@@ -388,7 +404,9 @@ async def _snyk_test(
         _LOGGER.debug(message)
     else:
         _LOGGER.error(
-            "Snyk test JSON returned nothing on project %s branch %s", module_utils.get_cwd(), branch
+            "Snyk test JSON returned nothing on project %s branch %s",
+            module_utils.get_cwd(),
+            branch,
         )
 
     test_json = json.loads(test_json_str) if test_json_str else []
@@ -414,8 +432,8 @@ async def _snyk_test(
                     f"Target file: {row.get('displayTargetFile', '-')}",
                     f"Project path: {row.get('path', '-')}",
                     row.get("summary", ""),
-                ]
-            )
+                ],
+            ),
         )
         message.title = f'{row.get("summary", "Snyk test")} in {row.get("displayTargetFile", "-")}.'
         _LOGGER.info(message)
@@ -448,7 +466,7 @@ async def _snyk_test(
                     f"{vuln['packageName']}@{vuln['version']}:",
                     vuln["id"],
                     *(vuln.get("identifiers", {}).get("CWE", [])),
-                ]
+                ],
             )
             if vuln.get("fixedIn", []):
                 title += " [Fixed in: " + ", ".join(vuln["fixedIn"]) + "]."
@@ -475,7 +493,7 @@ async def _snyk_test(
                     ],
                 )
             vulnerabilities[title].paths.append(
-                " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]])
+                " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]]),
             )
 
         for title, vulnerability in vulnerabilities.items():
@@ -486,7 +504,7 @@ async def _snyk_test(
                         *vulnerability.identifiers,
                         "",
                         *vulnerability.paths,
-                    ]
+                    ],
                 ),
                 title,
             )
@@ -533,7 +551,8 @@ async def _snyk_fix(
             "snyk",
             "fix",
             *local_config.get(
-                "fix-arguments", config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
+                "fix-arguments",
+                config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT),
             ),
         ]
         fix_message, snyk_fix_success, message = await module_utils.run_timeout(
@@ -566,8 +585,8 @@ async def _snyk_fix(
                         *fixable_vulnerabilities_summary.values(),
                         f"Project: {project}:{branch}",
                         f"See logs: {logs_url}",
-                    ]
-                )
+                    ],
+                ),
             )
             message.title = f"Unable to fix {len(fixable_vulnerabilities_summary)} vulnerabilities"
             _LOGGER.warning(message)
@@ -576,7 +595,8 @@ async def _snyk_fix(
 
 
 async def _npm_audit_fix(
-    fixable_files_npm: dict[str, set[str]], result: list[module_utils.Message]
+    fixable_files_npm: dict[str, set[str]],
+    result: list[module_utils.Message],
 ) -> tuple[str, bool]:
     messages: set[str] = set()
     fix_success = True
@@ -639,7 +659,9 @@ _PACKAGE_VERSION: dict[str, debian_inspector.version.Version] = {}
 
 
 def _get_sources(
-    dist: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
+    dist: str,
+    config: configuration.DpkgConfiguration,
+    local_config: configuration.DpkgConfiguration,
 ) -> apt_repo.APTSources:
     """Get the sources for the distribution."""
     if dist not in _SOURCES:
@@ -654,7 +676,7 @@ def _get_sources(
                     source["components"],
                 )
                 for source in conf[dist]
-            ]
+            ],
         )
         try:
             for package in _SOURCES[dist].packages:
@@ -678,7 +700,9 @@ def _get_sources(
 
 
 async def _get_packages_version(
-    package: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
+    package: str,
+    config: configuration.DpkgConfiguration,
+    local_config: configuration.DpkgConfiguration,
 ) -> str | None:
     """Get the version of the package."""
     global _GENERATION_TIME  # pylint: disable=global-statement
@@ -699,7 +723,8 @@ async def _get_packages_version(
 
 
 async def dpkg(
-    config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
+    config: configuration.DpkgConfiguration,
+    local_config: configuration.DpkgConfiguration,
 ) -> None:
     """Update the version of packages in the file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml."""
     if not os.path.exists("ci/dpkg-versions.yaml") and not os.path.exists(".github/dpkg-versions.yaml"):

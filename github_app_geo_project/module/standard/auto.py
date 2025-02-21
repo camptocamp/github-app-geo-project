@@ -85,7 +85,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
                 and get_re(condition.get("branch")).match(context.event_data["pull_request"]["head"]["ref"])
             ):
                 repository = context.github_project.github.get_repo(
-                    context.event_data["repository"]["full_name"]
+                    context.event_data["repository"]["full_name"],
                 )
                 pull_request = repository.get_pull(context.event_data["pull_request"]["number"])
                 self.do_action(context, pull_request)
@@ -95,7 +95,8 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
     def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         with open(
-            os.path.join(os.path.dirname(__file__), "auto-schema.json"), encoding="utf-8"
+            os.path.join(os.path.dirname(__file__), "auto-schema.json"),
+            encoding="utf-8",
         ) as schema_file:
             return json.loads(schema_file.read()).get("definitions", {}).get("auto")  # type: ignore[no-any-return]
 

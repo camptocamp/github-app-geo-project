@@ -15,7 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class DeleteOldWorkflowRuns(
-    module.Module[configuration.DeleteOldWorkflowRunsConfiguration, dict[str, Any], dict[str, Any]]
+    module.Module[configuration.DeleteOldWorkflowRunsConfiguration, dict[str, Any], dict[str, Any]],
 ):
     """Delete old workflow jobs."""
 
@@ -58,7 +58,9 @@ class DeleteOldWorkflowRuns(
     async def process(
         self,
         context: module.ProcessContext[
-            configuration.DeleteOldWorkflowRunsConfiguration, dict[str, Any], dict[str, Any]
+            configuration.DeleteOldWorkflowRunsConfiguration,
+            dict[str, Any],
+            dict[str, Any],
         ],
     ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """

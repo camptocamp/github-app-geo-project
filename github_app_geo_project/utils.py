@@ -35,7 +35,10 @@ def get_dashboard_issue_module(text: str, current_module: str) -> str:
 
 
 def update_dashboard_issue_module(
-    text: str, module_name: str, current_module: module.Module[Any, Any, Any], data: str
+    text: str,
+    module_name: str,
+    current_module: module.Module[Any, Any, Any],
+    data: str,
 ) -> str:
     """Update the issue data (text) of a module with his new data."""
     start_tag = _ISSUE_START.format(module_name)
@@ -48,7 +51,7 @@ def update_dashboard_issue_module(
                 "",
                 data,
                 end_tag,
-            ]
+            ],
         )
         if data
         else ""
@@ -57,8 +60,7 @@ def update_dashboard_issue_module(
         start = text.index(start_tag)
         end = text.index(end_tag) + len(end_tag)
         return text[:start] + issue_data + text[end:]
-    else:
-        return f"{text}{issue_data}"
+    return f"{text}{issue_data}"
 
 
 def format_json(json_data: dict[str, Any]) -> str:
@@ -74,7 +76,9 @@ def format_json_str(json_str: str) -> str:
 def format_yaml(yaml_data: dict[str, Any]) -> str:
     """Format a YAML data to a HTML string."""
     return pygments.highlight(  # type: ignore[no-any-return]
-        yaml.dump(yaml_data, default_flow_style=False), _YAML_LEXER, _HTML_FORMATTER
+        yaml.dump(yaml_data, default_flow_style=False),
+        _YAML_LEXER,
+        _HTML_FORMATTER,
     )
 
 

@@ -160,7 +160,9 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
             )
             module_utils.manage_updated_separated(
-                context.transversal_status.updated, context.transversal_status.repositories, key
+                context.transversal_status.updated,
+                context.transversal_status.repositories,
+                key,
             )
 
             _apply_additional_packages(context)
@@ -221,7 +223,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                         ),
                         title=version,
                         priority=module.PRIORITY_CRON,
-                    )
+                    ),
                 )
             return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
         if context.module_event_data.step == 2:
@@ -242,7 +244,9 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     transversal_status = context.transversal_status
 
                     message = module_utils.HtmlMessage(
-                        utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
+                        utils.format_json(
+                            json.loads(version_status.model_dump_json())["names_by_datasource"]
+                        ),
                     )
                     message.title = "Names cleaned:"
 
@@ -253,15 +257,17 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                         alternate_versions=context.module_event_data.alternate_versions,
                     )
                     message = module_utils.HtmlMessage(
-                        utils.format_json(json.loads(version_status.model_dump_json())["names_by_datasource"])
+                        utils.format_json(
+                            json.loads(version_status.model_dump_json())["names_by_datasource"]
+                        ),
                     )
                     message.title = "Names:"
                     _LOGGER.debug(message)
                     await _get_dependencies(context, version_status.dependencies_by_datasource)
                     message = module_utils.HtmlMessage(
                         utils.format_json(
-                            json.loads(version_status.model_dump_json())["dependencies_by_datasource"]
-                        )
+                            json.loads(version_status.model_dump_json())["dependencies_by_datasource"],
+                        ),
                     )
                     message.title = "Dependencies:"
                     _LOGGER.debug(message)
@@ -272,8 +278,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                                 f"{context.github_project.owner}/{context.github_project.repository}"
                             ]
                             .versions[version]
-                            .model_dump_json(indent=2)
-                        )
+                            .model_dump_json(indent=2),
+                        ),
                     )
                     message.title = f"Version ({version}):"
                     _LOGGER.debug(message)
@@ -282,8 +288,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                         utils.format_json_str(
                             transversal_status.repositories[
                                 f"{context.github_project.owner}/{context.github_project.repository}"
-                            ].model_dump_json(indent=2)
-                        )
+                            ].model_dump_json(indent=2),
+                        ),
                     )
                     message.title = "Repo:"
                     _LOGGER.debug(message)
@@ -296,7 +302,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
         return True
 
     def get_transversal_dashboard(
-        self, context: module.TransversalDashboardContext[_TransversalStatus]
+        self,
+        context: module.TransversalDashboardContext[_TransversalStatus],
     ) -> module.TransversalDashboardOutput:
         """Get the dashboard data."""
         transversal_status = context.status
@@ -308,7 +315,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     for datasource, datasource_data in branch_data.names_by_datasource.items():
                         for name in datasource_data.names:
                             current_status = names.by_datasources.setdefault(
-                                datasource, _NamesByDataSources()
+                                datasource,
+                                _NamesByDataSources(),
                             ).by_package.setdefault(name, _NamesStatus(repo=repo))
                             current_status.status_by_version[_canonical_minor_version(datasource, branch)] = (
                                 branch_data.support
@@ -321,7 +329,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             # branch = list of dependencies
             dependencies_branches = _DependenciesBranches()
             for version, version_data in transversal_status.repositories.get(
-                context.params["repository"], _TransversalStatusRepo()
+                context.params["repository"],
+                _TransversalStatusRepo(),
             ).versions.items():
                 _build_internal_dependencies(version, version_data, names, dependencies_branches)
             _build_reverse_dependency(
@@ -349,9 +358,10 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     "data": utils.format_json(
                         json.loads(
                             transversal_status.repositories.get(
-                                context.params["repository"], _TransversalStatusRepo()
-                            ).model_dump_json()
-                        )
+                                context.params["repository"],
+                                _TransversalStatusRepo(),
+                            ).model_dump_json(),
+                        ),
                     ),
                 },
             )
@@ -456,7 +466,9 @@ async def _get_names(
                         names.append(name)
     command = ["git", "ls-files", "setup.py", "*/setup.py"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
@@ -492,14 +504,15 @@ async def _get_names(
         for conf in docker_config.get("images", []):
             for tag in conf.get("tags", ["{version}"]):
                 for repository_conf in docker_config.get(
-                    "repository", c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT
+                    "repository",
+                    c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT,
                 ).values():
                     for ver in all_versions:
                         repository_server = repository_conf.get("server", False)
                         add_names = []
                         if repository_server:
                             add_names.append(
-                                f"{repository_server}/{conf.get('name')}:{tag.format(version=ver)}"
+                                f"{repository_server}/{conf.get('name')}:{tag.format(version=ver)}",
                             )
 
                         else:
@@ -561,7 +574,10 @@ async def _get_dependencies(
         )
         stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
         message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
-            command, proc, stdout, stderr
+            command,
+            proc,
+            stdout,
+            stderr,
         )
         if proc.returncode != 0:
             message.title = "Failed to get the dependencies"
@@ -611,10 +627,14 @@ def _read_dependencies(
                 if "datasource" not in dep:
                     continue
                 for dependency, datasource, version in _dependency_extractor(
-                    context, dep["depName"], dep["datasource"], dep["currentValue"]
+                    context,
+                    dep["depName"],
+                    dep["datasource"],
+                    dep["currentValue"],
                 ):
                     versions_by_names = result.setdefault(
-                        datasource, _TransversalStatusNameInDatasource()
+                        datasource,
+                        _TransversalStatusNameInDatasource(),
                     ).versions_by_names
                     versions = versions_by_names.setdefault(dependency, _TransversalStatusVersions()).versions
                     if version not in versions:
@@ -664,11 +684,14 @@ async def _update_upstream_versions(
         datasource = external_config["datasource"]
 
         module_utils.manage_updated_separated(
-            transversal_status.updated, transversal_status.repositories, name
+            transversal_status.updated,
+            transversal_status.repositories,
+            name,
         )
 
         package_status: _TransversalStatusRepo = context.transversal_status.repositories.setdefault(
-            name, _TransversalStatusRepo()
+            name,
+            _TransversalStatusRepo(),
         )
         package_status.url = f"https://endoflife.date/{package}"
 
@@ -751,7 +774,8 @@ def _build_internal_dependencies(
     dependencies_branches: _DependenciesBranches,
 ) -> None:
     dependencies_branch = dependencies_branches.by_branch.setdefault(
-        version, _Dependencies(support=version_data.support)
+        version,
+        _Dependencies(support=version_data.support),
     )
     for datasource_name, dependencies_data in version_data.dependencies_by_datasource.items():
         for dependency_name, dependency_versions in dependencies_data.versions_by_names.items():
@@ -790,7 +814,7 @@ def _build_internal_dependencies(
                             "--bs-body-bg" if _is_supported(version_data.support, support) else "--bs-danger"
                         ),
                         repo=dependency_package_data.repo or "-",
-                    )
+                    ),
                 )
 
 
@@ -832,7 +856,8 @@ def _build_reverse_dependency(
                             match = package_name in version_data.names_by_datasource[datasource_name].names
                         if version_data is not None and match:
                             dependencies_branches.by_branch.setdefault(
-                                minor_version, _Dependencies()
+                                minor_version,
+                                _Dependencies(),
                             ).reverse.append(
                                 _Dependency(
                                     name=other_repo,
@@ -845,11 +870,12 @@ def _build_reverse_dependency(
                                         else "--bs-danger"
                                     ),
                                     repo=other_repo,
-                                )
+                                ),
                             )
                         else:
                             dependencies_branches.by_branch.setdefault(
-                                minor_version, _Dependencies()
+                                minor_version,
+                                _Dependencies(),
                             ).reverse.append(
                                 _Dependency(
                                     name=other_repo,
@@ -858,7 +884,7 @@ def _build_reverse_dependency(
                                     support=other_version_data.support,
                                     color="--bs-danger",
                                     repo=other_repo,
-                                )
+                                ),
                             )
 
 
@@ -867,7 +893,9 @@ def _apply_additional_packages(
 ) -> None:
     for repo, data in context.module_config.get("additional-packages", {}).items():
         module_utils.manage_updated_separated(
-            context.transversal_status.updated, context.transversal_status.repositories, repo
+            context.transversal_status.updated,
+            context.transversal_status.repositories,
+            repo,
         )
         pydentic_data = _TransversalStatusRepo(**data)
         context.transversal_status.repositories[repo] = pydentic_data

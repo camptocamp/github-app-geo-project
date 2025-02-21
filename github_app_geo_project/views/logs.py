@@ -52,5 +52,4 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
                     else ("green" if job.status == models.JobStatus.DONE else "blue")
                 ),
             }
-        else:
-            raise pyramid.httpexceptions.HTTPNotFound()
+        raise pyramid.httpexceptions.HTTPNotFound()
