@@ -798,7 +798,7 @@ def _build_internal_dependencies(
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 if datasource_name == "docker":
                     assert len(dependency_package_data.status_by_version) == 1
-                    support = list(dependency_package_data.status_by_version.values())[0]
+                    support = next(dependency_package_data.status_by_version.values())
                 else:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
