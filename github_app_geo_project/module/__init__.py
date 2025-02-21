@@ -365,7 +365,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
     @abstractmethod
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
-        super_ = next(c for c in self.__class__.__orig_bases__ if c.__origin__ == Module)  # type: ignore[attr-defined] # pylint: disable=no-member
+        super_ = next([c for c in self.__class__.__orig_bases__ if c.__origin__ == Module])  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[0]
         # Is Pydantic BaseModel
         if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
@@ -374,7 +374,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
 
     def configuration_from_json(self, data: dict[str, Any]) -> _CONFIGURATION:
         """Create the configuration from the JSON data."""
-        super_ = next(c for c in self.__class__.__orig_bases__ if c.__origin__ == Module)  # type: ignore[attr-defined] # pylint: disable=no-member
+        super_ = next([c for c in self.__class__.__orig_bases__ if c.__origin__ == Module])  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[0]
         # Is Pydantic BaseModel
         if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
@@ -388,7 +388,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
 
     def event_data_from_json(self, data: dict[str, Any]) -> _EVENT_DATA:
         """Create the module event data from the JSON data."""
-        super_ = next(c for c in self.__class__.__orig_bases__ if c.__origin__ == Module)  # type: ignore[attr-defined] # pylint: disable=no-member
+        super_ = next([c for c in self.__class__.__orig_bases__ if c.__origin__ == Module])  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[1]
         # Is Pydantic BaseModel
         if (not isinstance(generic_element, GenericAlias)) and issubclass(generic_element, BaseModel):
@@ -410,7 +410,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
     def transversal_status_from_json(self, data: dict[str, Any] | None) -> _TRANSVERSAL_STATUS:
         """Create the transversal status from the JSON data."""
         data = data or {}
-        super_ = next(c for c in self.__class__.__orig_bases__ if c.__origin__ == Module)  # type: ignore[attr-defined] # pylint: disable=no-member
+        super_ = next([c for c in self.__class__.__orig_bases__ if c.__origin__ == Module])  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[2]
         # Is Pydantic BaseModel
         if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):

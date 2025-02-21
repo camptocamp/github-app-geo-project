@@ -809,7 +809,13 @@ def _build_internal_dependencies(
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 if datasource_name == "docker":
                     assert len(dependency_package_data.status_by_version) == 1
+<<<<<<< HEAD
                     support = next(iter(dependency_package_data.status_by_version.values()))
+||||||| parent of 5d89902b (Fix some of the new Prospector issues)
+                    support = list(dependency_package_data.status_by_version.values())[0]
+=======
+                    support = next(dependency_package_data.status_by_version.values())
+>>>>>>> 5d89902b (Fix some of the new Prospector issues)
                 else:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
