@@ -187,7 +187,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libksba8: 1.6.6-1build1
   ubuntu_24_04/liblab-gamut1: 2.42.2-9ubuntu0.1
   ubuntu_24_04/liblcms2-2: 2.14-2build1
-  ubuntu_24_04/libldap2: 2.6.7+dfsg-1~exp1ubuntu8.1
+  ubuntu_24_04/libldap2: 2.6.7+dfsg-1~exp1ubuntu8.2
   ubuntu_24_04/liblerc-dev: 4.0.0+ds-4ubuntu2
   ubuntu_24_04/liblerc4: 4.0.0+ds-4ubuntu2
   ubuntu_24_04/liblsan0: 14.2.0-4ubuntu2~24.04
