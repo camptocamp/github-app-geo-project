@@ -81,7 +81,7 @@ aiofiles = "24.1.0"
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.15.2" }
 prospector-profile-duplicated = "1.10.4"
-prospector-profile-utils = "1.21.6"
+prospector-profile-utils = "1.20.2"
 pytest = "8.3.4"
 WebTest = "3.0.4"
 types-pyyaml = "6.0.12.20241230"
