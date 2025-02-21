@@ -1,8 +1,8 @@
 """Module that adds some links to the pull request message."""
 
 import json
-import os
 import re
+from pathlib import Path
 from typing import Any
 
 import github
@@ -100,12 +100,9 @@ class Links(
             {"pull_request"},
         )
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
-        with open(
-            os.path.join(os.path.dirname(__file__), "links-schema.json"),
-            encoding="utf-8",
-        ) as schema_file:
+        with (Path(__file__).parent / "links-schema.json").open(encoding="utf-8") as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
                 if key in schema:

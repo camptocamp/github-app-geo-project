@@ -22,7 +22,7 @@ _LOGGER = logging.getLogger(__name__)
 # curl -X POST http://localhost:9120/webhook/generic -d '{"repository":{"full_name": "sbrunner/test-github-app"}}'
 
 
-@view_config(route_name="webhook", renderer="json")  # type: ignore
+@view_config(route_name="webhook", renderer="json")  # type: ignore[misc]
 def webhook(request: pyramid.request.Request) -> dict[str, None]:
     """Receive GitHub application webhook URL."""
     application = request.matchdict["application"]
@@ -34,7 +34,8 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
         if "X-Hub-Signature-256" not in request.headers:
             _LOGGER.error("No signature in the request")
             if not dry_run:
-                raise pyramid.httpexceptions.HTTPBadRequest("No signature in the request")
+                message = "No signature in the request"
+                raise pyramid.httpexceptions.HTTPBadRequest(message)
 
         else:
             our_signature = hmac.new(
@@ -48,7 +49,8 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             ):
                 _LOGGER.error("Invalid signature in the request")
                 if not dry_run:
-                    raise pyramid.httpexceptions.HTTPBadRequest("Invalid signature in the request")
+                    message = "Invalid signature in the request"
+                    raise pyramid.httpexceptions.HTTPBadRequest(message)
 
     _LOGGER.debug(
         "Webhook received for %s on %s",
@@ -128,7 +130,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                     check_run.edit(status="queued")
             except github.GithubException as exception:
                 if exception.status == 404:
-                    _LOGGER.error("Repository not found: %s/%s", owner, repository)
+                    _LOGGER.error("Repository not found: %s/%s", owner, repository)  # noqa: TRY400
                 else:
                     _LOGGER.exception("Error while getting check suite")
 
@@ -156,7 +158,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                     project_github.repo.get_check_run(data["check_run"]["id"]).edit(status="queued")
                 except github.GithubException as exception:
                     if exception.status == 404:
-                        _LOGGER.error("Repository not found: %s/%s", owner, repository)
+                        _LOGGER.error("Repository not found: %s/%s", owner, repository)  # noqa: TRY400
                     else:
                         _LOGGER.exception("Error while getting check run")
 
@@ -329,8 +331,8 @@ def process_event(context: ProcessContext) -> None:
                     )
 
                 context.session.commit()
-        except Exception as exception:  # pylint: disable=broad-except
-            _LOGGER.exception("Error while getting actions for %s: %s", name, exception)
+        except Exception:  # pylint: disable=broad-except
+            _LOGGER.exception("Error while getting actions for %s", name)
 
 
 def create_checks(

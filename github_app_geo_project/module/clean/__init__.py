@@ -6,6 +6,7 @@ import logging
 import os.path
 import subprocess  # nosec
 import tempfile
+from pathlib import Path
 from typing import Any, cast
 
 import aiohttp
@@ -52,9 +53,9 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
             {"pull_request", "delete"},
         )
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module."""
-        with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("clean")  # type: ignore[no-any-return]
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
@@ -130,7 +131,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         ),
                     ),
                 )
-                name = tag_publish.get_value(*pull_match)
+                name = tag_publish.get_value(*pull_match)  # noqa: PLW2901
 
             for repo in (
                 publish_config.get("docker", {})
@@ -154,7 +155,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                     continue
                 for image in publish_config.get("docker", {}).get("images", []):
                     for tag in image.get("tags", []):
-                        tag = tag.format(version=name)
+                        tag = tag.format(version=name)  # noqa: PLW2901
                         _LOGGER.info("Cleaning %s/%s:%s", host, image["name"], tag)
 
                         if host == "docker.io":

@@ -77,7 +77,7 @@ class SecurityPolicy:
                     our_signature,
                     request.headers["X-Hub-Signature-256"].split("=", 1)[1],
                 ):
-                    user = User("github_webhook", None, None, None, True, None, request)
+                    user = User("github_webhook", None, None, None, is_auth=True, token=None, request=request)
                 else:
                     _LOGGER.warning("Invalid GitHub signature")
                     _LOGGER.debug(
@@ -107,11 +107,11 @@ body:
                         request,
                     )
                 else:
-                    user = User("anonymous", None, None, None, False, None, request)
+                    user = User("anonymous", None, None, None, is_auth=False, token=None, request=request)
 
             request.user = user
 
-        return request.user  # type: ignore
+        return request.user  # type: ignore[no-any-return]
 
     def authenticated_userid(self, request: pyramid.request.Request) -> str | None:
         """Return a string ID for the user."""

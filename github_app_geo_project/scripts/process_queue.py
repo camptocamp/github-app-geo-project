@@ -14,6 +14,7 @@ import subprocess  # nosec
 import sys
 import time
 import urllib.parse
+from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 import c2cwsgiutils.loader
@@ -793,13 +794,14 @@ class _Run:
         ],
         return_when_empty: bool,
         max_priority: int,
-    ):
+    ) -> None:
         self.config = config
         self.Session = Session  # pylint: disable=invalid-name
         self.end_when_empty = return_when_empty
         self.max_priority = max_priority
 
-    async def __call__(self, *args: Any, **kwds: Any) -> Any:
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
         empty_thread_sleep = int(os.environ.get("GHCI_EMPTY_THREAD_SLEEP", 10))
 
         while True:
@@ -827,11 +829,12 @@ class _PrometheusWatch:
         Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
             sqlalchemy.orm.Session
         ],
-    ):
+    ) -> None:
         self.Session = Session  # pylint: disable=invalid-name
         self.last_run = time.time()
 
-    async def __call__(self, *args: Any, **kwds: Any) -> Any:
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
         current_task = asyncio.current_task()
         if current_task is not None:
             current_task.set_name("PrometheusWatch")
@@ -880,7 +883,7 @@ class _PrometheusWatch:
 
             if time.time() - self.last_run > 300:
                 error_message = ["Old Status"]
-                with open("/var/ghci/job_info", encoding="utf-8") as file_:
+                with Path("/var/ghci/job_info").open(encoding="utf-8") as file_:
                     error_message.extend(file_.read().split("\n"))
                 error_message.append("-" * 30)
                 error_message.append("New status")
@@ -890,21 +893,22 @@ class _PrometheusWatch:
                 _LOGGER.error(message)
             self.last_run = time.time()
 
-            with open("/var/ghci/job_info", "w", encoding="utf-8") as file_:
+            with Path("/var/ghci/job_info").open("w", encoding="utf-8") as file_:
                 file_.write("\n".join(text))
                 file_.write("\n")
             time.sleep(10)
 
 
 class _WatchDog:
-    async def __call__(self, *args: Any, **kwds: Any) -> Any:
+    async def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
         current_task = asyncio.current_task()
         if current_task is not None:
             current_task.set_name("WatchDog")
         while True:
             _LOGGER.debug("Watch dog: alive")
-            with open("/var/ghci/watch_dog", "w", encoding="utf-8") as file_:
-                file_.write(datetime.datetime.now().isoformat())
+            with Path("/var/ghci/watch_dog").open("w", encoding="utf-8") as file_:
+                file_.write(datetime.datetime.now(datetime.UTC).isoformat())
                 file_.write("\n")
             await asyncio.sleep(60)
 

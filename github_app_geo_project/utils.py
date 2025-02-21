@@ -14,9 +14,9 @@ _ISSUE_START = "<!-- START {} -->"
 _ISSUE_END = "<!-- END {} -->"
 
 
-_JSON_LEXER = pygments.lexers.JsonLexer()
-_YAML_LEXER = pygments.lexers.YamlLexer()
-_HTML_FORMATTER = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")
+_JSON_LEXER = pygments.lexers.JsonLexer()  # pylint: disable=no-member
+_YAML_LEXER = pygments.lexers.YamlLexer()  # pylint: disable=no-member
+_HTML_FORMATTER = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")  # pylint: disable=no-member
 
 
 def get_dashboard_issue_module(text: str, current_module: str) -> str:
@@ -100,4 +100,5 @@ def parse_duration(text: str) -> datetime.timedelta:
         return datetime.timedelta(minutes=int(text[:-1]))
     if text.endswith("h"):
         return datetime.timedelta(hours=int(text[:-1]))
-    raise ValueError(f"Invalid time delta: {text}")
+    message = f"Invalid time delta: {text}"
+    raise ValueError(message)

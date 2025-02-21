@@ -4,7 +4,7 @@ import asyncio
 import datetime
 import json
 import logging
-import os.path
+from pathlib import Path
 from typing import Any
 
 from github_app_geo_project import module
@@ -42,9 +42,9 @@ class DeleteOldWorkflowRuns(
             return [module.Action(data={})]
         return []
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module configuration."""
-        with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
                 if key in schema:
@@ -82,7 +82,7 @@ class DeleteOldWorkflowRuns(
             status = rule.get("status")
 
             arguments = {
-                "created": f"<{datetime.datetime.now() - datetime.timedelta(days=older_than_days):%Y-%m-%d}",
+                "created": f"<{datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=older_than_days):%Y-%m-%d}",
             }
             if actor:
                 arguments["actor"] = actor

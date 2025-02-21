@@ -2,7 +2,7 @@
 
 import json
 import logging
-import os.path
+from pathlib import Path
 from typing import Any
 
 import pyramid.httpexceptions
@@ -16,7 +16,7 @@ from github_app_geo_project.module import modules
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="schema", renderer="json")  # type: ignore
+@view_config(route_name="schema", renderer="json")  # type: ignore[misc]
 def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the welcome page."""
     module_names = set()
@@ -24,10 +24,8 @@ def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
         module_names.update(request.registry.settings[f"application.{app}.modules"].split())
 
     # get project-schema-content
-    with open(
-        os.path.join(os.path.dirname(os.path.dirname(__file__)), "project-schema.json"),
-        encoding="utf-8",
-    ) as schema_file:
+    schema_path = Path(__file__).parent.parent / "project-schema.json"
+    with schema_path.open(encoding="utf-8") as schema_file:
         schema: dict[str, Any] = json.loads(schema_file.read())
 
     del schema["properties"]["module-configuration"]

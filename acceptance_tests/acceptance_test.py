@@ -1,6 +1,6 @@
 """Main acceptance test for the application."""
 
-import os
+from pathlib import Path
 
 import c2cwsgiutils.acceptance.image
 import pytest
@@ -66,7 +66,7 @@ def test_home() -> None:
         width=900,
         height=1900,
         result_folder="/results",
-        expected_filename=os.path.join(os.path.dirname(__file__), "home.expected.png"),
+        expected_filename=Path(__file__).parent / "home.expected.png",
         sleep=500,
     )
 
@@ -81,7 +81,7 @@ def test_project() -> None:
         width=1000,
         height=900,
         result_folder="/results",
-        expected_filename=os.path.join(os.path.dirname(__file__), "project.expected.png"),
+        expected_filename=Path(__file__).parent / "project.expected.png",
         sleep=500,
     )
 
@@ -96,7 +96,7 @@ def test_welcome() -> None:
         width=900,
         height=500,
         result_folder="/results",
-        expected_filename=os.path.join(os.path.dirname(__file__), "welcome.expected.png"),
+        expected_filename=Path(__file__).parent / "welcome.expected.png",
         sleep=500,
     )
 
@@ -111,7 +111,7 @@ def test_transversal_dashboard() -> None:
         width=900,
         height=200,
         result_folder="/results",
-        expected_filename=os.path.join(os.path.dirname(__file__), "dashboard.expected.png"),
+        expected_filename=Path(__file__).parent / "dashboard.expected.png",
         sleep=500,
     )
 
@@ -119,7 +119,7 @@ def test_transversal_dashboard() -> None:
 @pytest.mark.parametrize("log_type", ["success", "error", "log-multiline", "log-command", "log-json"])
 def test_logs(log_type: str) -> None:
     """Tests the logs page."""
-    with open("/results/test-result.yaml", encoding="utf-8") as file:  # nosec
+    with Path("/results/test-result.yaml").open(encoding="utf-8") as file:  # nosec
         result = yaml.load(file, Loader=yaml.SafeLoader)
 
     c2cwsgiutils.acceptance.image.check_screenshot(
@@ -130,7 +130,7 @@ def test_logs(log_type: str) -> None:
         width=900,
         height=900,
         result_folder="/results",
-        expected_filename=os.path.join(os.path.dirname(__file__), f"logs-{log_type}.expected.png"),
+        expected_filename=Path(__file__).parent / f"logs-{log_type}.expected.png",
         sleep=500,
     )
 
@@ -138,7 +138,7 @@ def test_logs(log_type: str) -> None:
 @pytest.mark.parametrize("output_type", ["multi-line", "error"])
 def test_output(output_type: str) -> None:
     """Tests the output page."""
-    with open("/results/test-result.yaml", encoding="utf-8") as file:  # nosec
+    with Path("/results/test-result.yaml").open(encoding="utf-8") as file:  # nosec
         result = yaml.load(file, Loader=yaml.SafeLoader)
 
     c2cwsgiutils.acceptance.image.check_screenshot(
@@ -149,6 +149,6 @@ def test_output(output_type: str) -> None:
         width=900,
         height=200,
         result_folder="/results",
-        expected_filename=os.path.join(os.path.dirname(__file__), f"output-{output_type}.expected.png"),
+        expected_filename=Path(__file__).parent / f"output-{output_type}.expected.png",
         sleep=500,
     )

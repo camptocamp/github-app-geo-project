@@ -36,4 +36,5 @@ class AutoReview(auto.Auto):
 
         Note that this method is called in the queue consuming Pod
         """
+        del context  # Unused
         pull_request.create_review(event="APPROVE")

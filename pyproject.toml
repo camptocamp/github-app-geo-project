@@ -75,6 +75,7 @@ waitress = "3.0.2"
 lxml-html-clean = "0.4.1"
 tag-publish = "0.13.3"
 aiohttp = "3.11.11"
+anyio = "4.8.0"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }

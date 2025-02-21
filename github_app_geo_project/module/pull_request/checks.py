@@ -3,10 +3,10 @@
 import asyncio
 import json
 import logging
-import os
 import re
 import tempfile
 import typing
+from pathlib import Path
 from typing import Any
 
 import github
@@ -279,12 +279,9 @@ class Checks(
             {"pull_request"},
         )
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
-        with open(
-            os.path.join(os.path.dirname(__file__), "checks-schema.json"),
-            encoding="utf-8",
-        ) as schema_file:
+        with (Path(__file__).parent / "checks-schema.json").open(encoding="utf-8") as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
                 if key in schema:

@@ -37,7 +37,7 @@ def _date_tooltip(job: models.Queue) -> str:
     return f"created:&nbsp;{_pprint_date(created)}<br>started:&nbsp;{_pprint_date(started)}<br>duration:&nbsp;{pprint_duration(finished - started)}"
 
 
-@view_config(route_name="project", renderer="github_app_geo_project:templates/project.html")  # type: ignore
+@view_config(route_name="project", renderer="github_app_geo_project:templates/project.html")  # type: ignore[misc]
 def project(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
     owner = request.matchdict["owner"]

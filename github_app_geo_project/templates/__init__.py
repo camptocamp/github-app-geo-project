@@ -1,7 +1,7 @@
 """The mako templates to render the pages."""
 
+import datetime
 import logging
-from datetime import UTC, datetime, timedelta
 
 import html_sanitizer
 import markdown as markdown_lib  # mypy: ignore[import-untyped]
@@ -49,14 +49,14 @@ def markdown(text: str) -> str:
     return sanitizer(markdown_lib.markdown(text))
 
 
-def pprint_short_date(date_in: str | datetime) -> str:
+def pprint_short_date(date_in: str | datetime.datetime) -> str:
     """Pretty print a short date (essentially time to current time)."""
     if date_in == "None" or date_in is None:
         return "-"
 
-    date = datetime.fromisoformat(date_in) if isinstance(date_in, str) else date_in
+    date = datetime.datetime.fromisoformat(date_in) if isinstance(date_in, str) else date_in
 
-    delta = datetime.now(UTC) - date
+    delta = datetime.datetime.now(datetime.UTC) - date
     if delta.total_seconds() < 1:
         short_date = "now"
     elif delta.total_seconds() < 60:
@@ -73,16 +73,16 @@ def pprint_short_date(date_in: str | datetime) -> str:
     return short_date
 
 
-def pprint_full_date(date_in: str | datetime) -> str:
+def pprint_full_date(date_in: str | datetime.datetime) -> str:
     """Pretty print a full date."""
     if date_in == "None" or date_in is None:
         return "-"
 
-    date = datetime.fromisoformat(date_in) if isinstance(date_in, str) else date_in
-    return datetime.strftime(date, "%Y-%m-%d %H:%M:%S")
+    date = datetime.datetime.fromisoformat(date_in) if isinstance(date_in, str) else date_in
+    return datetime.datetime.strftime(date, "%Y-%m-%d %H:%M:%S")
 
 
-def pprint_date(date_in: str | datetime) -> str:
+def pprint_date(date_in: str | datetime.datetime) -> str:
     """
     Pretty print a date.
 
@@ -97,7 +97,7 @@ def pprint_date(date_in: str | datetime) -> str:
     return f'<span title="{full_date}">{short_date}</span>'
 
 
-def pprint_duration(duration_in: str | timedelta) -> str:
+def pprint_duration(duration_in: str | datetime.timedelta) -> str:
     """Pretty print a duration."""
     if duration_in == "None" or duration_in is None:
         return "-"
@@ -108,11 +108,21 @@ def pprint_duration(duration_in: str | timedelta) -> str:
             day_, duration_in = duration_in.split(day_txt)
             day = int(day_)
 
-            date = datetime.strptime(duration_in, "%H:%M:%S.%f" if "." in duration_in else "%H:%M:%S")
+            date = datetime.datetime.strptime(
+                duration_in,
+                "%H:%M:%S.%f" if "." in duration_in else "%H:%M:%S",
+            ).replace(
+                tzinfo=datetime.UTC,
+            )
         else:
             day = 0
-            date = datetime.strptime(duration_in, "%H:%M:%S.%f" if "." in duration_in else "%H:%M:%S")
-        duration = timedelta(
+            date = datetime.datetime.strptime(
+                duration_in,
+                "%H:%M:%S.%f" if "." in duration_in else "%H:%M:%S",
+            ).replace(
+                tzinfo=datetime.UTC,
+            )
+        duration = datetime.timedelta(
             days=day,
             hours=date.hour,
             minutes=date.minute,

@@ -17,7 +17,7 @@ from github_app_geo_project.module import utils as module_utils
 _LOGGER = logging.getLogger(__name__)
 
 
-class PatchException(Exception):
+class PatchError(Exception):
     """Error while applying the patch."""
 
 
@@ -195,9 +195,10 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                             f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run",
                                         )
                                         if not success:
-                                            raise PatchException(
-                                                "Failed to commit the changes, see logs for details",
+                                            exception_message = (
+                                                "Failed to commit the changes, see logs for details"
                                             )
+                                            raise PatchError(exception_message)
                                         should_push = True
                 if should_push:
                     command = ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"]
@@ -234,7 +235,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
             return module.ProcessOutput(success=False, output={"summary": "\n".join(error_messages)})
         return module.ProcessOutput()
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         return {}
 

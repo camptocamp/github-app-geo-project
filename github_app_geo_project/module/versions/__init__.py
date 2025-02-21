@@ -10,6 +10,7 @@ import re
 import tempfile
 import tomllib
 from collections.abc import Iterable
+from pathlib import Path
 from typing import Any
 
 import aiohttp
@@ -97,7 +98,7 @@ class _EventData(BaseModel):
     alternate_versions: list[str] | None = None
 
 
-class VersionException(Exception):
+class VersionError(Exception):
     """Error while updating the versions."""
 
 
@@ -131,9 +132,9 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             return [module.Action(data=_EventData(step=1), priority=module.PRIORITY_CRON)]
         return []
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module configuration."""
-        with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
                 if key in schema:
@@ -236,7 +237,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                         os.chdir(tmpdirname)
                         success = await module_utils.git_clone(context.github_project, branch)
                         if not success:
-                            raise VersionException("Failed to clone the repository")
+                            exception_message = "Failed to clone the repository"
+                            raise VersionError(exception_message)
 
                     version_status = status.versions[version]
                     version_status.names_by_datasource.clear()
@@ -295,7 +297,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     _LOGGER.debug(message)
 
             return ProcessOutput(transversal_status=context.transversal_status)
-        raise VersionException("Invalid step")
+        raise VersionError("Invalid step")
 
     def has_transversal_dashboard(self) -> bool:
         """Return True if the module has a transversal dashboard."""
@@ -367,7 +369,6 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             )
 
         return module.TransversalDashboardOutput(
-            # template="dashboard.html",
             renderer="github_app_geo_project:module/versions/dashboard.html",
             data={"repositories": list(transversal_status.repositories.keys())},
         )
@@ -454,7 +455,7 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            with open(filename, encoding="utf-8") as file:
+            with Path(filename).open(encoding="utf-8") as file:
                 data = tomllib.loads(file.read())
                 name = data.get("project", {}).get("name")
                 names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
@@ -482,7 +483,7 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            with open(filename, encoding="utf-8") as file:
+            with Path(filename).open(encoding="utf-8") as file:
                 names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
                 for line in file:
                     match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
@@ -490,8 +491,8 @@ async def _get_names(
                         names.append(match.group(1))
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     docker_config = {}
-    if os.path.exists(".github/publish.yaml"):
-        with open(".github/publish.yaml", encoding="utf-8") as file:
+    if Path(".github/publish.yaml").exists():
+        with Path(".github/publish.yaml").open(encoding="utf-8") as file:
             docker_config = yaml.load(file, Loader=yaml.SafeLoader).get("docker", {})
     else:
         data = c2cciutils.get_config()
@@ -542,7 +543,7 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            with open(filename, encoding="utf-8") as file:
+            with Path(filename).open(encoding="utf-8") as file:
                 data = json.load(file)
                 name = data.get("name")
                 names = names_by_datasource.setdefault("npm", _TransversalStatusNameByDatasource()).names
@@ -582,7 +583,7 @@ async def _get_dependencies(
         if proc.returncode != 0:
             message.title = "Failed to get the dependencies"
             _LOGGER.error(message)
-            raise VersionException(message.title)
+            raise VersionError(message.title)
         message.title = "Got the dependencies"
         _LOGGER.debug(message)
 
@@ -697,11 +698,11 @@ async def _update_upstream_versions(
 
         if package_status.upstream_updated and (
             package_status.upstream_updated
-            > datetime.datetime.now()
+            > datetime.datetime.now(datetime.UTC)
             - utils.parse_duration(os.environ.get("GHCI_EXTERNAL_PACKAGES_UPDATE_PERIOD", "30d"))
         ):
             return
-        package_status.upstream_updated = datetime.datetime.now()
+        package_status.upstream_updated = datetime.datetime.now(datetime.UTC)
 
         async with (
             aiohttp.ClientSession() as session,
@@ -723,7 +724,7 @@ async def _update_upstream_versions(
             else:
                 if not isinstance(eol, str):
                     continue
-                if datetime.datetime.fromisoformat(eol) < datetime.datetime.now():
+                if datetime.datetime.fromisoformat(eol) < datetime.datetime.now(datetime.UTC):
                     continue
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
                 support=eol,
@@ -740,7 +741,9 @@ def _parse_support_date(text: str) -> datetime.datetime:
         return datetime.datetime.fromisoformat(text)
     except ValueError:
         # Parse date like 01/01/2024
-        return datetime.datetime.strptime(text, "%d/%m/%Y")
+        return datetime.datetime.strptime(text, "%d/%m/%Y").replace(
+            tzinfo=datetime.UTC,
+        )
 
 
 def _is_supported(base: str, other: str) -> bool:
@@ -793,7 +796,7 @@ def _build_internal_dependencies(
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 if datasource_name == "docker":
                     assert len(dependency_package_data.status_by_version) == 1
-                    support = list(dependency_package_data.status_by_version.values())[0]
+                    support = next(dependency_package_data.status_by_version.values())
                 else:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,

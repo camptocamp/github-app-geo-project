@@ -36,7 +36,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             {"workflow_run"},
         )
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module."""
         return {
             "type": "object",

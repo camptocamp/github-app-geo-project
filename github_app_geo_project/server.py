@@ -53,7 +53,7 @@ def main(global_config: Any, **settings: Any) -> Router:
     )
 
     config.include(c2cwsgiutils.pyramid.includeme)
-    # dbsession = c2cwsgiutils.db.init(config, "sqlalchemy", "sqlalchemy-slave")
+    # dbsession = c2cwsgiutils.db.init(config, "sqlalchemy", "sqlalchemy-slave")  # noqa: ERA001
     dbsession = c2cwsgiutils.db.init(config, "sqlalchemy")
 
     health_check = c2cwsgiutils.health_check.HealthCheck(config)

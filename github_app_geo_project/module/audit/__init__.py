@@ -2,7 +2,6 @@
 
 import asyncio
 import datetime
-import glob
 import json
 import logging
 import os
@@ -11,6 +10,7 @@ import shutil
 import subprocess  # nosec
 import tempfile
 import urllib.parse
+from pathlib import Path
 from typing import Any, cast
 
 import github
@@ -62,7 +62,7 @@ def _get_process_output(
     success: bool,
 ) -> module.ProcessOutput[_EventData, _TransversalStatus]:
     assert context.module_event_data.type is not None
-    issue_check.set_check(context.module_event_data.type, False)
+    issue_check.set_check(context.module_event_data.type, checked=False)
 
     return module.ProcessOutput(
         dashboard=issue_check.to_string(),
@@ -150,15 +150,18 @@ async def _process_snyk_dpkg(
                     return ["Fail to clone the repository"], success
 
                 local_config: configuration.AuditConfiguration = {}
-                if context.module_event_data.type in ("snyk", "dpkg") and os.path.exists(".github/ghci.yaml"):
-                    with open(".github/ghci.yaml", encoding="utf-8") as file:
+
+                ghci_config_path = Path(".github/ghci.yaml")
+                if context.module_event_data.type in ("snyk", "dpkg") and ghci_config_path.exists:
+                    with ghci_config_path.open(encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
 
                 logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
                 if context.module_event_data.type == "snyk":
                     python_version = ""
-                    if os.path.exists(".tool-versions"):
-                        with open(".tool-versions", encoding="utf-8") as file:
+                    tool_versions = Path(".tool-versions")
+                    if tool_versions.exists():
+                        with tool_versions.open(encoding="utf-8") as file:
                             for line in file:
                                 if line.startswith("python "):
                                     python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
@@ -197,8 +200,11 @@ async def _process_snyk_dpkg(
                 if context.module_event_data.type == "dpkg":
                     body_md = "Update dpkg packages"
 
-                    if os.path.exists("ci/dpkg-versions.yaml") or os.path.exists(
-                        ".github/dpkg-versions.yaml",
+                    if (
+                        Path("ci/dpkg-versions.yaml").exists()
+                        or Path(
+                            ".github/dpkg-versions.yaml",
+                        ).exists()
                     ):
                         await audit_utils.dpkg(
                             context.module_config.get("dpkg", {}),
@@ -339,7 +345,7 @@ async def _use_python_version(python_version: str) -> dict[str, str]:
 
     # Get path from /pyenv/versions/{python_version}.*/bin/
     env = os.environ.copy()
-    bin_paths = glob.glob(f"/pyenv/versions/{python_version}.*/bin")
+    bin_paths = Path("/pyenv/versions/").glob(f"{python_version}.*/bin")
     if bin_paths:
         env["PATH"] = f'{bin_paths[0]}:{env["PATH"]}'
 
@@ -464,12 +470,12 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                 raise
         if security_file is not None:
             key_starts.append(_OUTDATED)
-            issue_check.add_check("outdated", "Check outdated version", False)
+            issue_check.add_check("outdated", "Check outdated version", checked=False)
         else:
             issue_check.remove_check("outdated")
 
         if context.module_config.get("snyk", {}).get("enabled", configuration.ENABLE_SNYK_DEFAULT):
-            issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
+            issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", checked=False)
             key_starts.append("Snyk check/fix ")
         else:
             issue_check.remove_check("snyk")
@@ -492,7 +498,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
             context.module_config.get("dpkg", {}).get("enabled", configuration.ENABLE_DPKG_DEFAULT)
             and dpkg_version is not None
         ):
-            issue_check.add_check("dpkg", "Update dpkg packages", False)
+            issue_check.add_check("dpkg", "Update dpkg packages", checked=False)
             key_starts.append("Dpkg ")
         else:
             issue_check.remove_check("dpkg")
@@ -563,9 +569,9 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
 
         return _get_process_output(context, issue_check, short_message, success)
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
-        with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
+        with (Path(__file__) / "schema.json").open(encoding="utf-8") as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("audit")  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
@@ -599,7 +605,6 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                     },
                 )
         return module.TransversalDashboardOutput(
-            # template="dashboard.html",
             renderer="github_app_geo_project:module/audit/dashboard.html",
             data={"repositories": repositories},
         )

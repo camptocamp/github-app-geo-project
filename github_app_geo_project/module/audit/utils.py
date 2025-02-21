@@ -6,6 +6,7 @@ import json
 import logging
 import os.path
 import subprocess
+from pathlib import Path
 from typing import NamedTuple
 
 import apt_repo
@@ -130,7 +131,7 @@ async def _select_java_version(
     local_config: configuration.SnykConfiguration,
     env: dict[str, str],
 ) -> None:
-    if not os.path.exists("gradlew"):
+    if not Path("gradlew").exists():
         return
 
     command = ["./gradlew", "--version"]
@@ -242,7 +243,7 @@ async def _install_pipenv_dependencies(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            directory = os.path.dirname(os.path.abspath(file))
+            directory = Path(file).resolve().parent
 
             _, _, proc_message = await module_utils.run_timeout(
                 [
@@ -297,7 +298,7 @@ async def _install_poetry_dependencies(
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
-                os.path.dirname(os.path.abspath(file)),
+                Path(file).resolve().parent,
             )
             if proc_message is not None:
                 result.append(proc_message)
@@ -578,7 +579,7 @@ async def _snyk_fix(
             )
 
             cwd = module_utils.get_cwd()
-            project = "-" if cwd is None else os.path.basename(cwd)
+            project = "-" if cwd is None else Path(cwd).name
             message = module_utils.HtmlMessage(
                 "<br>\n".join(
                     [
@@ -601,7 +602,7 @@ async def _npm_audit_fix(
     messages: set[str] = set()
     fix_success = True
     for package_lock_file_name, file_messages in fixable_files_npm.items():
-        directory = os.path.dirname(os.path.abspath(package_lock_file_name))
+        directory = Path(package_lock_file_name).absolute().parent
         messages.update(file_messages)
         _LOGGER.debug("Fixing vulnerabilities in %s with npm audit fix", package_lock_file_name)
         command = ["npm", "audit", "fix"]
@@ -618,13 +619,13 @@ async def _npm_audit_fix(
             result.append(message)
         _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
-        with open(os.path.join(directory, "package.json"), encoding="utf-8") as package_file:
+        with (directory / "package.json").open(encoding="utf-8") as package_file:
             package_json = json.load(package_file)
             for dependencies_type in ("dependencies", "devDependencies"):
                 for package, version in package_json.get(dependencies_type, {}).items():
                     if version.startswith("^"):
                         package_json[dependencies_type][package] = version[1:]
-            with open(os.path.join(directory, "package.json"), "w", encoding="utf-8") as package_file:
+            with (directory / "package.json").open("w", encoding="utf-8") as package_file:
                 json.dump(package_json, package_file, indent=2)
         _LOGGER.debug("Succeeded fix %s", package_lock_file_name)
 
@@ -644,8 +645,8 @@ def outdated_versions(
     for row in security.data:
         str_date = row[date_index]
         if str_date not in ("Unsupported", "Best effort", "To be defined"):
-            date = datetime.datetime.strptime(row[date_index], "%d/%m/%Y")
-            if date < datetime.datetime.now():
+            date = datetime.datetime.strptime(row[date_index], "%d/%m/%Y").replace(tzinfo=datetime.UTC)
+            if date < datetime.datetime.now(datetime.UTC):
                 errors.append(
                     f"The version '{row[version_index]}' is outdated, it can be set to "
                     "'Unsupported', 'Best effort' or 'To be defined'",
@@ -667,7 +668,8 @@ def _get_sources(
     if dist not in _SOURCES:
         conf = local_config.get("sources", config.get("sources", configuration.DPKG_SOURCES_DEFAULT))
         if dist not in conf:
-            raise ValueError(f"The distribution {dist} is not in the configuration")
+            message = f"The distribution {dist} is not in the configuration"
+            raise ValueError(message)
         _SOURCES[dist] = apt_repo.APTSources(
             [
                 apt_repo.APTRepository(
@@ -694,7 +696,7 @@ def _get_sources(
                         exception,
                     )
         except AttributeError as exception:
-            _LOGGER.error("Error while loading the distribution %s: %s", dist, exception)
+            _LOGGER.error("Error while loading the distribution %s: %s", dist, exception)  # noqa: TRY400
 
     return _SOURCES[dist]
 
@@ -708,12 +710,13 @@ async def _get_packages_version(
     global _GENERATION_TIME  # pylint: disable=global-statement
     if (
         _GENERATION_TIME is None
-        or datetime.datetime.now() - utils.parse_duration(os.environ.get("GHCI_DPKG_CACHE_DURATION", "3h"))
+        or datetime.datetime.now(datetime.UTC)
+        - utils.parse_duration(os.environ.get("GHCI_DPKG_CACHE_DURATION", "3h"))
         > _GENERATION_TIME
     ):
         _PACKAGE_VERSION.clear()
         _SOURCES.clear()
-        _GENERATION_TIME = datetime.datetime.now()
+        _GENERATION_TIME = datetime.datetime.now(datetime.UTC)
     if package not in _PACKAGE_VERSION:
         dist = package.split("/")[0]
         await asyncio.to_thread(_get_sources, dist, config, local_config)
@@ -727,15 +730,17 @@ async def dpkg(
     local_config: configuration.DpkgConfiguration,
 ) -> None:
     """Update the version of packages in the file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml."""
-    if not os.path.exists("ci/dpkg-versions.yaml") and not os.path.exists(".github/dpkg-versions.yaml"):
+    ci_dpkg_versions_filename = Path(".github/dpkg-versions.yaml")
+    github_dpkg_versions_filename = Path("ci/dpkg-versions.yaml")
+
+    if not ci_dpkg_versions_filename.exists() and not github_dpkg_versions_filename.exists():
         _LOGGER.warning("The file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml does not exist")
 
     dpkg_versions_filename = (
-        ".github/dpkg-versions.yaml"
-        if os.path.exists(".github/dpkg-versions.yaml")
-        else "ci/dpkg-versions.yaml"
+        github_dpkg_versions_filename if github_dpkg_versions_filename.exists() else ci_dpkg_versions_filename
     )
-    with open(dpkg_versions_filename, encoding="utf-8") as versions_file:
+
+    with dpkg_versions_filename.open(encoding="utf-8") as versions_file:
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)
         for versions in versions_config.values():
             for package_full in versions:
@@ -768,5 +773,5 @@ async def dpkg(
                         exception,
                     )
 
-    with open(dpkg_versions_filename, "w", encoding="utf-8") as versions_file:
+    with dpkg_versions_filename.open("w", encoding="utf-8") as versions_file:
         yaml.dump(versions_config, versions_file, Dumper=yaml.SafeDumper)

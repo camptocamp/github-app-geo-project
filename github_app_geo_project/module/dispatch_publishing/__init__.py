@@ -63,7 +63,7 @@ class DispatchPublishing(module.Module[None, None, None]):
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Dispatch-Publish"
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
         return {}
 

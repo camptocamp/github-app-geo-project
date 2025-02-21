@@ -1,10 +1,10 @@
 """Script used to check the health of the process-queue daemon."""
 
 import argparse
-import os
 import subprocess  # nosec
 import sys
 import time
+from pathlib import Path
 
 
 def main() -> None:
@@ -13,7 +13,7 @@ def main() -> None:
     parser.add_argument("--timeout", type=int, help="Timeout in seconds")
     args = parser.parse_args()
 
-    blocked_time = time.time() - os.path.getmtime("/var/ghci/watch_dog")
+    blocked_time = time.time() - Path("/var/ghci/watch_dog").stat().st_mtime
 
     if blocked_time > args.timeout / 2:
         subprocess.run(["ls", "-l", "/var/ghci/"], check=False)  # pylint: disable=subprocess-run-check

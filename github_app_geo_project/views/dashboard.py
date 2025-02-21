@@ -18,7 +18,7 @@ from github_app_geo_project.module import modules
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="dashboard", renderer="github_app_geo_project:templates/dashboard.html")  # type: ignore
+@view_config(route_name="dashboard", renderer="github_app_geo_project:templates/dashboard.html")  # type: ignore[misc]
 def dashboard(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the dashboard."""
     repository = os.environ["C2C_AUTH_GITHUB_REPOSITORY"]
@@ -29,11 +29,13 @@ def dashboard(request: pyramid.request.Request) -> dict[str, Any]:
     admin = isinstance(user_permission, pyramid.security.Allowed)
 
     if not admin:
-        raise pyramid.httpexceptions.HTTPForbidden("You are not allowed to access this page")
+        message = "You are not allowed to access this page"
+        raise pyramid.httpexceptions.HTTPForbidden(message)
 
     module_name = request.matchdict["module"]
     if module_name not in modules.MODULES:
-        raise pyramid.httpexceptions.HTTPNotFound(f"The module {module_name} does not exist")
+        message = f"The module {module_name} does not exist"
+        raise pyramid.httpexceptions.HTTPNotFound(message)
     module_instance = modules.MODULES[module_name]
 
     session_factory = request.registry["dbsession_factory"]

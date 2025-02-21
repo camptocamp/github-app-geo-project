@@ -2,9 +2,9 @@
 
 import json
 import logging
-import os
 import re
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 import github
@@ -20,7 +20,7 @@ _LOGGER = logging.getLogger(__name__)
 class Author:
     """Author of a pull request or commit."""
 
-    def __init__(self, name: str, url: str):
+    def __init__(self, name: str, url: str) -> None:
         """Create an author."""
         self.name = name
         self.url = url
@@ -171,7 +171,7 @@ class Tag:
     TAG_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
     TAG2_RE = re.compile(r"release_?(\d+)")
 
-    def __init__(self, tag_str: str | None = None, tag: github.Tag.Tag | None = None):
+    def __init__(self, tag_str: str | None = None, tag: github.Tag.Tag | None = None) -> None:
         """Create a tag."""
         if tag_str is None:
             assert tag is not None
@@ -183,7 +183,8 @@ class Tag:
         if tag_match is None:
             tag_match = self.TAG2_RE.match(tag_str)
             if tag_match is None:
-                raise ValueError(f"Invalid tag: {tag_str}")
+                message = f"Invalid tag: {tag_str}"
+                raise ValueError(message)
             self.major = int(tag_match.group(1))
             self.minor = 0
             self.patch = 0
@@ -652,13 +653,10 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         )
         return module.ProcessOutput()
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         # Get changelog-schema.json related to this file
-        with open(
-            os.path.join(os.path.dirname(__file__), "changelog-schema.json"),
-            encoding="utf-8",
-        ) as schema_file:
+        with (Path(__file__).parent / "changelog-schema.json").open(encoding="utf-8") as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("changelog")  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
