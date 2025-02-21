@@ -30,8 +30,8 @@ def test_conversions() -> None:
 
 
 def test_all_empty_status() -> None:
-    for module in MODULES.values():
-        module.transversal_status_to_json(module.transversal_status_from_json({}))
+    for module_instance in MODULES.values():
+        module_instance.transversal_status_to_json(module_instance.transversal_status_from_json({}))
 
 
 class ConfigDictModule(module.Module[dict[str, Any], None, None]):
@@ -120,9 +120,9 @@ class ConfigDataModule(module.Module[Data, None, None]):
 
 
 @pytest.mark.parametrize(
-    "data,expected",
+    ("data", "expected"),
     [
-        [{"value": "test"}, Data(value="test")],
+        ({"value": "test"}, Data(value="test")),
     ],
 )
 def test_data_configuration_from_json(data, expected) -> None:
@@ -136,9 +136,9 @@ class EventDataDataModule(module.Module[None, Data, None]):
 
 
 @pytest.mark.parametrize(
-    "data,expected",
+    ("data", "expected"),
     [
-        [{"value": "test"}, Data(value="test")],
+        ({"value": "test"}, Data(value="test")),
     ],
 )
 def test_data_event_data_from_json(data, expected) -> None:
@@ -147,7 +147,7 @@ def test_data_event_data_from_json(data, expected) -> None:
     assert test_module.event_data_from_json(data) == expected
 
 
-@pytest.mark.parametrize("data,expected", [[Data(value="test"), {"value": "test"}]])
+@pytest.mark.parametrize(("data", "expected"), [(Data(value="test"), {"value": "test"})])
 def test_data_event_data_to_json(data, expected) -> None:
     test_module = EventDataDataModule()
 
@@ -159,9 +159,9 @@ class TransversalStatusDataModule(module.Module[None, None, Data]):
 
 
 @pytest.mark.parametrize(
-    "data,expected",
+    ("data", "expected"),
     [
-        [{"value": "test"}, Data(value="test")],
+        ({"value": "test"}, Data(value="test")),
     ],
 )
 def test_data_transversal_status_from_json(data, expected) -> None:
@@ -170,7 +170,7 @@ def test_data_transversal_status_from_json(data, expected) -> None:
     assert test_module.transversal_status_from_json(data) == expected
 
 
-@pytest.mark.parametrize("data,expected", [[Data(value="test"), {"value": "test"}]])
+@pytest.mark.parametrize(("data", "expected"), [(Data(value="test"), {"value": "test"})])
 def test_data_transversal_status_to_json(data, expected) -> None:
     test_module = TransversalStatusDataModule()
 

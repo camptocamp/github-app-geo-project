@@ -706,7 +706,7 @@ def test_get_transversal_dashboard_repo_external() -> None:
 
 # parametrize
 @pytest.mark.parametrize(
-    "datasource, package",
+    ("datasource", "package"),
     [
         ("pypi", "wring"),
         ("wrong", "test"),
@@ -747,7 +747,7 @@ def test_get_transversal_dashboard_repo_reverse_other(datasource: str, package: 
 
 
 @pytest.mark.parametrize(
-    "datasource, version, expected",
+    ("datasource", "version", "expected"),
     [
         ("docker", "1.2.3", "1.2.3"),
         ("other", "1.2.3", "1.2"),
@@ -1138,7 +1138,7 @@ def test_order_versions():
 
 
 @pytest.mark.parametrize(
-    "support, dependency_support, expected_result",
+    ("support", "dependency_support", "expected_result"),
     [
         ("test", "test", True),
         ("other", "other", True),
