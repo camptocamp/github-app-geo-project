@@ -738,7 +738,9 @@ async def _update_upstream_versions(
 
 def _parse_support_date(text: str) -> datetime.datetime:
     try:
-        return datetime.datetime.fromisoformat(text)
+        return datetime.datetime.fromisoformat(text).replace(
+            tzinfo=datetime.UTC,
+        )
     except ValueError:
         # Parse date like 01/01/2024
         return datetime.datetime.strptime(text, "%d/%m/%Y").replace(
@@ -796,7 +798,7 @@ def _build_internal_dependencies(
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 if datasource_name == "docker":
                     assert len(dependency_package_data.status_by_version) == 1
-                    support = next(dependency_package_data.status_by_version.values())
+                    support = list(dependency_package_data.status_by_version.values())[0]
                 else:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,

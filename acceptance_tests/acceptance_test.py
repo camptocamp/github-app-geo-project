@@ -66,7 +66,7 @@ def test_home() -> None:
         width=900,
         height=1900,
         result_folder="/results",
-        expected_filename=Path(__file__).parent / "home.expected.png",
+        expected_filename=str(Path(__file__).parent / "home.expected.png"),
         sleep=500,
     )
 
@@ -81,7 +81,7 @@ def test_project() -> None:
         width=1000,
         height=900,
         result_folder="/results",
-        expected_filename=Path(__file__).parent / "project.expected.png",
+        expected_filename=str(Path(__file__).parent / "project.expected.png"),
         sleep=500,
     )
 
@@ -96,7 +96,7 @@ def test_welcome() -> None:
         width=900,
         height=500,
         result_folder="/results",
-        expected_filename=Path(__file__).parent / "welcome.expected.png",
+        expected_filename=str(Path(__file__).parent / "welcome.expected.png"),
         sleep=500,
     )
 
@@ -111,7 +111,7 @@ def test_transversal_dashboard() -> None:
         width=900,
         height=200,
         result_folder="/results",
-        expected_filename=Path(__file__).parent / "dashboard.expected.png",
+        expected_filename=str(Path(__file__).parent / "dashboard.expected.png"),
         sleep=500,
     )
 
@@ -130,7 +130,7 @@ def test_logs(log_type: str) -> None:
         width=900,
         height=900,
         result_folder="/results",
-        expected_filename=Path(__file__).parent / f"logs-{log_type}.expected.png",
+        expected_filename=str(Path(__file__).parent / f"logs-{log_type}.expected.png"),
         sleep=500,
     )
 
@@ -149,6 +149,6 @@ def test_output(output_type: str) -> None:
         width=900,
         height=200,
         result_folder="/results",
-        expected_filename=Path(__file__).parent / f"output-{output_type}.expected.png",
+        expected_filename=str(Path(__file__).parent / f"output-{output_type}.expected.png"),
         sleep=500,
     )

@@ -152,7 +152,7 @@ async def _process_snyk_dpkg(
                 local_config: configuration.AuditConfiguration = {}
 
                 ghci_config_path = Path(".github/ghci.yaml")
-                if context.module_event_data.type in ("snyk", "dpkg") and ghci_config_path.exists:
+                if context.module_event_data.type in ("snyk", "dpkg") and ghci_config_path.exists():
                     with ghci_config_path.open(encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
 
@@ -345,7 +345,7 @@ async def _use_python_version(python_version: str) -> dict[str, str]:
 
     # Get path from /pyenv/versions/{python_version}.*/bin/
     env = os.environ.copy()
-    bin_paths = Path("/pyenv/versions/").glob(f"{python_version}.*/bin")
+    bin_paths = list(Path("/pyenv/versions/").glob(f"{python_version}.*/bin"))
     if bin_paths:
         env["PATH"] = f'{bin_paths[0]}:{env["PATH"]}'
 
