@@ -1,6 +1,6 @@
 """Automatically generated file from a JSON schema."""
 
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, TypedDict, Union
 
 # | Audit configuration.
 AuditConfiguration = TypedDict(
@@ -382,7 +382,9 @@ class _DpkgSourcesAdditionalpropertiesItem(TypedDict, total=False):
     """
 
 
-_SnykMonitorBusinessCriticalityItem = Literal["critical", "high", "medium", "low"]
+_SnykMonitorBusinessCriticalityItem = Union[
+    Literal["critical"], Literal["high"], Literal["medium"], Literal["low"]
+]
 _SNYKMONITORBUSINESSCRITICALITYITEM_CRITICAL: Literal["critical"] = "critical"
 """The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
 _SNYKMONITORBUSINESSCRITICALITYITEM_HIGH: Literal["high"] = "high"
@@ -393,16 +395,16 @@ _SNYKMONITORBUSINESSCRITICALITYITEM_LOW: Literal["low"] = "low"
 """The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
 
 
-_SnykMonitorEnvironmentItem = Literal[
-    "frontend",
-    "backend",
-    "internal",
-    "external",
-    "mobile",
-    "saas",
-    "onprem",
-    "hosted",
-    "distributed",
+_SnykMonitorEnvironmentItem = Union[
+    Literal["frontend"],
+    Literal["backend"],
+    Literal["internal"],
+    Literal["external"],
+    Literal["mobile"],
+    Literal["saas"],
+    Literal["onprem"],
+    Literal["hosted"],
+    Literal["distributed"],
 ]
 _SNYKMONITORENVIRONMENTITEM_FRONTEND: Literal["frontend"] = "frontend"
 """The values for the '_SnykMonitorEnvironmentItem' enum"""
@@ -424,7 +426,7 @@ _SNYKMONITORENVIRONMENTITEM_DISTRIBUTED: Literal["distributed"] = "distributed"
 """The values for the '_SnykMonitorEnvironmentItem' enum"""
 
 
-_SnykMonitorLifecycleItem = Literal["production", "development", "sandbox"]
+_SnykMonitorLifecycleItem = Union[Literal["production"], Literal["development"], Literal["sandbox"]]
 _SNYKMONITORLIFECYCLEITEM_PRODUCTION: Literal["production"] = "production"
 """The values for the '_SnykMonitorLifecycleItem' enum"""
 _SNYKMONITORLIFECYCLEITEM_DEVELOPMENT: Literal["development"] = "development"

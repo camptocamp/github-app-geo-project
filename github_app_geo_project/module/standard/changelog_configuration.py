@@ -219,7 +219,7 @@ class Section(TypedDict, total=False):
     """
 
 
-_ConditionAndSolidusOrType = Literal["and", "or"]
+_ConditionAndSolidusOrType = Union[Literal["and"], Literal["or"]]
 """ The type of the condition """
 _CONDITIONANDSOLIDUSORTYPE_AND: Literal["and"] = "and"
 """The values for the 'The type of the condition' enum"""

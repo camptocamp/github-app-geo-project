@@ -1,6 +1,6 @@
 """Automatically generated file from a JSON schema."""
 
-from typing import Literal, TypedDict
+from typing import Literal, TypedDict, Union
 
 BRANCH_DEFAULT = "gh-pages"
 """ Default value of the field path 'git branch' """
@@ -69,7 +69,7 @@ ON_TYPE_DEFAULT = "all"
 """ Default value of the field path 'git on-type' """
 
 
-OnType = Literal["feature_branch", "pull_request", "all"]
+OnType = Union[Literal["feature_branch"], Literal["pull_request"], Literal["all"]]
 """
 on-type.
 
