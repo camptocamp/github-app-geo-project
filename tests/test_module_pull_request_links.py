@@ -81,7 +81,7 @@ def test_add_issue_link() -> None:
 
     assert result == "Pull request descriptions updated."
     assert pull_request.edit.call_args[1]["body"] == "\n".join(
-        ["Description of the pull request.", "<!-- pull request links -->", "PR: 1"]
+        ["Description of the pull request.", "<!-- pull request links -->", "PR: 1"],
     )
 
 
@@ -98,7 +98,7 @@ def test_add_issue_link_2() -> None:
             "<!-- pull request links -->",
             "[Link to Jira: DEF](https://jira.example.com/browse/123)",
             "PR: 1",
-        ]
+        ],
     )
 
 
@@ -110,5 +110,5 @@ def test_add_issue_link_with_blacklist() -> None:
 
     assert result == "Pull request descriptions updated."
     assert pull_request.edit.call_args[1]["body"] == "\n".join(
-        ["Description of the pull request.", "<!-- pull request links -->", "PR: 1"]
+        ["Description of the pull request.", "<!-- pull request links -->", "PR: 1"],
     )

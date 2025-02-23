@@ -63,14 +63,15 @@ class DispatchPublishing(module.Module[None, None, None]):
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Dispatch-Publish"
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
         return {}
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the GitHub application permissions needed by the module."""
         return module.GitHubApplicationPermissions(
-            permissions={"contents": "write"}, events={"repository_dispatch"}
+            permissions={"contents": "write"},
+            events={"repository_dispatch"},
         )
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[None]]:
@@ -127,7 +128,7 @@ class DispatchPublishing(module.Module[None, None, None]):
 
             if payload:
                 context.github_project.github.get_repo(
-                    destination.destination_repository
+                    destination.destination_repository,
                 ).create_repository_dispatch(
                     destination.event_type,
                     payload,

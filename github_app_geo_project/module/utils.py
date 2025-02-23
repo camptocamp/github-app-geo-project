@@ -7,8 +7,10 @@ import math
 import os
 import re
 import shlex
+from pathlib import Path
 from typing import Any, cast
 
+import anyio
 import github
 import html_sanitizer
 import markdownify
@@ -68,7 +70,7 @@ def parse_dashboard_issue(issue_data: str) -> DashboardIssueRaw:
     lines = issue_data.split("\n")
     last_is_check = False
     for line in lines:
-        line = line.strip()
+        line = line.strip()  # noqa: PLW2901
         check_match = _CHECK_RE.match(line)
         if check_match is not None:
             checked = check_match.group(1) == "x"
@@ -224,7 +226,8 @@ class HtmlMessage(Message):
 
         # interpret template parameters
         html = self.html.replace("{pre}", "<pre>" if style != "collapse" else "").replace(
-            "{post}", "</pre>" if style != "collapse" else ""
+            "{post}",
+            "</pre>" if style != "collapse" else "",
         )
         if self.title and style != "no-title":
             if style == "collapse":
@@ -249,7 +252,7 @@ class HtmlMessage(Message):
                         html,
                         "</div>",
                         "</div>",
-                    ]
+                    ],
                 )
             else:
                 html = "\n".join([f"<{style}>{self.title}</{style}>", html])
@@ -283,7 +286,7 @@ class HtmlMessage(Message):
                     "code",
                 },
                 "keep_typographic_whitespace": True,
-            }
+            },
         )
         return cast(str, sanitizer.sanitize(html))
 
@@ -300,7 +303,7 @@ class HtmlMessage(Message):
                     f"<summary>{self.title}</summary>",
                     markdown,
                     "</details>",
-                ]
+                ],
             )
         elif self.title:
             markdown = f"#### {self.title}\n{markdown}"
@@ -325,7 +328,7 @@ class HtmlMessage(Message):
                 "empty": set(),
                 "separate": set(),
                 "keep_typographic_whitespace": True,
-            }
+            },
         )
         message = cast(
             str,
@@ -366,7 +369,12 @@ class AnsiProcessMessage(AnsiMessage):
     """Represent a message from a subprocess."""
 
     def __init__(
-        self, args: list[str], returncode: int | None, stdout: str, stderr: str, error: str | None = None
+        self,
+        args: list[str],
+        returncode: int | None,
+        stdout: str,
+        stderr: str,
+        error: str | None = None,
     ) -> None:
         """Initialize the process message."""
         self.args: list[str] = []
@@ -432,12 +440,15 @@ class AnsiProcessMessage(AnsiMessage):
                     if self.stderr.strip()
                     else []
                 ),
-            ]
+            ],
         )
 
     @staticmethod
     def from_async_artifacts(
-        command: list[str], proc: asyncio.subprocess.Process, stdout: bytes | None, stderr: bytes | None
+        command: list[str],
+        proc: asyncio.subprocess.Process,
+        stdout: bytes | None,
+        stderr: bytes | None,
     ) -> "AnsiProcessMessage":
         """Create an AnsiProcessMessage from async artifacts."""
         return AnsiProcessMessage(
@@ -448,14 +459,14 @@ class AnsiProcessMessage(AnsiMessage):
         )
 
 
-def get_cwd() -> str | None:
+def get_cwd() -> Path | None:
     """
     Get the current working directory.
 
     Did not raise an exception if it does not exist, return None instead.
     """
     try:
-        return os.getcwd()
+        return Path.cwd()
     except FileNotFoundError:
         return None
 
@@ -463,11 +474,11 @@ def get_cwd() -> str | None:
 async def run_timeout(
     command: list[str],
     env: dict[str, str] | None,
-    timeout: int,
+    timeout: int,  # noqa: ASYNC109
     success_message: str,
     error_message: str,
     timeout_message: str,
-    cwd: str | None = None,
+    cwd: Path | None = None,
     error: bool = True,
 ) -> tuple[str | None, bool, Message | None]:
     """
@@ -498,7 +509,7 @@ async def run_timeout(
         args.append(timeout)
     _LOGGER.debug(log_message, *args)
     async_proc = None
-    start = datetime.datetime.now()
+    start = datetime.datetime.now(datetime.UTC)
     try:
         async with asyncio.timeout(timeout):
             try:
@@ -516,15 +527,15 @@ async def run_timeout(
             message: Message = AnsiProcessMessage.from_async_artifacts(command, async_proc, stdout, stderr)
             success = async_proc.returncode == 0
             if success:
-                message.title = f"{success_message}, in {datetime.datetime.now() - start}s."
+                message.title = f"{success_message}, in {datetime.datetime.now(datetime.UTC) - start}s."
                 _LOGGER.debug(message)
             else:
-                message.title = f"{error_message}, in {datetime.datetime.now() - start}s."
+                message.title = f"{error_message}, in {datetime.datetime.now(datetime.UTC) - start}s."
                 _LOGGER.warning(message)
             return stdout.decode(), success, message
     except FileNotFoundError as exception:
         if error:
-            _LOGGER.exception("%s not found: %s", command[0], exception)
+            _LOGGER.exception("%s not found: %s", command[0], exception)  # noqa: TRY401
         else:
             _LOGGER.warning("%s not found", command[0])
         cmd = ["find", "/", "-name", command[0]]
@@ -554,12 +565,11 @@ async def run_timeout(
             message.title = timeout_message
             _LOGGER.warning(message)
             return None, False, message
+        if error:
+            _LOGGER.exception("TimeoutError for %s: %s", command[0], exception)  # noqa: TRY401
         else:
-            if error:
-                _LOGGER.exception("TimeoutError for %s: %s", command[0], exception)
-            else:
-                _LOGGER.warning("TimeoutError for %s", command[0])
-            return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
+            _LOGGER.warning("TimeoutError for %s", command[0])
+        return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
 
 
 async def has_changes(include_un_followed: bool = False) -> bool:
@@ -609,12 +619,16 @@ async def create_commit(message: str, pre_commit_check: bool = True) -> bool:
     )
     if not success and pre_commit_check:
         # On pre-commit issues, add them to the commit, and try again without the pre-commit
-        success = await create_commit(message, False)
+        success = await create_commit(message, pre_commit_check=False)
     return success
 
 
 async def create_pull_request(
-    branch: str, new_branch: str, message: str, body: str, project: configuration.GithubProject
+    branch: str,
+    new_branch: str,
+    message: str,
+    body: str,
+    project: configuration.GithubProject,
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
     command = ["git", "push", "--force", "origin", new_branch]
@@ -682,7 +696,6 @@ async def auto_merge_pull_request(pull_request: github.PullRequest.PullRequest) 
             if n != 0:
                 await asyncio.sleep(math.pow(n, 2))
             pull_request.enable_automerge(merge_method="MERGE")
-            return
         except github.GithubException as exception:
             errors = exception.data.get("errors", [])
             if (
@@ -692,15 +705,21 @@ async def auto_merge_pull_request(pull_request: github.PullRequest.PullRequest) 
             ):
                 continue
             raise
+        else:
+            return
     if exception is not None:
         raise exception
 
 
 async def create_commit_pull_request(
-    branch: str, new_branch: str, message: str, body: str, project: configuration.GithubProject
+    branch: str,
+    new_branch: str,
+    message: str,
+    body: str,
+    project: configuration.GithubProject,
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
-    if os.path.exists(".pre-commit-config.yaml"):
+    if Path(".pre-commit-config.yaml").exists():
         try:
             command = ["pre-commit", "install"]
             proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
@@ -745,11 +764,11 @@ def close_pull_request_issues(new_branch: str, message: str, project: configurat
 async def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
     """Clone the Git repository."""
     # Store the ssh key
-    directory = os.path.expanduser("~/.ssh/")
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    with open(os.path.join(directory, "id_rsa"), "w", encoding="utf-8") as file:
-        file.write(github_project.application.auth.private_key)
+    directory = Path("~/.ssh/").expanduser()
+    if not directory.exists():
+        directory.mkdir(parents=True)
+    async with await anyio.open_file(directory / "id_rsa", "w", encoding="utf-8") as file:
+        await file.write(github_project.application.auth.private_key)
 
     command = [
         "git",
@@ -887,41 +906,44 @@ def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
 
     Add an updated field to the status and remove the old status.
     """
-    status.setdefault(key, {})["updated"] = datetime.datetime.now().isoformat()
+    status.setdefault(key, {})["updated"] = datetime.datetime.now(datetime.UTC).isoformat()
     for other_key, other_object in list(status.items()):
         if (
             not isinstance(other_object, dict)
             or "updated" not in other_object
             or datetime.datetime.fromisoformat(other_object["updated"])
-            < datetime.datetime.now() - datetime.timedelta(days=days_old)
+            < datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
         ):
             _LOGGER.debug(
                 "Remove old status %s (%s < %s)",
                 other_key,
                 other_object.get("updated", "-"),
-                datetime.datetime.now() - datetime.timedelta(days=days_old),
+                datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old),
             )
             del status[other_key]
 
 
 def manage_updated_separated(
-    updated: dict[str, datetime.datetime], data: dict[str, Any], key: str, days_old: int = 2
+    updated: dict[str, datetime.datetime],
+    data: dict[str, Any],
+    key: str,
+    days_old: int = 2,
 ) -> None:
     """
     Manage the updated status.
 
     Add an updated field to the status and remove the old status.
     """
-    updated[key] = datetime.datetime.now()
+    updated[key] = datetime.datetime.now(datetime.UTC)
     _LOGGER.debug("Set updated %s to %s", key, updated[key])
-    min_date = datetime.datetime.now() - datetime.timedelta(days=days_old)
+    min_date = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
     for other_key, date in list(updated.items()):
         if date < min_date:
             _LOGGER.debug(
                 "Remove old date %s (%s < %s)",
                 other_key,
                 date,
-                datetime.datetime.now() - datetime.timedelta(days=days_old),
+                datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old),
             )
             del updated[other_key]
 

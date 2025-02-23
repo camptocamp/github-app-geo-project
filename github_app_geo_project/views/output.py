@@ -15,7 +15,7 @@ from github_app_geo_project import models
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="output", renderer="github_app_geo_project:templates/output.html")  # type: ignore
+@view_config(route_name="output", renderer="github_app_geo_project:templates/output.html")  # type: ignore[misc]
 def output(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the output of a job."""
     title = request.matchdict["id"]

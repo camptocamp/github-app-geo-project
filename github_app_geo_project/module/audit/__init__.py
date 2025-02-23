@@ -2,7 +2,6 @@
 
 import asyncio
 import datetime
-import glob
 import json
 import logging
 import os
@@ -11,6 +10,7 @@ import shutil
 import subprocess  # nosec
 import tempfile
 import urllib.parse
+from pathlib import Path
 from typing import Any, cast
 
 import github
@@ -62,7 +62,7 @@ def _get_process_output(
     success: bool,
 ) -> module.ProcessOutput[_EventData, _TransversalStatus]:
     assert context.module_event_data.type is not None
-    issue_check.set_check(context.module_event_data.type, False)
+    issue_check.set_check(context.module_event_data.type, checked=False)
 
     return module.ProcessOutput(
         dashboard=issue_check.to_string(),
@@ -91,7 +91,8 @@ def _process_error(
 
         output_url = urllib.parse.urljoin(context.service_url, f"output/{output_id}")
         issue_check.set_title(
-            key, f"{key}: {message} ([Error]({output_url}))" if message else f"{key} ([Error]({output_url}))"
+            key,
+            f"{key}: {message} ([Error]({output_url}))" if message else f"{key} ([Error]({output_url}))",
         )
     elif message:
         issue_check.set_title(key, f"{key}: {message}")
@@ -149,15 +150,18 @@ async def _process_snyk_dpkg(
                     return ["Fail to clone the repository"], success
 
                 local_config: configuration.AuditConfiguration = {}
-                if context.module_event_data.type in ("snyk", "dpkg") and os.path.exists(".github/ghci.yaml"):
-                    with open(".github/ghci.yaml", encoding="utf-8") as file:
+
+                ghci_config_path = Path(".github/ghci.yaml")
+                if context.module_event_data.type in ("snyk", "dpkg") and ghci_config_path.exists():
+                    with ghci_config_path.open(encoding="utf-8") as file:
                         local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
 
                 logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
                 if context.module_event_data.type == "snyk":
                     python_version = ""
-                    if os.path.exists(".tool-versions"):
-                        with open(".tool-versions", encoding="utf-8") as file:
+                    tool_versions = Path(".tool-versions")
+                    if tool_versions.exists():
+                        with tool_versions.open(encoding="utf-8") as file:
                             for line in file:
                                 if line.startswith("python "):
                                     python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
@@ -183,7 +187,7 @@ async def _process_snyk_dpkg(
                         ", ".join(short_message),
                     )
                     message: module_utils.Message = module_utils.HtmlMessage(
-                        f"<a href='{output_url}'>Output</a>"
+                        f"<a href='{output_url}'>Output</a>",
                     )
                     message.title = "Output URL"
                     _LOGGER.debug(message)
@@ -196,11 +200,15 @@ async def _process_snyk_dpkg(
                 if context.module_event_data.type == "dpkg":
                     body_md = "Update dpkg packages"
 
-                    if os.path.exists("ci/dpkg-versions.yaml") or os.path.exists(
-                        ".github/dpkg-versions.yaml"
+                    if (
+                        Path("ci/dpkg-versions.yaml").exists()
+                        or Path(
+                            ".github/dpkg-versions.yaml",
+                        ).exists()
                     ):
                         await audit_utils.dpkg(
-                            context.module_config.get("dpkg", {}), local_config.get("dpkg", {})
+                            context.module_config.get("dpkg", {}),
+                            local_config.get("dpkg", {}),
                         )
 
                 body_md += "\n" if body_md else ""
@@ -214,12 +222,17 @@ async def _process_snyk_dpkg(
                     if diff_proc.returncode != 0:
                         command = ["git", "diff"]
                         proc = await asyncio.create_subprocess_exec(
-                            *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+                            *command,
+                            stdin=asyncio.subprocess.PIPE,
+                            stdout=asyncio.subprocess.PIPE,
                         )
                         try:
                             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
                             message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                                command, proc, stdout, stderr
+                                command,
+                                proc,
+                                stdout,
+                                stderr,
                             )
                             message.title = "Changes to be committed"
                             _LOGGER.debug(message)
@@ -229,13 +242,18 @@ async def _process_snyk_dpkg(
 
                         command = ["git", "checkout", "-b", new_branch]
                         proc = await asyncio.create_subprocess_exec(
-                            *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+                            *command,
+                            stdin=asyncio.subprocess.PIPE,
+                            stdout=asyncio.subprocess.PIPE,
                         )
                         try:
                             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
                             if proc.returncode != 0:
                                 message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                                    command, proc, stdout, stderr
+                                    command,
+                                    proc,
+                                    stdout,
+                                    stderr,
                                 )
                                 message.title = "Error while creating the new branch"
                                 _LOGGER.error(message)
@@ -251,12 +269,12 @@ async def _process_snyk_dpkg(
                                 success &= new_success
                                 if not new_success:
                                     _LOGGER.error("Error while create commit or pull request")
-                                else:
-                                    if pull_request is not None:
-                                        issue_check.set_title(
-                                            key, f"{key} ([Pull request]({pull_request.html_url}))"
-                                        )
-                                        short_message.append(f"[Pull request]({pull_request.html_url})")
+                                elif pull_request is not None:
+                                    issue_check.set_title(
+                                        key,
+                                        f"{key} ([Pull request]({pull_request.html_url}))",
+                                    )
+                                    short_message.append(f"[Pull request]({pull_request.html_url})")
                         except TimeoutError:
                             proc.kill()
                             raise
@@ -264,7 +282,9 @@ async def _process_snyk_dpkg(
                     else:
                         _LOGGER.debug("No changes to commit")
                         module_utils.close_pull_request_issues(
-                            new_branch, f"Audit {key}", context.github_project
+                            new_branch,
+                            f"Audit {key}",
+                            context.github_project,
                         )
                 except TimeoutError:
                     try:
@@ -303,7 +323,9 @@ async def _process_snyk_dpkg(
 async def _use_python_version(python_version: str) -> dict[str, str]:
     command = ["pyenv", "local", python_version]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -315,13 +337,15 @@ async def _use_python_version(python_version: str) -> dict[str, str]:
         _LOGGER.debug(message)
     command = ["python", "--version"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
 
     # Get path from /pyenv/versions/{python_version}.*/bin/
     env = os.environ.copy()
-    bin_paths = glob.glob(f"/pyenv/versions/{python_version}.*/bin")
+    bin_paths = list(Path("/pyenv/versions/").glob(f"{python_version}.*/bin"))
     if bin_paths:
         env["PATH"] = f'{bin_paths[0]}:{env["PATH"]}'
 
@@ -364,8 +388,10 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
         if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):
             return [
                 module.Action(
-                    priority=module.PRIORITY_CRON, data=_EventData(type="outdated"), title="outdated"
-                )
+                    priority=module.PRIORITY_CRON,
+                    data=_EventData(type="outdated"),
+                    title="outdated",
+                ),
             ]
         results: list[module.Action[_EventData]] = []
         snyk = False
@@ -373,17 +399,19 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
         is_dashboard = context.event_name == "dashboard"
         if is_dashboard:
             old_check = module_utils.DashboardIssue(
-                context.event_data.get("old_data", "").split("<!---->")[0]
+                context.event_data.get("old_data", "").split("<!---->")[0],
             )
             new_check = module_utils.DashboardIssue(
-                context.event_data.get("new_data", "").split("<!---->")[0]
+                context.event_data.get("new_data", "").split("<!---->")[0],
             )
 
             if not old_check.is_checked("outdated") and new_check.is_checked("outdated"):
                 results.append(
                     module.Action(
-                        priority=module.PRIORITY_STANDARD, data=_EventData(type="outdated"), title="outdated"
-                    )
+                        priority=module.PRIORITY_STANDARD,
+                        data=_EventData(type="outdated"),
+                        title="outdated",
+                    ),
                 )
             if not old_check.is_checked("snyk") and new_check.is_checked("snyk"):
                 snyk = True
@@ -393,8 +421,10 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
         if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
             results.append(
                 module.Action(
-                    priority=module.PRIORITY_CRON, data=_EventData(type="outdated"), title="outdated"
-                )
+                    priority=module.PRIORITY_CRON,
+                    data=_EventData(type="outdated"),
+                    title="outdated",
+                ),
             )
             snyk = True
             dpkg = True
@@ -404,12 +434,13 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                 module.Action(
                     priority=module.PRIORITY_CRON,
                     data=_EventData(snyk=snyk, dpkg=dpkg, is_dashboard=is_dashboard),
-                )
+                ),
             )
         return results
 
     async def process(
-        self, context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus]
+        self,
+        context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
     ) -> module.ProcessOutput[_EventData, _TransversalStatus]:
         """
         Process the action.
@@ -439,12 +470,12 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                 raise
         if security_file is not None:
             key_starts.append(_OUTDATED)
-            issue_check.add_check("outdated", "Check outdated version", False)
+            issue_check.add_check("outdated", "Check outdated version", checked=False)
         else:
             issue_check.remove_check("outdated")
 
         if context.module_config.get("snyk", {}).get("enabled", configuration.ENABLE_SNYK_DEFAULT):
-            issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", False)
+            issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", checked=False)
             key_starts.append("Snyk check/fix ")
         else:
             issue_check.remove_check("snyk")
@@ -467,79 +498,80 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
             context.module_config.get("dpkg", {}).get("enabled", configuration.ENABLE_DPKG_DEFAULT)
             and dpkg_version is not None
         ):
-            issue_check.add_check("dpkg", "Update dpkg packages", False)
+            issue_check.add_check("dpkg", "Update dpkg packages", checked=False)
             key_starts.append("Dpkg ")
         else:
             issue_check.remove_check("dpkg")
 
         if context.module_event_data.type == "outdated":
             _process_outdated(context, issue_check)
-        else:
-            if context.module_event_data.version is None:
-                # Creates new jobs with the versions from the SECURITY.md
-                versions = []
-                if security_file is not None:
-                    assert isinstance(security_file, github.ContentFile.ContentFile)
-                    security = security_md.Security(security_file.decoded_content.decode("utf-8"))
+        elif context.module_event_data.version is None:
+            # Creates new jobs with the versions from the SECURITY.md
+            versions = []
+            if security_file is not None:
+                assert isinstance(security_file, github.ContentFile.ContentFile)
+                security = security_md.Security(security_file.decoded_content.decode("utf-8"))
 
-                    versions = module_utils.get_stabilization_versions(security)
-                else:
-                    _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
-                    versions = [repo.default_branch]
-                _LOGGER.debug("Versions: %s", ", ".join(versions))
-
-                all_key_starts = []
-                for key in key_starts:
-                    if key == _OUTDATED:
-                        all_key_starts.append(_OUTDATED)
-                    else:
-                        for version in versions:
-                            all_key_starts.append(f"{key}{version}")
-
-                full_repository = f"{context.github_project.owner}/{context.github_project.repository}"
-                if full_repository in context.transversal_status.repositories:
-                    for key in list(context.transversal_status.repositories[full_repository].types.keys()):
-                        if key not in all_key_starts:
-                            context.transversal_status.repositories[full_repository].types.pop(key)
-
-                # Audit is relay slow than add 15 to the cron priority
-                priority = (
-                    module.PRIORITY_STANDARD
-                    if context.module_event_data.is_dashboard
-                    else module.PRIORITY_CRON + 15
-                )
-                actions = []
-                for version in versions:
-                    version = context.module_config.get("version-mapping", {}).get(version, version)
-                    if context.module_event_data.snyk and context.module_config.get("snyk", {}).get(
-                        "enabled", configuration.ENABLE_SNYK_DEFAULT
-                    ):
-                        actions.append(
-                            module.Action(
-                                priority=priority,
-                                data=_EventData(type="snyk", version=version),
-                                title=f"snyk ({version})",
-                            )
-                        )
-                    if context.module_event_data.dpkg and context.module_config.get("dpkg", {}).get(
-                        "enabled", configuration.ENABLE_DPKG_DEFAULT
-                    ):
-                        actions.append(
-                            module.Action(
-                                priority=priority,
-                                data=_EventData(type="dpkg", version=version),
-                                title=f"dpkg ({version})",
-                            )
-                        )
-                return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
+                versions = module_utils.get_stabilization_versions(security)
             else:
-                short_message, success = await _process_snyk_dpkg(context, issue_check)
+                _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
+                versions = [repo.default_branch]
+            _LOGGER.debug("Versions: %s", ", ".join(versions))
+
+            all_key_starts = []
+            for key in key_starts:
+                if key == _OUTDATED:
+                    all_key_starts.append(_OUTDATED)
+                else:
+                    for version in versions:
+                        all_key_starts.append(f"{key}{version}")
+
+            full_repository = f"{context.github_project.owner}/{context.github_project.repository}"
+            if full_repository in context.transversal_status.repositories:
+                for key in list(context.transversal_status.repositories[full_repository].types.keys()):
+                    if key not in all_key_starts:
+                        context.transversal_status.repositories[full_repository].types.pop(key)
+
+            # Audit is relay slow than add 15 to the cron priority
+            priority = (
+                module.PRIORITY_STANDARD
+                if context.module_event_data.is_dashboard
+                else module.PRIORITY_CRON + 15
+            )
+            actions = []
+            for version in versions:
+                version = context.module_config.get("version-mapping", {}).get(version, version)
+                if context.module_event_data.snyk and context.module_config.get("snyk", {}).get(
+                    "enabled",
+                    configuration.ENABLE_SNYK_DEFAULT,
+                ):
+                    actions.append(
+                        module.Action(
+                            priority=priority,
+                            data=_EventData(type="snyk", version=version),
+                            title=f"snyk ({version})",
+                        ),
+                    )
+                if context.module_event_data.dpkg and context.module_config.get("dpkg", {}).get(
+                    "enabled",
+                    configuration.ENABLE_DPKG_DEFAULT,
+                ):
+                    actions.append(
+                        module.Action(
+                            priority=priority,
+                            data=_EventData(type="dpkg", version=version),
+                            title=f"dpkg ({version})",
+                        ),
+                    )
+            return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
+        else:
+            short_message, success = await _process_snyk_dpkg(context, issue_check)
 
         return _get_process_output(context, issue_check, short_message, success)
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
-        with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
+        with (Path(__file__) / "schema.json").open(encoding="utf-8") as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("audit")  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
@@ -559,7 +591,8 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
         return True
 
     def get_transversal_dashboard(
-        self, context: module.TransversalDashboardContext[_TransversalStatus]
+        self,
+        context: module.TransversalDashboardContext[_TransversalStatus],
     ) -> module.TransversalDashboardOutput:
         """Get the transversal dashboard content."""
         repositories = []
@@ -569,10 +602,9 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                     {
                         "repository": repository,
                         "data": data,
-                    }
+                    },
                 )
         return module.TransversalDashboardOutput(
-            # template="dashboard.html",
             renderer="github_app_geo_project:module/audit/dashboard.html",
             data={"repositories": repositories},
         )

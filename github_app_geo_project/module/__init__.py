@@ -340,7 +340,8 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
 
     @abstractmethod
     async def process(
-        self, context: ProcessContext[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]
+        self,
+        context: ProcessContext[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS],
     ) -> ProcessOutput[_EVENT_DATA, _TRANSVERSAL_STATUS]:
         """
         Process the action.
@@ -362,15 +363,14 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         del context
 
     @abstractmethod
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         super_ = [c for c in self.__class__.__orig_bases__ if c.__origin__ == Module][0]  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[0]
         # Is Pydantic BaseModel
         if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
             return generic_element.model_json_schema()  # type: ignore[no-any-return]
-        else:
-            raise NotImplementedError("The method get_json_schema should be implemented")
+        raise NotImplementedError("The method get_json_schema should be implemented")
 
     def configuration_from_json(self, data: dict[str, Any]) -> _CONFIGURATION:
         """Create the configuration from the JSON data."""
@@ -442,7 +442,8 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         return False
 
     def get_transversal_dashboard(
-        self, context: TransversalDashboardContext[_TRANSVERSAL_STATUS]
+        self,
+        context: TransversalDashboardContext[_TRANSVERSAL_STATUS],
     ) -> TransversalDashboardOutput:
         """Get the transversal dashboard content."""
         del context

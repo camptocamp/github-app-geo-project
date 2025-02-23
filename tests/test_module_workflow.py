@@ -17,7 +17,7 @@ async def test_process_success() -> None:
                 "jobs": [],
                 "url": None,
             },
-        }
+        },
     }
     context.github_project.owner = "owner"
     context.github_project.repository = "repository"
@@ -83,5 +83,5 @@ async def test_process_failure() -> None:
                     "url": None,
                 },
             },
-        }
+        },
     }

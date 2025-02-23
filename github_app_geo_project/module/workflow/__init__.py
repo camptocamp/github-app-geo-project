@@ -36,7 +36,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             {"workflow_run"},
         )
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module."""
         return {
             "type": "object",
@@ -54,7 +54,8 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
         return []
 
     async def process(
-        self, context: module.ProcessContext[None, dict[str, Any], dict[str, Any]]
+        self,
+        context: module.ProcessContext[None, dict[str, Any], dict[str, Any]],
     ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """Process the action."""
         full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
@@ -143,7 +144,8 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
         return True
 
     def get_transversal_dashboard(
-        self, context: module.TransversalDashboardContext[dict[str, Any]]
+        self,
+        context: module.TransversalDashboardContext[dict[str, Any]],
     ) -> module.TransversalDashboardOutput:
         """Return the transversal dashboard output."""
         if "repository" in context.params:

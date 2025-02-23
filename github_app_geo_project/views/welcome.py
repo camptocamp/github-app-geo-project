@@ -14,7 +14,7 @@ from github_app_geo_project import configuration
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="welcome", renderer="github_app_geo_project:templates/welcome.html")  # type: ignore
+@view_config(route_name="welcome", renderer="github_app_geo_project:templates/welcome.html")  # type: ignore[misc]
 def output(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the welcome page."""
     del request  # Unused

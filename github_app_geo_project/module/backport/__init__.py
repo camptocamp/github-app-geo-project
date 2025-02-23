@@ -6,6 +6,7 @@ import logging
 import os.path
 import subprocess  # nosec
 import tempfile
+from pathlib import Path
 from typing import Any
 
 import github
@@ -56,9 +57,9 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             {"pull_request", "push"},
         )
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module."""
-        with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("backport")  # type: ignore[no-any-return]
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
@@ -73,11 +74,12 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     return [
                         module.Action(
                             _ActionData(
-                                type="check", branch=context.event_data["pull_request"]["head"]["ref"]
+                                type="check",
+                                branch=context.event_data["pull_request"]["head"]["ref"],
                             ),
                             checks=True,
                             priority=module.PRIORITY_STATUS,
-                        )
+                        ),
                     ]
         security_md_update = False
         for commit in context.event_data.get("commits", []):
@@ -97,7 +99,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         return []
 
     async def process(
-        self, context: module.ProcessContext[configuration.BackportConfiguration, _ActionData, None]
+        self,
+        context: module.ProcessContext[configuration.BackportConfiguration, _ActionData, None],
     ) -> module.ProcessOutput[_ActionData, None]:
         """Process the action."""
         if context.module_event_data.type == "check":
@@ -120,15 +123,14 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             except github.GithubException as exception:
                 if exception.status == 404:
                     return module.ProcessOutput()
-                else:
-                    _LOGGER.exception("Error while getting BACKPORT_TODO file")
-                    return module.ProcessOutput(
-                        success=False,
-                        output={
-                            "title": "BACKPORT_TODO error",
-                            "summary": "Error while getting BACKPORT_TODO file",
-                        },
-                    )
+                _LOGGER.exception("Error while getting BACKPORT_TODO file")
+                return module.ProcessOutput(
+                    success=False,
+                    output={
+                        "title": "BACKPORT_TODO error",
+                        "summary": "Error while getting BACKPORT_TODO file",
+                    },
+                )
 
         elif context.module_event_data.type == "SECURITY.md":
             repo = context.github_project.repo
@@ -180,12 +182,14 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     actions=[
                         module.Action(
                             _ActionData(
-                                type="backport", pull_request_number=pull_request.number, branch=branch
+                                type="backport",
+                                pull_request_number=pull_request.number,
+                                branch=branch,
                             ),
                             priority=module.PRIORITY_STANDARD,
                         )
                         for branch in branches
-                    ]
+                    ],
                 )
             return module.ProcessOutput()
 
@@ -241,7 +245,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(
-                        proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                        proc.returncode if proc.returncode is not None else -999,
+                        command,
+                        stdout,
+                        stderr,
                     )
 
                 failed_commits: list[str] = []
@@ -277,23 +284,29 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             f"  && git reset --hard HEAD^ \\"
                             f"  && git cherry-pick {' '.join(failed_commits)}",
                             f"git push origin {backport_branch} --force",
-                        ]
+                        ],
                     )
-                    with open("BACKPORT_TODO", "w", encoding="utf-8") as f:
+                    with Path("BACKPORT_TODO").open("w", encoding="utf-8") as f:
                         f.write("\n".join(message))
                     command = ["git", "add", "BACKPORT_TODO"]
                     proc = await asyncio.create_subprocess_exec(*command)
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                            proc.returncode if proc.returncode is not None else -999,
+                            command,
+                            stdout,
+                            stderr,
                         )
                     command = ["git", "commit", "--message=[skip ci] Add instructions to finish the backport"]
                     proc = await asyncio.create_subprocess_exec(*command)
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                            proc.returncode if proc.returncode is not None else -999,
+                            command,
+                            stdout,
+                            stderr,
                         )
                 await module_utils.create_pull_request(
                     target_branch,

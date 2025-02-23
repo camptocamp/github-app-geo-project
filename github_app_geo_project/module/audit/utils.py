@@ -6,6 +6,7 @@ import json
 import logging
 import os.path
 import subprocess
+from pathlib import Path
 from typing import NamedTuple
 
 import apt_repo
@@ -49,7 +50,9 @@ async def snyk(
 
     command = ["pip", "freeze"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )  # nosec
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -128,17 +131,22 @@ async def _select_java_version(
     local_config: configuration.SnykConfiguration,
     env: dict[str, str],
 ) -> None:
-    if not os.path.exists("gradlew"):
+    if not Path("gradlew").exists():
         return
 
     command = ["./gradlew", "--version"]
     proc = await asyncio.create_subprocess_exec(  # nosec
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(
-            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+            proc.returncode if proc.returncode is not None else -999,
+            command,
+            stdout,
+            stderr,
         )
     gradle_version_out = stdout.decode().splitlines()
     gradle_version_out_filter = [line for line in gradle_version_out if line.startswith("Gradle ")]
@@ -175,7 +183,9 @@ async def _install_requirements_dependencies(
 ) -> None:
     command = ["git", "ls-files", "requirements.txt", "*/requirements.txt"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
@@ -217,7 +227,9 @@ async def _install_pipenv_dependencies(
 ) -> None:
     command = ["git", "ls-files", "Pipfile", "*/Pipfile"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
@@ -231,7 +243,7 @@ async def _install_pipenv_dependencies(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            directory = os.path.dirname(os.path.abspath(file))
+            directory = Path(file).resolve().parent
 
             _, _, proc_message = await module_utils.run_timeout(
                 [
@@ -258,7 +270,9 @@ async def _install_poetry_dependencies(
 ) -> None:
     command = ["git", "ls-files", "poetry.lock", "*/poetry.lock"]
     proc = await asyncio.create_subprocess_exec(
-        *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
     )
     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
     if proc.returncode != 0:
@@ -284,7 +298,7 @@ async def _install_poetry_dependencies(
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
-                os.path.dirname(os.path.abspath(file)),
+                Path(file).resolve().parent,
             )
             if proc_message is not None:
                 result.append(proc_message)
@@ -302,29 +316,30 @@ async def _snyk_monitor(
         "monitor",
         f"--target-reference={branch}",
         *local_config.get(
-            "monitor-arguments", config.get("monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT)
+            "monitor-arguments",
+            config.get("monitor-arguments", configuration.SNYK_MONITOR_ARGUMENTS_DEFAULT),
         ),
     ]
     local_monitor_config = local_config.get("monitor", {})
     monitor_config = config.get("monitor", {})
     if "project-environment" in local_monitor_config or "project-environment" in monitor_config:
         command.append(
-            f"--project-environment={','.join(local_monitor_config.get('project-environment', monitor_config.get('project-environment', [])))}"
+            f"--project-environment={','.join(local_monitor_config.get('project-environment', monitor_config.get('project-environment', [])))}",
         )
     if "project-lifecycle" in local_monitor_config or "project-lifecycle" in monitor_config:
         command.append(
-            f"--project-lifecycle={','.join(local_monitor_config.get('project-lifecycle', monitor_config.get('project-lifecycle', [])))}"
+            f"--project-lifecycle={','.join(local_monitor_config.get('project-lifecycle', monitor_config.get('project-lifecycle', [])))}",
         )
     if (
         "project-business-criticality" in local_monitor_config
         or "project-business-criticality" in monitor_config
     ):
         command.append(
-            f"--project-business-criticality={','.join(local_monitor_config.get('project-business-criticality', monitor_config.get('project-business-criticality', [])))}"
+            f"--project-business-criticality={','.join(local_monitor_config.get('project-business-criticality', monitor_config.get('project-business-criticality', [])))}",
         )
     if "project-tags" in local_monitor_config or "project-tags" in monitor_config:
         command.append(
-            f"--project-tags={','.join(['='.join(tag) for tag in local_monitor_config.get('project-tags', monitor_config.get('project-tags', {}))])}"
+            f"--project-tags={','.join(['='.join(tag) for tag in local_monitor_config.get('project-tags', monitor_config.get('project-tags', {}))])}",
         )
 
     _, _, message = await module_utils.run_timeout(
@@ -351,7 +366,8 @@ async def _snyk_test(
         "snyk",
         "test",
         *local_config.get(
-            "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
+            "test-arguments",
+            config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT),
         ),
     ]
     await module_utils.run_timeout(
@@ -368,7 +384,8 @@ async def _snyk_test(
         "test",
         "--json",
         *local_config.get(
-            "test-arguments", config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT)
+            "test-arguments",
+            config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT),
         ),
     ]
     test_json_str, _, message = await module_utils.run_timeout(
@@ -388,7 +405,9 @@ async def _snyk_test(
         _LOGGER.debug(message)
     else:
         _LOGGER.error(
-            "Snyk test JSON returned nothing on project %s branch %s", module_utils.get_cwd(), branch
+            "Snyk test JSON returned nothing on project %s branch %s",
+            module_utils.get_cwd(),
+            branch,
         )
 
     test_json = json.loads(test_json_str) if test_json_str else []
@@ -414,8 +433,8 @@ async def _snyk_test(
                     f"Target file: {row.get('displayTargetFile', '-')}",
                     f"Project path: {row.get('path', '-')}",
                     row.get("summary", ""),
-                ]
-            )
+                ],
+            ),
         )
         message.title = f'{row.get("summary", "Snyk test")} in {row.get("displayTargetFile", "-")}.'
         _LOGGER.info(message)
@@ -448,7 +467,7 @@ async def _snyk_test(
                     f"{vuln['packageName']}@{vuln['version']}:",
                     vuln["id"],
                     *(vuln.get("identifiers", {}).get("CWE", [])),
-                ]
+                ],
             )
             if vuln.get("fixedIn", []):
                 title += " [Fixed in: " + ", ".join(vuln["fixedIn"]) + "]."
@@ -475,7 +494,7 @@ async def _snyk_test(
                     ],
                 )
             vulnerabilities[title].paths.append(
-                " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]])
+                " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]]),
             )
 
         for title, vulnerability in vulnerabilities.items():
@@ -486,7 +505,7 @@ async def _snyk_test(
                         *vulnerability.identifiers,
                         "",
                         *vulnerability.paths,
-                    ]
+                    ],
                 ),
                 title,
             )
@@ -533,7 +552,8 @@ async def _snyk_fix(
             "snyk",
             "fix",
             *local_config.get(
-                "fix-arguments", config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT)
+                "fix-arguments",
+                config.get("fix-arguments", configuration.SNYK_FIX_ARGUMENTS_DEFAULT),
             ),
         ]
         fix_message, snyk_fix_success, message = await module_utils.run_timeout(
@@ -559,15 +579,15 @@ async def _snyk_fix(
             )
 
             cwd = module_utils.get_cwd()
-            project = "-" if cwd is None else os.path.basename(cwd)
+            project = "-" if cwd is None else Path(cwd).name
             message = module_utils.HtmlMessage(
                 "<br>\n".join(
                     [
                         *fixable_vulnerabilities_summary.values(),
                         f"Project: {project}:{branch}",
                         f"See logs: {logs_url}",
-                    ]
-                )
+                    ],
+                ),
             )
             message.title = f"Unable to fix {len(fixable_vulnerabilities_summary)} vulnerabilities"
             _LOGGER.warning(message)
@@ -576,12 +596,13 @@ async def _snyk_fix(
 
 
 async def _npm_audit_fix(
-    fixable_files_npm: dict[str, set[str]], result: list[module_utils.Message]
+    fixable_files_npm: dict[str, set[str]],
+    result: list[module_utils.Message],
 ) -> tuple[str, bool]:
     messages: set[str] = set()
     fix_success = True
     for package_lock_file_name, file_messages in fixable_files_npm.items():
-        directory = os.path.dirname(os.path.abspath(package_lock_file_name))
+        directory = Path(package_lock_file_name).absolute().parent
         messages.update(file_messages)
         _LOGGER.debug("Fixing vulnerabilities in %s with npm audit fix", package_lock_file_name)
         command = ["npm", "audit", "fix"]
@@ -598,13 +619,13 @@ async def _npm_audit_fix(
             result.append(message)
         _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
-        with open(os.path.join(directory, "package.json"), encoding="utf-8") as package_file:
+        with (directory / "package.json").open(encoding="utf-8") as package_file:
             package_json = json.load(package_file)
             for dependencies_type in ("dependencies", "devDependencies"):
                 for package, version in package_json.get(dependencies_type, {}).items():
                     if version.startswith("^"):
                         package_json[dependencies_type][package] = version[1:]
-            with open(os.path.join(directory, "package.json"), "w", encoding="utf-8") as package_file:
+            with (directory / "package.json").open("w", encoding="utf-8") as package_file:
                 json.dump(package_json, package_file, indent=2)
         _LOGGER.debug("Succeeded fix %s", package_lock_file_name)
 
@@ -624,8 +645,8 @@ def outdated_versions(
     for row in security.data:
         str_date = row[date_index]
         if str_date not in ("Unsupported", "Best effort", "To be defined"):
-            date = datetime.datetime.strptime(row[date_index], "%d/%m/%Y")
-            if date < datetime.datetime.now():
+            date = datetime.datetime.strptime(row[date_index], "%d/%m/%Y").replace(tzinfo=datetime.UTC)
+            if date < datetime.datetime.now(datetime.UTC):
                 errors.append(
                     f"The version '{row[version_index]}' is outdated, it can be set to "
                     "'Unsupported', 'Best effort' or 'To be defined'",
@@ -639,13 +660,16 @@ _PACKAGE_VERSION: dict[str, debian_inspector.version.Version] = {}
 
 
 def _get_sources(
-    dist: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
+    dist: str,
+    config: configuration.DpkgConfiguration,
+    local_config: configuration.DpkgConfiguration,
 ) -> apt_repo.APTSources:
     """Get the sources for the distribution."""
     if dist not in _SOURCES:
         conf = local_config.get("sources", config.get("sources", configuration.DPKG_SOURCES_DEFAULT))
         if dist not in conf:
-            raise ValueError(f"The distribution {dist} is not in the configuration")
+            message = f"The distribution {dist} is not in the configuration"
+            raise ValueError(message)
         _SOURCES[dist] = apt_repo.APTSources(
             [
                 apt_repo.APTRepository(
@@ -654,7 +678,7 @@ def _get_sources(
                     source["components"],
                 )
                 for source in conf[dist]
-            ]
+            ],
         )
         try:
             for package in _SOURCES[dist].packages:
@@ -672,24 +696,27 @@ def _get_sources(
                         exception,
                     )
         except AttributeError as exception:
-            _LOGGER.error("Error while loading the distribution %s: %s", dist, exception)
+            _LOGGER.error("Error while loading the distribution %s: %s", dist, exception)  # noqa: TRY400
 
     return _SOURCES[dist]
 
 
 async def _get_packages_version(
-    package: str, config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
+    package: str,
+    config: configuration.DpkgConfiguration,
+    local_config: configuration.DpkgConfiguration,
 ) -> str | None:
     """Get the version of the package."""
     global _GENERATION_TIME  # pylint: disable=global-statement
     if (
         _GENERATION_TIME is None
-        or datetime.datetime.now() - utils.parse_duration(os.environ.get("GHCI_DPKG_CACHE_DURATION", "3h"))
+        or datetime.datetime.now(datetime.UTC)
+        - utils.parse_duration(os.environ.get("GHCI_DPKG_CACHE_DURATION", "3h"))
         > _GENERATION_TIME
     ):
         _PACKAGE_VERSION.clear()
         _SOURCES.clear()
-        _GENERATION_TIME = datetime.datetime.now()
+        _GENERATION_TIME = datetime.datetime.now(datetime.UTC)
     if package not in _PACKAGE_VERSION:
         dist = package.split("/")[0]
         await asyncio.to_thread(_get_sources, dist, config, local_config)
@@ -699,18 +726,21 @@ async def _get_packages_version(
 
 
 async def dpkg(
-    config: configuration.DpkgConfiguration, local_config: configuration.DpkgConfiguration
+    config: configuration.DpkgConfiguration,
+    local_config: configuration.DpkgConfiguration,
 ) -> None:
     """Update the version of packages in the file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml."""
-    if not os.path.exists("ci/dpkg-versions.yaml") and not os.path.exists(".github/dpkg-versions.yaml"):
+    ci_dpkg_versions_filename = Path(".github/dpkg-versions.yaml")
+    github_dpkg_versions_filename = Path("ci/dpkg-versions.yaml")
+
+    if not ci_dpkg_versions_filename.exists() and not github_dpkg_versions_filename.exists():
         _LOGGER.warning("The file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml does not exist")
 
     dpkg_versions_filename = (
-        ".github/dpkg-versions.yaml"
-        if os.path.exists(".github/dpkg-versions.yaml")
-        else "ci/dpkg-versions.yaml"
+        github_dpkg_versions_filename if github_dpkg_versions_filename.exists() else ci_dpkg_versions_filename
     )
-    with open(dpkg_versions_filename, encoding="utf-8") as versions_file:
+
+    with dpkg_versions_filename.open(encoding="utf-8") as versions_file:
         versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)
         for versions in versions_config.values():
             for package_full in versions:
@@ -743,5 +773,5 @@ async def dpkg(
                         exception,
                     )
 
-    with open(dpkg_versions_filename, "w", encoding="utf-8") as versions_file:
+    with dpkg_versions_filename.open("w", encoding="utf-8") as versions_file:
         yaml.dump(versions_config, versions_file, Dumper=yaml.SafeDumper)

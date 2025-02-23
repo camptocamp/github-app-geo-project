@@ -6,6 +6,7 @@ import logging
 import os.path
 import subprocess  # nosec
 import tempfile
+from pathlib import Path
 from typing import Any, cast
 
 import aiohttp
@@ -52,9 +53,9 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
             {"pull_request", "delete"},
         )
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module."""
-        with open(os.path.join(os.path.dirname(__file__), "schema.json"), encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("clean")  # type: ignore[no-any-return]
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
@@ -70,19 +71,20 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         ],
                     ),
                     priority=module.PRIORITY_CRON,
-                )
+                ),
             ]
         if context.event_name == "delete" and context.event_data.get("ref_type") == "branch":
             return [
                 module.Action(
                     _ActionData(type="branch", names=[context.event_data.get("ref", "")]),
                     priority=module.PRIORITY_CRON,
-                )
+                ),
             ]
         return []
 
     async def process(
-        self, context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None]
+        self,
+        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None],
     ) -> module.ProcessOutput[_ActionData, None]:
         """Process the action."""
         if context.module_config.get("docker", True):
@@ -93,7 +95,8 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
         return module.ProcessOutput()
 
     async def _clean_docker(
-        self, context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None]
+        self,
+        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None],
     ) -> None:
         """Clean the Docker images on Docker Hub for the branch we delete."""
         # get the .github/publish.yaml
@@ -115,18 +118,20 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                 transformers = publish_config.get(
                     "transformers",
                     cast(
-                        tag_publish.configuration.Transformers, tag_publish.configuration.TRANSFORMERS_DEFAULT
+                        tag_publish.configuration.Transformers,
+                        tag_publish.configuration.TRANSFORMERS_DEFAULT,
                     ),
                 )
                 pull_match = tag_publish.match(
                     name,
                     tag_publish.compile_re(
                         transformers.get(
-                            "pull_request_to_version", cast(tag_publish.configuration.Transform, [{}])
-                        )
+                            "pull_request_to_version",
+                            cast(tag_publish.configuration.Transform, [{}]),
+                        ),
                     ),
                 )
-                name = tag_publish.get_value(*pull_match)
+                name = tag_publish.get_value(*pull_match)  # noqa: PLW2901
 
             for repo in (
                 publish_config.get("docker", {})
@@ -150,7 +155,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                     continue
                 for image in publish_config.get("docker", {}).get("images", []):
                     for tag in image.get("tags", []):
-                        tag = tag.format(version=name)
+                        tag = tag.format(version=name)  # noqa: PLW2901
                         _LOGGER.info("Cleaning %s/%s:%s", host, image["name"], tag)
 
                         if host == "docker.io":
@@ -171,7 +176,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         {
                             "username": username,
                             "password": password,
-                        }
+                        },
                     ),
                 ) as response,
             ):
@@ -247,7 +252,10 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                            proc.returncode if proc.returncode is not None else -999,
+                            command,
+                            stdout,
+                            stderr,
                         )
                     command = [
                         "git",
@@ -259,12 +267,18 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                            proc.returncode if proc.returncode is not None else -999,
+                            command,
+                            stdout,
+                            stderr,
                         )
                 command = ["git", "push", "origin", branch]
                 proc = await asyncio.create_subprocess_exec(*command)
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(
-                        proc.returncode if proc.returncode is not None else -999, command, stdout, stderr
+                        proc.returncode if proc.returncode is not None else -999,
+                        command,
+                        stdout,
+                        stderr,
                     )

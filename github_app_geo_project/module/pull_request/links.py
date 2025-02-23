@@ -1,8 +1,8 @@
 """Module that adds some links to the pull request message."""
 
 import json
-import os
 import re
+from pathlib import Path
 from typing import Any
 
 import github
@@ -13,7 +13,8 @@ from github_app_geo_project.module.pull_request import links_configuration
 
 
 def _add_issue_link(
-    config: links_configuration.PullRequestAddLinksConfiguration, pull_request: github.PullRequest.PullRequest
+    config: links_configuration.PullRequestAddLinksConfiguration,
+    pull_request: github.PullRequest.PullRequest,
 ) -> str:
     """Add a comment with the link to Jira if needed."""
     body = pull_request.body or ""
@@ -68,13 +69,13 @@ def _add_issue_link(
         return "Nothing to add."
 
     pull_request.edit(
-        body=(pull_request.body + "\n".join(result)) if pull_request.body is not None else "\n".join(result)
+        body=(pull_request.body + "\n".join(result)) if pull_request.body is not None else "\n".join(result),
     )
     return "Pull request descriptions updated."
 
 
 class Links(
-    module.Module[links_configuration.PullRequestAddLinksConfiguration, dict[str, Any], dict[str, Any]]
+    module.Module[links_configuration.PullRequestAddLinksConfiguration, dict[str, Any], dict[str, Any]],
 ):
     """Module to add some links to the pull request message and commits."""
 
@@ -99,11 +100,9 @@ class Links(
             {"pull_request"},
         )
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
-        with open(
-            os.path.join(os.path.dirname(__file__), "links-schema.json"), encoding="utf-8"
-        ) as schema_file:
+        with (Path(__file__).parent / "links-schema.json").open(encoding="utf-8") as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
                 if key in schema:
@@ -122,14 +121,16 @@ class Links(
                         "pull-request-number": context.event_data.get("pull_request", {}).get("number"),
                     },
                     priority=module.PRIORITY_STATUS,
-                )
+                ),
             ]
         return []
 
     async def process(
         self,
         context: module.ProcessContext[
-            links_configuration.PullRequestAddLinksConfiguration, dict[str, Any], dict[str, Any]
+            links_configuration.PullRequestAddLinksConfiguration,
+            dict[str, Any],
+            dict[str, Any],
         ],
     ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """Process the module."""
