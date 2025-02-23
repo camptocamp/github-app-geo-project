@@ -247,7 +247,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
                     message = module_utils.HtmlMessage(
                         utils.format_json(
-                            json.loads(version_status.model_dump_json())["names_by_datasource"]
+                            json.loads(version_status.model_dump_json())["names_by_datasource"],
                         ),
                     )
                     message.title = "Names cleaned:"
@@ -260,7 +260,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     )
                     message = module_utils.HtmlMessage(
                         utils.format_json(
-                            json.loads(version_status.model_dump_json())["names_by_datasource"]
+                            json.loads(version_status.model_dump_json())["names_by_datasource"],
                         ),
                     )
                     message.title = "Names:"
