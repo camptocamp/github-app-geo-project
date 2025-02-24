@@ -571,7 +571,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
-        with (Path(__file__) / "schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("audit")  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
