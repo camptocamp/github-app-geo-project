@@ -938,6 +938,7 @@ def manage_updated_separated(
     _LOGGER.debug("Set updated %s to %s", key, updated[key])
     min_date = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
     for other_key, date in list(updated.items()):
+        date = date.replace(tzinfo=datetime.UTC)
         if date < min_date:
             _LOGGER.debug(
                 "Remove old date %s (%s < %s)",
