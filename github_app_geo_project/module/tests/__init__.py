@@ -139,7 +139,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
             with open("/results/test-result.yaml", "w", encoding="utf-8") as file:
                 file.write(yaml.dump(result))
 
-    def get_json_schema(self) -> dict[str, Any]:
+    async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         return {
             "type": "object",

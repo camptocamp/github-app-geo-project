@@ -1,5 +1,6 @@
 """Output view."""
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -41,7 +42,7 @@ def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
             "description": modules.MODULES[module_name].description(),
             "allOf": [
                 {"$ref": "#/$defs/module-configuration"},
-                modules.MODULES[module_name].get_json_schema(),
+                asyncio.run(modules.MODULES[module_name].get_json_schema()),
             ],
         }
 
