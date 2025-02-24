@@ -911,7 +911,7 @@ def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
         if (
             not isinstance(other_object, dict)
             or "updated" not in other_object
-            or datetime.datetime.fromisoformat(other_object["updated"])
+            or datetime.datetime.fromisoformat(other_object["updated"]).replace(tzinfo=datetime.UTC)
             < datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
         ):
             _LOGGER.debug(
