@@ -1,4 +1,6 @@
-"""Automatically generated file from a JSON schema."""
+"""
+Automatically generated file from a JSON schema.
+"""
 
 from typing import Literal, TypedDict, Union
 
@@ -219,7 +221,7 @@ class Section(TypedDict, total=False):
     """
 
 
-_ConditionAndSolidusOrType = Union[Literal["and"], Literal["or"]]
+_ConditionAndSolidusOrType = Literal["and", "or"]
 """ The type of the condition """
 _CONDITIONANDSOLIDUSORTYPE_AND: Literal["and"] = "and"
 """The values for the 'The type of the condition' enum"""
