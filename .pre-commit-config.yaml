@@ -70,10 +70,10 @@ repos:
     hooks:
       - id: prospector
         args:
-          - --tool=ruff
           - --die-on-tool-error
           - --output-format=pylint
-          - --profile=.prospector-fix.yaml
+          - --profile=utils:pre-commit
+          - --profile=.prospector.yaml
         additional_dependencies:
           - prospector-profile-duplicated==1.10.4 # pypi
           - prospector-profile-utils==1.21.6 # pypi

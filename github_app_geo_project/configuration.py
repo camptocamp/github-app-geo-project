@@ -2,6 +2,7 @@
 
 import logging
 import os
+from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 import github
@@ -15,7 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 
 APPLICATION_CONFIGURATION: application_configuration.GithubApplicationProjectConfiguration = {}
 if "GHCI_CONFIGURATION" in os.environ:
-    with open(os.environ["GHCI_CONFIGURATION"], encoding="utf-8") as configuration_file:
+    with Path(os.environ["GHCI_CONFIGURATION"]).open(encoding="utf-8") as configuration_file:
         APPLICATION_CONFIGURATION = yaml.load(configuration_file, Loader=yaml.SafeLoader)
 
 
@@ -76,9 +77,10 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
     """Get the Github Application objects by name."""
     applications = config.get("applications", "").split()
     if application_name not in applications:
-        raise ValueError(
-            f"Application {application_name} not found, available applications: {', '.join(applications)}",
+        message = (
+            f"Application {application_name} not found, available applications: {', '.join(applications)}"
         )
+        raise ValueError(message)
     if application_name not in GITHUB_APPLICATIONS:  # pylint: disable=undefined-variable
         private_key = "\n".join(
             [
@@ -94,9 +96,7 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
 
         GITHUB_APPLICATIONS[application_name] = objects
 
-    objects = GITHUB_APPLICATIONS[application_name]
-
-    return objects
+    return GITHUB_APPLICATIONS[application_name]
 
 
 def get_github_project(
