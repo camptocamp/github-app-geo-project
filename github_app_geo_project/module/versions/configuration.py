@@ -1,4 +1,6 @@
-"""Automatically generated file from a JSON schema."""
+"""
+Automatically generated file from a JSON schema.
+"""
 
 from typing import Any, Required, TypedDict
 
@@ -65,7 +67,8 @@ class _VersionsConfigurationExternalPackagesItem(TypedDict, total=False):
 
 
 _VersionsConfigurationPackageExtractorAdditionalproperties = dict[
-    str, list["_VersionsConfigurationPackageExtractorAdditionalpropertiesAdditionalpropertiesItem"]
+    str,
+    list["_VersionsConfigurationPackageExtractorAdditionalpropertiesAdditionalpropertiesItem"],
 ]
 """ The package extractor by package name """
 
