@@ -5,7 +5,15 @@ headers: |
   Automatically generated file from a JSON schema.
   """
 
-python_version: '3.11'
+pre_commit:
+  enabled: true
+  hooks:
+    - prospector
+    - ruff-format
+  arguments:
+    - --color=never
+
+python_version: '3.10'
 
 generate:
   - source: github_app_geo_project/project-schema.json

@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import aiohttp
 import c2cciutils.configuration
 import github
@@ -455,8 +456,8 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            with Path(filename).open(encoding="utf-8") as file:
-                data = tomllib.loads(file.read())
+            async with aiofiles.open(filename, encoding="utf-8") as file:
+                data = tomllib.loads(await file.read())
                 name = data.get("project", {}).get("name")
                 names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
                 if name and name not in names:
@@ -483,17 +484,17 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            with Path(filename).open(encoding="utf-8") as file:
+            async with aiofiles.open(filename, encoding="utf-8") as file:
                 names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
-                for line in file:
+                async for line in file:
                     match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
                     if match and match.group(1) not in names:
                         names.append(match.group(1))
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     docker_config = {}
     if Path(".github/publish.yaml").exists():
-        with Path(".github/publish.yaml").open(encoding="utf-8") as file:
-            docker_config = yaml.load(file, Loader=yaml.SafeLoader).get("docker", {})
+        async with aiofiles.open(".github/publish.yaml", encoding="utf-8") as file:
+            docker_config = yaml.load(await file.read(), Loader=yaml.SafeLoader).get("docker", {})
     else:
         data = c2cciutils.get_config()
         docker_config = data.get("publish", {}).get("docker", {})
@@ -798,7 +799,7 @@ def _build_internal_dependencies(
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 if datasource_name == "docker":
                     assert len(dependency_package_data.status_by_version) == 1
-                    support = list(dependency_package_data.status_by_version.values())[0]
+                    support = next(iter(dependency_package_data.status_by_version.values()))
                 else:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
@@ -847,7 +848,7 @@ def _build_reverse_dependency(
                 for package_name, package_data in datasource_data.versions_by_names.items():
                     for version in package_data.versions:
                         if datasource_name == "docker":
-                            package_name = f"{package_name}:{version}"
+                            package_name = f"{package_name}:{version}"  # noqa: PLW2901
                         if package_name not in all_datasource_names[datasource_name]:
                             continue
                         minor_version = (
