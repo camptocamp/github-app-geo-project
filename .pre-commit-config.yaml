@@ -1,5 +1,20 @@
 # https://pre-commit.com/hooks.html
 
+exclude: |-
+  (?x)^(
+     github_app_geo_project/project_configuration\.py
+    |github_app_geo_project/application_configuration\.py
+    |github_app_geo_project/module/standard/changelog_configuration\.py
+    |github_app_geo_project/module/standard/auto_configuration\.py
+    |github_app_geo_project/module/audit/configuration\.py
+    |github_app_geo_project/module/pull_request/checks_configuration\.py
+    |github_app_geo_project/module/pull_request/links_configuration\.py
+    |github_app_geo_project/module/delete_old_workflow_runs/configuration\.py
+    |github_app_geo_project/module/versions/configuration\.py
+    |github_app_geo_project/module/clean/configuration\.py
+    |github_app_geo_project/module/backport/configuration\.py
+  )$
+
 repos:
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v3.1.0
