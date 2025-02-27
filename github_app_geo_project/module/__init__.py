@@ -381,7 +381,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
             try:
                 return generic_element(**data)  # type: ignore[no-any-return]
             except ValidationError:
-                _LOGGER.error("Invalid configuration, try with empty configuration: %s", data)
+                _LOGGER.error("Invalid configuration, try with empty configuration: %s", data)  # noqa: TRY400
                 return generic_element()  # type: ignore[no-any-return]
 
         return data  # type: ignore[return-value]
@@ -395,7 +395,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
             try:
                 return generic_element(**data)  # type: ignore[no-any-return]
             except ValidationError:
-                _LOGGER.error("Invalid event data, try with empty event data: %s", data)
+                _LOGGER.error("Invalid event data, try with empty event data: %s", data)  # noqa: TRY400
                 return generic_element()  # type: ignore[no-any-return]
         return data  # type: ignore[return-value]
 
@@ -417,7 +417,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
             try:
                 return generic_element(**data)  # type: ignore[no-any-return]
             except ValidationError:
-                _LOGGER.error("Invalid transversal status, try with empty transversal status: %s", data)
+                _LOGGER.error("Invalid transversal status, try with empty transversal status: %s", data)  # noqa: TRY400
                 return generic_element()  # type: ignore[no-any-return]
         return data  # type: ignore[return-value]
 

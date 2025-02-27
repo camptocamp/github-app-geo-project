@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import github
 import security_md
 from pydantic import BaseModel
@@ -285,8 +286,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             f"git push origin {backport_branch} --force",
                         ],
                     )
-                    with Path("BACKPORT_TODO").open("w", encoding="utf-8") as f:
-                        f.write("\n".join(message))
+                    async with aiofiles.open("BACKPORT_TODO", "w", encoding="utf-8") as f:
+                        await f.write("\n".join(message))
                     command = ["git", "add", "BACKPORT_TODO"]
                     proc = await asyncio.create_subprocess_exec(*command)
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)

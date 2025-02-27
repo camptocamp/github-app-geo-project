@@ -17,6 +17,7 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
+import aiofiles
 import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
 import github
@@ -907,7 +908,9 @@ class _WatchDog:
             current_task.set_name("WatchDog")
         while True:
             _LOGGER.debug("Watch dog: alive")
-            with Path("/var/ghci/watch_dog").open("w", encoding="utf-8") as file_:
+            async with aiofiles.open("/var/ghci/watch_dog", "w", encoding="utf-8") as file_:
+                await file_.write(datetime.datetime.now(datetime.UTC).isoformat())
+                await file_.write("\n")
                 file_.write(datetime.datetime.now(datetime.UTC).isoformat())
                 file_.write("\n")
             await asyncio.sleep(60)
@@ -979,13 +982,15 @@ async def _async_main() -> None:
         tasks.append(asyncio.create_task(_WatchDog()(), name="Watch Dog"))
         tasks.append(asyncio.create_task(_PrometheusWatch(Session)(), name="Prometheus Watch"))
 
-    for priority in priority_groups:
-        tasks.append(
+    tasks.extend(
+        [
             asyncio.create_task(
                 _Run(config, Session, args.exit_when_empty, priority)(),
                 name=f"Run ({priority})",
-            ),
-        )
+            )
+            for priority in priority_groups
+        ],
+    )
     await asyncio.gather(*tasks)
 
 

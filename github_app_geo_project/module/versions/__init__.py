@@ -248,7 +248,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
                     message = module_utils.HtmlMessage(
                         utils.format_json(
-                            json.loads(version_status.model_dump_json())["names_by_datasource"]
+                            json.loads(version_status.model_dump_json())["names_by_datasource"],
                         ),
                     )
                     message.title = "Names cleaned:"
@@ -261,7 +261,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     )
                     message = module_utils.HtmlMessage(
                         utils.format_json(
-                            json.loads(version_status.model_dump_json())["names_by_datasource"]
+                            json.loads(version_status.model_dump_json())["names_by_datasource"],
                         ),
                     )
                     message.title = "Names:"
@@ -298,7 +298,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     _LOGGER.debug(message)
 
             return ProcessOutput(transversal_status=context.transversal_status)
-        raise VersionError("Invalid step")
+        message = "Invalid step"
+        raise VersionError(message)
 
     def has_transversal_dashboard(self) -> bool:
         """Return True if the module has a transversal dashboard."""

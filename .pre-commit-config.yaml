@@ -92,7 +92,6 @@ repos:
         additional_dependencies:
           - prospector-profile-duplicated==1.10.4 # pypi
           - prospector-profile-utils==1.21.6 # pypi
-          - ruff==0.9.8 # pypi
   - repo: https://github.com/camptocamp/jsonschema-gentypes
     rev: 2.10.0
     hooks:

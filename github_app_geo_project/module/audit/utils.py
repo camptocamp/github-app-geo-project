@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import io
 import json
 import logging
 import os.path
@@ -9,6 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import NamedTuple
 
+import aiofiles
 import apt_repo
 import debian_inspector.version
 import security_md
@@ -625,8 +627,10 @@ async def _npm_audit_fix(
                 for package, version in package_json.get(dependencies_type, {}).items():
                     if version.startswith("^"):
                         package_json[dependencies_type][package] = version[1:]
-            with (directory / "package.json").open("w", encoding="utf-8") as package_file:
-                json.dump(package_json, package_file, indent=2)
+            async with aiofiles.open(directory / "package.json", "w", encoding="utf-8") as package_file:
+                stringio = io.StringIO()
+                json.dump(package_json, stringio, indent=2)
+                await package_file.write(stringio.getvalue())
         _LOGGER.debug("Succeeded fix %s", package_lock_file_name)
 
         fix_success &= success
