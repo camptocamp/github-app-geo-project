@@ -210,23 +210,22 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 if version not in stabilization_versions:
                     del versions[version]
 
-            actions = []
-            for version in stabilization_versions:
-                actions.append(
-                    module.Action(
-                        data=_EventData(
-                            step=2,
-                            version=version,
-                            alternate_versions=(
-                                module_utils.get_alternate_versions(security, version)
-                                if security is not None
-                                else []
-                            ),
+            actions = [
+                module.Action(
+                    data=_EventData(
+                        step=2,
+                        version=version,
+                        alternate_versions=(
+                            module_utils.get_alternate_versions(security, version)
+                            if security is not None
+                            else []
                         ),
-                        title=version,
-                        priority=module.PRIORITY_CRON,
                     ),
+                    title=version,
+                    priority=module.PRIORITY_CRON,
                 )
+                for version in stabilization_versions
+            ]
             return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
         if context.module_event_data.step == 2:
             assert context.module_event_data.version is not None
@@ -298,8 +297,8 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     _LOGGER.debug(message)
 
             return ProcessOutput(transversal_status=context.transversal_status)
-        message = "Invalid step"
-        raise VersionError(message)
+        exception_message = "Invalid step"
+        raise VersionError(exception_message)
 
     def has_transversal_dashboard(self) -> bool:
         """Return True if the module has a transversal dashboard."""
@@ -545,8 +544,9 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            with Path(filename).open(encoding="utf-8") as file:
-                data = json.load(file)
+            with aiofiles.open(filename, encoding="utf-8") as file:
+                json_str = await file.read()
+                data = json.load(json_str)
                 name = data.get("name")
                 names = names_by_datasource.setdefault("npm", _TransversalStatusNameByDatasource()).names
                 if name and name not in names:

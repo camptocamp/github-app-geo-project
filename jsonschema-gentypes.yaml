@@ -5,14 +5,6 @@ headers: |
   Automatically generated file from a JSON schema.
   """
 
-pre_commit:
-  enabled: true
-  hooks:
-    - prospector
-    - ruff-format
-  arguments:
-    - --color=never
-
 python_version: '3.11'
 
 generate:

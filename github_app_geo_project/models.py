@@ -36,7 +36,7 @@ class Queue(Base):
     """SQLAlchemy model for the queue."""
 
     __tablename__ = "queue"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = {"schema": _SCHEMA}  # noqa: RUF012
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     status: Mapped[JobStatus] = mapped_column(
@@ -98,7 +98,7 @@ class Output(Base):
     """SQLAlchemy model for the output entries."""
 
     __tablename__ = "output"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = {"schema": _SCHEMA}  # noqa: RUF012
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -126,7 +126,7 @@ class ModuleStatus(Base):
     """SQLAlchemy model for the output entries."""
 
     __tablename__ = "module_status"
-    __table_args__ = {"schema": _SCHEMA}
+    __table_args__ = {"schema": _SCHEMA}  # noqa: RUF012
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
     module: Mapped[str] = mapped_column(Unicode, nullable=False, unique=True, index=True)

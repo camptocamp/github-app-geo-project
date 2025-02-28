@@ -64,7 +64,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
         application_object = configuration.get_github_application(request.registry.settings, application)
         if data.get("sender", {}).get("login") == application_object.integration.get_app().slug + "[bot]":
             _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
-    except Exception:  # pylint: disable=broad-except
+    except Exception:  # pylint: disable=broad-exception-caught
         del configuration.GITHUB_APPLICATIONS[application]
         application_object = configuration.get_github_application(request.registry.settings, application)
         if data.get("sender", {}).get("login") == application_object.integration.get_app().slug + "[bot]":

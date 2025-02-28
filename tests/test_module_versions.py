@@ -1065,7 +1065,7 @@ def test_read_dependency() -> None:
 
     context = Mock()
     context.module_config = {}
-    result = {}
+    result: dict[str, _TransversalStatusNameInDatasource] = {}
     _read_dependencies(context, json, result)
     assert result == {
         "cdnjs": _TransversalStatusNameInDatasource(

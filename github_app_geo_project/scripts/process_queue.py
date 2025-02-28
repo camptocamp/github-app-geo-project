@@ -911,8 +911,8 @@ class _WatchDog:
             async with aiofiles.open("/var/ghci/watch_dog", "w", encoding="utf-8") as file_:
                 await file_.write(datetime.datetime.now(datetime.UTC).isoformat())
                 await file_.write("\n")
-                file_.write(datetime.datetime.now(datetime.UTC).isoformat())
-                file_.write("\n")
+                await file_.write(datetime.datetime.now(datetime.UTC).isoformat())
+                await file_.write("\n")
             await asyncio.sleep(60)
 
 

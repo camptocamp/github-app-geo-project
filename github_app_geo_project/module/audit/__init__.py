@@ -524,8 +524,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                 if key == _OUTDATED:
                     all_key_starts.append(_OUTDATED)
                 else:
-                    for version in versions:
-                        all_key_starts.append(f"{key}{version}")
+                    all_key_starts.extend([f"{key}{version}" for version in versions])
 
             full_repository = f"{context.github_project.owner}/{context.github_project.repository}"
             if full_repository in context.transversal_status.repositories:

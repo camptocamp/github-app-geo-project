@@ -447,7 +447,7 @@ async def _snyk_test(
             link: str
             title: str
             identifiers: list[str]
-            paths: list[str] = []
+            paths: list[str]
 
         vulnerabilities: dict[str, _Vulnerability] = {}
 
@@ -494,6 +494,7 @@ async def _snyk_test(
                         f"{identifier}: {', '.join(values)}"
                         for identifier, values in vuln.get("identifiers", {}).items()
                     ],
+                    [],
                 )
             vulnerabilities[title].paths.append(
                 " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]]),
@@ -621,16 +622,16 @@ async def _npm_audit_fix(
             result.append(message)
         _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
-        with (directory / "package.json").open(encoding="utf-8") as package_file:
-            package_json = json.load(package_file)
+        async with aiofiles.open(directory / "package.json", encoding="utf-8") as package_file:
+            package_json = json.load(await package_file.read())
             for dependencies_type in ("dependencies", "devDependencies"):
                 for package, version in package_json.get(dependencies_type, {}).items():
                     if version.startswith("^"):
                         package_json[dependencies_type][package] = version[1:]
-            async with aiofiles.open(directory / "package.json", "w", encoding="utf-8") as package_file:
-                stringio = io.StringIO()
-                json.dump(package_json, stringio, indent=2)
-                await package_file.write(stringio.getvalue())
+        async with aiofiles.open(directory / "package.json", "w", encoding="utf-8") as package_file:
+            string_io = io.StringIO()
+            json.dump(package_json, string_io, indent=2)
+            await package_file.write(string_io.getvalue())
         _LOGGER.debug("Succeeded fix %s", package_lock_file_name)
 
         fix_success &= success

@@ -264,7 +264,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             proc = await asyncio.create_subprocess_exec(*command)
                             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
                             if proc.returncode != 0:
-                                raise subprocess.CalledProcessError(
+                                raise subprocess.CalledProcessError(  # noqa: TRY301
                                     proc.returncode if proc.returncode is not None else -999,
                                     command,
                                     stdout,
