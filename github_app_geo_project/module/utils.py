@@ -767,7 +767,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
     directory = Path("~/.ssh/").expanduser()
     if not directory.exists():
         directory.mkdir(parents=True)
-    async with await aiofiles.open(directory / "id_rsa", "w", encoding="utf-8") as file:
+    async with aiofiles.open(directory / "id_rsa", "w", encoding="utf-8") as file:
         await file.write(github_project.application.auth.private_key)
 
     command = [

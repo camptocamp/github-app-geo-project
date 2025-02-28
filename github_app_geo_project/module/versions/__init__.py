@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import io
 import json
 import logging
 import os
@@ -544,9 +545,8 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            with aiofiles.open(filename, encoding="utf-8") as file:
-                json_str = await file.read()
-                data = json.load(json_str)
+            async with aiofiles.open(filename, encoding="utf-8") as file:
+                data = json.load(io.StringIO(await file.read()))
                 name = data.get("name")
                 names = names_by_datasource.setdefault("npm", _TransversalStatusNameByDatasource()).names
                 if name and name not in names:

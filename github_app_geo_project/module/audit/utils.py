@@ -623,7 +623,7 @@ async def _npm_audit_fix(
         _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
         async with aiofiles.open(directory / "package.json", encoding="utf-8") as package_file:
-            package_json = json.load(await package_file.read())
+            package_json = json.load(io.StringIO(await package_file.read()))
             for dependencies_type in ("dependencies", "devDependencies"):
                 for package, version in package_json.get(dependencies_type, {}).items():
                     if version.startswith("^"):
