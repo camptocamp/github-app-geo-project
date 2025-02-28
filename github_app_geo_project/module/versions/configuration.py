@@ -3,8 +3,7 @@ Automatically generated file from a JSON schema.
 """
 
 
-from typing import Any, TypedDict
-from typing_extensions import Required
+from typing import Any, Required, TypedDict
 
 
 VERSION_MAPPING_DEFAULT: dict[str, Any] = {}
