@@ -1,6 +1,9 @@
-"""Automatically generated file from a JSON schema."""
+"""
+Automatically generated file from a JSON schema.
+"""
 
 from typing import TypedDict
+
 
 EXAMPLE_MODULE_ENABLED_DEFAULT = True
 """ Default value of the field path 'Example enabled' """

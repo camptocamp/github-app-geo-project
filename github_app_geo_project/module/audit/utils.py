@@ -40,7 +40,7 @@ async def snyk(
     """
     result: list[module_utils.Message] = []
 
-    env["PATH"] = f'{env["HOME"]}/.local/bin:{env["PATH"]}'
+    env["PATH"] = f"{env['HOME']}/.local/bin:{env['PATH']}"
 
     await _select_java_version(config, local_config, env)
 
@@ -172,7 +172,7 @@ async def _select_java_version(
         )
         return
 
-    env["PATH"] = f'{java_path_for_gradle[minor_gradle_version]}:{env["PATH"]}'
+    env["PATH"] = f"{java_path_for_gradle[minor_gradle_version]}:{env['PATH']}"
 
 
 async def _install_requirements_dependencies(
@@ -436,7 +436,7 @@ async def _snyk_test(
                 ],
             ),
         )
-        message.title = f'{row.get("summary", "Snyk test")} in {row.get("displayTargetFile", "-")}.'
+        message.title = f"{row.get('summary', 'Snyk test')} in {row.get('displayTargetFile', '-')}."
         _LOGGER.info(message)
 
         package_manager = row.get("packageManager")

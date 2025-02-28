@@ -1,6 +1,9 @@
-"""Automatically generated file from a JSON schema."""
+"""
+Automatically generated file from a JSON schema.
+"""
 
 from typing import Literal, TypedDict, Union
+
 
 CREATE_LABELS_DEFAULT = False
 """ Default value of the field path 'Changelog create-labels' """
@@ -219,7 +222,7 @@ class Section(TypedDict, total=False):
     """
 
 
-_ConditionAndSolidusOrType = Union[Literal["and"], Literal["or"]]
+_ConditionAndSolidusOrType = Literal["and"] | Literal["or"]
 """ The type of the condition """
 _CONDITIONANDSOLIDUSORTYPE_AND: Literal["and"] = "and"
 """The values for the 'The type of the condition' enum"""
@@ -231,7 +234,7 @@ _ConditionFilesRegexItem = str
 """ The regex that all the files should match """
 
 
-_ConditionNotType = Union[Literal["not"]]
+_ConditionNotType = Literal["not"]
 """ The type of the condition """
 _CONDITIONNOTTYPE_NOT: Literal["not"] = "not"
 """The values for the 'The type of the condition' enum"""

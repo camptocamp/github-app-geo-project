@@ -280,9 +280,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             f"Error on cherry picking:\n{failed_commits}",
                             "",
                             "To continue do:",
-                            "git fetch \\" f"  && git checkout {backport_branch} \\",
-                            f"  && git reset --hard HEAD^ \\"
-                            f"  && git cherry-pick {' '.join(failed_commits)}",
+                            f"git fetch \\  && git checkout {backport_branch} \\",
+                            f"  && git reset --hard HEAD^ \\  && git cherry-pick {' '.join(failed_commits)}",
                             f"git push origin {backport_branch} --force",
                         ],
                     )

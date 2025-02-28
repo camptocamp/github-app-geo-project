@@ -81,7 +81,7 @@ class _Formatter(logging.Formatter):
             styles.append("font-weight: bold")
         elif record.levelname == "INFO":
             styles.append("color: rgba(var(--bs-link-color-rgb)")
-        attributes = f" style=\"{'; '.join(styles)}\"" if styles else ""
+        attributes = f' style="{"; ".join(styles)}"' if styles else ""
         result = f"<p{attributes}>{str_msg}</p>"
 
         str_msg = record.message.strip()

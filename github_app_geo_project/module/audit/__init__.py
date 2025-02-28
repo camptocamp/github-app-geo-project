@@ -347,7 +347,7 @@ async def _use_python_version(python_version: str) -> dict[str, str]:
     env = os.environ.copy()
     bin_paths = list(Path("/pyenv/versions/").glob(f"{python_version}.*/bin"))
     if bin_paths:
-        env["PATH"] = f'{bin_paths[0]}:{env["PATH"]}'
+        env["PATH"] = f"{bin_paths[0]}:{env['PATH']}"
 
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     message.title = "Python version"

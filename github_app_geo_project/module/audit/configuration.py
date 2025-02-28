@@ -1,6 +1,9 @@
-"""Automatically generated file from a JSON schema."""
+"""
+Automatically generated file from a JSON schema.
+"""
 
-from typing import Any, Literal, TypedDict, Union
+from typing import Any, Literal, TypedDict
+
 
 # | Audit configuration.
 AuditConfiguration = TypedDict(
@@ -382,9 +385,9 @@ class _DpkgSourcesAdditionalpropertiesItem(TypedDict, total=False):
     """
 
 
-_SnykMonitorBusinessCriticalityItem = Union[
-    Literal["critical"], Literal["high"], Literal["medium"], Literal["low"]
-]
+_SnykMonitorBusinessCriticalityItem = (
+    Literal["critical"] | Literal["high"] | Literal["medium"] | Literal["low"]
+)
 _SNYKMONITORBUSINESSCRITICALITYITEM_CRITICAL: Literal["critical"] = "critical"
 """The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
 _SNYKMONITORBUSINESSCRITICALITYITEM_HIGH: Literal["high"] = "high"
@@ -395,17 +398,17 @@ _SNYKMONITORBUSINESSCRITICALITYITEM_LOW: Literal["low"] = "low"
 """The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
 
 
-_SnykMonitorEnvironmentItem = Union[
-    Literal["frontend"],
-    Literal["backend"],
-    Literal["internal"],
-    Literal["external"],
-    Literal["mobile"],
-    Literal["saas"],
-    Literal["onprem"],
-    Literal["hosted"],
-    Literal["distributed"],
-]
+_SnykMonitorEnvironmentItem = (
+    Literal["frontend"]
+    | Literal["backend"]
+    | Literal["internal"]
+    | Literal["external"]
+    | Literal["mobile"]
+    | Literal["saas"]
+    | Literal["onprem"]
+    | Literal["hosted"]
+    | Literal["distributed"]
+)
 _SNYKMONITORENVIRONMENTITEM_FRONTEND: Literal["frontend"] = "frontend"
 """The values for the '_SnykMonitorEnvironmentItem' enum"""
 _SNYKMONITORENVIRONMENTITEM_BACKEND: Literal["backend"] = "backend"
@@ -426,7 +429,7 @@ _SNYKMONITORENVIRONMENTITEM_DISTRIBUTED: Literal["distributed"] = "distributed"
 """The values for the '_SnykMonitorEnvironmentItem' enum"""
 
 
-_SnykMonitorLifecycleItem = Union[Literal["production"], Literal["development"], Literal["sandbox"]]
+_SnykMonitorLifecycleItem = Literal["production"] | Literal["development"] | Literal["sandbox"]
 _SNYKMONITORLIFECYCLEITEM_PRODUCTION: Literal["production"] = "production"
 """The values for the '_SnykMonitorLifecycleItem' enum"""
 _SNYKMONITORLIFECYCLEITEM_DEVELOPMENT: Literal["development"] = "development"

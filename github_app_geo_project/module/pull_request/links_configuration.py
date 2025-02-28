@@ -1,6 +1,9 @@
-"""Automatically generated file from a JSON schema."""
+"""
+Automatically generated file from a JSON schema.
+"""
 
 from typing import TypedDict
+
 
 BRANCH_PATTERNS_DEFAULT = [
     "^(?P<project>[A-Z]{3,6})-(?P<issue>[0-9]+)-.*$",

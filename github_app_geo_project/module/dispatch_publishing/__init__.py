@@ -119,7 +119,7 @@ class DispatchPublishing(module.Module[None, None, None]):
                         if item.get("repository", "") in ("", "docker.io"):
                             names.append(item["image"])
                         else:
-                            names.append(f'{item["repository"]}/{item["image"]}')
+                            names.append(f"{item['repository']}/{item['image']}")
                 else:
                     payload.setdefault("content", {}).setdefault("items", []).append(item)
 

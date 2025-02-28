@@ -1,6 +1,9 @@
-"""Automatically generated file from a JSON schema."""
+"""
+Automatically generated file from a JSON schema.
+"""
 
 from typing import TypedDict
+
 
 AUTO_CREATE_DEFAULT = True
 """ Default value of the field path 'labels auto-create' """
