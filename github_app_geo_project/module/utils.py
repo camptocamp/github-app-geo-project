@@ -10,7 +10,7 @@ import shlex
 from pathlib import Path
 from typing import Any, cast
 
-import anyio
+import aiofiles
 import github
 import html_sanitizer
 import markdownify
@@ -767,7 +767,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
     directory = Path("~/.ssh/").expanduser()
     if not directory.exists():
         directory.mkdir(parents=True)
-    async with await anyio.open_file(directory / "id_rsa", "w", encoding="utf-8") as file:
+    async with aiofiles.open(directory / "id_rsa", "w", encoding="utf-8") as file:
         await file.write(github_project.application.auth.private_key)
 
     command = [
@@ -938,7 +938,7 @@ def manage_updated_separated(
     _LOGGER.debug("Set updated %s to %s", key, updated[key])
     min_date = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
     for other_key, date in list(updated.items()):
-        date = date.replace(tzinfo=datetime.UTC)
+        date = date.replace(tzinfo=datetime.UTC)  # noqa: PLW2901
         if date < min_date:
             _LOGGER.debug(
                 "Remove old date %s (%s < %s)",

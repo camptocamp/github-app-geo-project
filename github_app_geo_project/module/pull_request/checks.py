@@ -317,9 +317,7 @@ class Checks(
         repo = context.github_project.repo
 
         pull_request = repo.get_pull(number=context.module_event_data["pull-request-number"])
-        commits = [  # pylint: disable=unnecessary-comprehension
-            commit for commit in pull_request.get_commits()
-        ]
+        commits = list(pull_request.get_commits())
 
         with tempfile.NamedTemporaryFile("w+t", encoding="utf-8") as ignore_file:
             spellcheck_cmd = _get_code_spell_command(context, ignore_file)

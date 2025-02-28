@@ -1,4 +1,0 @@
-inherits:
-  - .prospector.yaml
-  - utils:fix
-  - utils:unsafe

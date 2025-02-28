@@ -72,6 +72,8 @@ jobs:
       - run: c2cciutils-docker-logs
         if: always()
 
+      - run: git reset --hard
+        if: failure()
       - name: Publish
         run: tag-publish
         env:

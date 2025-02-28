@@ -13,6 +13,7 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, cast
 
+import aiofiles
 import github
 import security_md
 import yaml
@@ -153,16 +154,16 @@ async def _process_snyk_dpkg(
 
                 ghci_config_path = Path(".github/ghci.yaml")
                 if context.module_event_data.type in ("snyk", "dpkg") and ghci_config_path.exists():
-                    with ghci_config_path.open(encoding="utf-8") as file:
-                        local_config = yaml.load(file, Loader=yaml.SafeLoader).get("audit", {})
+                    async with aiofiles.open(ghci_config_path, encoding="utf-8") as file:
+                        local_config = yaml.load(await file.read(), Loader=yaml.SafeLoader).get("audit", {})
 
                 logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
                 if context.module_event_data.type == "snyk":
                     python_version = ""
                     tool_versions = Path(".tool-versions")
                     if tool_versions.exists():
-                        with tool_versions.open(encoding="utf-8") as file:
-                            for line in file:
+                        async with aiofiles.open(tool_versions, encoding="utf-8") as file:
+                            async for line in file:
                                 if line.startswith("python "):
                                     python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
                                     break
@@ -347,7 +348,7 @@ async def _use_python_version(python_version: str) -> dict[str, str]:
     env = os.environ.copy()
     bin_paths = list(Path("/pyenv/versions/").glob(f"{python_version}.*/bin"))
     if bin_paths:
-        env["PATH"] = f'{bin_paths[0]}:{env["PATH"]}'
+        env["PATH"] = f"{bin_paths[0]}:{env['PATH']}"
 
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     message.title = "Python version"
@@ -523,8 +524,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                 if key == _OUTDATED:
                     all_key_starts.append(_OUTDATED)
                 else:
-                    for version in versions:
-                        all_key_starts.append(f"{key}{version}")
+                    all_key_starts.extend([f"{key}{version}" for version in versions])
 
             full_repository = f"{context.github_project.owner}/{context.github_project.repository}"
             if full_repository in context.transversal_status.repositories:
@@ -540,7 +540,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
             )
             actions = []
             for version in versions:
-                version = context.module_config.get("version-mapping", {}).get(version, version)
+                version = context.module_config.get("version-mapping", {}).get(version, version)  # noqa: PLW2901
                 if context.module_event_data.snyk and context.module_config.get("snyk", {}).get(
                     "enabled",
                     configuration.ENABLE_SNYK_DEFAULT,

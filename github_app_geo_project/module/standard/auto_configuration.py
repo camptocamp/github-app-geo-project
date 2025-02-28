@@ -1,4 +1,7 @@
-"""Automatically generated file from a JSON schema."""
+"""
+Automatically generated file from a JSON schema.
+"""
+
 
 from typing import TypedDict
 
@@ -14,25 +17,22 @@ class AutoPullRequest(TypedDict, total=False):
     """ Conditions. """
 
 
+
 # | Auto pull request modules configuration base.
-AutoPullRequestModulesConfigurationBase = TypedDict(
-    "AutoPullRequestModulesConfigurationBase",
-    {
-        # | Auto pull request.
-        # |
-        # | auto pull request configuration
-        "auto-review": "AutoPullRequest",
-        # | Auto pull request.
-        # |
-        # | auto pull request configuration
-        "auto-merge": "AutoPullRequest",
-        # | Auto pull request.
-        # |
-        # | auto pull request configuration
-        "auto-close": "AutoPullRequest",
-    },
-    total=False,
-)
+AutoPullRequestModulesConfigurationBase = TypedDict('AutoPullRequestModulesConfigurationBase', {
+    # | Auto pull request.
+    # | 
+    # | auto pull request configuration
+    'auto-review': "AutoPullRequest",
+    # | Auto pull request.
+    # | 
+    # | auto pull request configuration
+    'auto-merge': "AutoPullRequest",
+    # | Auto pull request.
+    # | 
+    # | auto pull request configuration
+    'auto-close': "AutoPullRequest",
+}, total=False)
 
 
 class _ConditionsItem(TypedDict, total=False):
@@ -56,3 +56,4 @@ class _ConditionsItem(TypedDict, total=False):
 
     Regex to match the title of the pull request
     """
+

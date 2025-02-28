@@ -1,12 +1,27 @@
 # https://pre-commit.com/hooks.html
 
+exclude: |-
+  (?x)^(
+     github_app_geo_project/project_configuration\.py
+    |github_app_geo_project/application_configuration\.py
+    |github_app_geo_project/module/standard/changelog_configuration\.py
+    |github_app_geo_project/module/standard/auto_configuration\.py
+    |github_app_geo_project/module/audit/configuration\.py
+    |github_app_geo_project/module/pull_request/checks_configuration\.py
+    |github_app_geo_project/module/pull_request/links_configuration\.py
+    |github_app_geo_project/module/delete_old_workflow_runs/configuration\.py
+    |github_app_geo_project/module/versions/configuration\.py
+    |github_app_geo_project/module/clean/configuration\.py
+    |github_app_geo_project/module/backport/configuration\.py
+  )$
+
 repos:
   - repo: https://github.com/pre-commit/mirrors-prettier
     rev: v3.1.0
     hooks:
       - id: prettier
         additional_dependencies:
-          - prettier@3.3.3 # npm
+          - prettier@3.5.2 # npm
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
     hooks:
@@ -28,9 +43,9 @@ repos:
     hooks:
       - id: poetry2-lock
         additional_dependencies:
-          - poetry==2.0.1 # pypi
+          - poetry==2.1.1 # pypi
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.3.0
+    rev: v2.4.1
     hooks:
       - id: codespell
         exclude: |-
@@ -42,12 +57,8 @@ repos:
     rev: v0.10.0.1
     hooks:
       - id: shellcheck
-  - repo: https://github.com/jumanjihouse/pre-commit-hooks
-    rev: 3.0.0
-    hooks:
-      - id: git-check
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.29.4
+    rev: 0.31.2
     hooks:
       - id: check-github-workflows
       - id: check-jsonschema
@@ -66,20 +77,19 @@ repos:
     hooks:
       - id: ripsecrets
   - repo: https://github.com/PyCQA/prospector
-    rev: v1.13.3
+    rev: v1.15.2
     hooks:
       - id: prospector
         args:
-          - --tool=ruff
           - --die-on-tool-error
           - --output-format=pylint
-          - --profile=.prospector-fix.yaml
+          - --profile=utils:pre-commit
+          - --profile=.prospector.yaml
         additional_dependencies:
-          - prospector-profile-duplicated==1.8.1 # pypi
-          - prospector-profile-utils==1.11.1 # pypi
-          - ruff==0.7.4 # pypi
+          - prospector-profile-duplicated==1.10.4 # pypi
+          - prospector-profile-utils==1.21.6 # pypi
   - repo: https://github.com/camptocamp/jsonschema-gentypes
-    rev: 2.8.1
+    rev: 2.10.0
     hooks:
       - id: jsonschema-gentypes
         files: |-
@@ -185,14 +195,14 @@ repos:
           - --ignore-acronyms
           - --en-us
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 39.31.4
+    rev: 39.182.3
     hooks:
       - id: renovate-config-validator
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.7.4
+    rev: v0.9.8
     hooks:
       - id: ruff-format
   - repo: https://github.com/sbrunner/python-versions-hook
-    rev: 0.7.0
+    rev: 0.8.0
     hooks:
       - id: python-versions

@@ -1,3 +1,4 @@
+# noqa: INP001
 """Used to generate different color favicons for the website."""
 
 import cv2  # pylint: disable=import-error

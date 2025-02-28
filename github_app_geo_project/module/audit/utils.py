@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import io
 import json
 import logging
 import os.path
@@ -9,6 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import NamedTuple
 
+import aiofiles
 import apt_repo
 import debian_inspector.version
 import security_md
@@ -40,7 +42,7 @@ async def snyk(
     """
     result: list[module_utils.Message] = []
 
-    env["PATH"] = f'{env["HOME"]}/.local/bin:{env["PATH"]}'
+    env["PATH"] = f"{env['HOME']}/.local/bin:{env['PATH']}"
 
     await _select_java_version(config, local_config, env)
 
@@ -172,7 +174,7 @@ async def _select_java_version(
         )
         return
 
-    env["PATH"] = f'{java_path_for_gradle[minor_gradle_version]}:{env["PATH"]}'
+    env["PATH"] = f"{java_path_for_gradle[minor_gradle_version]}:{env['PATH']}"
 
 
 async def _install_requirements_dependencies(
@@ -436,7 +438,7 @@ async def _snyk_test(
                 ],
             ),
         )
-        message.title = f'{row.get("summary", "Snyk test")} in {row.get("displayTargetFile", "-")}.'
+        message.title = f"{row.get('summary', 'Snyk test')} in {row.get('displayTargetFile', '-')}."
         _LOGGER.info(message)
 
         package_manager = row.get("packageManager")
@@ -445,7 +447,7 @@ async def _snyk_test(
             link: str
             title: str
             identifiers: list[str]
-            paths: list[str] = []
+            paths: list[str]
 
         vulnerabilities: dict[str, _Vulnerability] = {}
 
@@ -492,6 +494,7 @@ async def _snyk_test(
                         f"{identifier}: {', '.join(values)}"
                         for identifier, values in vuln.get("identifiers", {}).items()
                     ],
+                    [],
                 )
             vulnerabilities[title].paths.append(
                 " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]]),
@@ -619,14 +622,16 @@ async def _npm_audit_fix(
             result.append(message)
         _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
-        with (directory / "package.json").open(encoding="utf-8") as package_file:
-            package_json = json.load(package_file)
+        async with aiofiles.open(directory / "package.json", encoding="utf-8") as package_file:
+            package_json = json.load(io.StringIO(await package_file.read()))
             for dependencies_type in ("dependencies", "devDependencies"):
                 for package, version in package_json.get(dependencies_type, {}).items():
                     if version.startswith("^"):
                         package_json[dependencies_type][package] = version[1:]
-            with (directory / "package.json").open("w", encoding="utf-8") as package_file:
-                json.dump(package_json, package_file, indent=2)
+        async with aiofiles.open(directory / "package.json", "w", encoding="utf-8") as package_file:
+            string_io = io.StringIO()
+            json.dump(package_json, string_io, indent=2)
+            await package_file.write(string_io.getvalue())
         _LOGGER.debug("Succeeded fix %s", package_lock_file_name)
 
         fix_success &= success

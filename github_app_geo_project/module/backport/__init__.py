@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+import aiofiles
 import github
 import security_md
 from pydantic import BaseModel
@@ -263,7 +264,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             proc = await asyncio.create_subprocess_exec(*command)
                             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
                             if proc.returncode != 0:
-                                raise subprocess.CalledProcessError(
+                                raise subprocess.CalledProcessError(  # noqa: TRY301
                                     proc.returncode if proc.returncode is not None else -999,
                                     command,
                                     stdout,
@@ -280,14 +281,13 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             f"Error on cherry picking:\n{failed_commits}",
                             "",
                             "To continue do:",
-                            "git fetch \\" f"  && git checkout {backport_branch} \\",
-                            f"  && git reset --hard HEAD^ \\"
-                            f"  && git cherry-pick {' '.join(failed_commits)}",
+                            f"git fetch \\  && git checkout {backport_branch} \\",
+                            f"  && git reset --hard HEAD^ \\  && git cherry-pick {' '.join(failed_commits)}",
                             f"git push origin {backport_branch} --force",
                         ],
                     )
-                    with Path("BACKPORT_TODO").open("w", encoding="utf-8") as f:
-                        f.write("\n".join(message))
+                    async with aiofiles.open("BACKPORT_TODO", "w", encoding="utf-8") as f:
+                        await f.write("\n".join(message))
                     command = ["git", "add", "BACKPORT_TODO"]
                     proc = await asyncio.create_subprocess_exec(*command)
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)

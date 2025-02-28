@@ -582,7 +582,7 @@ def test_get_transversal_dashboard_repo_reverse_docker_different() -> None:
                         support="Best effort",
                         names_by_datasource={
                             "docker": _TransversalStatusNameByDatasource(
-                                names=["camptocamp/test:prefix-1.0"]
+                                names=["camptocamp/test:prefix-1.0"],
                             ),
                         },
                     ),
@@ -1065,7 +1065,7 @@ def test_read_dependency() -> None:
 
     context = Mock()
     context.module_config = {}
-    result = {}
+    result: dict[str, _TransversalStatusNameInDatasource] = {}
     _read_dependencies(context, json, result)
     assert result == {
         "cdnjs": _TransversalStatusNameInDatasource(

@@ -3,9 +3,8 @@
 import json
 import logging
 import re
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import github
 import packaging.version
@@ -13,6 +12,9 @@ import packaging.version
 from github_app_geo_project import module
 from github_app_geo_project.module import utils
 from github_app_geo_project.module.standard import changelog_configuration
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 _LOGGER = logging.getLogger(__name__)
 
