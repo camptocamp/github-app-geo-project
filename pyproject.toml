@@ -73,7 +73,7 @@ sentry-sdk = "2.22.0"
 webob = "1.8.9"
 waitress = "3.0.2"
 lxml-html-clean = "0.4.1"
-tag-publish = "0.13.3"
+tag-publish = "1.0.0"
 aiohttp = "3.11.13"
 aiofiles = "24.1.0"
 
