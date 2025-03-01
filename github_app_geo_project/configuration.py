@@ -55,6 +55,7 @@ class GithubApplication(NamedTuple):
     integration: github.GithubIntegration
     name: str
     """The application name"""
+    private_key: str
 
 
 class GithubProject(NamedTuple):
@@ -92,7 +93,12 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
             config[f"application.{application_name}.github_app_id"],
             private_key,
         )
-        objects = GithubApplication(auth, github.GithubIntegration(auth=auth, retry=3), application_name)
+        objects = GithubApplication(
+            auth,
+            github.GithubIntegration(auth=auth, retry=3),
+            application_name,
+            private_key,
+        )
 
         GITHUB_APPLICATIONS[application_name] = objects
 

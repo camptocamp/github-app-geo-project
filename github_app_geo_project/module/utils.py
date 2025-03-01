@@ -768,7 +768,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
     if not directory.exists():
         directory.mkdir(parents=True)
     async with aiofiles.open(directory / "id_rsa", "w", encoding="utf-8") as file:
-        await file.write(github_project.application.auth.private_key)  # type: ignore[attr-defined]
+        await file.write(github_project.application.private_key)
 
     command = [
         "git",
