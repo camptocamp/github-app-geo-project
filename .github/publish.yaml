@@ -4,7 +4,7 @@ docker:
   auto_login: true
   repository:
     github:
-      server: ghcr.io
+      host: ghcr.io
       versions:
         - version_tag
         - version_branch
