@@ -511,11 +511,11 @@ async def _get_names(
                     c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT,
                 ).values():
                     for ver in all_versions:
-                        repository_server = repository_conf.get("server", False)
+                        repository_host = repository_conf.get("host", repository_conf.get("server", False))
                         add_names = []
-                        if repository_server:
+                        if repository_host:
                             add_names.append(
-                                f"{repository_server}/{conf.get('name')}:{tag.format(version=ver)}",
+                                f"{repository_host}/{conf.get('name')}:{tag.format(version=ver)}",
                             )
 
                         else:
