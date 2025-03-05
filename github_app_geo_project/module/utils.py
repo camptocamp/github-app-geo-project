@@ -17,7 +17,7 @@ import markdownify
 import security_md
 from ansi2html import Ansi2HTMLConverter
 
-from github_app_geo_project import configuration, models, module
+from github_app_geo_project import configuration, models, module, utils
 
 _LOGGER = logging.getLogger(__name__)
 WORKING_DIRECTORY_LOCK = asyncio.Lock()
@@ -911,7 +911,7 @@ def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
         if (
             not isinstance(other_object, dict)
             or "updated" not in other_object
-            or datetime.datetime.fromisoformat(other_object["updated"]).replace(tzinfo=datetime.UTC)
+            or utils.datetime_with_timezone(datetime.datetime.fromisoformat(other_object["updated"]))
             < datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
         ):
             _LOGGER.debug(
@@ -938,7 +938,7 @@ def manage_updated_separated(
     _LOGGER.debug("Set updated %s to %s", key, updated[key])
     min_date = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
     for other_key, date in list(updated.items()):
-        date = date.replace(tzinfo=datetime.UTC)  # noqa: PLW2901
+        date = utils.datetime_with_timezone(date)  # noqa: PLW2901
         if date < min_date:
             _LOGGER.debug(
                 "Remove old date %s (%s < %s)",

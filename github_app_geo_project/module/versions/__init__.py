@@ -726,7 +726,9 @@ async def _update_upstream_versions(
             else:
                 if not isinstance(eol, str):
                     continue
-                if datetime.datetime.fromisoformat(eol) < datetime.datetime.now(datetime.UTC):
+                if utils.datetime_with_timezone(datetime.datetime.fromisoformat(eol)) < datetime.datetime.now(
+                    datetime.UTC,
+                ):
                     continue
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
                 support=eol,
@@ -740,9 +742,7 @@ async def _update_upstream_versions(
 
 def _parse_support_date(text: str) -> datetime.datetime:
     try:
-        return datetime.datetime.fromisoformat(text).replace(
-            tzinfo=datetime.UTC,
-        )
+        return utils.datetime_with_timezone(datetime.datetime.fromisoformat(text))
     except ValueError:
         # Parse date like 01/01/2024
         return datetime.datetime.strptime(text, "%d/%m/%Y").replace(

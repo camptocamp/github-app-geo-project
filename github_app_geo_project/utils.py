@@ -102,3 +102,10 @@ def parse_duration(text: str) -> datetime.timedelta:
         return datetime.timedelta(hours=int(text[:-1]))
     message = f"Invalid time delta: {text}"
     raise ValueError(message)
+
+
+def datetime_with_timezone(date: datetime.datetime) -> datetime.datetime:
+    """Add the timezone to a date."""
+    if date.tzinfo:
+        return date
+    return date.replace(tzinfo=datetime.UTC)
