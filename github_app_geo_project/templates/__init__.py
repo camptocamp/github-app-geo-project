@@ -4,7 +4,7 @@ import datetime
 import logging
 
 import html_sanitizer
-import markdown as markdown_lib  # mypy: ignore[import-untyped]
+import markdown as markdown_lib
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -111,17 +111,13 @@ def pprint_duration(duration_in: str | datetime.timedelta) -> str:
             date = datetime.datetime.strptime(
                 duration_in,
                 "%H:%M:%S.%f" if "." in duration_in else "%H:%M:%S",
-            ).replace(
-                tzinfo=datetime.UTC,
-            )
+            ).replace(tzinfo=datetime.UTC)
         else:
             day = 0
             date = datetime.datetime.strptime(
                 duration_in,
                 "%H:%M:%S.%f" if "." in duration_in else "%H:%M:%S",
-            ).replace(
-                tzinfo=datetime.UTC,
-            )
+            ).replace(tzinfo=datetime.UTC)
         duration = datetime.timedelta(
             days=day,
             hours=date.hour,
