@@ -145,7 +145,14 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the GitHub application permissions needed by the module."""
-        return module.GitHubApplicationPermissions(permissions={"contents": "read"}, events=set())
+        return module.GitHubApplicationPermissions(
+            permissions={
+                "contents": "read",
+                "issues": "read",
+                "metadata": "read",
+            },
+            events=set(),
+        )
 
     async def process(
         self,
@@ -571,6 +578,8 @@ async def _get_dependencies(
                 "RG_LOCAL_PLATFORM": "github",
                 "RG_LOCAL_ORGANISATION": context.github_project.owner,
                 "RG_LOCAL_REPO": context.github_project.repository,
+                "RG_GITHUB_APP_ID": str(context.github_project.application.integration.get_app().id),
+                "RG_GITHUB_APP_KEY": context.github_project.application.private_key,
             },
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
