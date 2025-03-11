@@ -571,26 +571,33 @@ async def _get_dependencies(
 ) -> None:
     if os.environ.get("TEST") != "TRUE":
         command = ["renovate-graph", "--platform=local"]
-        proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-            *command,
-            env={
-                **os.environ,
-                "RG_LOCAL_PLATFORM": "github",
-                "RG_LOCAL_ORGANISATION": context.github_project.owner,
-                "RG_LOCAL_REPO": context.github_project.repository,
-                "RG_GITHUB_APP_ID": str(context.github_project.application.integration.get_app().id),
-                "RG_GITHUB_APP_KEY": context.github_project.application.private_key,
-            },
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
-        message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
-            command,
-            proc,
-            stdout,
-            stderr,
-        )
+        for _ in range(10):
+            proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
+                *command,
+                env={
+                    **os.environ,
+                    "RG_LOCAL_PLATFORM": "github",
+                    "RG_LOCAL_ORGANISATION": context.github_project.owner,
+                    "RG_LOCAL_REPO": context.github_project.repository,
+                    "RG_GITHUB_APP_ID": str(context.github_project.application.integration.get_app().id),
+                    "RG_GITHUB_APP_KEY": context.github_project.application.private_key,
+                },
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+            message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
+                command,
+                proc,
+                stdout,
+                stderr,
+            )
+            if proc.returncode != 0:
+                message.title = "Failed to get the dependencies (will retry)"
+                _LOGGER.info(message)
+            else:
+                break
+            await asyncio.sleep(int(os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_DELAY", "600")))
         if proc.returncode != 0:
             message.title = "Failed to get the dependencies"
             _LOGGER.error(message)
