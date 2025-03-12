@@ -66,28 +66,28 @@ pydantic = "2.10.6"
 markdownify = "1.0.0"
 aioresponses = "0.7.8"
 pytest-asyncio = "0.25.3"
-cryptography = "44.0.1"
+cryptography = "44.0.2"
 urllib3 = "2.3.0"
 certifi = "2025.1.31"
 sentry-sdk = "2.22.0"
 webob = "1.8.9"
 waitress = "3.0.2"
 lxml-html-clean = "0.4.1"
-tag-publish = "1.0.0"
+tag-publish = "1.0.1"
 aiohttp = "3.11.13"
 aiofiles = "24.1.0"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }
-prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.15.2" }
-prospector-profile-duplicated = "1.10.4"
-prospector-profile-utils = "1.21.6"
-pytest = "8.3.4"
+prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.15.3" }
+prospector-profile-duplicated = "1.10.5"
+prospector-profile-utils = "1.21.9"
+pytest = "8.3.5"
 WebTest = "3.0.4"
 types-pyyaml = "6.0.12.20241230"
-types-setuptools = "75.8.0.20250225"
+types-setuptools = "75.8.2.20250305"
 types-markdown = "3.7.0.20241204"
-types-requests = "2.32.0.20241016"
+types-requests = "2.32.0.20250306"
 types-aiofiles = "24.1.0.20241221"
 
 [tool.ruff]
