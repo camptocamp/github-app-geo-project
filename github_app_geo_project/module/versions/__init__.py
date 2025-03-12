@@ -98,6 +98,7 @@ class _EventData(BaseModel):
     step: int
     version: str | None = None
     alternate_versions: list[str] | None = None
+    retry: int | None = None
 
 
 class VersionError(Exception):
@@ -228,6 +229,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                             if security is not None
                             else []
                         ),
+                        retry=int(os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_NUMBER", "10")),
                     ),
                     title=version,
                     priority=module.PRIORITY_CRON,
@@ -273,7 +275,18 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                     )
                     message.title = "Names:"
                     _LOGGER.debug(message)
-                    await _get_dependencies(context, version_status.dependencies_by_datasource)
+                    if await _get_dependencies(context, version_status.dependencies_by_datasource):
+                        # Retry
+                        return ProcessOutput(
+                            actions=[
+                                _EventData(
+                                    step=context.module_event_data.step,
+                                    version=context.module_event_data.version,
+                                    alternate_versions=context.module_event_data.alternate_versions,
+                                    retry=context.module_event_data.retry - 1,
+                                ),
+                            ],
+                        )
                     message = module_utils.HtmlMessage(
                         utils.format_json(
                             json.loads(version_status.model_dump_json())["dependencies_by_datasource"],
@@ -568,36 +581,39 @@ async def _get_names(
 async def _get_dependencies(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
     result: dict[str, _TransversalStatusNameInDatasource],
-) -> None:
+) -> bool:
     if os.environ.get("TEST") != "TRUE":
         command = ["renovate-graph", "--platform=local"]
-        for _ in range(10):
-            proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-                *command,
-                env={
-                    **os.environ,
-                    "RG_LOCAL_PLATFORM": "github",
-                    "RG_LOCAL_ORGANISATION": context.github_project.owner,
-                    "RG_LOCAL_REPO": context.github_project.repository,
-                    "RG_GITHUB_APP_ID": str(context.github_project.application.integration.get_app().id),
-                    "RG_GITHUB_APP_KEY": context.github_project.application.private_key,
-                },
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
-            message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
-                command,
-                proc,
-                stdout,
-                stderr,
-            )
-            if proc.returncode != 0:
-                message.title = "Failed to get the dependencies (will retry)"
-                _LOGGER.info(message)
-            else:
-                break
+        proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
+            *command,
+            env={
+                **os.environ,
+                "RG_LOCAL_PLATFORM": "github",
+                "RG_LOCAL_ORGANISATION": context.github_project.owner,
+                "RG_LOCAL_REPO": context.github_project.repository,
+                "RG_GITHUB_APP_ID": str(context.github_project.application.integration.get_app().id),
+                "RG_GITHUB_APP_KEY": context.github_project.application.private_key,
+            },
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+        )
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+        message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
+            command,
+            proc,
+            stdout,
+            stderr,
+        )
+        if (
+            proc.returncode != 0
+            and context.module_event_data.retry is not None
+            and context.module_event_data.retry > 0
+        ):
+            message.title = "Failed to get the dependencies (will retry)"
+            _LOGGER.info(message)
             await asyncio.sleep(int(os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_DELAY", "600")))
+            return True
+
         if proc.returncode != 0:
             message.title = "Failed to get the dependencies"
             _LOGGER.error(message)
@@ -631,6 +647,7 @@ async def _get_dependencies(
     _LOGGER.debug(message)
     data = json.loads(json_str)
     _read_dependencies(context, data, result)
+    return False
 
 
 def _read_dependencies(
