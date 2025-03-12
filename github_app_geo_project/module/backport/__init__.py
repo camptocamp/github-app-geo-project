@@ -245,6 +245,14 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 proc = await asyncio.create_subprocess_exec(*command)
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
                 if proc.returncode != 0:
+                    message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                        command,
+                        proc,
+                        stdout,
+                        stderr,
+                    )
+                    message.title = f"Error while creating the branch {backport_branch}"
+                    _LOGGER.error(message)
                     raise subprocess.CalledProcessError(
                         proc.returncode if proc.returncode is not None else -999,
                         command,
