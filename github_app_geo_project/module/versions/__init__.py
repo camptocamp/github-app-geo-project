@@ -586,16 +586,24 @@ async def _get_dependencies(
     result: dict[str, _TransversalStatusNameInDatasource],
 ) -> bool:
     if os.environ.get("TEST") != "TRUE":
+        github_project = context.github_project
+        application = github_project.application
+        app = github_project.application.integration.get_app()
+        username = app.slug + "[bot]"
+        user = github_project.github.get_user(username)
         command = ["renovate-graph", "--platform=local"]
         proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
             *command,
             env={
                 **os.environ,
                 "RG_LOCAL_PLATFORM": "github",
-                "RG_LOCAL_ORGANISATION": context.github_project.owner,
-                "RG_LOCAL_REPO": context.github_project.repository,
-                "RG_GITHUB_APP_ID": str(context.github_project.application.integration.get_app().id),
-                "RG_GITHUB_APP_KEY": context.github_project.application.private_key,
+                "RG_LOCAL_ORGANISATION": github_project.owner,
+                "RG_LOCAL_REPO": github_project.repository,
+                "RG_GITHUB_APP_ID": str(application.id),
+                "RG_GITHUB_APP_KEY": application.private_key,
+                "RENOVATE_USERNAME": username,
+                "RENOVATE_GIT_AUTHOR": f"{application.name} <{user.id}+{username}@users.noreply.github.com>",
+                "RG_GITHUB_APP_INSTALLATION_ID": str(user.id),
             },
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
