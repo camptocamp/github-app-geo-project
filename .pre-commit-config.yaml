@@ -77,7 +77,7 @@ repos:
     hooks:
       - id: ripsecrets
   - repo: https://github.com/PyCQA/prospector
-    rev: v1.15.2
+    rev: v1.15.3
     hooks:
       - id: prospector
         args:
@@ -86,8 +86,8 @@ repos:
           - --profile=utils:pre-commit
           - --profile=.prospector.yaml
         additional_dependencies:
-          - prospector-profile-duplicated==1.10.4 # pypi
-          - prospector-profile-utils==1.21.6 # pypi
+          - prospector-profile-duplicated==1.10.5 # pypi
+          - prospector-profile-utils==1.21.9 # pypi
   - repo: https://github.com/camptocamp/jsonschema-gentypes
     rev: 2.10.0
     hooks:
