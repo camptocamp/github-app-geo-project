@@ -53,9 +53,13 @@ class GithubApplication(NamedTuple):
     auth: github.Auth.AppAuth
     """Alias of integration.auth"""
     integration: github.GithubIntegration
+    """The Github integration object"""
     name: str
     """The application name"""
+    id: int
+    """The application id"""
     private_key: str
+    """The application private key"""
 
 
 class GithubProject(NamedTuple):
@@ -89,14 +93,13 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
                 for e in config[f"application.{application_name}.github_app_private_key"].strip().split("\n")
             ],
         )
-        auth = github.Auth.AppAuth(
-            config[f"application.{application_name}.github_app_id"],
-            private_key,
-        )
+        application_id = config[f"application.{application_name}.github_app_id"]
+        auth = github.Auth.AppAuth(application_id, private_key)
         objects = GithubApplication(
             auth,
             github.GithubIntegration(auth=auth, retry=3),
             application_name,
+            application_id,
             private_key,
         )
 
