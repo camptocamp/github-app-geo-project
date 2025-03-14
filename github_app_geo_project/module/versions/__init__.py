@@ -602,13 +602,13 @@ async def _get_dependencies(
                 "RG_GITHUB_APP_ID": str(application.id),
                 "RG_GITHUB_APP_KEY": application.private_key,
                 "RENOVATE_USERNAME": username,
-                "RENOVATE_GIT_AUTHOR": f"{application.name} <{user.id}+{username}@users.noreply.github.com>",
+                "RENOVATE_GIT_AUTHOR": f"{username} <{user.id}+{username}@users.noreply.github.com>",
                 "RG_GITHUB_APP_INSTALLATION_ID": str(user.id),
             },
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=1800)
         message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
             command,
             proc,
