@@ -240,6 +240,33 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     )
                     return False
 
+                command = ["ls", "-al"]
+                proc = await asyncio.create_subprocess_exec(*command)
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                    command,
+                    proc,
+                    stdout,
+                    stderr,
+                )
+                ansi_message.title = "List of the files in the repository"
+                _LOGGER.debug(ansi_message)
+
+                # Get the branches
+                command = ["git", "branch", "-b"]
+                proc = await asyncio.create_subprocess_exec(*command)
+                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                    command,
+                    proc,
+                    stdout,
+                    stderr,
+                )
+                ansi_message.title = "List of the branches"
+                _LOGGER.debug(ansi_message)
+                branches = ansi_message.stdout.splitlines()
+                _LOGGER.debug("Branches: %s", branches)
+
                 # Checkout the branch
                 command = ["git", "checkout", "-b", backport_branch]
                 proc = await asyncio.create_subprocess_exec(*command)
