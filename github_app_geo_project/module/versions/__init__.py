@@ -250,7 +250,10 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                             exception_message = "Failed to clone the repository"
                             raise VersionError(exception_message)
 
-                    version_status = status.versions[version]
+                    version_status = status.versions.setdefault(
+                        version,
+                        _TransversalStatusVersion(support="Best effort"),
+                    )
                     version_status.names_by_datasource.clear()
                     version_status.dependencies_by_datasource.clear()
                     transversal_status = context.transversal_status
