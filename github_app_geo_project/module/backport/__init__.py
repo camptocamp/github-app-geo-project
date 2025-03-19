@@ -231,7 +231,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             with tempfile.TemporaryDirectory() as tmpdirname:
                 os.chdir(tmpdirname)
                 _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-                success = module_utils.git_clone(context.github_project, target_branch)
+                success = await module_utils.git_clone(context.github_project, target_branch)
                 if not success:
                     _LOGGER.error(
                         "Error on cloning the repository %s/%s",
@@ -251,6 +251,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 )
                 ansi_message.title = "List of the files in the repository"
                 _LOGGER.debug(ansi_message)
+                _LOGGER.debug("ls -al: %s", stdout.decode("utf-8"))
 
                 # Get the branches
                 command = ["git", "branch", "-b"]
@@ -264,7 +265,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 )
                 ansi_message.title = "List of the branches"
                 _LOGGER.debug(ansi_message)
-                branches = ansi_message.stdout.splitlines()
+                branches = stdout.decode().splitlines()
                 _LOGGER.debug("Branches: %s", branches)
 
                 # Checkout the branch
