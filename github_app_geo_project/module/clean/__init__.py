@@ -248,7 +248,11 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
 
                     os.chdir(context.github_project.repository)
                     command = ["git", "rm", folder]
-                    proc = await asyncio.create_subprocess_exec(*command)
+                    proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
@@ -263,7 +267,11 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         "-m",
                         f"Delete {folder} to clean {context.module_event_data.type} {name}",
                     ]
-                    proc = await asyncio.create_subprocess_exec(*command)
+                    proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
@@ -273,7 +281,11 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                             stderr,
                         )
                 command = ["git", "push", "origin", branch]
-                proc = await asyncio.create_subprocess_exec(*command)
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(
