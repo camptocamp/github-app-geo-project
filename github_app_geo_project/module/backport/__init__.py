@@ -241,7 +241,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     return False
 
                 command = ["ls", "-al"]
-                proc = await asyncio.create_subprocess_exec(*command)
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
                 ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
                     command,
@@ -255,7 +259,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
                 # Get the branches
                 command = ["git", "branch", "-b"]
-                proc = await asyncio.create_subprocess_exec(*command)
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
                 ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
                     command,
@@ -270,7 +278,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
                 # Checkout the branch
                 command = ["git", "checkout", "-b", backport_branch]
-                proc = await asyncio.create_subprocess_exec(*command)
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
                 stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
                 if proc.returncode != 0:
                     ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
@@ -297,7 +309,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     else:
                         try:
                             command = ["git", "cherry-pick", commit.sha]
-                            proc = await asyncio.create_subprocess_exec(*command)
+                            proc = await asyncio.create_subprocess_exec(
+                                *command,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE,
+                            )
                             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
                             if proc.returncode != 0:
                                 raise subprocess.CalledProcessError(  # noqa: TRY301
@@ -325,7 +341,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     async with aiofiles.open("BACKPORT_TODO", "w", encoding="utf-8") as f:
                         await f.write("\n".join(message))
                     command = ["git", "add", "BACKPORT_TODO"]
-                    proc = await asyncio.create_subprocess_exec(*command)
+                    proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
@@ -335,7 +355,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             stderr,
                         )
                     command = ["git", "commit", "--message=[skip ci] Add instructions to finish the backport"]
-                    proc = await asyncio.create_subprocess_exec(*command)
+                    proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                    )
                     stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
