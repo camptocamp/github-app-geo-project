@@ -417,7 +417,7 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
             try:
                 return generic_element(**data)  # type: ignore[no-any-return]
             except ValidationError:
-                _LOGGER.error("Invalid transversal status, try with empty transversal status: %s", data)  # noqa: TRY400
+                _LOGGER.exception("Invalid transversal status, try with empty transversal status: %s", data)
                 return generic_element()  # type: ignore[no-any-return]
         return data  # type: ignore[return-value]
 
