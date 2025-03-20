@@ -607,6 +607,7 @@ async def _get_dependencies(
                 "RENOVATE_USERNAME": username,
                 "RENOVATE_GIT_AUTHOR": f"{username} <{user.id}+{username}@users.noreply.github.com>",
                 "RG_GITHUB_APP_INSTALLATION_ID": str(user.id),
+                "GITHUB_COM_TOKEN": github_project.token,
             },
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
