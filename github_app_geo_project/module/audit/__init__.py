@@ -141,161 +141,163 @@ async def _process_snyk_dpkg(
     try:
         branch: str = cast(str, context.module_event_data.version)
 
-        async with module_utils.WORKING_DIRECTORY_LOCK:
-            # Checkout the right branch on a temporary directory
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                os.chdir(tmpdirname)
-                _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-                success &= await module_utils.git_clone(context.github_project, branch)
-                if not success:
-                    return ["Fail to clone the repository"], success
+        # Checkout the right branch on a temporary directory
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
+            cwd = Path(tmpdirname)
+            new_cwd = await module_utils.git_clone(context.github_project, branch, cwd)
+            if new_cwd is None:
+                return ["Fail to clone the repository"], False
+            cwd = new_cwd
 
-                local_config: configuration.AuditConfiguration = {}
+            local_config: configuration.AuditConfiguration = {}
 
-                ghci_config_path = Path(".github/ghci.yaml")
-                if context.module_event_data.type in ("snyk", "dpkg") and ghci_config_path.exists():
-                    async with aiofiles.open(ghci_config_path, encoding="utf-8") as file:
-                        local_config = yaml.load(await file.read(), Loader=yaml.SafeLoader).get("audit", {})
+            ghci_config_path = cwd / ".github" / "ghci.yaml"
+            if context.module_event_data.type in ("snyk", "dpkg") and ghci_config_path.exists():
+                async with aiofiles.open(ghci_config_path, encoding="utf-8") as file:
+                    local_config = yaml.load(await file.read(), Loader=yaml.SafeLoader).get("audit", {})
 
-                logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
-                if context.module_event_data.type == "snyk":
-                    python_version = ""
-                    tool_versions = Path(".tool-versions")
-                    if tool_versions.exists():
-                        async with aiofiles.open(tool_versions, encoding="utf-8") as file:
-                            async for line in file:
-                                if line.startswith("python "):
-                                    python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
-                                    break
+            logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
+            if context.module_event_data.type == "snyk":
+                python_version = ""
+                tool_versions = cwd / ".tool-versions"
+                if tool_versions.exists():
+                    async with aiofiles.open(tool_versions, encoding="utf-8") as file:
+                        async for line in file:
+                            if line.startswith("python "):
+                                python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
+                                break
 
-                    env = await _use_python_version(python_version) if python_version else os.environ.copy()
+                env = await _use_python_version(python_version, cwd) if python_version else os.environ.copy()
 
-                    result, body, short_message, new_success = await audit_utils.snyk(
-                        branch,
-                        context.module_config.get("snyk", {}),
-                        local_config.get("snyk", {}),
-                        logs_url,
-                        env,
+                result, body, short_message, new_success = await audit_utils.snyk(
+                    branch,
+                    context.module_config.get("snyk", {}),
+                    local_config.get("snyk", {}),
+                    logs_url,
+                    env,
+                    cwd,
+                )
+                body_md = body.to_markdown() if body is not None else ""
+                del body
+                success &= new_success
+                output_url = _process_error(
+                    context,
+                    key,
+                    issue_check,
+                    [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
+                    ", ".join(short_message),
+                )
+                message: module_utils.Message = module_utils.HtmlMessage(
+                    f"<a href='{output_url}'>Output</a>",
+                )
+                message.title = "Output URL"
+                _LOGGER.debug(message)
+                if output_url is not None:
+                    short_message.append(f"[Output]({output_url})")
+                    if body_md:
+                        body_md += "\n\n"
+                    body_md += f"[Output]({output_url})" if output_url is not None else ""
+
+            if context.module_event_data.type == "dpkg":
+                body_md = "Update dpkg packages"
+
+                if (cwd / "ci" / "dpkg-versions.yaml").exists() or (
+                    cwd / ".github" / "dpkg-versions.yaml"
+                ).exists():
+                    await audit_utils.dpkg(
+                        context.module_config.get("dpkg", {}),
+                        local_config.get("dpkg", {}),
+                        cwd,
                     )
-                    body_md = body.to_markdown() if body is not None else ""
-                    del body
-                    success &= new_success
-                    output_url = _process_error(
-                        context,
-                        key,
-                        issue_check,
-                        [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
-                        ", ".join(short_message),
-                    )
-                    message: module_utils.Message = module_utils.HtmlMessage(
-                        f"<a href='{output_url}'>Output</a>",
-                    )
-                    message.title = "Output URL"
-                    _LOGGER.debug(message)
-                    if output_url is not None:
-                        short_message.append(f"[Output]({output_url})")
-                        if body_md:
-                            body_md += "\n\n"
-                        body_md += f"[Output]({output_url})" if output_url is not None else ""
 
-                if context.module_event_data.type == "dpkg":
-                    body_md = "Update dpkg packages"
+            body_md += "\n" if body_md else ""
+            body_md += f"[Logs]({logs_url})"
+            short_message.append(f"[Logs]({logs_url})")
 
-                    if (
-                        Path("ci/dpkg-versions.yaml").exists()
-                        or Path(
-                            ".github/dpkg-versions.yaml",
-                        ).exists()
-                    ):
-                        await audit_utils.dpkg(
-                            context.module_config.get("dpkg", {}),
-                            local_config.get("dpkg", {}),
+            command = ["git", "diff", "--quiet"]
+            diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
+            try:
+                async with asyncio.timeout(30):
+                    stdout, stderr = await diff_proc.communicate()
+                if diff_proc.returncode != 0:
+                    command = ["git", "diff"]
+                    proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdin=asyncio.subprocess.PIPE,
+                        stdout=asyncio.subprocess.PIPE,
+                        cwd=cwd,
+                    )
+                    try:
+                        async with asyncio.timeout(30):
+                            stdout, stderr = await proc.communicate()
+                        message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                            command,
+                            proc,
+                            stdout,
+                            stderr,
                         )
+                        message.title = "Changes to be committed"
+                        _LOGGER.debug(message)
+                    except TimeoutError:
+                        proc.kill()
+                        raise
 
-                body_md += "\n" if body_md else ""
-                body_md += f"[Logs]({logs_url})"
-                short_message.append(f"[Logs]({logs_url})")
-
-                command = ["git", "diff", "--quiet"]
-                diff_proc = await asyncio.create_subprocess_exec(*command)
-                try:
-                    async with asyncio.timeout(30):
-                        stdout, stderr = await diff_proc.communicate()
-                    if diff_proc.returncode != 0:
-                        command = ["git", "diff"]
-                        proc = await asyncio.create_subprocess_exec(
-                            *command,
-                            stdin=asyncio.subprocess.PIPE,
-                            stdout=asyncio.subprocess.PIPE,
-                        )
-                        try:
-                            async with asyncio.timeout(30):
-                                stdout, stderr = await proc.communicate()
+                    command = ["git", "checkout", "-b", new_branch]
+                    proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdin=asyncio.subprocess.PIPE,
+                        stdout=asyncio.subprocess.PIPE,
+                        cwd=cwd,
+                    )
+                    try:
+                        async with asyncio.timeout(30):
+                            stdout, stderr = await proc.communicate()
+                        if proc.returncode != 0:
                             message = module_utils.AnsiProcessMessage.from_async_artifacts(
                                 command,
                                 proc,
                                 stdout,
                                 stderr,
                             )
-                            message.title = "Changes to be committed"
-                            _LOGGER.debug(message)
-                        except TimeoutError:
-                            proc.kill()
-                            raise
+                            message.title = "Error while creating the new branch"
+                            _LOGGER.error(message)
 
-                        command = ["git", "checkout", "-b", new_branch]
-                        proc = await asyncio.create_subprocess_exec(
-                            *command,
-                            stdin=asyncio.subprocess.PIPE,
-                            stdout=asyncio.subprocess.PIPE,
-                        )
-                        try:
-                            async with asyncio.timeout(30):
-                                stdout, stderr = await proc.communicate()
-                            if proc.returncode != 0:
-                                message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                                    command,
-                                    proc,
-                                    stdout,
-                                    stderr,
+                        else:
+                            new_success, pull_request = await module_utils.create_commit_pull_request(
+                                branch,
+                                new_branch,
+                                f"Audit {key}",
+                                body_md,
+                                context.github_project,
+                                cwd,
+                            )
+                            success &= new_success
+                            if not new_success:
+                                _LOGGER.error("Error while create commit or pull request")
+                            elif pull_request is not None:
+                                issue_check.set_title(
+                                    key,
+                                    f"{key} ([Pull request]({pull_request.html_url}))",
                                 )
-                                message.title = "Error while creating the new branch"
-                                _LOGGER.error(message)
+                                short_message.append(f"[Pull request]({pull_request.html_url})")
+                    except TimeoutError:
+                        proc.kill()
+                        raise
 
-                            else:
-                                new_success, pull_request = await module_utils.create_commit_pull_request(
-                                    branch,
-                                    new_branch,
-                                    f"Audit {key}",
-                                    body_md,
-                                    context.github_project,
-                                )
-                                success &= new_success
-                                if not new_success:
-                                    _LOGGER.error("Error while create commit or pull request")
-                                elif pull_request is not None:
-                                    issue_check.set_title(
-                                        key,
-                                        f"{key} ([Pull request]({pull_request.html_url}))",
-                                    )
-                                    short_message.append(f"[Pull request]({pull_request.html_url})")
-                        except TimeoutError:
-                            proc.kill()
-                            raise
-
-                    else:
-                        _LOGGER.debug("No changes to commit")
-                        module_utils.close_pull_request_issues(
-                            new_branch,
-                            f"Audit {key}",
-                            context.github_project,
-                        )
-                except TimeoutError:
-                    try:
-                        diff_proc.kill()
-                    except:  # pylint: disable=bare-except
-                        pass
-                    raise
+                else:
+                    _LOGGER.debug("No changes to commit")
+                    module_utils.close_pull_request_issues(
+                        new_branch,
+                        f"Audit {key}",
+                        context.github_project,
+                    )
+            except TimeoutError:
+                try:
+                    diff_proc.kill()
+                except:  # pylint: disable=bare-except
+                    pass
+                raise
 
         full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
         transversal_message = ", ".join(short_message)
@@ -324,12 +326,13 @@ async def _process_snyk_dpkg(
     return short_message, success
 
 
-async def _use_python_version(python_version: str) -> dict[str, str]:
+async def _use_python_version(python_version: str, cwd: Path) -> dict[str, str]:
     command = ["pyenv", "local", python_version]
     proc = await asyncio.create_subprocess_exec(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(300):
         stdout, stderr = await proc.communicate()
@@ -345,6 +348,7 @@ async def _use_python_version(python_version: str) -> dict[str, str]:
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(5):
         stdout, stderr = await proc.communicate()

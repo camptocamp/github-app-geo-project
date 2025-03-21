@@ -241,87 +241,89 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             assert context.module_event_data.version is not None
             version = context.module_event_data.version
             branch = context.module_config.get("version-mapping", {}).get(version, version)
-            async with module_utils.WORKING_DIRECTORY_LOCK:
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    if os.environ.get("TEST") != "TRUE":
-                        os.chdir(tmpdirname)
-                        success = await module_utils.git_clone(context.github_project, branch)
-                        if not success:
-                            exception_message = "Failed to clone the repository"
-                            raise VersionError(exception_message)
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                if os.environ.get("TEST") != "TRUE":
+                    cwd = Path(tmpdirname)
+                    success = await module_utils.git_clone(context.github_project, branch, cwd)
+                    if not success:
+                        exception_message = "Failed to clone the repository"
+                        raise VersionError(exception_message)
+                else:
+                    cwd = Path.cwd()
 
-                    version_status = status.versions.setdefault(
-                        version,
-                        _TransversalStatusVersion(support="Best effort"),
-                    )
-                    version_status.names_by_datasource.clear()
-                    version_status.dependencies_by_datasource.clear()
-                    transversal_status = context.transversal_status
+                version_status = status.versions.setdefault(
+                    version,
+                    _TransversalStatusVersion(support="Best effort"),
+                )
+                version_status.names_by_datasource.clear()
+                version_status.dependencies_by_datasource.clear()
+                transversal_status = context.transversal_status
 
-                    message = module_utils.HtmlMessage(
-                        utils.format_json(
-                            json.loads(version_status.model_dump_json())["names_by_datasource"],
-                        ),
-                    )
-                    message.title = "Names cleaned:"
+                message = module_utils.HtmlMessage(
+                    utils.format_json(
+                        json.loads(version_status.model_dump_json())["names_by_datasource"],
+                    ),
+                )
+                message.title = "Names cleaned:"
 
-                    await _get_names(
-                        context,
-                        version_status.names_by_datasource,
-                        version,
-                        alternate_versions=context.module_event_data.alternate_versions,
-                    )
-                    message = module_utils.HtmlMessage(
-                        utils.format_json(
-                            json.loads(version_status.model_dump_json())["names_by_datasource"],
-                        ),
-                    )
-                    message.title = "Names:"
-                    _LOGGER.debug(message)
-                    if await _get_dependencies(context, version_status.dependencies_by_datasource):
-                        assert context.module_event_data.retry is not None
-                        # Retry
-                        return ProcessOutput(
-                            actions=[
-                                module.Action(
-                                    data=_EventData(
-                                        step=context.module_event_data.step,
-                                        version=context.module_event_data.version,
-                                        alternate_versions=context.module_event_data.alternate_versions,
-                                        retry=context.module_event_data.retry - 1,
-                                    ),
+                await _get_names(
+                    context,
+                    version_status.names_by_datasource,
+                    version,
+                    cwd,
+                    alternate_versions=context.module_event_data.alternate_versions,
+                )
+                message = module_utils.HtmlMessage(
+                    utils.format_json(
+                        json.loads(version_status.model_dump_json())["names_by_datasource"],
+                    ),
+                )
+                message.title = "Names:"
+                _LOGGER.debug(message)
+                if await _get_dependencies(context, version_status.dependencies_by_datasource, cwd):
+                    assert context.module_event_data.retry is not None
+                    # Retry
+                    return ProcessOutput(
+                        actions=[
+                            module.Action(
+                                data=_EventData(
+                                    step=context.module_event_data.step,
+                                    version=context.module_event_data.version,
+                                    alternate_versions=context.module_event_data.alternate_versions,
+                                    retry=context.module_event_data.retry - 1,
                                 ),
-                            ],
-                        )
-                    message = module_utils.HtmlMessage(
-                        utils.format_json(
-                            json.loads(version_status.model_dump_json())["dependencies_by_datasource"],
-                        ),
+                            ),
+                        ],
                     )
-                    message.title = "Dependencies:"
-                    _LOGGER.debug(message)
+                message = module_utils.HtmlMessage(
+                    utils.format_json(
+                        json.loads(version_status.model_dump_json())["dependencies_by_datasource"],
+                    ),
+                )
+                message.title = "Dependencies:"
+                _LOGGER.debug(message)
 
-                    message = module_utils.HtmlMessage(
-                        utils.format_json_str(
-                            transversal_status.repositories[
-                                f"{context.github_project.owner}/{context.github_project.repository}"
-                            ]
-                            .versions[version]
-                            .model_dump_json(indent=2),
-                        ),
-                    )
-                    message.title = f"Version ({version}):"
-                    _LOGGER.debug(message)
+                message = module_utils.HtmlMessage(
+                    utils.format_json_str(
+                        transversal_status.repositories[
+                            f"{context.github_project.owner}/{context.github_project.repository}"
+                        ]
+                        .versions[version]
+                        .model_dump_json(indent=2),
+                    ),
+                )
+                message.title = f"Version ({version}):"
+                _LOGGER.debug(message)
 
-                    message = module_utils.HtmlMessage(
-                        utils.format_json_str(
-                            transversal_status.repositories[
-                                f"{context.github_project.owner}/{context.github_project.repository}"
-                            ].model_dump_json(indent=2),
-                        ),
-                    )
-                    message.title = "Repo:"
-                    _LOGGER.debug(message)
+                message = module_utils.HtmlMessage(
+                    utils.format_json_str(
+                        transversal_status.repositories[
+                            f"{context.github_project.owner}/{context.github_project.repository}"
+                        ].model_dump_json(indent=2),
+                    ),
+                )
+                message.title = "Repo:"
+                _LOGGER.debug(message)
 
             return ProcessOutput(transversal_status=context.transversal_status)
         exception_message = "Invalid step"
@@ -463,6 +465,7 @@ async def _get_names(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource],
     version: str,
+    cwd: Path,
     alternate_versions: list[str] | None = None,
 ) -> None:
     command = ["git", "ls-files", "pyproject.toml", "*/pyproject.toml"]
@@ -470,6 +473,7 @@ async def _get_names(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -499,6 +503,7 @@ async def _get_names(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -521,7 +526,7 @@ async def _get_names(
                         names.append(match.group(1))
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     docker_config = {}
-    if Path(".github/publish.yaml").exists():
+    if (cwd / ".github" / "publish.yaml").exists():
         async with aiofiles.open(".github/publish.yaml", encoding="utf-8") as file:
             docker_config = yaml.load(await file.read(), Loader=yaml.SafeLoader).get("docker", {})
     else:
@@ -560,6 +565,7 @@ async def _get_names(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -590,6 +596,7 @@ async def _get_names(
 async def _get_dependencies(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
     result: dict[str, _TransversalStatusNameInDatasource],
+    cwd: Path,
 ) -> bool:
     if os.environ.get("TEST") != "TRUE":
         github_project = context.github_project
@@ -614,6 +621,7 @@ async def _get_dependencies(
             },
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
+            cwd=cwd,
         )
         async with asyncio.timeout(1800):
             stdout, stderr = await proc.communicate()

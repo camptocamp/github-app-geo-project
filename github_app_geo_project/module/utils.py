@@ -4,7 +4,6 @@ import asyncio
 import datetime
 import logging
 import math
-import os
 import re
 import shlex
 from pathlib import Path
@@ -20,7 +19,6 @@ from ansi2html import Ansi2HTMLConverter
 from github_app_geo_project import configuration, models, module, utils
 
 _LOGGER = logging.getLogger(__name__)
-WORKING_DIRECTORY_LOCK = asyncio.Lock()
 
 
 def add_output(
@@ -478,7 +476,7 @@ async def run_timeout(
     success_message: str,
     error_message: str,
     timeout_message: str,
-    cwd: Path | None = None,
+    cwd: Path,
     error: bool = True,
 ) -> tuple[str | None, bool, Message | None]:
     """
@@ -515,7 +513,7 @@ async def run_timeout(
             try:
                 async_proc = await asyncio.create_subprocess_exec(
                     *command,
-                    cwd=cwd or get_cwd(),
+                    cwd=cwd,
                     env=env,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
@@ -543,6 +541,7 @@ async def run_timeout(
             *cmd,
             stdin=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
         )
         async with asyncio.timeout(30):
             stdout, stderr = await proc.communicate()
@@ -573,7 +572,7 @@ async def run_timeout(
         return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
 
 
-async def has_changes(include_un_followed: bool = False) -> bool:
+async def has_changes(cwd: Path, include_un_followed: bool = False) -> bool:
     """Check if there are changes."""
     if include_un_followed:
         proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
@@ -582,6 +581,7 @@ async def has_changes(include_un_followed: bool = False) -> bool:
             "--porcelain",
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
+            cwd=cwd,
         )
         async with asyncio.timeout(30):
             stdout, _ = await proc.communicate()
@@ -592,19 +592,21 @@ async def has_changes(include_un_followed: bool = False) -> bool:
         "--exit-code",
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         await proc.communicate()
     return proc.returncode != 0
 
 
-async def create_commit(message: str, pre_commit_check: bool = True) -> bool:
+async def create_commit(message: str, cwd: Path, pre_commit_check: bool = True) -> bool:
     """Do a commit."""
     command = ["git", "add", "--all"]
     proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -620,10 +622,11 @@ async def create_commit(message: str, pre_commit_check: bool = True) -> bool:
         "Commit",
         "Error committing files",
         "Timeout committing files",
+        cwd,
     )
     if not success and pre_commit_check:
         # On pre-commit issues, add them to the commit, and try again without the pre-commit
-        success = await create_commit(message, pre_commit_check=False)
+        success = await create_commit(message, cwd, pre_commit_check=False)
     return success
 
 
@@ -633,6 +636,7 @@ async def create_pull_request(
     message: str,
     body: str,
     project: configuration.GithubProject,
+    cwd: Path,
     auto_merge: bool = True,
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
@@ -641,6 +645,7 @@ async def create_pull_request(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
@@ -724,15 +729,17 @@ async def create_commit_pull_request(
     message: str,
     body: str,
     project: configuration.GithubProject,
+    cwd: Path,
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Do a commit, then create a pull request."""
-    if Path(".pre-commit-config.yaml").exists():
+    if (cwd / ".pre-commit-config.yaml").exists():
         try:
             command = ["pre-commit", "install"]
             proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
                 *command,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
+                cwd=cwd,
             )
             async with asyncio.timeout(10):
                 stdout, stderr = await proc.communicate()
@@ -741,9 +748,9 @@ async def create_commit_pull_request(
             _LOGGER.debug(proc_message)
         except FileNotFoundError:
             _LOGGER.debug("pre-commit not installed")
-    if not await create_commit(message):
+    if not await create_commit(message, cwd):
         return False, None
-    return await create_pull_request(branch, new_branch, message, body, project)
+    return await create_pull_request(branch, new_branch, message, body, project, cwd)
 
 
 def close_pull_request_issues(new_branch: str, message: str, project: configuration.GithubProject) -> None:
@@ -769,14 +776,18 @@ def close_pull_request_issues(new_branch: str, message: str, project: configurat
             issue.edit(state="closed")
 
 
-async def git_clone(github_project: configuration.GithubProject, branch: str) -> bool:
+_SSH_LOCK = asyncio.Lock()
+
+
+async def git_clone(github_project: configuration.GithubProject, branch: str, cwd: Path) -> Path | None:
     """Clone the Git repository."""
     # Store the ssh key
-    directory = Path("~/.ssh/").expanduser()
-    if not directory.exists():
-        directory.mkdir(parents=True)
-    async with aiofiles.open(directory / "id_rsa", "w", encoding="utf-8") as file:
-        await file.write(github_project.application.private_key)
+    async with _SSH_LOCK:
+        directory = Path("~/.ssh/").expanduser()
+        if not directory.exists():
+            directory.mkdir(parents=True)
+        async with aiofiles.open(directory / "id_rsa", "w", encoding="utf-8") as file:
+            await file.write(github_project.application.private_key)
 
     command = [
         "git",
@@ -789,6 +800,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(300):
         stdout, stderr = await proc.communicate()
@@ -796,11 +808,11 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
     if proc.returncode != 0:
         message.title = "Error cloning the repository"
         _LOGGER.warning(message)
-        return False
+        return None
     message.title = "Clone repository"
     _LOGGER.debug(message)
 
-    os.chdir(github_project.repository.split("/")[-1])
+    cwd = cwd / github_project.repository.split("/")[-1]
     app = github_project.application.integration.get_app()
     user = github_project.github.get_user(app.slug + "[bot]")
     command = [
@@ -813,6 +825,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -821,7 +834,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
     if proc.returncode != 0:
         message.title = "Error setting the email"
         _LOGGER.warning(message)
-        return False
+        return None
     message.title = "Set email"
     _LOGGER.debug(message)
 
@@ -830,6 +843,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -837,7 +851,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
     if proc.returncode != 0:
         message.title = "Error setting the name"
         _LOGGER.warning(message)
-        return False
+        return None
     message.title = "Set name"
     _LOGGER.debug(message)
 
@@ -846,6 +860,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -853,11 +868,11 @@ async def git_clone(github_project: configuration.GithubProject, branch: str) ->
     if proc.returncode != 0:
         message.title = "Error setting the gpg format"
         _LOGGER.warning(message)
-        return False
+        return None
     message.title = "Set gpg format"
     _LOGGER.debug(message)
 
-    return True
+    return cwd
 
 
 def get_stabilization_versions(security: security_md.Security) -> list[str]:

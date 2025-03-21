@@ -29,6 +29,7 @@ async def snyk(
     local_config: configuration.SnykConfiguration,
     logs_url: str,
     env: dict[str, str],
+    cwd: Path,
 ) -> tuple[list[module_utils.Message], module_utils.HtmlMessage | None, list[str], bool]:
     """
     Audit the code with Snyk.
@@ -44,17 +45,18 @@ async def snyk(
 
     env["PATH"] = f"{env['HOME']}/.local/bin:{env['PATH']}"
 
-    await _select_java_version(config, local_config, env)
+    await _select_java_version(config, local_config, env, cwd)
 
     _LOGGER.debug("Updated path: %s", env["PATH"])
 
-    await _install_requirements_dependencies(config, local_config, result, env)
+    await _install_requirements_dependencies(config, local_config, result, env, cwd)
 
     command = ["pip", "freeze"]
     proc = await asyncio.create_subprocess_exec(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )  # nosec
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -62,14 +64,14 @@ async def snyk(
     message.title = "Pip freeze"
     _LOGGER.info(message)
 
-    await _install_pipenv_dependencies(config, local_config, result, env)
-    await _install_poetry_dependencies(config, local_config, result, env)
+    await _install_pipenv_dependencies(config, local_config, result, env, cwd)
+    await _install_poetry_dependencies(config, local_config, result, env, cwd)
 
     env["FORCE_COLOR"] = "true"
     env_no_debug = {**env}
     env["DEBUG"] = "*snyk*"  # debug mode
 
-    await _snyk_monitor(branch, config, local_config, result, env)
+    await _snyk_monitor(branch, config, local_config, result, env, cwd)
 
     (
         high_vulnerabilities,
@@ -77,10 +79,11 @@ async def snyk(
         fixable_vulnerabilities_summary,
         fixable_files_npm,
         vulnerabilities_in_requirements,
-    ) = await _snyk_test(branch, config, local_config, result, env_no_debug)
+    ) = await _snyk_test(branch, config, local_config, result, env_no_debug, cwd)
 
     snyk_fix_success, snyk_fix_message = await _snyk_fix(
         branch,
+        cwd,
         config,
         local_config,
         logs_url,
@@ -90,7 +93,7 @@ async def snyk(
         fixable_vulnerabilities_summary,
         vulnerabilities_in_requirements,
     )
-    npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result)
+    npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result, cwd)
     fix_message: module_utils.HtmlMessage | None = None
     if snyk_fix_message is None:
         if npm_audit_fix_message:
@@ -106,7 +109,7 @@ async def snyk(
     )
 
     command = ["git", "diff", "--quiet"]
-    diff_proc = await asyncio.create_subprocess_exec(*command)
+    diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
     if diff_proc.returncode != 0:
@@ -116,7 +119,7 @@ async def snyk(
             fixable_vulnerabilities_summary,
             fixable_files_npm,
             vulnerabilities_in_requirements,
-        ) = await _snyk_test(branch, config, local_config, result, env_no_debug)
+        ) = await _snyk_test(branch, config, local_config, result, env_no_debug, cwd)
 
     return_message = [
         *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
@@ -134,8 +137,9 @@ async def _select_java_version(
     config: configuration.SnykConfiguration,
     local_config: configuration.SnykConfiguration,
     env: dict[str, str],
+    cwd: Path,
 ) -> None:
-    if not Path("gradlew").exists():
+    if not (cwd / "gradlew").exists():
         return
 
     command = ["./gradlew", "--version"]
@@ -143,6 +147,7 @@ async def _select_java_version(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -174,6 +179,7 @@ async def _select_java_version(
             "Gradle version",
             "Error on getting Gradle version",
             "Timeout on getting Gradle version",
+            cwd,
         )
         return
 
@@ -185,12 +191,14 @@ async def _install_requirements_dependencies(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env: dict[str, str],
+    cwd: Path,
 ) -> None:
     command = ["git", "ls-files", "requirements.txt", "*/requirements.txt"]
     proc = await asyncio.create_subprocess_exec(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -220,6 +228,7 @@ async def _install_requirements_dependencies(
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
+                cwd,
             )
             if proc_message is not None:
                 result.append(proc_message)
@@ -230,12 +239,14 @@ async def _install_pipenv_dependencies(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env: dict[str, str],
+    cwd: Path,
 ) -> None:
     command = ["git", "ls-files", "Pipfile", "*/Pipfile"]
     proc = await asyncio.create_subprocess_exec(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -250,7 +261,7 @@ async def _install_pipenv_dependencies(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            directory = Path(file).resolve().parent
+            directory = (cwd / file).resolve().parent
 
             _, _, proc_message = await module_utils.run_timeout(
                 [
@@ -274,12 +285,14 @@ async def _install_poetry_dependencies(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env: dict[str, str],
+    cwd: Path,
 ) -> None:
     command = ["git", "ls-files", "poetry.lock", "*/poetry.lock"]
     proc = await asyncio.create_subprocess_exec(
         *command,
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
     )
     async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
@@ -306,7 +319,7 @@ async def _install_poetry_dependencies(
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
-                Path(file).resolve().parent,
+                (cwd / file).resolve().parent,
             )
             if proc_message is not None:
                 result.append(proc_message)
@@ -318,6 +331,7 @@ async def _snyk_monitor(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env: dict[str, str],
+    cwd: Path,
 ) -> None:
     command = [
         "snyk",
@@ -357,6 +371,7 @@ async def _snyk_monitor(
         "Project monitored",
         "Error while monitoring the project",
         "Timeout while monitoring the project",
+        cwd,
     )
     if message is not None:
         result.append(message)
@@ -368,6 +383,7 @@ async def _snyk_test(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env_no_debug: dict[str, str],
+    cwd: Path,
 ) -> tuple[dict[str, int], dict[str, int], dict[str, str], dict[str, set[str]], bool]:
     # Test with human output
     command = [
@@ -385,6 +401,7 @@ async def _snyk_test(
         "Snyk test (human)",
         "Error while testing the project",
         "Timeout while testing the project",
+        cwd,
     )
 
     command = [
@@ -403,6 +420,7 @@ async def _snyk_test(
         "Snyk test",
         "Error while testing the project",
         "Timeout while testing the project",
+        cwd,
     )
     if message is not None:
         result.append(message)
@@ -532,6 +550,7 @@ async def _snyk_test(
 
 async def _snyk_fix(
     branch: str,
+    cwd: Path,
     config: configuration.SnykConfiguration,
     local_config: configuration.SnykConfiguration,
     logs_url: str,
@@ -548,13 +567,14 @@ async def _snyk_fix(
         "Poetry version",
         "Error while getting the Poetry version",
         "Timeout while getting the Poetry version",
+        cwd,
         error=False,
     )
 
     snyk_fix_success = True
     snyk_fix_message = None
     command = ["git", "reset", "--hard"]
-    proc = await asyncio.create_subprocess_exec(*command)
+    proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
     async with asyncio.timeout(30):
         await proc.communicate()
     if fixable_vulnerabilities_summary or vulnerabilities_in_requirements:
@@ -573,6 +593,7 @@ async def _snyk_fix(
             "Snyk fix",
             "Error while fixing the project",
             "Timeout while fixing the project",
+            cwd,
         )
         if message is not None:
             result.append(message)
@@ -586,10 +607,10 @@ async def _snyk_fix(
                 "Snyk fix (debug)",
                 "Error while fixing the project (debug)",
                 "Timeout while fixing the project (debug)",
+                cwd,
             )
 
-            cwd = module_utils.get_cwd()
-            project = "-" if cwd is None else Path(cwd).name
+            project = "-" if cwd is None else cwd.name
             message = module_utils.HtmlMessage(
                 "<br>\n".join(
                     [
@@ -608,11 +629,12 @@ async def _snyk_fix(
 async def _npm_audit_fix(
     fixable_files_npm: dict[str, set[str]],
     result: list[module_utils.Message],
+    cwd: Path,
 ) -> tuple[str, bool]:
     messages: set[str] = set()
     fix_success = True
     for package_lock_file_name, file_messages in fixable_files_npm.items():
-        directory = Path(package_lock_file_name).absolute().parent
+        directory = (cwd / package_lock_file_name).absolute().parent
         messages.update(file_messages)
         _LOGGER.debug("Fixing vulnerabilities in %s with npm audit fix", package_lock_file_name)
         command = ["npm", "audit", "fix"]
@@ -740,10 +762,11 @@ async def _get_packages_version(
 async def dpkg(
     config: configuration.DpkgConfiguration,
     local_config: configuration.DpkgConfiguration,
+    cwd: Path,
 ) -> None:
     """Update the version of packages in the file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml."""
-    ci_dpkg_versions_filename = Path(".github/dpkg-versions.yaml")
-    github_dpkg_versions_filename = Path("ci/dpkg-versions.yaml")
+    ci_dpkg_versions_filename = cwd / ".github" / "dpkg-versions.yaml"
+    github_dpkg_versions_filename = cwd / "ci" / "dpkg-versions.yaml"
 
     if not ci_dpkg_versions_filename.exists() and not github_dpkg_versions_filename.exists():
         _LOGGER.warning("The file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml does not exist")
