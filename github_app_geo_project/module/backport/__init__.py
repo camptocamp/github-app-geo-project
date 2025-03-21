@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os.path
 import subprocess  # nosec
 import tempfile
 from pathlib import Path
@@ -226,166 +225,172 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 _LOGGER.exception("Error while getting branch %s", backport_branch)
                 raise
 
-        async with module_utils.WORKING_DIRECTORY_LOCK:
-            # Checkout the right branch on a temporary directory
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                os.chdir(tmpdirname)
-                _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-                success = await module_utils.git_clone(context.github_project, target_branch)
-                if not success:
-                    _LOGGER.error(
-                        "Error on cloning the repository %s/%s",
-                        context.github_project.owner,
-                        context.github_project.repository,
-                    )
-                    return False
-
-                command = ["ls", "-al"]
-                proc = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
+        # Checkout the right branch on a temporary directory
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            cwd = Path(tmpdirname)
+            _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
+            success = await module_utils.git_clone(context.github_project, target_branch, cwd)
+            if not success:
+                _LOGGER.error(
+                    "Error on cloning the repository %s/%s",
+                    context.github_project.owner,
+                    context.github_project.repository,
                 )
-                async with asyncio.timeout(60):
-                    stdout, stderr = await proc.communicate()
+                return False
+
+            command = ["ls", "-al"]
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+            async with asyncio.timeout(60):
+                stdout, stderr = await proc.communicate()
+            ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                command,
+                proc,
+                stdout,
+                stderr,
+            )
+            ansi_message.title = "List of the files in the repository"
+            _LOGGER.debug(ansi_message)
+            _LOGGER.debug("ls -al: %s", stdout.decode("utf-8"))
+
+            # Get the branches
+            command = ["git", "branch", "-b"]
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+            async with asyncio.timeout(60):
+                stdout, stderr = await proc.communicate()
+            ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                command,
+                proc,
+                stdout,
+                stderr,
+            )
+            ansi_message.title = "List of the branches"
+            _LOGGER.debug(ansi_message)
+            branches = stdout.decode().splitlines()
+            _LOGGER.debug("Branches: %s", branches)
+
+            # Checkout the branch
+            command = ["git", "checkout", "-b", backport_branch]
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+            async with asyncio.timeout(60):
+                stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
                 ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
                     command,
                     proc,
                     stdout,
                     stderr,
                 )
-                ansi_message.title = "List of the files in the repository"
-                _LOGGER.debug(ansi_message)
-                _LOGGER.debug("ls -al: %s", stdout.decode("utf-8"))
-
-                # Get the branches
-                command = ["git", "branch", "-b"]
-                proc = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                async with asyncio.timeout(60):
-                    stdout, stderr = await proc.communicate()
-                ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                ansi_message.title = f"Error while creating the branch {backport_branch}"
+                _LOGGER.error(ansi_message)
+                raise subprocess.CalledProcessError(
+                    proc.returncode if proc.returncode is not None else -999,
                     command,
-                    proc,
                     stdout,
                     stderr,
                 )
-                ansi_message.title = "List of the branches"
-                _LOGGER.debug(ansi_message)
-                branches = stdout.decode().splitlines()
-                _LOGGER.debug("Branches: %s", branches)
 
-                # Checkout the branch
-                command = ["git", "checkout", "-b", backport_branch]
+            failed_commits: list[str] = []
+            # For all commits in the pull request
+            for commit in pull_request.get_commits():
+                # Cherry-pick the commit
+                if failed_commits:
+                    failed_commits.append(commit.sha)
+                else:
+                    try:
+                        command = ["git", "cherry-pick", commit.sha]
+                        proc = await asyncio.create_subprocess_exec(
+                            *command,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                            cwd=cwd,
+                        )
+                        async with asyncio.timeout(30):
+                            stdout, stderr = await proc.communicate()
+                        if proc.returncode != 0:
+                            raise subprocess.CalledProcessError(  # noqa: TRY301
+                                proc.returncode if proc.returncode is not None else -999,
+                                command,
+                                stdout,
+                                stderr,
+                            )
+                    except subprocess.CalledProcessError:
+                        failed_commits.append(commit.sha)
+
+            message = [f"Backport of #{pull_request.number} to {target_branch}"]
+            if failed_commits:
+                message.extend(
+                    [
+                        "",
+                        f"Error on cherry-picking: {', '.join(failed_commits)}",
+                        "",
+                        "To continue do:",
+                        "```bash",
+                        "git fetch && \\",
+                        f"  git checkout {backport_branch} && \\",
+                        "  git reset --hard HEAD^ && \\",
+                        f"  git cherry-pick {' '.join(failed_commits)}",
+                        f"git push origin {backport_branch} --force",
+                        "```",
+                    ],
+                )
+                async with aiofiles.open("BACKPORT_TODO", "w", encoding="utf-8") as f:
+                    await f.write("\n".join(message))
+                command = ["git", "add", "BACKPORT_TODO"]
                 proc = await asyncio.create_subprocess_exec(
                     *command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd,
                 )
-                async with asyncio.timeout(60):
+                async with asyncio.timeout(10):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
-                    ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                        command,
-                        proc,
-                        stdout,
-                        stderr,
-                    )
-                    ansi_message.title = f"Error while creating the branch {backport_branch}"
-                    _LOGGER.error(ansi_message)
                     raise subprocess.CalledProcessError(
                         proc.returncode if proc.returncode is not None else -999,
                         command,
                         stdout,
                         stderr,
                     )
-
-                failed_commits: list[str] = []
-                # For all commits in the pull request
-                for commit in pull_request.get_commits():
-                    # Cherry-pick the commit
-                    if failed_commits:
-                        failed_commits.append(commit.sha)
-                    else:
-                        try:
-                            command = ["git", "cherry-pick", commit.sha]
-                            proc = await asyncio.create_subprocess_exec(
-                                *command,
-                                stdout=asyncio.subprocess.PIPE,
-                                stderr=asyncio.subprocess.PIPE,
-                            )
-                            async with asyncio.timeout(30):
-                                stdout, stderr = await proc.communicate()
-                            if proc.returncode != 0:
-                                raise subprocess.CalledProcessError(  # noqa: TRY301
-                                    proc.returncode if proc.returncode is not None else -999,
-                                    command,
-                                    stdout,
-                                    stderr,
-                                )
-                        except subprocess.CalledProcessError:
-                            failed_commits.append(commit.sha)
-
-                message = [f"Backport of #{pull_request.number} to {target_branch}"]
-                if failed_commits:
-                    message.extend(
-                        [
-                            "",
-                            f"Error on cherry-picking: {', '.join(failed_commits)}",
-                            "",
-                            "To continue do:",
-                            "```bash",
-                            "git fetch && \\",
-                            f"  git checkout {backport_branch} && \\",
-                            "  git reset --hard HEAD^ && \\",
-                            f"  git cherry-pick {' '.join(failed_commits)}",
-                            f"git push origin {backport_branch} --force",
-                            "```",
-                        ],
-                    )
-                    async with aiofiles.open("BACKPORT_TODO", "w", encoding="utf-8") as f:
-                        await f.write("\n".join(message))
-                    command = ["git", "add", "BACKPORT_TODO"]
-                    proc = await asyncio.create_subprocess_exec(
-                        *command,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    async with asyncio.timeout(10):
-                        stdout, stderr = await proc.communicate()
-                    if proc.returncode != 0:
-                        raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999,
-                            command,
-                            stdout,
-                            stderr,
-                        )
-                    command = ["git", "commit", "--message=[skip ci] Add instructions to finish the backport"]
-                    proc = await asyncio.create_subprocess_exec(
-                        *command,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    async with asyncio.timeout(10):
-                        stdout, stderr = await proc.communicate()
-                    if proc.returncode != 0:
-                        raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999,
-                            command,
-                            stdout,
-                            stderr,
-                        )
-                await module_utils.create_pull_request(
-                    target_branch,
-                    backport_branch,
-                    f"[Backport {target_branch}] {pull_request.title}",
-                    "\n".join(message),
-                    project=context.github_project,
-                    auto_merge=False,
+                command = ["git", "commit", "--message=[skip ci] Add instructions to finish the backport"]
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd,
                 )
-                # Remove backport label
-                pull_request.remove_from_labels(f"backport {target_branch}")
+                async with asyncio.timeout(10):
+                    stdout, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        proc.returncode if proc.returncode is not None else -999,
+                        command,
+                        stdout,
+                        stderr,
+                    )
+            await module_utils.create_pull_request(
+                target_branch,
+                backport_branch,
+                f"[Backport {target_branch}] {pull_request.title}",
+                "\n".join(message),
+                project=context.github_project,
+                cwd=cwd,
+                auto_merge=False,
+            )
+            # Remove backport label
+            pull_request.remove_from_labels(f"backport {target_branch}")
         return True

@@ -233,62 +233,27 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
         for name in context.module_event_data.names:
             folder = git.get("folder", configuration.FOLDER_DEFAULT).format(name=name)
 
-            async with module_utils.WORKING_DIRECTORY_LOCK:
-                # Checkout the right branch on a temporary directory
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    os.chdir(tmpdirname)
-                    _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-                    success = module_utils.git_clone(context.github_project, branch)
-                    if not success:
-                        _LOGGER.error(
-                            "Error on cloning the repository %s/%s",
-                            context.github_project.owner,
-                            context.github_project.repository,
-                        )
+            # Checkout the right branch on a temporary directory
+            with tempfile.TemporaryDirectory() as tmpdirname:
+                cwd = Path(tmpdirname)
+                _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
+                success = module_utils.git_clone(context.github_project, branch, cwd)
+                if not success:
+                    _LOGGER.error(
+                        "Error on cloning the repository %s/%s",
+                        context.github_project.owner,
+                        context.github_project.repository,
+                    )
 
-                    os.chdir(context.github_project.repository)
-                    command = ["git", "rm", folder]
-                    proc = await asyncio.create_subprocess_exec(
-                        *command,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    async with asyncio.timeout(10):
-                        stdout, stderr = await proc.communicate()
-                    if proc.returncode != 0:
-                        raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999,
-                            command,
-                            stdout,
-                            stderr,
-                        )
-                    command = [
-                        "git",
-                        "commit",
-                        "-m",
-                        f"Delete {folder} to clean {context.module_event_data.type} {name}",
-                    ]
-                    proc = await asyncio.create_subprocess_exec(
-                        *command,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                    )
-                    async with asyncio.timeout(10):
-                        stdout, stderr = await proc.communicate()
-                    if proc.returncode != 0:
-                        raise subprocess.CalledProcessError(
-                            proc.returncode if proc.returncode is not None else -999,
-                            command,
-                            stdout,
-                            stderr,
-                        )
-                command = ["git", "push", "origin", branch]
+                os.chdir(context.github_project.repository)
+                command = ["git", "rm", folder]
                 proc = await asyncio.create_subprocess_exec(
                     *command,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd,
                 )
-                async with asyncio.timeout(30):
+                async with asyncio.timeout(10):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(
@@ -297,3 +262,40 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         stdout,
                         stderr,
                     )
+                command = [
+                    "git",
+                    "commit",
+                    "-m",
+                    f"Delete {folder} to clean {context.module_event_data.type} {name}",
+                ]
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd,
+                )
+                async with asyncio.timeout(10):
+                    stdout, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        proc.returncode if proc.returncode is not None else -999,
+                        command,
+                        stdout,
+                        stderr,
+                    )
+            command = ["git", "push", "origin", branch]
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+            async with asyncio.timeout(30):
+                stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    proc.returncode if proc.returncode is not None else -999,
+                    command,
+                    stdout,
+                    stderr,
+                )
