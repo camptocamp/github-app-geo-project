@@ -629,6 +629,7 @@ async def create_pull_request(
     message: str,
     body: str,
     project: configuration.GithubProject,
+    auto_merge: bool = True,
 ) -> tuple[bool, github.PullRequest.PullRequest | None]:
     """Create a pull request."""
     command = ["git", "push", "--force", "origin", new_branch]
@@ -683,7 +684,8 @@ async def create_pull_request(
             head=new_branch,
             base=branch,
         )
-        await auto_merge_pull_request(pull_request)
+        if auto_merge:
+            await auto_merge_pull_request(pull_request)
         return True, pull_request
     return True, None
 

@@ -330,12 +330,16 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     message.extend(
                         [
                             "",
-                            f"Error on cherry picking:\n{failed_commits}",
+                            f"Error on cherry-picking: {', '.join(failed_commits)}",
                             "",
                             "To continue do:",
-                            f"git fetch \\  && git checkout {backport_branch} \\",
-                            f"  && git reset --hard HEAD^ \\  && git cherry-pick {' '.join(failed_commits)}",
+                            "```bash",
+                            "git fetch && \\",
+                            f"  git checkout {backport_branch} && \\",
+                            "  git reset --hard HEAD^ && \\",
+                            f"  git cherry-pick {' '.join(failed_commits)}",
                             f"git push origin {backport_branch} --force",
+                            "```",
                         ],
                     )
                     async with aiofiles.open("BACKPORT_TODO", "w", encoding="utf-8") as f:
@@ -374,6 +378,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     f"[Backport {target_branch}] {pull_request.title}",
                     "\n".join(message),
                     project=context.github_project,
+                    auto_merge=False,
                 )
                 # Remove backport label
                 pull_request.remove_from_labels(f"backport {target_branch}")
