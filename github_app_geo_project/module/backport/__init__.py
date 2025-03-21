@@ -246,7 +246,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                async with asyncio.timeout(60):
+                    stdout, stderr = await proc.communicate()
                 ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
                     command,
                     proc,
@@ -264,7 +265,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                async with asyncio.timeout(60):
+                    stdout, stderr = await proc.communicate()
                 ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
                     command,
                     proc,
@@ -283,7 +285,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                async with asyncio.timeout(60):
+                    stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
                         command,
@@ -314,7 +317,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                                 stdout=asyncio.subprocess.PIPE,
                                 stderr=asyncio.subprocess.PIPE,
                             )
-                            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                            async with asyncio.timeout(30):
+                                stdout, stderr = await proc.communicate()
                             if proc.returncode != 0:
                                 raise subprocess.CalledProcessError(  # noqa: TRY301
                                     proc.returncode if proc.returncode is not None else -999,
@@ -350,7 +354,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
-                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    async with asyncio.timeout(10):
+                        stdout, stderr = await proc.communicate()
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
                             proc.returncode if proc.returncode is not None else -999,
@@ -364,7 +369,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
-                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    async with asyncio.timeout(10):
+                        stdout, stderr = await proc.communicate()
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
                             proc.returncode if proc.returncode is not None else -999,

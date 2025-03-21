@@ -56,7 +56,8 @@ async def snyk(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )  # nosec
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        stdout, stderr = await proc.communicate()
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     message.title = "Pip freeze"
     _LOGGER.info(message)
@@ -106,7 +107,8 @@ async def snyk(
 
     command = ["git", "diff", "--quiet"]
     diff_proc = await asyncio.create_subprocess_exec(*command)
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        stdout, stderr = await proc.communicate()
     if diff_proc.returncode != 0:
         (
             high_vulnerabilities,
@@ -142,7 +144,8 @@ async def _select_java_version(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(
             proc.returncode if proc.returncode is not None else -999,
@@ -189,7 +192,8 @@ async def _install_requirements_dependencies(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
         message.title = "Error in ls-files"
@@ -233,7 +237,8 @@ async def _install_pipenv_dependencies(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
         message.title = "Error in ls-files"
@@ -276,7 +281,8 @@ async def _install_poetry_dependencies(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
         message.title = "Error in ls-files"
@@ -549,7 +555,8 @@ async def _snyk_fix(
     snyk_fix_message = None
     command = ["git", "reset", "--hard"]
     proc = await asyncio.create_subprocess_exec(*command)
-    await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        await proc.communicate()
     if fixable_vulnerabilities_summary or vulnerabilities_in_requirements:
         command = [
             "snyk",

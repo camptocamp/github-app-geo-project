@@ -253,7 +253,8 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
-                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    async with asyncio.timeout(10):
+                        stdout, stderr = await proc.communicate()
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
                             proc.returncode if proc.returncode is not None else -999,
@@ -272,7 +273,8 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
                     )
-                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+                    async with asyncio.timeout(10):
+                        stdout, stderr = await proc.communicate()
                     if proc.returncode != 0:
                         raise subprocess.CalledProcessError(
                             proc.returncode if proc.returncode is not None else -999,
@@ -286,7 +288,8 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                async with asyncio.timeout(30):
+                    stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(
                         proc.returncode if proc.returncode is not None else -999,

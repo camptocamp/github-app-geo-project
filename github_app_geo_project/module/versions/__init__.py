@@ -471,7 +471,8 @@ async def _get_names(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage(
             command,
@@ -499,7 +500,8 @@ async def _get_names(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage(
             command,
@@ -559,7 +561,8 @@ async def _get_names(
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+    async with asyncio.timeout(30):
+        stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage(
             command,
@@ -612,7 +615,8 @@ async def _get_dependencies(
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=1800)
+        async with asyncio.timeout(1800):
+            stdout, stderr = await proc.communicate()
         message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
             command,
             proc,

@@ -197,7 +197,8 @@ async def _commits_spell(
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(spell.communicate(), timeout=120)
+            async with asyncio.timeout(120):
+                stdout, stderr = await spell.communicate()
             message = module_utils.AnsiProcessMessage.from_async_artifacts(command, spell, stdout, stderr)
             if spell.returncode != 0:
                 message.title = f"Code spell error in commit {commit.sha}"
@@ -235,7 +236,8 @@ async def _pull_request_spell(
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
         )
-        stdout, stderr = await asyncio.wait_for(spell.communicate(), timeout=60)
+        async with asyncio.timeout(60):
+            stdout, stderr = await spell.communicate()
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, spell, stdout, stderr)
         if spell.returncode != 0:
             message.title = "Code spell error in pull request"
