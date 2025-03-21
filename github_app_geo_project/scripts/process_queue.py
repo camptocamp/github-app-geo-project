@@ -196,9 +196,11 @@ async def _process_job(
             )
             root_logger.addHandler(handler)
             try:
-                job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", 3600))
+                start = datetime.datetime.now(tz=datetime.UTC)
+                job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", 50 * 60))
                 async with asyncio.timeout(job_timeout):
                     result = await current_module.process(context)
+                _LOGGER.debug("Module %s took %s", job.module, datetime.datetime.now(tz=datetime.UTC) - start)
 
                 if result is not None:
                     non_none = [
