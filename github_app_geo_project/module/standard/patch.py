@@ -169,10 +169,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                         stdin=asyncio.subprocess.PIPE,
                                         stdout=asyncio.subprocess.PIPE,
                                     )
-                                    stdout, stderr = await asyncio.wait_for(
-                                        proc.communicate(patch_input.encode()),
-                                        timeout=30,
-                                    )
+                                    async with asyncio.timeout(30):
+                                        stdout, stderr = await proc.communicate(patch_input.encode())
                                     message = module_utils.AnsiProcessMessage.from_async_artifacts(
                                         command,
                                         proc,
@@ -207,7 +205,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                         stdin=asyncio.subprocess.PIPE,
                         stdout=asyncio.subprocess.PIPE,
                     )
-                    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=60)
+                    async with asyncio.timeout(60):
+                        stdout, stderr = await proc.communicate()
                     message = module_utils.AnsiProcessMessage.from_async_artifacts(
                         command,
                         proc,

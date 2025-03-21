@@ -219,7 +219,8 @@ async def _process_snyk_dpkg(
                 command = ["git", "diff", "--quiet"]
                 diff_proc = await asyncio.create_subprocess_exec(*command)
                 try:
-                    stdout, stderr = await asyncio.wait_for(diff_proc.communicate(), timeout=30)
+                    async with asyncio.timeout(30):
+                        stdout, stderr = await diff_proc.communicate()
                     if diff_proc.returncode != 0:
                         command = ["git", "diff"]
                         proc = await asyncio.create_subprocess_exec(
@@ -228,7 +229,8 @@ async def _process_snyk_dpkg(
                             stdout=asyncio.subprocess.PIPE,
                         )
                         try:
-                            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                            async with asyncio.timeout(30):
+                                stdout, stderr = await proc.communicate()
                             message = module_utils.AnsiProcessMessage.from_async_artifacts(
                                 command,
                                 proc,
@@ -248,7 +250,8 @@ async def _process_snyk_dpkg(
                             stdout=asyncio.subprocess.PIPE,
                         )
                         try:
-                            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+                            async with asyncio.timeout(30):
+                                stdout, stderr = await proc.communicate()
                             if proc.returncode != 0:
                                 message = module_utils.AnsiProcessMessage.from_async_artifacts(
                                     command,
@@ -328,7 +331,8 @@ async def _use_python_version(python_version: str) -> dict[str, str]:
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=300)
+    async with asyncio.timeout(300):
+        stdout, stderr = await proc.communicate()
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     if proc.returncode != 0:
         message.title = f"Error while setting the Python version to {python_version}"
@@ -342,7 +346,8 @@ async def _use_python_version(python_version: str) -> dict[str, str]:
         stdin=asyncio.subprocess.PIPE,
         stdout=asyncio.subprocess.PIPE,
     )
-    stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=5)
+    async with asyncio.timeout(5):
+        stdout, stderr = await proc.communicate()
 
     # Get path from /pyenv/versions/{python_version}.*/bin/
     env = os.environ.copy()
