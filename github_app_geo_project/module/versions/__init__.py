@@ -756,7 +756,7 @@ async def _update_upstream_versions(
 
         async with (
             aiohttp.ClientSession() as session,
-            asyncio.timeout(10),
+            asyncio.timeout(60),
             session.get(f"https://endoflife.date/api/{package}.json") as response,
         ):
             if not response.ok:
