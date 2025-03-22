@@ -24,6 +24,10 @@ from . import configuration
 _LOGGER = logging.getLogger(__name__)
 
 
+class CleanError(Exception):
+    """Error raised when an error occurs during the clean process."""
+
+
 class _ActionData(BaseModel):
     type: str
     names: list[str]
@@ -237,13 +241,16 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
             with tempfile.TemporaryDirectory() as tmpdirname:
                 cwd = Path(tmpdirname)
                 _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-                success = module_utils.git_clone(context.github_project, branch, cwd)
-                if not success:
+                new_cwd = await module_utils.git_clone(context.github_project, branch, cwd)
+                if new_cwd is None:
                     _LOGGER.error(
                         "Error on cloning the repository %s/%s",
                         context.github_project.owner,
                         context.github_project.repository,
                     )
+                    exception_message = "Failed to clone the repository"
+                    raise CleanError(exception_message)
+                cwd = new_cwd
 
                 os.chdir(context.github_project.repository)
                 command = ["git", "rm", folder]

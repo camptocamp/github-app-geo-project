@@ -229,14 +229,15 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         with tempfile.TemporaryDirectory() as tmpdirname:
             cwd = Path(tmpdirname)
             _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-            success = await module_utils.git_clone(context.github_project, target_branch, cwd)
-            if not success:
+            new_cwd = await module_utils.git_clone(context.github_project, target_branch, cwd)
+            if new_cwd is None:
                 _LOGGER.error(
                     "Error on cloning the repository %s/%s",
                     context.github_project.owner,
                     context.github_project.repository,
                 )
                 return False
+            cwd = new_cwd
 
             command = ["ls", "-al"]
             proc = await asyncio.create_subprocess_exec(

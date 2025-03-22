@@ -244,10 +244,11 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
             with tempfile.TemporaryDirectory() as tmpdirname:
                 if os.environ.get("TEST") != "TRUE":
                     cwd = Path(tmpdirname)
-                    success = await module_utils.git_clone(context.github_project, branch, cwd)
-                    if not success:
+                    new_cwd = await module_utils.git_clone(context.github_project, branch, cwd)
+                    if new_cwd is None:
                         exception_message = "Failed to clone the repository"
                         raise VersionError(exception_message)
+                    cwd = new_cwd
                 else:
                     cwd = Path.cwd()
 
