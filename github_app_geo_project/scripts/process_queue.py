@@ -180,6 +180,8 @@ async def _process_job(
                 assert check_run is not None
                 check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
 
+            # Close transaction if one is open
+            session.commit()
             context = module.ProcessContext(
                 session=session,
                 github_project=github_project,  # type: ignore[arg-type]
