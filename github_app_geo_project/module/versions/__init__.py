@@ -530,7 +530,10 @@ async def _get_names(
         async with aiofiles.open(".github/publish.yaml", encoding="utf-8") as file:
             docker_config = yaml.load(await file.read(), Loader=yaml.SafeLoader).get("docker", {})
     else:
-        data = c2cciutils.get_config()
+        async with module_utils.WORKING_DIRECTORY_LOCK:
+            os.chdir(cwd)
+            data = c2cciutils.get_config()
+            os.chdir("/")
         docker_config = data.get("publish", {}).get("docker", {})
     if docker_config:
         names = names_by_datasource.setdefault("docker", _TransversalStatusNameByDatasource()).names

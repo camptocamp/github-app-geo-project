@@ -19,6 +19,7 @@ from ansi2html import Ansi2HTMLConverter
 from github_app_geo_project import configuration, models, module, utils
 
 _LOGGER = logging.getLogger(__name__)
+WORKING_DIRECTORY_LOCK = asyncio.Lock()
 
 
 def add_output(
