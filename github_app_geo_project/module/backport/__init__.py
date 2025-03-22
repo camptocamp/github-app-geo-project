@@ -349,7 +349,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         "```",
                     ],
                 )
-                async with aiofiles.open("BACKPORT_TODO", "w", encoding="utf-8") as f:
+                async with aiofiles.open(cwd / "BACKPORT_TODO", "w", encoding="utf-8") as f:
                     await f.write("\n".join(message))
                 command = ["git", "add", "BACKPORT_TODO"]
                 proc = await asyncio.create_subprocess_exec(
