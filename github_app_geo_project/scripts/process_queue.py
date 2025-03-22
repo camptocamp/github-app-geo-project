@@ -920,6 +920,28 @@ class _WatchDog:
             await asyncio.sleep(60)
 
 
+class HandleSigint:
+    """Handle SIGINT."""
+
+    def __init__(self, Session: sqlalchemy.orm.sessionmaker[sqlalchemy.orm.Session]) -> None:  # pylint: disable=invalid-name,unsubscriptable-object
+        self.Session = Session  # pylint: disable=invalid-name
+
+    def __call__(self) -> None:
+        """Handle SIGINT."""
+        with self.Session() as session:
+            jobs_ids = _RUNNING_JOBS.keys()
+            for job in session.query(models.Queue).filter(
+                sqlalchemy.and_(
+                    models.Queue.id.in_(jobs_ids),
+                    models.Queue.status == models.JobStatus.PENDING,
+                ),
+            ):
+                job.status = models.JobStatus.NEW
+                job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+            session.commit()
+        sys.exit()
+
+
 async def _async_main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -948,8 +970,14 @@ async def _async_main() -> None:
     config = loader.get_settings("app:app")
     engine = sqlalchemy.engine_from_config(config, "sqlalchemy.")
     Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
+
     # Create tables if they do not exist
     models.Base.metadata.create_all(engine)
+
+    handle_sigint = HandleSigint(Session)
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGINT, handle_sigint)
+
     if args.only_one:
         await _get_process_one_job(
             config,
