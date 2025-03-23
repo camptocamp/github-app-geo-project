@@ -23,7 +23,7 @@ WORKING_DIRECTORY_LOCK = asyncio.Lock()
 
 
 def add_output(
-    context: module.ProcessContext[Any, Any, Any],
+    context: module.ProcessContext[Any, Any],
     title: str,
     data: list[str | models.OutputData],
     status: models.OutputStatus = models.OutputStatus.SUCCESS,

@@ -46,6 +46,12 @@ class _TransversalStatus(BaseModel):
     repositories: dict[str, _TransversalStatusRepo] = {}
 
 
+class _IntermediateStatus(BaseModel):
+    """The intermediate status."""
+
+    status: _TransversalStatusRepo
+
+
 class _EventData(BaseModel):
     """The event data."""
 
@@ -57,24 +63,26 @@ class _EventData(BaseModel):
 
 
 def _get_process_output(
-    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     issue_check: module_utils.DashboardIssue,
     short_message: list[str],
     success: bool,
-) -> module.ProcessOutput[_EventData, _TransversalStatus]:
+    intermediate_status: _IntermediateStatus,
+) -> module.ProcessOutput[_EventData, _IntermediateStatus]:
     assert context.module_event_data.type is not None
     issue_check.set_check(context.module_event_data.type, checked=False)
 
     return module.ProcessOutput(
         dashboard=issue_check.to_string(),
-        transversal_status=context.transversal_status,
+        intermediate_status=intermediate_status,
+        updated_transversal_status=True,
         success=success,
         output={"summary": "\n".join(short_message)} if short_message else {},
     )
 
 
 def _process_error(
-    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     key: str,
     issue_check: module_utils.DashboardIssue,
     error_message: list[str | models.OutputData] | None = None,
@@ -104,7 +112,7 @@ def _process_error(
 
 
 def _process_outdated(
-    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     issue_check: module_utils.DashboardIssue,
 ) -> None:
     repo = context.github_project.repo
@@ -126,8 +134,9 @@ def _process_outdated(
 
 
 async def _process_snyk_dpkg(
-    context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     issue_check: module_utils.DashboardIssue,
+    intermediate_status: _IntermediateStatus,
 ) -> tuple[list[str], bool]:
     short_message: list[str] = []
     success = True
@@ -299,12 +308,8 @@ async def _process_snyk_dpkg(
                     pass
                 raise
 
-        full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
         transversal_message = ", ".join(short_message)
-        context.transversal_status.repositories.setdefault(
-            full_repo,
-            _TransversalStatusRepo(),
-        ).types[key] = _TransversalStatusTool(
+        intermediate_status.status.types[key] = _TransversalStatusTool(
             title=f"{key}: {transversal_message}",
         )
 
@@ -369,7 +374,9 @@ async def _use_python_version(python_version: str, cwd: Path) -> dict[str, str]:
     return env
 
 
-class Audit(module.Module[configuration.AuditConfiguration, _EventData, _TransversalStatus]):
+class Audit(
+    module.Module[configuration.AuditConfiguration, _EventData, _TransversalStatus, _IntermediateStatus],
+):
     """The audit module."""
 
     def title(self) -> str:
@@ -450,8 +457,8 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
 
     async def process(
         self,
-        context: module.ProcessContext[configuration.AuditConfiguration, _EventData, _TransversalStatus],
-    ) -> module.ProcessOutput[_EventData, _TransversalStatus]:
+        context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
+    ) -> module.ProcessOutput[_EventData, _IntermediateStatus]:
         """
         Process the action.
 
@@ -461,12 +468,7 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
         repo = context.github_project.repo
         short_message: list[str] = []
         success = True
-
-        module_utils.manage_updated_separated(
-            context.transversal_status.updated,
-            context.transversal_status.repositories,
-            f"{context.github_project.owner}/{context.github_project.repository}",
-        )
+        intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
 
         # If no SECURITY.md apply on default branch
         key_starts = []
@@ -535,11 +537,9 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                 else:
                     all_key_starts.extend([f"{key}{version}" for version in versions])
 
-            full_repository = f"{context.github_project.owner}/{context.github_project.repository}"
-            if full_repository in context.transversal_status.repositories:
-                for key in list(context.transversal_status.repositories[full_repository].types.keys()):
-                    if key not in all_key_starts:
-                        context.transversal_status.repositories[full_repository].types.pop(key)
+            for key in list(intermediate_status.status.types.keys()):
+                if key not in all_key_starts:
+                    intermediate_status.status.types.pop(key)
 
             # Audit is relay slow than add 15 to the cron priority
             priority = (
@@ -572,11 +572,31 @@ class Audit(module.Module[configuration.AuditConfiguration, _EventData, _Transve
                             title=f"dpkg ({version})",
                         ),
                     )
-            return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
+            return ProcessOutput(
+                actions=actions,
+                intermediate_status=intermediate_status,
+                updated_transversal_status=True,
+            )
         else:
-            short_message, success = await _process_snyk_dpkg(context, issue_check)
+            short_message, success = await _process_snyk_dpkg(context, issue_check, intermediate_status)
 
-        return _get_process_output(context, issue_check, short_message, success)
+        return _get_process_output(context, issue_check, short_message, success, intermediate_status)
+
+    async def update_transversal_status(
+        self,
+        context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
+        intermediate_status: _IntermediateStatus,
+        transversal_status: _TransversalStatus,
+    ) -> _TransversalStatus:
+        """Update the transversal status with the intermediate status."""
+        key = f"{context.github_project.owner}/{context.github_project.repository}"
+        module_utils.manage_updated_separated(
+            transversal_status.updated,
+            transversal_status.repositories,
+            key,
+        )
+        transversal_status.repositories[key] = intermediate_status.status
+        return transversal_status
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""

@@ -12,7 +12,7 @@ from github_app_geo_project.module import utils as module_utils
 _LOGGER = logging.getLogger(__name__)
 
 
-class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
+class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
     """Module to display the status of the workflows in the transversal dashboard."""
 
     def title(self) -> str:
@@ -55,14 +55,25 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
 
     async def process(
         self,
-        context: module.ProcessContext[None, dict[str, Any], dict[str, Any]],
-    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
+        context: module.ProcessContext[None, dict[str, Any]],
+    ) -> module.ProcessOutput[dict[str, Any], None]:
         """Process the action."""
+        del context  # Unused
+        return module.ProcessOutput(updated_transversal_status=True)
+
+    async def update_transversal_status(
+        self,
+        context: module.ProcessContext[None, dict[str, Any]],
+        intermediate_status: None,
+        transversal_status: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """Update the transversal status."""
+        del intermediate_status
         full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
 
-        module_utils.manage_updated(context.transversal_status, full_repo, days_old=30)
+        module_utils.manage_updated(transversal_status, full_repo, days_old=30)
 
-        repo_data = context.transversal_status[full_repo]
+        repo_data = transversal_status[full_repo]
 
         repo = context.github_project.github.get_repo(full_repo)
 
@@ -93,7 +104,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
                 head_branch,
                 ", ".join(stabilization_branches),
             )
-            return module.ProcessOutput()
+            return None
 
         branch_data = repo_data.setdefault(head_branch, {})
         workflow_name = context.event_data.get("workflow", {}).get("name", "Un named")
@@ -103,14 +114,12 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
             if not branch_data:
                 del repo_data[head_branch]
             if repo_data.keys() == {"updated"}:
-                del context.transversal_status[
-                    context.github_project.owner + "/" + context.github_project.repository
-                ]
+                del transversal_status[context.github_project.owner + "/" + context.github_project.repository]
             _LOGGER.info(
                 "Workflow '%s' is successful, removing it from the status",
                 workflow_name,
             )
-            return module.ProcessOutput(transversal_status=context.transversal_status)
+            return transversal_status
 
         workflow_data = {
             "url": context.event_data.get("workflow_run", {}).get("html_url"),
@@ -131,13 +140,11 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any]]):
                 workflow_data["jobs"].append({"name": job.name, "run_url": job.html_url})
 
         if repo_data.keys() == ["updated"]:
-            del context.transversal_status[
-                context.github_project.owner + "/" + context.github_project.repository
-            ]
-        message = module_utils.HtmlMessage(utils.format_json(context.transversal_status))
+            del transversal_status[context.github_project.owner + "/" + context.github_project.repository]
+        message = module_utils.HtmlMessage(utils.format_json(transversal_status))
         message.title = "New transversal status"
         _LOGGER.debug(message)
-        return module.ProcessOutput(transversal_status=context.transversal_status)
+        return transversal_status
 
     def has_transversal_dashboard(self) -> bool:
         """Return True."""

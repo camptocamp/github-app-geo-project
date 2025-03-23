@@ -25,7 +25,11 @@ class _TransversalDashboardData(BaseModel):
     content: str = "content by default"
 
 
-class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardData]):
+class _IntermediaryStatus(BaseModel):
+    pass
+
+
+class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardData, _IntermediaryStatus]):
     def title(self) -> str:
         """Get the title of the module."""
         return "Test Module"
@@ -56,7 +60,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
 
     async def process(
         self,
-        context: module.ProcessContext[_ConfigType, _EventData, _TransversalDashboardData],
+        context: module.ProcessContext[_ConfigType, _EventData],
     ) -> module.ProcessOutput[_EventData, _TransversalDashboardData]:
         """
         Process the action.
@@ -133,13 +137,24 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
 
             with open("/tmp/test-result.yaml", "w", encoding="utf-8") as file:
                 yaml.dump(result, file)
-            return module.ProcessOutput(
-                transversal_status=_TransversalDashboardData(content="<b>Some content</b>"),
-            )
+
+            return module.ProcessOutput(updated_transversal_status=True)
 
         finally:
             with open("/results/test-result.yaml", "w", encoding="utf-8") as file:
                 file.write(yaml.dump(result))
+
+    async def update_transversal_status(
+        self,
+        context: module.ProcessContext[_ConfigType, _EventData],
+        intermediary_status: _IntermediaryStatus,
+        transversal_status: _TransversalDashboardData,
+    ) -> _TransversalDashboardData:
+        """
+        Update the transversal status with the intermediary status.
+        """
+        del context, intermediary_status, transversal_status  # Unused
+        return _TransversalDashboardData(content="<b>Some content</b>")
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""

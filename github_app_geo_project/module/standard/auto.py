@@ -35,7 +35,7 @@ def equals_if_defined(reference: str | None, value: str) -> bool:
     return reference == value
 
 
-class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any]]):
+class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any], None]):
     """The auto module."""
 
     def documentation_url(self) -> str:
@@ -61,15 +61,15 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
     @abstractmethod
     def do_action(
         self,
-        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any]],
+        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any]],
         pull_request: github.PullRequest.PullRequest,
     ) -> None:
         """Process the action, called it the conditions match."""
 
     async def process(
         self,
-        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any]],
-    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
+        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any]],
+    ) -> module.ProcessOutput[dict[str, Any], None]:
         """
         Process the action.
 

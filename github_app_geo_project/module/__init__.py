@@ -25,9 +25,13 @@ PRIORITY_CRON = 40
 """Priority for an action triggered by a cron"""
 
 _CONFIGURATION = TypeVar("_CONFIGURATION")
+"""The module configuration"""
 _EVENT_DATA = TypeVar("_EVENT_DATA")  # pylint: disable=invalid-name
 """The module event data"""
 _TRANSVERSAL_STATUS = TypeVar("_TRANSVERSAL_STATUS")  # pylint: disable=invalid-name
+"""The module transversal status"""
+_INTERMEDIATE_STATUS = TypeVar("_INTERMEDIATE_STATUS")  # pylint: disable=invalid-name
+"""The module intermediate status"""
 
 
 class Action(Generic[_EVENT_DATA]):
@@ -89,7 +93,7 @@ class CleanupContext(NamedTuple, Generic[_EVENT_DATA]):
     """The data given by the get_actions method."""
 
 
-class ProcessContext(NamedTuple, Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
+class ProcessContext(NamedTuple, Generic[_CONFIGURATION, _EVENT_DATA]):
     """The context of the process."""
 
     session: Session
@@ -106,8 +110,6 @@ class ProcessContext(NamedTuple, Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERS
     """The data given by the get_actions method."""
     issue_data: str
     """The data from the issue dashboard."""
-    transversal_status: _TRANSVERSAL_STATUS
-    """The module status."""
     job_id: int
     """The job ID."""
     service_url: str
@@ -263,30 +265,35 @@ class GitHubApplicationPermissions(NamedTuple):
     ]
 
 
-class ProcessOutput(Generic[_EVENT_DATA, _TRANSVERSAL_STATUS]):
+class ProcessOutput(Generic[_EVENT_DATA, _INTERMEDIATE_STATUS]):
     """The output of the process method."""
 
     dashboard: str | None
-    """The dashboard issue content."""
-    transversal_status: _TRANSVERSAL_STATUS | None
     """The transversal status of the module."""
+    intermediate_status: _INTERMEDIATE_STATUS | None
+    """The intermediate status of the module."""
+    updated_transversal_status: bool
+    """If the transversal status should be updated."""
     actions: list[Action[_EVENT_DATA]]
     """The new actions that should be done."""
     success: bool
     """The success of the process."""
     output: dict[str, Any] | None
+    """The output of the process."""
 
     def __init__(
         self,
         dashboard: str | None = None,
-        transversal_status: _TRANSVERSAL_STATUS | None = None,
+        intermediate_status: _INTERMEDIATE_STATUS | None = None,
+        updated_transversal_status: bool = False,
         actions: list[Action[_EVENT_DATA]] | None = None,
         success: bool = True,
         output: dict[str, Any] | None = None,
     ) -> None:
         """Create the output of the process method."""
         self.dashboard = dashboard
-        self.transversal_status = transversal_status
+        self.intermediate_status = intermediate_status
+        self.updated_transversal_status = updated_transversal_status
         self.actions = actions or []
         self.success = success
         self.output = output
@@ -306,7 +313,7 @@ class TransversalDashboardOutput(NamedTuple):
     data: dict[str, Any]
 
 
-class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
+class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS, _INTERMEDIATE_STATUS]):
     """The base class of the modules."""
 
     @abstractmethod
@@ -341,8 +348,8 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
     @abstractmethod
     async def process(
         self,
-        context: ProcessContext[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS],
-    ) -> ProcessOutput[_EVENT_DATA, _TRANSVERSAL_STATUS]:
+        context: ProcessContext[_CONFIGURATION, _EVENT_DATA],
+    ) -> ProcessOutput[_EVENT_DATA, _INTERMEDIATE_STATUS]:
         """
         Process the action.
 
@@ -351,6 +358,20 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS]):
         :return: The message to be displayed in the issue dashboard, None for not changes, '' for no message
                  This is taken in account only if the method required_issue_dashboard return True.
         """
+
+    async def update_transversal_status(
+        self,
+        context: ProcessContext[_CONFIGURATION, _EVENT_DATA],
+        intermediate_status: _INTERMEDIATE_STATUS,
+        transversal_status: _TRANSVERSAL_STATUS,
+    ) -> _TRANSVERSAL_STATUS | None:
+        """
+        Update the transversal status.
+
+        This method will not be called concurrently for the same module.
+        """
+        del context, intermediate_status, transversal_status
+        return None
 
     def cleanup(self, context: CleanupContext[_EVENT_DATA]) -> None:
         """

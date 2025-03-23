@@ -338,7 +338,7 @@ def process_event(context: ProcessContext) -> None:
 def create_checks(
     job: models.Queue,
     session: Session,
-    current_module: module.Module[Any, Any, Any],
+    current_module: module.Module[Any, Any, Any, Any],
     repo: github.Repository.Repository,
     event_data: dict[str, Any],
     service_url: str,

@@ -44,7 +44,7 @@ except Exception:  # pylint: disable=broad-exception-caught
     CONFIG = _Config()
 
 
-class DispatchPublishing(module.Module[None, None, None]):
+class DispatchPublishing(module.Module[None, None, None, None]):
     """
     The version module.
 
@@ -90,7 +90,7 @@ class DispatchPublishing(module.Module[None, None, None]):
 
     async def process(
         self,
-        context: module.ProcessContext[None, None, None],
+        context: module.ProcessContext[None, None],
     ) -> module.ProcessOutput[None, None]:
         """
         Process the action.

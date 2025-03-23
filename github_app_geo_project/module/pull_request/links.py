@@ -75,7 +75,7 @@ def _add_issue_link(
 
 
 class Links(
-    module.Module[links_configuration.PullRequestAddLinksConfiguration, dict[str, Any], dict[str, Any]],
+    module.Module[links_configuration.PullRequestAddLinksConfiguration, dict[str, Any], dict[str, Any], None],
 ):
     """Module to add some links to the pull request message and commits."""
 
@@ -130,9 +130,8 @@ class Links(
         context: module.ProcessContext[
             links_configuration.PullRequestAddLinksConfiguration,
             dict[str, Any],
-            dict[str, Any],
         ],
-    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
+    ) -> module.ProcessOutput[dict[str, Any], None]:
         """Process the module."""
         repo = context.github_project.repo
         pull_request = repo.get_pull(number=context.module_event_data["pull-request-number"])

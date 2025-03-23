@@ -43,7 +43,7 @@ def format_process_out(stdout: str | None, stderr: str | None) -> str:
     return ""
 
 
-class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
+class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
     """Module that apply the patch present in the artifact on the branch of the pull request."""
 
     def title(self) -> str:
@@ -76,7 +76,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
 
     async def process(
         self,
-        context: module.ProcessContext[dict[str, Any], dict[str, Any], dict[str, Any]],
+        context: module.ProcessContext[dict[str, Any], dict[str, Any]],
     ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
         """
         Process the action.

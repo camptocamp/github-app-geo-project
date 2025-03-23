@@ -62,6 +62,13 @@ class _TransversalStatus(BaseModel):
     repositories: dict[str, _TransversalStatusRepo] = {}
 
 
+class _IntermediateStatus(BaseModel):
+    """The intermediate status."""
+
+    status: _TransversalStatusRepo
+    updated_separated_keys: set[str] = set()
+
+
 class _NamesStatus(BaseModel):
     status_by_version: dict[str, str] = {}
     repo: str | None = None
@@ -105,7 +112,9 @@ class VersionError(Exception):
     """Error while updating the versions."""
 
 
-class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _TransversalStatus]):
+class Versions(
+    module.Module[configuration.VersionsConfiguration, _EventData, _TransversalStatus, _IntermediateStatus],
+):
     """
     The version module.
 
@@ -157,27 +166,21 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
     async def process(
         self,
-        context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
-    ) -> module.ProcessOutput[_EventData, _TransversalStatus]:
+        context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
+    ) -> module.ProcessOutput[_EventData, _IntermediateStatus]:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
         """
-        key = f"{context.github_project.owner}/{context.github_project.repository}"
-        status = context.transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
+        intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
+        status = intermediate_status.status
         if context.module_event_data.step == 1:
             status.url = (
                 f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
             )
-            module_utils.manage_updated_separated(
-                context.transversal_status.updated,
-                context.transversal_status.repositories,
-                key,
-            )
 
-            _apply_additional_packages(context)
-            await _update_upstream_versions(context)
+            await _update_upstream_versions(context, intermediate_status)
 
             repo = context.github_project.repo
             stabilization_versions = []
@@ -236,7 +239,11 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 )
                 for version in stabilization_versions
             ]
-            return ProcessOutput(actions=actions, transversal_status=context.transversal_status)
+            return ProcessOutput(
+                actions=actions,
+                intermediate_status=intermediate_status,
+                updated_transversal_status=True,
+            )
         if context.module_event_data.step == 2:
             assert context.module_event_data.version is not None
             version = context.module_event_data.version
@@ -258,7 +265,6 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
                 )
                 version_status.names_by_datasource.clear()
                 version_status.dependencies_by_datasource.clear()
-                transversal_status = context.transversal_status
 
                 message = module_utils.HtmlMessage(
                     utils.format_json(
@@ -306,11 +312,7 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
                 message = module_utils.HtmlMessage(
                     utils.format_json_str(
-                        transversal_status.repositories[
-                            f"{context.github_project.owner}/{context.github_project.repository}"
-                        ]
-                        .versions[version]
-                        .model_dump_json(indent=2),
+                        status.versions[version].model_dump_json(indent=2),
                     ),
                 )
                 message.title = f"Version ({version}):"
@@ -318,17 +320,37 @@ class Versions(module.Module[configuration.VersionsConfiguration, _EventData, _T
 
                 message = module_utils.HtmlMessage(
                     utils.format_json_str(
-                        transversal_status.repositories[
-                            f"{context.github_project.owner}/{context.github_project.repository}"
-                        ].model_dump_json(indent=2),
+                        status.model_dump_json(indent=2),
                     ),
                 )
                 message.title = "Repo:"
                 _LOGGER.debug(message)
 
-            return ProcessOutput(transversal_status=context.transversal_status)
+            return ProcessOutput(intermediate_status=intermediate_status, updated_transversal_status=True)
         exception_message = "Invalid step"
         raise VersionError(exception_message)
+
+    async def update_transversal_status(
+        self,
+        context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
+        intermediate_status: _IntermediateStatus,
+        transversal_status: _TransversalStatus,
+    ) -> _TransversalStatus:
+        """Update the transversal status with the intermediate status."""
+        key = f"{context.github_project.owner}/{context.github_project.repository}"
+
+        if context.module_event_data.step == 1:
+            transversal_status.repositories[
+                key
+            ].url = f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
+            _apply_additional_packages(context, transversal_status)
+        module_utils.manage_updated_separated(
+            transversal_status.updated,
+            transversal_status.repositories,
+            key,
+        )
+        transversal_status.repositories[key] = intermediate_status.status
+        return transversal_status
 
     def has_transversal_dashboard(self) -> bool:
         """Return True if the module has a transversal dashboard."""
@@ -463,7 +485,7 @@ def _canonical_minor_version(datasource: str, version: str) -> str:
 
 
 async def _get_names(
-    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource],
     version: str,
     cwd: Path,
@@ -598,7 +620,7 @@ async def _get_names(
 
 
 async def _get_dependencies(
-    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     result: dict[str, _TransversalStatusNameInDatasource],
     cwd: Path,
 ) -> bool:
@@ -682,7 +704,7 @@ async def _get_dependencies(
 
 
 def _read_dependencies(
-    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     data: dict[str, Any],
     result: dict[str, _TransversalStatusNameInDatasource],
 ) -> None:
@@ -713,7 +735,7 @@ def _read_dependencies(
 
 
 def _dependency_extractor(
-    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     dependency: str,
     datasource: str,
     version: str,
@@ -742,24 +764,17 @@ def _dependency_extractor(
 
 
 async def _update_upstream_versions(
-    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
+    intermediate_status: _IntermediateStatus,
 ) -> None:
-    transversal_status = context.transversal_status
     for external_config in context.module_config.get("external-packages", []):
         package = external_config["package"]
         name = f"endoflife.date/{package}"
         datasource = external_config["datasource"]
 
-        module_utils.manage_updated_separated(
-            transversal_status.updated,
-            transversal_status.repositories,
-            name,
-        )
+        intermediate_status.updated_separated_keys.add(name)
 
-        package_status: _TransversalStatusRepo = context.transversal_status.repositories.setdefault(
-            name,
-            _TransversalStatusRepo(),
-        )
+        package_status: _TransversalStatusRepo = intermediate_status.status
         package_status.url = f"https://endoflife.date/{package}"
 
         if package_status.upstream_updated and (
@@ -960,13 +975,14 @@ def _build_reverse_dependency(
 
 
 def _apply_additional_packages(
-    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData, _TransversalStatus],
+    context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
+    transversal_status: _TransversalStatus,
 ) -> None:
     for repo, data in context.module_config.get("additional-packages", {}).items():
         module_utils.manage_updated_separated(
-            context.transversal_status.updated,
-            context.transversal_status.repositories,
+            transversal_status.updated,
+            transversal_status.repositories,
             repo,
         )
         pydentic_data = _TransversalStatusRepo(**data)
-        context.transversal_status.repositories[repo] = pydentic_data
+        transversal_status.repositories[repo] = pydentic_data

@@ -29,7 +29,6 @@ def _get_code_spell_command(
     context: module.ProcessContext[
         checks_configuration.PullRequestChecksConfiguration,
         dict[str, Any],
-        dict[str, Any],
     ],
     ignore_file: NamedTemporaryFileStr,
 ) -> list[str]:
@@ -256,7 +255,7 @@ async def _pull_request_spell(
 
 
 class Checks(
-    module.Module[checks_configuration.PullRequestChecksConfiguration, dict[str, Any], dict[str, Any]],
+    module.Module[checks_configuration.PullRequestChecksConfiguration, dict[str, Any], dict[str, Any], None],
 ):
     """Module to check the pull request message and commits."""
 
@@ -312,9 +311,8 @@ class Checks(
         context: module.ProcessContext[
             checks_configuration.PullRequestChecksConfiguration,
             dict[str, Any],
-            dict[str, Any],
         ],
-    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
+    ) -> module.ProcessOutput[dict[str, Any], None]:
         """Process the module."""
         repo = context.github_project.repo
 
