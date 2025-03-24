@@ -58,7 +58,7 @@ async def snyk(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )  # nosec
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     message.title = "Pip freeze"
@@ -110,7 +110,7 @@ async def snyk(
 
     command = ["git", "diff", "--quiet"]
     diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if diff_proc.returncode != 0:
         (
@@ -149,7 +149,7 @@ async def _select_java_version(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(
@@ -200,7 +200,7 @@ async def _install_requirements_dependencies(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -248,7 +248,7 @@ async def _install_pipenv_dependencies(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -294,7 +294,7 @@ async def _install_poetry_dependencies(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -575,7 +575,7 @@ async def _snyk_fix(
     snyk_fix_message = None
     command = ["git", "reset", "--hard"]
     proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         await proc.communicate()
     if fixable_vulnerabilities_summary or vulnerabilities_in_requirements:
         command = [

@@ -34,7 +34,7 @@ def test_all_empty_status() -> None:
         module_instance.transversal_status_to_json(module_instance.transversal_status_from_json({}))
 
 
-class ConfigDictModule(module.Module[dict[str, Any], None, None]):
+class ConfigDictModule(module.Module[dict[str, Any], None, None, None]):
     pass
 
 
@@ -51,7 +51,7 @@ def test_json_configuration_from_json(data) -> None:
     assert test_module.configuration_from_json(data) == data
 
 
-class EventDataDictModule(module.Module[None, dict[str, Any], None]):
+class EventDataDictModule(module.Module[None, dict[str, Any], None, None]):
     pass
 
 
@@ -81,7 +81,7 @@ def test_json_envent_data_to_json(data) -> None:
     assert test_module.event_data_to_json(data) == data
 
 
-class TransversalStatusDictModule(module.Module[None, None, dict[str, Any]]):
+class TransversalStatusDictModule(module.Module[None, None, dict[str, Any], None]):
     pass
 
 
@@ -115,7 +115,7 @@ class Data(BaseModel):
     value: str
 
 
-class ConfigDataModule(module.Module[Data, None, None]):
+class ConfigDataModule(module.Module[Data, None, None, None]):
     pass
 
 
@@ -131,7 +131,7 @@ def test_data_configuration_from_json(data, expected) -> None:
     assert test_module.configuration_from_json(data) == expected
 
 
-class EventDataDataModule(module.Module[None, Data, None]):
+class EventDataDataModule(module.Module[None, Data, None, None]):
     pass
 
 
@@ -154,7 +154,7 @@ def test_data_event_data_to_json(data, expected) -> None:
     assert test_module.event_data_to_json(data) == expected
 
 
-class TransversalStatusDataModule(module.Module[None, None, Data]):
+class TransversalStatusDataModule(module.Module[None, None, Data, None]):
     pass
 
 

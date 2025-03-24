@@ -33,7 +33,7 @@ class _ActionData(BaseModel):
     branch: str | None = None
 
 
-class Backport(module.Module[configuration.BackportConfiguration, _ActionData, None]):
+class Backport(module.Module[configuration.BackportConfiguration, _ActionData, None, None]):
     """Module used to backport a pull request to an other branch."""
 
     def title(self) -> str:
@@ -100,7 +100,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
     async def process(
         self,
-        context: module.ProcessContext[configuration.BackportConfiguration, _ActionData, None],
+        context: module.ProcessContext[configuration.BackportConfiguration, _ActionData],
     ) -> module.ProcessOutput[_ActionData, None]:
         """Process the action."""
         if context.module_event_data.type == "check":
@@ -210,7 +210,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
     async def _backport(
         self,
-        context: module.ProcessContext[configuration.BackportConfiguration, _ActionData, None],
+        context: module.ProcessContext[configuration.BackportConfiguration, _ActionData],
         pull_request: github.PullRequest.PullRequest,
         target_branch: str,
     ) -> bool:
@@ -320,7 +320,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             stderr=asyncio.subprocess.PIPE,
                             cwd=cwd,
                         )
-                        async with asyncio.timeout(30):
+                        async with asyncio.timeout(60):
                             stdout, stderr = await proc.communicate()
                         if proc.returncode != 0:
                             raise subprocess.CalledProcessError(  # noqa: TRY301

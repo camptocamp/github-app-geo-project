@@ -38,17 +38,6 @@ async def test_process_step_2() -> None:
     versions = Versions()
     context = Mock()
     context.module_event_data = _EventData(step=2, version="master")
-    context.transversal_status = _TransversalStatus(
-        repositories={
-            "camptocamp/test": _TransversalStatusRepo(
-                versions={
-                    "master": _TransversalStatusVersion(
-                        support="Best effort",
-                    ),
-                },
-            ),
-        },
-    )
 
     context.github_project = Mock()
     context.github_project.owner = "camptocamp"
@@ -93,8 +82,24 @@ DEBUG: writePackageDataToFile called for github//local
  INFO: Successfully retrieved dependency data for camptocamp/github-app-geo-project
 """
     output = await versions.process(context)
-    assert isinstance(output.transversal_status, _TransversalStatus)
-    transversal_status_json = versions.transversal_status_to_json(output.transversal_status)
+    assert output.updated_transversal_status == True
+    transversal_status = await versions.update_transversal_status(
+        context,
+        output.intermediate_status,
+        _TransversalStatus(
+            repositories={
+                "camptocamp/test": _TransversalStatusRepo(
+                    versions={
+                        "master": _TransversalStatusVersion(
+                            support="Best effort",
+                        ),
+                    },
+                ),
+            },
+        ),
+    )
+    assert isinstance(transversal_status, _TransversalStatus)
+    transversal_status_json = versions.transversal_status_to_json(transversal_status)
     assert transversal_status_json.get("repositories") == {
         "camptocamp/test": {
             "versions": {

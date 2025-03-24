@@ -465,7 +465,7 @@ def generate_changelog(
     return "\n".join(result)
 
 
-class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any], dict[str, Any]]):
+class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any], dict[str, Any], None]):
     """The changelog module."""
 
     def title(self) -> str:
@@ -567,8 +567,8 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
 
     async def process(
         self,
-        context: module.ProcessContext[changelog_configuration.Changelog, dict[str, Any], dict[str, Any]],
-    ) -> module.ProcessOutput[dict[str, Any], dict[str, Any]]:
+        context: module.ProcessContext[changelog_configuration.Changelog, dict[str, Any]],
+    ) -> module.ProcessOutput[dict[str, Any], None]:
         """
         Process the action.
 

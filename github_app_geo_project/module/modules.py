@@ -8,7 +8,7 @@ import pkg_resources
 from github_app_geo_project import module
 
 # Available modules by name
-MODULES: dict[str, module.Module[Any, Any, Any]] = {}
+MODULES: dict[str, module.Module[Any, Any, Any, Any]] = {}
 _LOGGER = logging.getLogger(__name__)
 
 

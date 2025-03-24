@@ -36,6 +36,7 @@ _LOGGER = logging.getLogger(__name__)
 _LOGGER_WSGI = logging.getLogger("prometheus_client.wsgi")
 
 _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
+_MODULE_STATUS_LOCK: dict[str, asyncio.Lock] = {}
 
 
 class _JobInfo(NamedTuple):
@@ -159,13 +160,6 @@ async def _process_job(
             check_run = repo.get_check_run(job.check_run_id)
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         try:
-            module_status = (
-                session.query(models.ModuleStatus)
-                .filter(models.ModuleStatus.module == job.module)
-                .with_for_update(of=models.ModuleStatus)
-                .one_or_none()
-            )
-
             if "TEST_APPLICATION" not in os.environ:
                 if job.check_run_id is None:
                     check_run = webhook.create_checks(
@@ -190,9 +184,6 @@ async def _process_job(
                 module_config=current_module.configuration_from_json(cast(dict[str, Any], module_config)),
                 module_event_data=current_module.event_data_from_json(job.module_data),
                 issue_data=issue_data,
-                transversal_status=current_module.transversal_status_from_json(
-                    module_status.data if module_status is not None else None,
-                ),
                 job_id=job.id,
                 service_url=config["service-url"],
             )
@@ -200,14 +191,36 @@ async def _process_job(
             try:
                 start = datetime.datetime.now(tz=datetime.UTC)
                 job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", 50 * 60))
+                transversal_status = None
                 async with asyncio.timeout(job_timeout):
                     result = await current_module.process(context)
+                    if result.updated_transversal_status:
+                        if job.module not in _MODULE_STATUS_LOCK:
+                            _MODULE_STATUS_LOCK[job.module] = asyncio.Lock()
+                        async with _MODULE_STATUS_LOCK[job.module]:
+                            root_logger.removeHandler(handler)
+                            module_status = (
+                                session.query(models.ModuleStatus)
+                                .filter(models.ModuleStatus.module == job.module)
+                                .with_for_update(of=models.ModuleStatus)
+                                .one_or_none()
+                            )
+                            root_logger.addHandler(handler)
+                            transversal_status = current_module.transversal_status_from_json(
+                                module_status.data if module_status is not None else None,
+                            )
+                            transversal_status = await current_module.update_transversal_status(
+                                context,
+                                result.intermediate_status,
+                                transversal_status,
+                            )
+
                 _LOGGER.debug("Module %s took %s", job.module, datetime.datetime.now(tz=datetime.UTC) - start)
 
                 if result is not None:
                     non_none = [
                         *(["dashboard"] if result.dashboard is not None else []),
-                        *(["transversal_status"] if result.transversal_status is not None else []),
+                        *(["transversal_status"] if transversal_status is not None else []),
                         *(["actions"] if result.actions else []),
                         *(["output"] if result.output is not None else []),
                     ]
@@ -270,26 +283,26 @@ async def _process_job(
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
-            if result is not None and result.transversal_status is not None:
+            if result is not None and transversal_status is not None:
                 _LOGGER.debug(
                     "Update module status %s `%s` (type: %s, %s)\n%s",
                     job.module,
                     current_module.title(),
-                    type(result.transversal_status),
-                    result.transversal_status,
-                    current_module.transversal_status_to_json(result.transversal_status),
+                    type(transversal_status),
+                    transversal_status,
+                    current_module.transversal_status_to_json(transversal_status),
                 )
                 if module_status is None:
                     module_status = models.ModuleStatus(
                         module=job.module,
-                        data=current_module.transversal_status_to_json(result.transversal_status),
+                        data=current_module.transversal_status_to_json(transversal_status),
                     )
                     session.add(module_status)
                 else:
                     session.execute(
                         sqlalchemy.update(models.ModuleStatus)
                         .where(models.ModuleStatus.module == job.module)
-                        .values(data=current_module.transversal_status_to_json(result.transversal_status)),
+                        .values(data=current_module.transversal_status_to_json(transversal_status)),
                     )
             if result is not None:
                 _LOGGER.debug("Process actions")

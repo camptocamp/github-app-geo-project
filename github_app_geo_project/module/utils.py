@@ -23,7 +23,7 @@ WORKING_DIRECTORY_LOCK = asyncio.Lock()
 
 
 def add_output(
-    context: module.ProcessContext[Any, Any, Any],
+    context: module.ProcessContext[Any, Any],
     title: str,
     data: list[str | models.OutputData],
     status: models.OutputStatus = models.OutputStatus.SUCCESS,
@@ -544,7 +544,7 @@ async def run_timeout(
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
-        async with asyncio.timeout(30):
+        async with asyncio.timeout(60):
             stdout, stderr = await proc.communicate()
         message = AnsiProcessMessage.from_async_artifacts(cmd, proc, stdout, stderr)
         message.title = f"Find {command[0]}"
@@ -584,7 +584,7 @@ async def has_changes(cwd: Path, include_un_followed: bool = False) -> bool:
             stdout=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
-        async with asyncio.timeout(30):
+        async with asyncio.timeout(60):
             stdout, _ = await proc.communicate()
         return bool(stdout)
     proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
@@ -595,7 +595,7 @@ async def has_changes(cwd: Path, include_un_followed: bool = False) -> bool:
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         await proc.communicate()
     return proc.returncode != 0
 
@@ -609,7 +609,7 @@ async def create_commit(message: str, cwd: Path, pre_commit_check: bool = True) 
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         proc_message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -828,7 +828,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str, cw
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
 
@@ -846,7 +846,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str, cw
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     if proc.returncode != 0:
@@ -863,7 +863,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str, cw
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     if proc.returncode != 0:

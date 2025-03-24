@@ -10,15 +10,6 @@ from github_app_geo_project.module.workflow import Workflow
 async def test_process_success() -> None:
     # Create a mock context
     context = MagicMock()
-    context.transversal_status = {
-        "owner/repository": {
-            "workflow_name": {
-                "date": None,
-                "jobs": [],
-                "url": None,
-            },
-        },
-    }
     context.github_project.owner = "owner"
     context.github_project.repository = "repository"
     repo = MagicMock()
@@ -39,16 +30,27 @@ async def test_process_success() -> None:
     workflow = Workflow()
 
     # Call the process method
-    output = await workflow.process(context)
+    transversal_status = await workflow.update_transversal_status(
+        context,
+        None,
+        {
+            "owner/repository": {
+                "workflow_name": {
+                    "date": None,
+                    "jobs": [],
+                    "url": None,
+                },
+            },
+        },
+    )
 
-    assert output.transversal_status == {}
+    assert transversal_status == {}
 
 
 @pytest.mark.asyncio
 async def test_process_failure() -> None:
     # Create a mock context
     context = MagicMock()
-    context.transversal_status = {}
     context.github_project.owner = "owner"
     context.github_project.repository = "repository"
     repo = MagicMock()
@@ -69,12 +71,12 @@ async def test_process_failure() -> None:
     workflow = Workflow()
 
     # Call the process method
-    output = await workflow.process(context)
+    transversal_status = await workflow.update_transversal_status(context, None, {})
 
-    assert "updated" in output.transversal_status["owner/repository"]
-    del output.transversal_status["owner/repository"]["updated"]
+    assert "updated" in transversal_status["owner/repository"]
+    del transversal_status["owner/repository"]["updated"]
     # Assert the expected output
-    assert output.transversal_status == {
+    assert transversal_status == {
         "owner/repository": {
             "master": {
                 "workflow_name": {

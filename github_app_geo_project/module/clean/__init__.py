@@ -33,7 +33,7 @@ class _ActionData(BaseModel):
     names: list[str]
 
 
-class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
+class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, None]):
     """Module used to clean the related artifacts on deleting a feature branch or on closing a pull request."""
 
     def title(self) -> str:
@@ -88,7 +88,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
 
     async def process(
         self,
-        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None],
+        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData],
     ) -> module.ProcessOutput[_ActionData, None]:
         """Process the action."""
         if context.module_config.get("docker", True):
@@ -100,7 +100,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
 
     async def _clean_docker(
         self,
-        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None],
+        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData],
     ) -> None:
         """Clean the Docker images on Docker Hub for the branch we delete."""
         # get the .github/publish.yaml
@@ -226,7 +226,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
 
     async def _clean_git(
         self,
-        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData, None],
+        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData],
         git: configuration.Git,
     ) -> None:
         """Clean the Git repository for the branch we delete."""
@@ -297,7 +297,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None]):
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
             )
-            async with asyncio.timeout(30):
+            async with asyncio.timeout(60):
                 stdout, stderr = await proc.communicate()
             if proc.returncode != 0:
                 raise subprocess.CalledProcessError(

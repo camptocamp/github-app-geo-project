@@ -24,7 +24,7 @@ class AutoClose(auto.Auto):
 
     def do_action(
         self,
-        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any]],
+        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any]],
         pull_request: github.PullRequest.PullRequest,
     ) -> None:
         """
