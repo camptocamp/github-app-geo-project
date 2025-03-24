@@ -171,7 +171,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any]]):
                                     stdout=asyncio.subprocess.PIPE,
                                     cwd=cwd,
                                 )
-                                async with asyncio.timeout(30):
+                                async with asyncio.timeout(60):
                                     stdout, stderr = await proc.communicate(patch_input.encode())
                                 message = module_utils.AnsiProcessMessage.from_async_artifacts(
                                     command,

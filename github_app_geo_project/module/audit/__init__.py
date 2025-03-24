@@ -218,7 +218,7 @@ async def _process_snyk_dpkg(
             command = ["git", "diff", "--quiet"]
             diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
             try:
-                async with asyncio.timeout(30):
+                async with asyncio.timeout(60):
                     stdout, stderr = await diff_proc.communicate()
                 if diff_proc.returncode != 0:
                     command = ["git", "diff"]
@@ -229,7 +229,7 @@ async def _process_snyk_dpkg(
                         cwd=cwd,
                     )
                     try:
-                        async with asyncio.timeout(30):
+                        async with asyncio.timeout(60):
                             stdout, stderr = await proc.communicate()
                         message = module_utils.AnsiProcessMessage.from_async_artifacts(
                             command,
@@ -251,7 +251,7 @@ async def _process_snyk_dpkg(
                         cwd=cwd,
                     )
                     try:
-                        async with asyncio.timeout(30):
+                        async with asyncio.timeout(60):
                             stdout, stderr = await proc.communicate()
                         if proc.returncode != 0:
                             message = module_utils.AnsiProcessMessage.from_async_artifacts(

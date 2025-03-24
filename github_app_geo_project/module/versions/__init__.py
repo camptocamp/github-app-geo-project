@@ -476,7 +476,7 @@ async def _get_names(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage(
@@ -506,7 +506,7 @@ async def _get_names(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage(
@@ -571,7 +571,7 @@ async def _get_names(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage(

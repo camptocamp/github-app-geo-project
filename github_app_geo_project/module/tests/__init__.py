@@ -108,7 +108,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                 )
-                async with asyncio.timeout(30):
+                async with asyncio.timeout(60):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
@@ -120,7 +120,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                 )
-                async with asyncio.timeout(30):
+                async with asyncio.timeout(60):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
