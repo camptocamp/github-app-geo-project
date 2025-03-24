@@ -239,27 +239,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 return False
             cwd = new_cwd
 
-            command = ["ls", "-al"]
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
-            )
-            async with asyncio.timeout(60):
-                stdout, stderr = await proc.communicate()
-            ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                command,
-                proc,
-                stdout,
-                stderr,
-            )
-            ansi_message.title = "List of the files in the repository"
-            _LOGGER.debug(ansi_message)
-            _LOGGER.debug("ls -al: %s", stdout.decode("utf-8"))
-
             # Get the branches
-            command = ["git", "branch", "-b"]
+            command = ["git", "branch", "-a"]
             proc = await asyncio.create_subprocess_exec(
                 *command,
                 stdout=asyncio.subprocess.PIPE,
@@ -280,7 +261,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             _LOGGER.debug("Branches: %s", branches)
 
             # Checkout the branch
-            command = ["git", "checkout", "-b", backport_branch]
+            command = ["git", "checkout", "-b", backport_branch, f"origin/{target_branch}"]
             proc = await asyncio.create_subprocess_exec(
                 *command,
                 stdout=asyncio.subprocess.PIPE,
@@ -323,12 +304,15 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         async with asyncio.timeout(60):
                             stdout, stderr = await proc.communicate()
                         if proc.returncode != 0:
-                            raise subprocess.CalledProcessError(  # noqa: TRY301
-                                proc.returncode if proc.returncode is not None else -999,
+                            ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
                                 command,
+                                proc,
                                 stdout,
                                 stderr,
                             )
+                            ansi_message.title = f"Error while cherry-picking {commit.sha}"
+                            _LOGGER.error(ansi_message)
+                            failed_commits.append(commit.sha)
                     except subprocess.CalledProcessError:
                         failed_commits.append(commit.sha)
 
