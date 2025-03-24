@@ -1781,14 +1781,14 @@ files = [
 
 [[package]]
 name = "markdownify"
-version = "1.0.0"
+version = "1.1.0"
 description = "Convert HTML to markdown."
 optional = false
 python-versions = "*"
 groups = ["main"]
 files = [
-    {file = "markdownify-1.0.0-py3-none-any.whl", hash = "sha256:4c665b19a421121a88fadd6b09285488822c3a948cc33cdc4d78b1307198ddc6"},
-    {file = "markdownify-1.0.0.tar.gz", hash = "sha256:8e58d7bd7336cffe4168e5ceac22d78656b1121994bd65d1021cc1ac61a628d6"},
+    {file = "markdownify-1.1.0-py3-none-any.whl", hash = "sha256:32a5a08e9af02c8a6528942224c91b933b4bd2c7d078f9012943776fc313eeef"},
+    {file = "markdownify-1.1.0.tar.gz", hash = "sha256:449c0bbbf1401c5112379619524f33b63490a8fa479456d41de9dc9e37560ebd"},
 ]
 
 [package.dependencies]
@@ -2644,14 +2644,14 @@ prospector = ">=1.15.0"
 
 [[package]]
 name = "prospector-profile-utils"
-version = "1.21.9"
+version = "1.22.3"
 description = "Some utility Prospector profiles."
 optional = false
 python-versions = "*"
 groups = ["dev"]
 files = [
-    {file = "prospector_profile_utils-1.21.9-py2.py3-none-any.whl", hash = "sha256:bbd8b91d0b7ccc2bda3e2f6b6188303ea3415193382d8ce79052a2a8a2a2a9c2"},
-    {file = "prospector_profile_utils-1.21.9.tar.gz", hash = "sha256:08dd034d3022cacf4e911a36094b84d54314c1b4bf7c9f52932c41b0abe0ed1c"},
+    {file = "prospector_profile_utils-1.22.3-py2.py3-none-any.whl", hash = "sha256:56f10178f80c8f3c40fc1a68515d047bee3fddf32669753761d3ce9eb17792cf"},
+    {file = "prospector_profile_utils-1.22.3.tar.gz", hash = "sha256:f3e782787be6309a3c3574f4ec8f3785daddf736b1d2c2c2ee380cc789df2941"},
 ]
 
 [package.dependencies]
@@ -3803,14 +3803,14 @@ files = [
 
 [[package]]
 name = "sentry-sdk"
-version = "2.22.0"
+version = "2.24.1"
 description = "Python client for Sentry (https://sentry.io)"
 optional = false
 python-versions = ">=3.6"
 groups = ["main"]
 files = [
-    {file = "sentry_sdk-2.22.0-py2.py3-none-any.whl", hash = "sha256:3d791d631a6c97aad4da7074081a57073126c69487560c6f8bffcf586461de66"},
-    {file = "sentry_sdk-2.22.0.tar.gz", hash = "sha256:b4bf43bb38f547c84b2eadcefbe389b36ef75f3f38253d7a74d6b928c07ae944"},
+    {file = "sentry_sdk-2.24.1-py2.py3-none-any.whl", hash = "sha256:36baa6a1128b9d98d2adc5e9b2f887eff0a6af558fc2b96ed51919042413556d"},
+    {file = "sentry_sdk-2.24.1.tar.gz", hash = "sha256:8ba3c29990fa48865b908b3b9dc5ae7fa7e72407c7c9e91303e5206b32d7b8b1"},
 ]
 
 [package.dependencies]
@@ -4784,4 +4784,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "3a3901132a0af60a1602b2c70677ca0f90f3056fc4788eb7dc7ed47ccd75f666"
+content-hash = "de06cc3df3bc3231b38c146ac6ffcba80a5d8bfc367345a7e78d42483c5c766b"
