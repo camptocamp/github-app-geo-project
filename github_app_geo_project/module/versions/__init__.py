@@ -340,6 +340,8 @@ class Versions(
         key = f"{context.github_project.owner}/{context.github_project.repository}"
 
         if context.module_event_data.step == 1:
+            if key not in transversal_status.repositories:
+                transversal_status.repositories[key] = _TransversalStatusRepo()
             transversal_status.repositories[
                 key
             ].url = f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
