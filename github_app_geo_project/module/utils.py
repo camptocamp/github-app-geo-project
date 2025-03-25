@@ -780,7 +780,11 @@ def close_pull_request_issues(new_branch: str, message: str, project: configurat
 _SSH_LOCK = asyncio.Lock()
 
 
-async def git_clone(github_project: configuration.GithubProject, branch: str, cwd: Path) -> Path | None:
+async def git_clone(
+    github_project: configuration.GithubProject,
+    branch: str | None,
+    cwd: Path,
+) -> Path | None:
     """Clone the Git repository."""
     # Store the ssh key
     async with _SSH_LOCK:
@@ -793,8 +797,7 @@ async def git_clone(github_project: configuration.GithubProject, branch: str, cw
     command = [
         "git",
         "clone",
-        "--depth=1",
-        f"--branch={branch}",
+        *(["--depth=1", f"--branch={branch}"] if branch else []),
         f"https://x-access-token:{github_project.token}@github.com/{github_project.owner}/{github_project.repository}.git",
     ]
     proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
