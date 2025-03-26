@@ -106,6 +106,7 @@ class _EventData(BaseModel):
     version: str | None = None
     alternate_versions: list[str] | None = None
     retry: int | None = None
+    previous_jobs: list[int] | None = None
 
 
 class VersionError(Exception):
@@ -233,6 +234,14 @@ class Versions(
                             else []
                         ),
                         retry=int(os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_NUMBER", "10")),
+                        previous_jobs=[
+                            *(
+                                context.module_event_data.previous_jobs
+                                if context.module_event_data.previous_jobs
+                                else []
+                            ),
+                            context.job_id,
+                        ],
                     ),
                     title=version,
                     priority=module.PRIORITY_CRON,
@@ -298,6 +307,14 @@ class Versions(
                                     version=context.module_event_data.version,
                                     alternate_versions=context.module_event_data.alternate_versions,
                                     retry=context.module_event_data.retry - 1,
+                                    previous_jobs=[
+                                        *(
+                                            context.module_event_data.previous_jobs
+                                            if context.module_event_data.previous_jobs
+                                            else []
+                                        ),
+                                        context.job_id,
+                                    ],
                                 ),
                             ),
                         ],
