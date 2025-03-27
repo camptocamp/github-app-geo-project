@@ -130,7 +130,9 @@ ENV PATH=${PATH}:/app/node_modules/.bin
 
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.cache \
-    npm install
+    npm install \
+    && ln -s node_modules/@jamietanna/renovate-graph/patches/ . \
+    && node_modules/.bin/patch-package
 
 COPY . /app/
 ARG VERSION=dev
