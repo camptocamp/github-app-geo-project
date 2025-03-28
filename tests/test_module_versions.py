@@ -1,3 +1,4 @@
+import json
 import os
 from unittest.mock import Mock
 
@@ -20,6 +21,7 @@ from github_app_geo_project.module.versions import (
     _TransversalStatusRepo,
     _TransversalStatusVersion,
     _TransversalStatusVersions,
+    _IntermediateStatus,
     _update_upstream_versions,
 )
 
@@ -83,6 +85,48 @@ DEBUG: writePackageDataToFile called for github//local
 """
     output = await versions.process(context)
     assert output.updated_transversal_status == True
+    assert isinstance(output.intermediate_status, _IntermediateStatus)
+    assert json.loads(output.intermediate_status.model_dump_json(indent=2)) == {
+        "external_repositories": {},
+        "stabilization_versions": [],
+        "url": None,
+        "version": "master",
+        "version_dependencies_by_datasource": {
+            "github-tags": {
+                "versions_by_names": {
+                    "actions/checkout": {
+                        "versions": [
+                            "v4",
+                        ],
+                    },
+                },
+            },
+        },
+        "version_names_by_datasource": {
+            "docker": {
+                "names": [
+                    "ghcr.io/camptocamp/github-app-geo-project:master",
+                ],
+            },
+            "github-release": {
+                "names": [
+                    "camptocamp/test",
+                ],
+            },
+            "npm": {
+                "names": [
+                    "ghci",
+                ],
+            },
+            "pypi": {
+                "names": [
+                    "github-app-geo-project",
+                ],
+            },
+        },
+        "version_support": {},
+        "versions_to_delete": [],
+    }
     transversal_status = await versions.update_transversal_status(
         context,
         output.intermediate_status,

@@ -37,6 +37,8 @@ VersionsConfiguration = TypedDict('VersionsConfiguration', {
     # |   - datasource: package
     # |     package: postgres
     'external-packages': list["_VersionsConfigurationExternalPackagesItem"],
+    # | The repository who manage the external packages
+    'repository-external': str,
     # | The package extractor by datasource
     'package-extractor': dict[str, "_VersionsConfigurationPackageExtractorAdditionalproperties"],
     # | Version mapping.

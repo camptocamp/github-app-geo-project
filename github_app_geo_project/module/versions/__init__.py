@@ -65,8 +65,14 @@ class _TransversalStatus(BaseModel):
 class _IntermediateStatus(BaseModel):
     """The intermediate status."""
 
-    status: _TransversalStatusRepo
-    updated_separated_keys: set[str] = set()
+    version: str | None = None
+    url: str | None = None
+    version_support: dict[str, str] = {}
+    version_names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
+    version_dependencies_by_datasource: dict[str, _TransversalStatusNameInDatasource] = {}
+    stabilization_versions: list[str] = []
+    versions_to_delete: list[str] = []
+    external_repositories: dict[str, _TransversalStatusRepo] = {}
 
 
 class _NamesStatus(BaseModel):
@@ -174,14 +180,17 @@ class Versions(
 
         Note that this method is called in the queue consuming Pod
         """
-        intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
-        status = intermediate_status.status
+        intermediate_status = _IntermediateStatus()
         if context.module_event_data.step == 1:
-            status.url = (
+            intermediate_status.url = (
                 f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
             )
 
-            await _update_upstream_versions(context, intermediate_status)
+            if (
+                context.module_config.get("repository-external", "github-app-geo-project")
+                == context.github_project.repository
+            ):
+                await _update_upstream_versions(context, intermediate_status)
 
             repo = context.github_project.repo
             stabilization_versions = []
@@ -203,10 +212,7 @@ class Versions(
             stabilization_versions.append(repo.default_branch)
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_versions))
             for version in stabilization_versions:
-                status.versions.setdefault(
-                    version,
-                    _TransversalStatusVersion(support="Best effort"),
-                ).support = "Best effort"
+                intermediate_status.version_support[version] = "Best effort"
 
             if security is not None:
                 version_index = security.version_index
@@ -215,13 +221,10 @@ class Versions(
                     if len(raw) > max(version_index, support_index):
                         version = raw[version_index]
                         support = raw[support_index]
-                        if version in status.versions:
-                            status.versions[version].support = support
+                        if version in intermediate_status.version_support:
+                            intermediate_status.version_support[version] = support
 
-            versions = status.versions
-            for version in list(versions.keys()):
-                if version not in stabilization_versions:
-                    del versions[version]
+            intermediate_status.stabilization_versions = stabilization_versions
 
             actions = [
                 module.Action(
@@ -256,6 +259,7 @@ class Versions(
         if context.module_event_data.step == 2:
             assert context.module_event_data.version is not None
             version = context.module_event_data.version
+            intermediate_status.version = version
             branch = context.module_config.get("version-mapping", {}).get(version, version)
             with tempfile.TemporaryDirectory() as tmpdirname:
                 if os.environ.get("TEST") != "TRUE":
@@ -268,35 +272,25 @@ class Versions(
                 else:
                     cwd = Path.cwd()
 
-                version_status = status.versions.setdefault(
-                    version,
-                    _TransversalStatusVersion(support="Best effort"),
-                )
-                version_status.names_by_datasource.clear()
-                version_status.dependencies_by_datasource.clear()
-
-                message = module_utils.HtmlMessage(
-                    utils.format_json(
-                        json.loads(version_status.model_dump_json())["names_by_datasource"],
-                    ),
-                )
-                message.title = "Names cleaned:"
-
                 await _get_names(
                     context,
-                    version_status.names_by_datasource,
+                    intermediate_status.version_names_by_datasource,
                     version,
                     cwd,
                     alternate_versions=context.module_event_data.alternate_versions,
                 )
                 message = module_utils.HtmlMessage(
                     utils.format_json(
-                        json.loads(version_status.model_dump_json())["names_by_datasource"],
+                        json.loads(intermediate_status.model_dump_json())["version_names_by_datasource"],
                     ),
                 )
                 message.title = "Names:"
                 _LOGGER.debug(message)
-                if await _get_dependencies(context, version_status.dependencies_by_datasource, cwd):
+                if await _get_dependencies(
+                    context,
+                    intermediate_status.version_dependencies_by_datasource,
+                    cwd,
+                ):
                     assert context.module_event_data.retry is not None
                     # Retry
                     return ProcessOutput(
@@ -321,26 +315,12 @@ class Versions(
                     )
                 message = module_utils.HtmlMessage(
                     utils.format_json(
-                        json.loads(version_status.model_dump_json())["dependencies_by_datasource"],
+                        json.loads(intermediate_status.model_dump_json())[
+                            "version_dependencies_by_datasource"
+                        ],
                     ),
                 )
                 message.title = "Dependencies:"
-                _LOGGER.debug(message)
-
-                message = module_utils.HtmlMessage(
-                    utils.format_json_str(
-                        status.versions[version].model_dump_json(indent=2),
-                    ),
-                )
-                message.title = f"Version ({version}):"
-                _LOGGER.debug(message)
-
-                message = module_utils.HtmlMessage(
-                    utils.format_json_str(
-                        status.model_dump_json(indent=2),
-                    ),
-                )
-                message.title = "Repo:"
                 _LOGGER.debug(message)
 
             return ProcessOutput(intermediate_status=intermediate_status, updated_transversal_status=True)
@@ -356,19 +336,65 @@ class Versions(
         """Update the transversal status with the intermediate status."""
         key = f"{context.github_project.owner}/{context.github_project.repository}"
 
-        if context.module_event_data.step == 1:
-            if key not in transversal_status.repositories:
-                transversal_status.repositories[key] = _TransversalStatusRepo()
-            transversal_status.repositories[
-                key
-            ].url = f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
-            _apply_additional_packages(context, transversal_status)
         module_utils.manage_updated_separated(
             transversal_status.updated,
             transversal_status.repositories,
             key,
         )
-        transversal_status.repositories[key] = intermediate_status.status
+
+        repo = transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
+        if intermediate_status.url:
+            repo.url = intermediate_status.url
+
+        for version_name, support in intermediate_status.version_support.items():
+            version = repo.versions.setdefault(version_name, _TransversalStatusVersion(support=support))
+            version.support = support
+
+        versions = repo.versions
+        for version_name in list(versions.keys()):
+            if version_name not in intermediate_status.stabilization_versions:
+                del versions[version_name]
+
+        if intermediate_status.version:
+            version = repo.versions.setdefault(
+                intermediate_status.version,
+                _TransversalStatusVersion(
+                    support="Best effort",
+                ),
+            )
+            if intermediate_status.version_names_by_datasource:
+                version.names_by_datasource = intermediate_status.version_names_by_datasource
+            if intermediate_status.version_dependencies_by_datasource:
+                version.dependencies_by_datasource = intermediate_status.version_dependencies_by_datasource
+
+            message = module_utils.HtmlMessage(
+                utils.format_json_str(
+                    version.model_dump_json(indent=2),
+                ),
+            )
+            message.title = f"Version ({intermediate_status.version}):"
+            _LOGGER.debug(message)
+
+        for version_to_delete in intermediate_status.versions_to_delete:
+            if version_to_delete in repo.versions:
+                del repo.versions[version_to_delete]
+
+        message = module_utils.HtmlMessage(
+            utils.format_json_str(
+                repo.model_dump_json(indent=2),
+            ),
+        )
+        message.title = "Repo:"
+        _LOGGER.debug(message)
+
+        for external_name, external_repo in intermediate_status.external_repositories.items():
+            module_utils.manage_updated_separated(
+                transversal_status.updated,
+                transversal_status.repositories,
+                external_name,
+            )
+            transversal_status.repositories[external_name] = external_repo
+
         return transversal_status
 
     def has_transversal_dashboard(self) -> bool:
@@ -791,9 +817,8 @@ async def _update_upstream_versions(
         name = f"endoflife.date/{package}"
         datasource = external_config["datasource"]
 
-        intermediate_status.updated_separated_keys.add(name)
-
-        package_status: _TransversalStatusRepo = intermediate_status.status
+        package_status = _TransversalStatusRepo()
+        intermediate_status.external_repositories[name] = package_status
         package_status.url = f"https://endoflife.date/{package}"
 
         if package_status.upstream_updated and (

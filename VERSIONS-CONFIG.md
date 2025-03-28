@@ -81,6 +81,7 @@
   }
   ```
 
+- **`repository-external`** _(string)_: The repository who manage the external packages.
 - **`package-extractor`** _(object)_: The package extractor by datasource. Can contain additional properties.
   - **Additional properties** _(object)_: The package extractor by package name. Can contain additional properties.
     - **Additional properties** _(array)_

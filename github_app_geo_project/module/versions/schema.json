@@ -70,6 +70,10 @@
         "required": ["package", "datasource"]
       }
     },
+    "repository-external": {
+      "type": "string",
+      "description": "The repository who manage the external packages"
+    },
     "package-extractor": {
       "description": "The package extractor by datasource",
       "type": "object",
