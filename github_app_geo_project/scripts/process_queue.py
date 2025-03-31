@@ -141,6 +141,20 @@ async def _process_job(
             job.owner,
             job.repository,
         )
+        # Get Rate limit status
+        if github_project.github.rate_limiting[0] < 1000:
+            _LOGGER.warning(
+                "Rate limit status: %s",
+                github_project.github.rate_limiting,
+            )
+            # Wait until github_project.github.rate_limiting_resettime
+            await asyncio.sleep(
+                max(
+                    0,
+                    github_project.github.rate_limiting_resettime - time.time(),
+                ),
+            )
+
         repo = github_project.repo
 
         if current_module.required_issue_dashboard():
