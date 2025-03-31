@@ -88,6 +88,7 @@ DEBUG: writePackageDataToFile called for github//local
     assert isinstance(output.intermediate_status, _IntermediateStatus)
     assert json.loads(output.intermediate_status.model_dump_json(indent=2)) == {
         "external_repositories": {},
+        "has_security_policy": False,
         "stabilization_versions": [],
         "url": None,
         "version": "master",
@@ -146,6 +147,7 @@ DEBUG: writePackageDataToFile called for github//local
     transversal_status_json = versions.transversal_status_to_json(transversal_status)
     assert transversal_status_json.get("repositories") == {
         "camptocamp/test": {
+            "has_security_policy": False,
             "versions": {
                 "master": {
                     "dependencies_by_datasource": {
@@ -226,7 +228,10 @@ def test_get_transversal_dashboard() -> None:
 
 @pytest.mark.parametrize(
     ("other_support", "expected_color"),
-    [("01/01/2044", "--bs-danger"), ("01/01/2046", "--bs-body-bg")],
+    [
+        ("01/01/2044", "--bs-danger"),
+        ("01/01/2046", "--bs-body-bg"),
+    ],
 )
 def test_get_transversal_dashboard_repo_forward(other_support: str, expected_color: str) -> None:
     versions = Versions()
@@ -234,6 +239,7 @@ def test_get_transversal_dashboard_repo_forward(other_support: str, expected_col
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="01/01/2045",
@@ -248,6 +254,7 @@ def test_get_transversal_dashboard_repo_forward(other_support: str, expected_col
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support=other_support,
@@ -265,6 +272,7 @@ def test_get_transversal_dashboard_repo_forward(other_support: str, expected_col
         by_branch={
             "1.0": _Dependencies(
                 support="01/01/2045",
+                color="--bs-body-bg",
                 forward=[
                     _Dependency(
                         name="other_package",
@@ -287,6 +295,7 @@ def test_get_transversal_dashboard_repo_forward_docker() -> None:
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -301,6 +310,7 @@ def test_get_transversal_dashboard_repo_forward_docker() -> None:
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -318,6 +328,7 @@ def test_get_transversal_dashboard_repo_forward_docker() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support="Best effort",
+                color="--bs-body-bg",
                 forward=[
                     _Dependency(
                         name="camptocamp/other",
@@ -340,6 +351,7 @@ def test_get_transversal_dashboard_repo_forward_docker_2() -> None:
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="27/06/2027",
@@ -356,6 +368,7 @@ def test_get_transversal_dashboard_repo_forward_docker_2() -> None:
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -378,6 +391,7 @@ def test_get_transversal_dashboard_repo_forward_docker_2() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support="27/06/2027",
+                color="--bs-body-bg",
                 forward=[
                     _Dependency(
                         name="ghcr.io/osgeo/gdal",
@@ -400,6 +414,7 @@ def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -414,6 +429,7 @@ def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -437,6 +453,7 @@ def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support="Best effort",
+                color="--bs-body-bg",
                 forward=[
                     _Dependency(
                         name="camptocamp/other",
@@ -467,6 +484,7 @@ def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -481,6 +499,7 @@ def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "3.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -498,6 +517,7 @@ def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support="Best effort",
+                color="--bs-body-bg",
                 forward=[
                     _Dependency(
                         name="other_package",
@@ -524,6 +544,7 @@ def test_get_transversal_dashboard_repo_reverse(other_support: str, expected_col
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="01/01/2045",
@@ -532,6 +553,7 @@ def test_get_transversal_dashboard_repo_reverse(other_support: str, expected_col
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support=other_support,
@@ -551,6 +573,7 @@ def test_get_transversal_dashboard_repo_reverse(other_support: str, expected_col
         by_branch={
             "1.0": _Dependencies(
                 support="01/01/2045",
+                color="--bs-body-bg",
                 forward=[],
                 reverse=[
                     _Dependency(
@@ -573,6 +596,7 @@ def test_get_transversal_dashboard_repo_reverse_docker() -> None:
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -583,6 +607,7 @@ def test_get_transversal_dashboard_repo_reverse_docker() -> None:
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -604,6 +629,7 @@ def test_get_transversal_dashboard_repo_reverse_docker() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support="Best effort",
+                color="--bs-body-bg",
                 forward=[],
                 reverse=[
                     _Dependency(
@@ -626,6 +652,7 @@ def test_get_transversal_dashboard_repo_reverse_docker_different() -> None:
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -638,6 +665,7 @@ def test_get_transversal_dashboard_repo_reverse_docker_different() -> None:
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -659,6 +687,7 @@ def test_get_transversal_dashboard_repo_reverse_docker_different() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support="Best effort",
+                color="--bs-body-bg",
                 forward=[],
                 reverse=[
                     _Dependency(
@@ -681,6 +710,7 @@ def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -689,6 +719,7 @@ def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -708,9 +739,11 @@ def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support="Best effort",
+                color="--bs-body-bg",
             ),
             "2.0": _Dependencies(
                 support="Unsupported",
+                color="--bs-danger",
                 forward=[],
                 reverse=[
                     _Dependency(
@@ -733,6 +766,7 @@ def test_get_transversal_dashboard_repo_external() -> None:
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -749,7 +783,7 @@ def test_get_transversal_dashboard_repo_external() -> None:
     context.params = {"repository": "camptocamp/test"}
     output = versions.get_transversal_dashboard(context)
     assert output.data["dependencies_branches"] == _DependenciesBranches(
-        by_branch={"1.0": _Dependencies(support="Best effort", forward=[], reverse=[])},
+        by_branch={"1.0": _Dependencies(support="Best effort", color="--bs-body-bg", forward=[], reverse=[])},
     )
 
 
@@ -767,6 +801,7 @@ def test_get_transversal_dashboard_repo_reverse_other(datasource: str, package: 
     context.status = _TransversalStatus(
         repositories={
             "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -775,6 +810,7 @@ def test_get_transversal_dashboard_repo_reverse_other(datasource: str, package: 
                 },
             ),
             "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -791,7 +827,7 @@ def test_get_transversal_dashboard_repo_reverse_other(datasource: str, package: 
     context.params = {"repository": "camptocamp/test"}
     output = versions.get_transversal_dashboard(context)
     assert output.data["dependencies_branches"] == _DependenciesBranches(
-        by_branch={"1.0": _Dependencies(support="Best effort", forward=[], reverse=[])},
+        by_branch={"1.0": _Dependencies(support="Best effort", color="--bs-body-bg", forward=[], reverse=[])},
     )
 
 
@@ -1172,6 +1208,7 @@ def test_transversal_status_to_json():
     assert module.transversal_status_to_json(status) == {
         "repositories": {
             "package1": {
+                "has_security_policy": False,
                 "url": "url1",
                 "versions": {},
             },

@@ -54,6 +54,7 @@ class _TransversalStatusRepo(BaseModel):
     versions: dict[str, _TransversalStatusVersion] = {}
     upstream_updated: datetime.datetime | None = None
     url: str | None = None
+    has_security_policy: bool = False
 
 
 class _TransversalStatus(BaseModel):
@@ -67,6 +68,7 @@ class _IntermediateStatus(BaseModel):
 
     version: str | None = None
     url: str | None = None
+    has_security_policy: bool = False
     version_support: dict[str, str] = {}
     version_names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
     version_dependencies_by_datasource: dict[str, _TransversalStatusNameInDatasource] = {}
@@ -78,6 +80,7 @@ class _IntermediateStatus(BaseModel):
 class _NamesStatus(BaseModel):
     status_by_version: dict[str, str] = {}
     repo: str | None = None
+    has_security_policy: bool = False
 
 
 class _NamesByDataSources(BaseModel):
@@ -99,6 +102,7 @@ class _Dependency(BaseModel):
 
 class _Dependencies(BaseModel):
     support: str = "Unsupported"
+    color: str = "--bs-danger"
     forward: list[_Dependency] = []
     reverse: list[_Dependency] = []
 
@@ -206,6 +210,7 @@ class Versions(
                 security = security_md.Security(security_file.decoded_content.decode("utf-8"))
 
                 stabilization_versions = module_utils.get_stabilization_versions(security)
+                intermediate_status.has_security_policy = True
             else:
                 _LOGGER.debug("No SECURITY.md file in the repository, apply only on default branch")
 
@@ -345,6 +350,7 @@ class Versions(
         repo = transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
         if intermediate_status.url:
             repo.url = intermediate_status.url
+            repo.has_security_policy = intermediate_status.has_security_policy
 
         for version_name, support in intermediate_status.version_support.items():
             version = repo.versions.setdefault(version_name, _TransversalStatusVersion(support=support))
@@ -418,7 +424,10 @@ class Versions(
                             current_status = names.by_datasources.setdefault(
                                 datasource,
                                 _NamesByDataSources(),
-                            ).by_package.setdefault(name, _NamesStatus(repo=repo))
+                            ).by_package.setdefault(
+                                name,
+                                _NamesStatus(repo=repo, has_security_policy=repo_data.has_security_policy),
+                            )
                             current_status.status_by_version[_canonical_minor_version(datasource, branch)] = (
                                 branch_data.support
                             )
@@ -906,7 +915,7 @@ def _build_internal_dependencies(
 ) -> None:
     dependencies_branch = dependencies_branches.by_branch.setdefault(
         version,
-        _Dependencies(support=version_data.support),
+        _Dependencies(support=version_data.support, color="--bs-body-bg"),
     )
     for datasource_name, dependencies_data in version_data.dependencies_by_datasource.items():
         for dependency_name, dependency_versions in dependencies_data.versions_by_names.items():
@@ -925,6 +934,11 @@ def _build_internal_dependencies(
                 if datasource_name == "docker":
                     assert len(dependency_package_data.status_by_version) == 1
                     support = next(iter(dependency_package_data.status_by_version.values()))
+                elif not dependency_package_data.has_security_policy:
+                    support = dependency_package_data.status_by_version.get(
+                        dependency_minor,
+                        "No support defined",
+                    )
                 else:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
@@ -942,7 +956,9 @@ def _build_internal_dependencies(
                         ),
                         support=support,
                         color=(
-                            "--bs-body-bg" if _is_supported(version_data.support, support) else "--bs-danger"
+                            "--bs-body-bg"
+                            if support == "No support defined" or _is_supported(version_data.support, support)
+                            else "--bs-danger"
                         ),
                         repo=dependency_package_data.repo or "-",
                     ),
@@ -988,7 +1004,7 @@ def _build_reverse_dependency(
                         if version_data is not None and match:
                             dependencies_branches.by_branch.setdefault(
                                 minor_version,
-                                _Dependencies(),
+                                _Dependencies(color="--bs-danger"),
                             ).reverse.append(
                                 _Dependency(
                                     name=other_repo,

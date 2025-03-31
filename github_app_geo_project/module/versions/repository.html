@@ -12,7 +12,7 @@
 <!---->
 <% dependencies = dependencies_branches.by_branch[branch] %>
 <h3>${branch}</h3>
-<p>Supported: ${dependencies.support}</p>
+<p style="background-color: var(${dependencies.color})">Supported: ${dependencies.support}</p>
 %if dependencies.forward:
 <h4>Internal dependencies</h4>
 <table>
