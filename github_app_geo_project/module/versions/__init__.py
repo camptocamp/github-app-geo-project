@@ -351,12 +351,13 @@ class Versions(
             version.support = support
 
         versions = repo.versions
-        for version_name in list(versions.keys()):
-            if version_name not in intermediate_status.stabilization_versions:
-                del versions[version_name]
+        if intermediate_status.stabilization_versions:
+            for version_name in list(versions.keys()):
+                if version_name not in intermediate_status.stabilization_versions:
+                    del versions[version_name]
 
         if intermediate_status.version:
-            version = repo.versions.setdefault(
+            version = versions.setdefault(
                 intermediate_status.version,
                 _TransversalStatusVersion(
                     support="Best effort",
