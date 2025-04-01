@@ -43,7 +43,7 @@ repos:
     hooks:
       - id: poetry2-lock
         additional_dependencies:
-          - poetry==2.1.1 # pypi
+          - poetry==2.1.2 # pypi
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.1
     hooks:
@@ -73,7 +73,7 @@ repos:
         additional_dependencies:
           - pyjson5==1.6.8 # pypi
   - repo: https://github.com/sirwart/ripsecrets
-    rev: v0.1.8
+    rev: v0.1.9
     hooks:
       - id: ripsecrets
   - repo: https://github.com/PyCQA/prospector
