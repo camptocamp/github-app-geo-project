@@ -62,14 +62,14 @@ ansi2html = "1.9.2"
 apt-repo = "0.5"
 debian-inspector = "31.1.0"
 codespell = "2.4.1"
-pydantic = "2.10.6"
+pydantic = "2.11.1"
 markdownify = "1.1.0"
 aioresponses = "0.7.8"
-pytest-asyncio = "0.25.3"
+pytest-asyncio = "0.26.0"
 cryptography = "44.0.2"
 urllib3 = "2.3.0"
 certifi = "2025.1.31"
-sentry-sdk = "2.24.1"
+sentry-sdk = "2.25.1"
 webob = "1.8.9"
 waitress = "3.0.2"
 lxml-html-clean = "0.4.1"
@@ -79,7 +79,7 @@ aiofiles = "24.1.0"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }
-prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.15.3" }
+prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.16.1" }
 prospector-profile-duplicated = "1.10.5"
 prospector-profile-utils = "1.22.3"
 pytest = "8.3.5"
