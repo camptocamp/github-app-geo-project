@@ -140,7 +140,7 @@ class ConditionBranch(TypedDict, total=False):
     """ The type of the condition """
 
     regex: str
-    """ The regex the the title should match """
+    """ The regex the branch should match """
 
 
 
@@ -195,7 +195,7 @@ class ConditionTitle(TypedDict, total=False):
     """ The type of the condition """
 
     regex: str
-    """ The regex the the title should match """
+    """ The regex the title should match """
 
 
 
