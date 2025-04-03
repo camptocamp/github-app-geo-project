@@ -12,6 +12,7 @@ from github_app_geo_project.module.versions import (
     _DependenciesBranches,
     _Dependency,
     _EventData,
+    _IntermediateStatus,
     _is_supported,
     _order_versions,
     _read_dependencies,
@@ -21,7 +22,6 @@ from github_app_geo_project.module.versions import (
     _TransversalStatusRepo,
     _TransversalStatusVersion,
     _TransversalStatusVersions,
-    _IntermediateStatus,
     _update_upstream_versions,
 )
 

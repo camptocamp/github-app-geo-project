@@ -4,10 +4,10 @@ import asyncio
 import io
 import logging
 import os
-from pathlib import Path
 import subprocess  # nosec
 import tempfile
 import zipfile
+from pathlib import Path
 from typing import Any, cast
 
 import aiohttp
