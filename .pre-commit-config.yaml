@@ -2,7 +2,7 @@
 
 exclude: |-
   (?x)^(
-     github_app_geo_project/project_configuration\.py
+    github_app_geo_project/project_configuration\.py
     |github_app_geo_project/application_configuration\.py
     |github_app_geo_project/module/standard/changelog_configuration\.py
     |github_app_geo_project/module/standard/auto_configuration\.py
@@ -39,7 +39,7 @@ repos:
         args:
           - --pytest-test-first
   - repo: https://github.com/sbrunner/hooks
-    rev: 1.3.0
+    rev: 1.4.1
     hooks:
       - id: poetry2-lock
         additional_dependencies:
