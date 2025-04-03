@@ -2,7 +2,7 @@
 
 changelog:
   default-section: New feature
-  create-label: true
+  create-labels: true
 
   sections:
     - name: Breaking changes
@@ -16,40 +16,40 @@ changelog:
 
   routing:
     # Label
-    - section-name: Breaking changes
+    - section: Breaking changes
       condition:
         type: label
         value: Breaking changes
-    - section-name: New feature
+    - section: New feature
       condition:
         type: label
         value: New feature
-    - section-name: Fixed bugs
+    - section: Fixed bugs
       condition:
         type: label
         value: Fixed bugs
-    - section-name: Documentation
+    - section: Documentation
       condition:
         type: label
         value: Documentation
-    - section-name: Tests
+    - section: Tests
       condition:
         type: label
         value: Tests
-    - section-name: Chore
+    - section: Chore
       condition:
         type: label
         value: Chore
-    - section-name: Security fixes
+    - section: Security fixes
       condition:
         type: label
         value: Security fixes
-    - section-name: Dependency update
+    - section: Dependency update
       condition:
         type: label
         value: Dependency update
     # Other
-    - section-name: Documentation
+    - section: Documentation
       condition:
         type: files
         regex:
@@ -58,21 +58,21 @@ changelog:
           - .*\.rst\.[a-z0-9]{2,6}$
           - .*\.md\.[a-z0-9]{2,6}$
           - ^docs?/.*
-    - section-name: Chore
+    - section: Chore
       condition:
         type: files
         regex:
           - ^\.github/.*
           - ^ci/.*
-    - section-name: Chore
+    - section: Chore
       condition:
         type: title
         regex: ^CI updates$
-    - section-name: Security fixes
+    - section: Security fixes
       condition:
         type: branch
         regex: ^audit-.*
-    - section-name: Security fixes
+    - section: Security fixes
       condition:
         type: and
         conditions:
@@ -80,11 +80,11 @@ changelog:
             regex: ^dpkg-update/.*
           - type: author
             value: c2c-gid-bot-ci
-    - section-name: Security fixes
+    - section: Security fixes
       condition:
         type: branch
         regex: ^snyk-fix/.*
-    - section-name: Dependency update
+    - section: Dependency update
       condition:
         type: author
         value: renovate[bot]

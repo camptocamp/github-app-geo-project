@@ -12,6 +12,7 @@ from github_app_geo_project.module.versions import (
     _DependenciesBranches,
     _Dependency,
     _EventData,
+    _IntermediateStatus,
     _is_supported,
     _order_versions,
     _read_dependencies,
@@ -21,7 +22,6 @@ from github_app_geo_project.module.versions import (
     _TransversalStatusRepo,
     _TransversalStatusVersion,
     _TransversalStatusVersions,
-    _IntermediateStatus,
     _update_upstream_versions,
 )
 
@@ -84,7 +84,7 @@ DEBUG: writePackageDataToFile called for github//local
  INFO: Successfully retrieved dependency data for camptocamp/github-app-geo-project
 """
     output = await versions.process(context)
-    assert output.updated_transversal_status == True
+    assert output.updated_transversal_status is True
     assert isinstance(output.intermediate_status, _IntermediateStatus)
     assert json.loads(output.intermediate_status.model_dump_json(indent=2)) == {
         "external_repositories": {},

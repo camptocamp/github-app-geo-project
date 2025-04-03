@@ -975,7 +975,7 @@ def manage_updated_separated(
                 "Remove old date %s (%s < %s)",
                 other_key,
                 date,
-                datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old),
+                min_date,
             )
             del updated[other_key]
 

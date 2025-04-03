@@ -97,13 +97,12 @@
                 "description": "The name of the routing condition"
               },
               "condition": {
-                "type": "object",
                 "title": "Condition",
                 "description": "The condition to match with the changelog items",
                 "$dynamicAnchor": "changelog-condition",
-                "additionalProperties": false,
                 "oneOf": [
                   {
+                    "type": "object",
                     "title": "Condition const",
                     "properties": {
                       "type": {
@@ -115,9 +114,11 @@
                         "type": "boolean",
                         "description": "The value of the condition"
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   {
+                    "type": "object",
                     "title": "Condition and/or",
                     "properties": {
                       "type": {
@@ -130,9 +131,11 @@
                         "description": "The value of the conditions",
                         "items": { "$dynamicRef": "#changelog-condition" }
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   {
+                    "type": "object",
                     "title": "Condition not",
                     "properties": {
                       "type": {
@@ -143,9 +146,11 @@
                       "condition": {
                         "$dynamicRef": "#changelog-condition"
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   {
+                    "type": "object",
                     "title": "Condition label",
                     "properties": {
                       "type": {
@@ -157,9 +162,11 @@
                         "type": "string",
                         "description": "The value of the label"
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   {
+                    "type": "object",
                     "title": "Condition files",
                     "properties": {
                       "type": {
@@ -175,9 +182,11 @@
                           "description": "The regex that all the files should match"
                         }
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   {
+                    "type": "object",
                     "title": "Condition author",
                     "properties": {
                       "type": {
@@ -189,9 +198,11 @@
                         "type": "string",
                         "description": "The value of the author"
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   {
+                    "type": "object",
                     "title": "Condition title",
                     "properties": {
                       "type": {
@@ -201,11 +212,13 @@
                       },
                       "regex": {
                         "type": "string",
-                        "description": "The regex the the title should match"
+                        "description": "The regex the title should match"
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   },
                   {
+                    "type": "object",
                     "title": "Condition branch",
                     "properties": {
                       "type": {
@@ -215,9 +228,10 @@
                       },
                       "regex": {
                         "type": "string",
-                        "description": "The regex the the title should match"
+                        "description": "The regex the branch should match"
                       }
-                    }
+                    },
+                    "additionalProperties": false
                   }
                 ]
               }
