@@ -204,7 +204,7 @@ async def _process_job(
             root_logger.addHandler(handler)
             try:
                 start = datetime.datetime.now(tz=datetime.UTC)
-                job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", 50 * 60))
+                job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", str(50 * 60)))
                 transversal_status = None
                 async with asyncio.timeout(job_timeout):
                     result = await current_module.process(context)
@@ -697,7 +697,7 @@ async def _get_process_one_job(
                     models.Queue.status == models.JobStatus.PENDING,
                     models.Queue.created_at
                     < datetime.datetime.now(tz=datetime.UTC)
-                    - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", 86400))),
+                    - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", "86400"))),
                 )
                 .values(status=models.JobStatus.ERROR),
             )
@@ -708,7 +708,7 @@ async def _get_process_one_job(
                     models.Queue.status == models.JobStatus.PENDING,
                     models.Queue.started_at
                     < datetime.datetime.now(tz=datetime.UTC)
-                    - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", 3600)) + 60),
+                    - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60),
                 )
                 .values(status=models.JobStatus.NEW),
             )
@@ -842,7 +842,7 @@ class _Run:
 
     async def __call__(self, *args: Any, **kwargs: Any) -> Any:
         del args, kwargs
-        empty_thread_sleep = int(os.environ.get("GHCI_EMPTY_THREAD_SLEEP", 10))
+        empty_thread_sleep = int(os.environ.get("GHCI_EMPTY_THREAD_SLEEP", "10"))
 
         while True:
             empty = True
@@ -991,7 +991,7 @@ async def _async_main() -> None:
 
     loop = asyncio.get_running_loop()
     loop.slow_callback_duration = float(
-        os.environ.get("GHCI_SLOW_CALLBACK_DURATION", 60),
+        os.environ.get("GHCI_SLOW_CALLBACK_DURATION", "60"),
     )  # 1 minute by default
 
     def do_exit(loop: asyncio.AbstractEventLoop) -> None:
@@ -1063,7 +1063,7 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Process the jobs present in the database queue."""
-    socket.setdefaulttimeout(int(os.environ.get("GHCI_SOCKET_TIMEOUT", 120)))
+    socket.setdefaulttimeout(int(os.environ.get("GHCI_SOCKET_TIMEOUT", "120")))
     asyncio.run(_async_main())
 
 

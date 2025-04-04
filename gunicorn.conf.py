@@ -14,8 +14,8 @@ from prometheus_client import multiprocess
 bind = ":8080"  # pylint: disable=invalid-name
 
 worker_class = "gthread"  # pylint: disable=invalid-name
-workers = os.environ.get("GUNICORN_WORKERS", 2)
-threads = os.environ.get("GUNICORN_THREADS", 10)
+workers = int(os.environ.get("GUNICORN_WORKERS", "2"))
+threads = int(os.environ.get("GUNICORN_THREADS", "10"))
 
 preload_app = True  # pylint: disable=invalid-name
 
