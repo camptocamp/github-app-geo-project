@@ -39,7 +39,7 @@ while [True for p in APPLICATION_CONFIGURATION.get("profiles", {}).values() if "
             apply_profile_inheritance(
                 name,
                 cast(
-                    dict[str, Any],
+                    "dict[str, Any]",
                     APPLICATION_CONFIGURATION["profiles"],
                 ),
             )

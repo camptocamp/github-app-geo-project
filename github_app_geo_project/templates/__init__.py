@@ -130,13 +130,13 @@ def pprint_duration(duration_in: str | datetime.timedelta) -> str:
 
     secounds_abs = abs(duration.total_seconds())
     if secounds_abs < 60:
-        plurial = "" if int(round(secounds_abs)) == 1 else "s"
-        return f"{int(round(duration.total_seconds()))} second{plurial}"
+        plurial = "" if round(secounds_abs) == 1 else "s"
+        return f"{round(duration.total_seconds())} second{plurial}"
     if secounds_abs < 3600:
-        plurial = "" if int(round(secounds_abs / 60)) == 1 else "s"
-        return f"{int(round(duration.total_seconds() / 60))} minute{plurial}"
+        plurial = "" if round(secounds_abs / 60) == 1 else "s"
+        return f"{round(duration.total_seconds() / 60)} minute{plurial}"
     if secounds_abs < 86400:
-        plurial = "" if int(round(secounds_abs / 3600)) == 1 else "s"
-        return f"{int(round(duration.total_seconds() / 3600))} hour{plurial}"
-    plurial = "" if int(round(secounds_abs / 86400)) == 1 else "s"
-    return f"{int(round(duration.total_seconds() / 86400))} day{plurial}"
+        plurial = "" if round(secounds_abs / 3600) == 1 else "s"
+        return f"{round(duration.total_seconds() / 3600)} hour{plurial}"
+    plurial = "" if round(secounds_abs / 86400) == 1 else "s"
+    return f"{round(duration.total_seconds() / 86400)} day{plurial}"

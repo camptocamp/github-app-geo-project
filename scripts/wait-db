@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
+# pylint: disable=invalid-name
 
 import sys
 import time
 
 import psycopg2
 
-if __name__ == "__main__":
+
+def _main() -> None:
     sleep_time = 1
     max_sleep = 60
 
@@ -15,13 +17,20 @@ if __name__ == "__main__":
             print(f"Waiting for the DataBase server '{db}' to be reachable")
             try:
                 connection = psycopg2.connect(  # nosec
-                    host=db, password="postgresql", user="postgresql", database="tests"
+                    host=db,
+                    password="postgresql",  # noqa: S106
+                    user="postgresql",
+                    database="tests",
                 )
                 cursor = connection.cursor()
                 cursor.execute("SELECT 1")
                 break
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 print(str(e))
                 time.sleep(sleep_time)
                 sleep_time *= 2
     sys.exit(0 if sleep_time < max_sleep else 1)
+
+
+if __name__ == "__main__":
+    _main()

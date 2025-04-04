@@ -208,7 +208,7 @@ def html_to_markdown(html: str) -> str:
     """Convert HTML to markdown."""
     html = _BOLD_RE.sub(r"<b>\2</b>", html)
     html = _ITALIC_RE.sub(r"<i>\2</i>", html)
-    return cast(str, markdownify.markdownify(html))
+    return cast("str", markdownify.markdownify(html))
 
 
 class HtmlMessage(Message):
@@ -287,7 +287,7 @@ class HtmlMessage(Message):
                 "keep_typographic_whitespace": True,
             },
         )
-        return cast(str, sanitizer.sanitize(html))
+        return cast("str", sanitizer.sanitize(html))
 
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the ANSI message to markdown."""
@@ -330,7 +330,7 @@ class HtmlMessage(Message):
             },
         )
         message = cast(
-            str,
+            "str",
             sanitizer.sanitize(self.html.replace("<p>", "\n<p>").replace("<br>", "\n")),
         ).strip()
 

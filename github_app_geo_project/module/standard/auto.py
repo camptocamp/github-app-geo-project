@@ -79,7 +79,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
             if (
                 equals_if_defined(
                     condition.get("author"),
-                    cast(str, context.event_data["pull_request"]["user"]["login"]),
+                    cast("str", context.event_data["pull_request"]["user"]["login"]),
                 )
                 and get_re(condition.get("title")).match(context.event_data["pull_request"]["title"])
                 and get_re(condition.get("branch")).match(context.event_data["pull_request"]["head"]["ref"])

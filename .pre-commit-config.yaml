@@ -75,7 +75,7 @@ repos:
     hooks:
       - id: ripsecrets
   - repo: https://github.com/PyCQA/prospector
-    rev: v1.15.3
+    rev: v1.16.1
     hooks:
       - id: prospector
         args:
@@ -85,7 +85,7 @@ repos:
           - --profile=.prospector.yaml
         additional_dependencies:
           - prospector-profile-duplicated==1.10.5 # pypi
-          - prospector-profile-utils==1.21.9 # pypi
+          - prospector-profile-utils==1.22.3 # pypi
         exclude: |-
           (?x)(
             ^tests?/?
