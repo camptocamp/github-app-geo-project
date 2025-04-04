@@ -66,6 +66,7 @@ class _TransversalStatus(BaseModel):
 class _IntermediateStatus(BaseModel):
     """The intermediate status."""
 
+    step: int = 0
     version: str | None = None
     url: str | None = None
     has_security_policy: bool = False
@@ -73,7 +74,6 @@ class _IntermediateStatus(BaseModel):
     version_names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
     version_dependencies_by_datasource: dict[str, _TransversalStatusNameInDatasource] = {}
     stabilization_versions: list[str] = []
-    versions_to_delete: list[str] = []
     external_repositories: dict[str, _TransversalStatusRepo] = {}
 
 
@@ -184,7 +184,7 @@ class Versions(
 
         Note that this method is called in the queue consuming Pod
         """
-        intermediate_status = _IntermediateStatus()
+        intermediate_status = _IntermediateStatus(step=context.module_event_data.step)
         if context.module_event_data.step == 1:
             intermediate_status.url = (
                 f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
@@ -348,23 +348,40 @@ class Versions(
         )
 
         repo = transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
-        if intermediate_status.url:
-            repo.url = intermediate_status.url
-            repo.has_security_policy = intermediate_status.has_security_policy
-
-        for version_name, support in intermediate_status.version_support.items():
-            version = repo.versions.setdefault(version_name, _TransversalStatusVersion(support=support))
-            version.support = support
-
         versions = repo.versions
-        if intermediate_status.stabilization_versions:
-            for version_name in list(versions.keys()):
-                if version_name not in intermediate_status.stabilization_versions:
-                    del versions[version_name]
+        if intermediate_status.step == 1:
+            _apply_additional_packages(context, transversal_status)
 
-        if intermediate_status.version:
+            if intermediate_status.url:
+                repo.url = intermediate_status.url
+                repo.has_security_policy = intermediate_status.has_security_policy
+
+            for version_name in repo.versions:
+                if version_name not in intermediate_status.version_support:
+                    del repo.versions[version_name]
+
+            for version_name, support in intermediate_status.version_support.items():
+                version = repo.versions.setdefault(version_name, _TransversalStatusVersion(support=support))
+                version.support = support
+
+            if intermediate_status.stabilization_versions:
+                for version_name in list(versions.keys()):
+                    if version_name not in intermediate_status.stabilization_versions:
+                        del versions[version_name]
+
+            for external_name, external_repo in intermediate_status.external_repositories.items():
+                module_utils.manage_updated_separated(
+                    transversal_status.updated,
+                    transversal_status.repositories,
+                    external_name,
+                )
+                transversal_status.repositories[external_name] = external_repo
+
+        if intermediate_status.step == 2:
+            intermediate_version_name = intermediate_status.version
+            assert intermediate_version_name is not None
             version = versions.setdefault(
-                intermediate_status.version,
+                intermediate_version_name,
                 _TransversalStatusVersion(
                     support="Best effort",
                 ),
@@ -382,10 +399,6 @@ class Versions(
             message.title = f"Version ({intermediate_status.version}):"
             _LOGGER.debug(message)
 
-        for version_to_delete in intermediate_status.versions_to_delete:
-            if version_to_delete in repo.versions:
-                del repo.versions[version_to_delete]
-
         message = module_utils.HtmlMessage(
             utils.format_json_str(
                 repo.model_dump_json(indent=2),
@@ -393,14 +406,6 @@ class Versions(
         )
         message.title = "Repo:"
         _LOGGER.debug(message)
-
-        for external_name, external_repo in intermediate_status.external_repositories.items():
-            module_utils.manage_updated_separated(
-                transversal_status.updated,
-                transversal_status.repositories,
-                external_name,
-            )
-            transversal_status.repositories[external_name] = external_repo
 
         return transversal_status
 
