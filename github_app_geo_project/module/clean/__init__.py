@@ -109,7 +109,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
             publish_configuration_content = context.github_project.repo.get_contents(".github/publish.yaml")
             assert not isinstance(publish_configuration_content, list)
             publish_config = cast(
-                tag_publish.configuration.Configuration,
+                "tag_publish.configuration.Configuration",
                 yaml.load(publish_configuration_content.decoded_content, Loader=yaml.SafeLoader),
             )
         except github.GithubException as exception:
@@ -122,7 +122,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 transformers = publish_config.get(
                     "transformers",
                     cast(
-                        tag_publish.configuration.Transformers,
+                        "tag_publish.configuration.Transformers",
                         tag_publish.configuration.TRANSFORMERS_DEFAULT,
                     ),
                 )
@@ -131,7 +131,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     tag_publish.compile_re(
                         transformers.get(
                             "pull_request_to_version",
-                            cast(tag_publish.configuration.Transform, [{}]),
+                            cast("tag_publish.configuration.Transform", [{}]),
                         ),
                     ),
                 )
@@ -142,7 +142,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 .get(
                     "repository",
                     cast(
-                        dict[str, tag_publish.configuration.DockerRepository],
+                        "dict[str, tag_publish.configuration.DockerRepository]",
                         tag_publish.configuration.DOCKER_REPOSITORY_DEFAULT,
                     ),
                 )

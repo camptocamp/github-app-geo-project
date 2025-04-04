@@ -84,7 +84,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         Note that this method is called in the queue consuming Pod
         """
         repo = context.github_project.repo
-        workflow_run = repo.get_workflow_run(cast(int, context.event_data["workflow_run"]["id"]))
+        workflow_run = repo.get_workflow_run(cast("int", context.event_data["workflow_run"]["id"]))
         if not workflow_run.get_artifacts():
             _LOGGER.debug("No artifacts found")
             return module.ProcessOutput()

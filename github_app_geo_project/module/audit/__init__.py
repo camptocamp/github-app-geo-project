@@ -148,7 +148,7 @@ async def _process_snyk_dpkg(
     if context.module_event_data.type == "dpkg":
         key = f"Dpkg {context.module_event_data.version}"
     try:
-        branch: str = cast(str, context.module_event_data.version)
+        branch: str = cast("str", context.module_event_data.version)
 
         # Checkout the right branch on a temporary directory
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -315,10 +315,10 @@ async def _process_snyk_dpkg(
 
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
         message = module_utils.AnsiProcessMessage(
-            cast(list[str], proc_error.args),
+            cast("list[str]", proc_error.args),
             None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode,
             proc_error.output,
-            cast(str, proc_error.stderr),
+            cast("str", proc_error.stderr),
         )
         _LOGGER.exception("Audit %s process error", key)
         return [f"Error while processing the audit {key}: {proc_error}"], False

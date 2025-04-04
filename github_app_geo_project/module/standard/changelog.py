@@ -337,7 +337,7 @@ def _get_discussion_url(repo: github.Repository.Repository, tag: str) -> str | N
     discussion = [d for d in discussions if tag in d.get("title", "").split()]
     if not discussion:
         return None
-    return cast(str, discussion[0]["url"])
+    return cast("str", discussion[0]["url"])
 
 
 def generate_changelog(
@@ -574,7 +574,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
 
         Note that this method is called in the queue consuming Pod
         """
-        repository = cast(str, context.event_data.get("repository", {}).get("full_name"))
+        repository = cast("str", context.event_data.get("repository", {}).get("full_name"))
         repo = context.github_project.github.get_repo(repository)
 
         if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
@@ -587,7 +587,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                         description=config.get("description", ""),
                     )
 
-        tag_str = cast(str, context.module_event_data.get("version"))
+        tag_str = cast("str", context.module_event_data.get("version"))
         if context.module_event_data.get("type") == "tag":
             if not context.module_config.get(
                 "create-release",

@@ -116,7 +116,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                             ", ".join(github_events - events),
                         )
 
-                    github_permissions = cast(module.Permissions, github.integration.get_app().permissions)
+                    github_permissions = cast("module.Permissions", github.integration.get_app().permissions)
                     # Test that all permissions are in github_permissions
                     for permission, access in permissions.items():
                         if permission not in github_permissions or _gt_access(

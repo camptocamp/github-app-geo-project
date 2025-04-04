@@ -164,7 +164,7 @@ async def _process_job(
                 issue_data = utils.get_dashboard_issue_module(issue_full_data, job.module)
 
         module_config = cast(
-            project_configuration.ModuleConfiguration,
+            "project_configuration.ModuleConfiguration",
             configuration.get_configuration(config, job.owner, job.repository, job.application).get(
                 job.module,
                 {},
@@ -195,7 +195,7 @@ async def _process_job(
                 github_project=github_project,  # type: ignore[arg-type]
                 event_name=job.event_name,
                 event_data=job.event_data,
-                module_config=current_module.configuration_from_json(cast(dict[str, Any], module_config)),
+                module_config=current_module.configuration_from_json(cast("dict[str, Any]", module_config)),
                 module_event_data=current_module.event_data_from_json(job.module_data),
                 issue_data=issue_data,
                 job_id=job.id,
@@ -404,10 +404,10 @@ async def _process_job(
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
             message = module_utils.AnsiProcessMessage(
-                cast(list[str], proc_error.cmd),
+                cast("list[str]", proc_error.cmd),
                 None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode,
                 proc_error.output,
-                cast(str, proc_error.stderr),
+                cast("str", proc_error.stderr),
             )
             message.title = f"Error process job '{job.id}' on module: {job.module}"
             root_logger.addHandler(handler)

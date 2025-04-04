@@ -15,7 +15,10 @@ if __name__ == "__main__":
             print(f"Waiting for the DataBase server '{db}' to be reachable")
             try:
                 connection = psycopg2.connect(  # nosec
-                    host=db, password="postgresql", user="postgresql", database="tests"
+                    host=db,
+                    password="postgresql",
+                    user="postgresql",
+                    database="tests",
                 )
                 cursor = connection.cursor()
                 cursor.execute("SELECT 1")
