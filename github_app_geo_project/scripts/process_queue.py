@@ -231,9 +231,10 @@ async def _process_job(
                             if transversal_status is not None:
                                 root_logger.removeHandler(handler)
                                 _LOGGER.debug(
-                                    "Update module status %s `%s` (type: %s, %s)\n%s",
+                                    "Update module status %s `%s` (job id: %i, type: %s, %s)\n%s",
                                     job.module,
                                     current_module.title(),
+                                    job.id,
                                     type(transversal_status),
                                     transversal_status,
                                     current_module.transversal_status_to_json(transversal_status),

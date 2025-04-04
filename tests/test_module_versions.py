@@ -90,6 +90,7 @@ DEBUG: writePackageDataToFile called for github//local
         "external_repositories": {},
         "has_security_policy": False,
         "stabilization_versions": [],
+        "step": 2,
         "url": None,
         "version": "master",
         "version_dependencies_by_datasource": {
@@ -126,7 +127,6 @@ DEBUG: writePackageDataToFile called for github//local
             },
         },
         "version_support": {},
-        "versions_to_delete": [],
     }
     transversal_status = await versions.update_transversal_status(
         context,
