@@ -150,7 +150,7 @@ class Versions(
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
+        if context.event_data.get("type") == "event" and context.event_data.get("name") == "versions-cron":
             return [module.Action(data=_EventData(step=1), priority=module.PRIORITY_CRON)]
         return []
 
