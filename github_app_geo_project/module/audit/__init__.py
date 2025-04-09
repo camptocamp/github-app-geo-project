@@ -543,9 +543,7 @@ class Audit(
 
             # Audit is relay slow than add 15 to the cron priority
             priority = (
-                module.PRIORITY_STANDARD
-                if context.module_event_data.is_dashboard
-                else module.PRIORITY_CRON + 15
+                module.PRIORITY_STANDARD if context.module_event_data.is_dashboard else module.PRIORITY_CRON
             )
             actions = []
             for version in versions:
