@@ -371,8 +371,8 @@ class AnsiProcessMessage(AnsiMessage):
         self,
         args: list[str],
         returncode: int | None,
-        stdout: str,
-        stderr: str,
+        stdout: str | bytes,
+        stderr: str | bytes,
         error: str | None = None,
     ) -> None:
         """Initialize the process message."""
@@ -387,7 +387,17 @@ class AnsiProcessMessage(AnsiMessage):
                 self.args.append(arg)
 
         self.returncode = returncode
+        if isinstance(stdout, bytes):
+            try:
+                stdout = stdout.decode()
+            except UnicodeDecodeError:
+                stdout = "- binary data -"
         self.stdout = self._ansi_converter.convert(stdout or "", full=False)
+        if isinstance(stderr, bytes):
+            try:
+                stderr = stderr.decode()
+            except UnicodeDecodeError:
+                stderr = "- binary data -"
         self.stderr = self._ansi_converter.convert(stderr or "", full=False)
 
         message = [f"Command: {shlex.join(self.args)}"]

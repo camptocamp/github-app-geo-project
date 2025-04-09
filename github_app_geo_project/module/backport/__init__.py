@@ -316,7 +316,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             stderr=asyncio.subprocess.PIPE,
                             cwd=cwd,
                         )
-                        async with asyncio.timeout(120):
+                        async with asyncio.timeout(300):
                             stdout, stderr = await proc.communicate()
                         if proc.returncode != 0:
                             ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
@@ -412,5 +412,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 auto_merge=False,
             )
             # Remove backport label
-            pull_request.remove_from_labels(f"backport {target_branch}")
+            try:
+                pull_request.remove_from_labels(f"backport {target_branch}")
+            except github.GithubException as exception:
+                if exception.status != 404:
+                    _LOGGER.exception("Error while removing label backport %s", target_branch)
+                    raise
         return True
