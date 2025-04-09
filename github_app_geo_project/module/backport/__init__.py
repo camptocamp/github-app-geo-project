@@ -6,7 +6,7 @@ import logging
 import subprocess  # nosec
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import aiofiles
 import github
@@ -17,6 +17,11 @@ from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
 
 from . import configuration
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
+    import pygithub
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -287,8 +292,18 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 )
 
             failed_commits: list[str] = []
+            pull_request_commits = pull_request.get_commits()
+            commits: Iterable[pygithub.Commit] = pull_request_commits
+            if pull_request_commits.totalCount != 1:
+                merge_commit_sha = context.event_data["pull_request"].get("merge_commit_sha")
+                merge_commit = (
+                    context.github_project.repo.get_commit(merge_commit_sha) if merge_commit_sha else None
+                )
+                # Check if the pull request is a squash merge commit
+                if merge_commit and len(merge_commit.parents) == 1:
+                    commits = [merge_commit]
             # For all commits in the pull request
-            for commit in pull_request.get_commits():
+            for commit in commits:
                 # Cherry-pick the commit
                 if failed_commits:
                     failed_commits.append(commit.sha)
