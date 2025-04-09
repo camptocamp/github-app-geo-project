@@ -412,5 +412,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 auto_merge=False,
             )
             # Remove backport label
-            pull_request.remove_from_labels(f"backport {target_branch}")
+            try:
+                pull_request.remove_from_labels(f"backport {target_branch}")
+            except github.GithubException as exception:
+                if exception.status != 404:
+                    _LOGGER.exception("Error while removing label backport %s", target_branch)
+                    raise
         return True
