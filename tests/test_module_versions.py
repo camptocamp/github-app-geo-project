@@ -29,7 +29,7 @@ from github_app_geo_project.module.versions import (
 def test_get_actions() -> None:
     versions = Versions()
     context = Mock()
-    context.event_data = {"type": "event", "name": "daily"}
+    context.event_data = {"type": "event", "name": "versions-cron"}
     actions = versions.get_actions(context)
     assert len(actions) == 1
     assert actions[0].data == _EventData(step=1)

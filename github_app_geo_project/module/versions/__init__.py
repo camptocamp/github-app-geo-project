@@ -6,7 +6,6 @@ import io
 import json
 import logging
 import os
-import os.path
 import re
 import tempfile
 import tomllib
@@ -151,7 +150,7 @@ class Versions(
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
+        if context.event_data.get("type") == "event" and context.event_data.get("name") == "versions-cron":
             return [module.Action(data=_EventData(step=1), priority=module.PRIORITY_CRON)]
         return []
 
@@ -252,7 +251,7 @@ class Versions(
                         ],
                     ),
                     title=version,
-                    priority=module.PRIORITY_CRON,
+                    priority=module.PRIORITY_CRON + 10,
                 )
                 for version in stabilization_versions
             ]
@@ -704,6 +703,7 @@ async def _get_dependencies(
                 "RENOVATE_GIT_AUTHOR": f"{username} <{user.id}+{username}@users.noreply.github.com>",
                 "RG_GITHUB_APP_INSTALLATION_ID": str(user.id),
                 "GITHUB_COM_TOKEN": github_project.token,
+                "RENOVATE_REPOSITORIES": f"{github_project.owner}/{github_project.repository}",
             },
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
