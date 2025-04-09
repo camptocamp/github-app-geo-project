@@ -39,6 +39,10 @@ _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
 _MODULE_STATUS_LOCK: dict[str, asyncio.Lock] = {}
 
 
+class _ReraiseError(Exception):
+    pass
+
+
 class _JobInfo(NamedTuple):
     module: str
     event_name: str
@@ -202,6 +206,7 @@ async def _process_job(
                 service_url=config["service-url"],
             )
             root_logger.addHandler(handler)
+            result = None
             try:
                 start = datetime.datetime.now(tz=datetime.UTC)
                 job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", str(50 * 60)))
@@ -280,6 +285,9 @@ async def _process_job(
                         _LOGGER.warning("Module %s failed", job.module)
                 else:
                     _LOGGER.info("Module %s finished with None result", job.module)
+            except Exception as exception:  # pylint: disable=broad-exception-caught
+                _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
+                raise _ReraiseError from exception
             finally:
                 root_logger.removeHandler(handler)
 
@@ -442,11 +450,12 @@ async def _process_job(
         except Exception as exception:
             job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-            root_logger.addHandler(handler)
-            try:
-                _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
-            finally:
-                root_logger.removeHandler(handler)
+            if not isinstance(exception, _ReraiseError):
+                root_logger.addHandler(handler)
+                try:
+                    _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
+                finally:
+                    root_logger.removeHandler(handler)
             if check_run is not None:
                 try:
                     check_run.edit(
