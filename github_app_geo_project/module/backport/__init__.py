@@ -380,6 +380,14 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 async with asyncio.timeout(10):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
+                    ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                        command,
+                        proc,
+                        stdout,
+                        stderr,
+                    )
+                    ansi_message.title = "Error while adding the BACKPORT_TODO file"
+                    _LOGGER.error(ansi_message)
                     raise subprocess.CalledProcessError(
                         proc.returncode if proc.returncode is not None else -999,
                         command,
@@ -396,6 +404,14 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 async with asyncio.timeout(10):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
+                    ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                        command,
+                        proc,
+                        stdout,
+                        stderr,
+                    )
+                    ansi_message.title = "Error while committing the BACKPORT_TODO file"
+                    _LOGGER.error(ansi_message)
                     raise subprocess.CalledProcessError(
                         proc.returncode if proc.returncode is not None else -999,
                         command,
