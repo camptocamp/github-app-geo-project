@@ -344,6 +344,7 @@ class Versions(
             transversal_status.updated,
             transversal_status.repositories,
             key,
+            days_old=10,
         )
 
         repo = transversal_status.repositories.setdefault(key, _TransversalStatusRepo())
@@ -373,6 +374,7 @@ class Versions(
                     transversal_status.updated,
                     transversal_status.repositories,
                     external_name,
+                    days_old=10,
                 )
                 transversal_status.repositories[external_name] = external_repo
 
@@ -1049,6 +1051,7 @@ def _apply_additional_packages(
             transversal_status.updated,
             transversal_status.repositories,
             repo,
+            days_old=10,
         )
         pydentic_data = _TransversalStatusRepo(**data)
         transversal_status.repositories[repo] = pydentic_data
