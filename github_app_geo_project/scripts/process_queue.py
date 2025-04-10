@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 import aiofiles
-import c2cwsgiutils.loader
 import c2cwsgiutils.setup_process
 import github
 import plaster
@@ -28,7 +27,7 @@ import sqlalchemy.orm
 from prometheus_client import Gauge
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
-from github_app_geo_project.module import modules
+from github_app_geo_project.module import GHCIError, modules
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.views import webhook
 
@@ -37,10 +36,6 @@ _LOGGER_WSGI = logging.getLogger("prometheus_client.wsgi")
 
 _NB_JOBS = Gauge("ghci_jobs_number", "Number of jobs", ["status"])
 _MODULE_STATUS_LOCK: dict[str, asyncio.Lock] = {}
-
-
-class _ReraiseError(Exception):
-    pass
 
 
 class _JobInfo(NamedTuple):
@@ -285,9 +280,11 @@ async def _process_job(
                         _LOGGER.warning("Module %s failed", job.module)
                 else:
                     _LOGGER.info("Module %s finished with None result", job.module)
+            except GHCIError:
+                raise
             except Exception as exception:  # pylint: disable=broad-exception-caught
                 _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
-                raise _ReraiseError from exception
+                raise GHCIError from exception
             finally:
                 root_logger.removeHandler(handler)
 
@@ -450,7 +447,7 @@ async def _process_job(
         except Exception as exception:
             job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-            if not isinstance(exception, _ReraiseError):
+            if not isinstance(exception, GHCIError):
                 root_logger.addHandler(handler)
                 try:
                     _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)

@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import subprocess  # nosec
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -284,12 +283,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 )
                 ansi_message.title = f"Error while creating the branch {backport_branch}"
                 _LOGGER.error(ansi_message)
-                raise subprocess.CalledProcessError(
-                    proc.returncode if proc.returncode is not None else -999,
-                    command,
-                    stdout,
-                    stderr,
-                )
+                raise module.GHCIError(ansi_message.title)
 
             failed_commits: list[str] = []
             pull_request_commits = pull_request.get_commits()
@@ -348,7 +342,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             ansi_message.title = f"Error while cherry-picking {commit.sha}"
                             _LOGGER.error(ansi_message)
                             failed_commits.append(commit.sha)
-                    except subprocess.CalledProcessError:
+                    except module.GHCIError:
                         failed_commits.append(commit.sha)
 
             message = [f"Backport of #{pull_request.number} to {target_branch}"]
@@ -388,12 +382,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     )
                     ansi_message.title = "Error while adding the BACKPORT_TODO file"
                     _LOGGER.error(ansi_message)
-                    raise subprocess.CalledProcessError(
-                        proc.returncode if proc.returncode is not None else -999,
-                        command,
-                        stdout,
-                        stderr,
-                    )
+                    raise module.GHCIError(ansi_message.title)
                 command = ["git", "commit", "--message=[skip ci] Add instructions to finish the backport"]
                 proc = await asyncio.create_subprocess_exec(
                     *command,
@@ -412,12 +401,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     )
                     ansi_message.title = "Error while committing the BACKPORT_TODO file"
                     _LOGGER.error(ansi_message)
-                    raise subprocess.CalledProcessError(
-                        proc.returncode if proc.returncode is not None else -999,
-                        command,
-                        stdout,
-                        stderr,
-                    )
+                    raise module.GHCIError(ansi_message.title)
             await module_utils.create_pull_request(
                 target_branch,
                 backport_branch,
