@@ -323,6 +323,89 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             _LOGGER.error(ansi_message)
                             failed_commits.append(commit.sha)
                             continue
+
+                        # Get user email
+                        command = ["git", "--no-pager", "log", "--format=format:%ae", "-n", "1", commit.sha]
+                        proc = await asyncio.create_subprocess_exec(
+                            *command,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                            cwd=cwd,
+                        )
+                        async with asyncio.timeout(60):
+                            stdout, stderr = await proc.communicate()
+                        if proc.returncode != 0:
+                            ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                                command,
+                                proc,
+                                stdout,
+                                stderr,
+                            )
+                            ansi_message.title = f"Error while getting user email {commit.sha}"
+                            _LOGGER.error(ansi_message)
+                        else:
+                            user_email = stdout.decode().strip()
+                            # Set the user email
+                            command = ["git", "config", "--global", "user.email", user_email]
+                            proc = await asyncio.create_subprocess_exec(
+                                *command,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE,
+                                cwd=cwd,
+                            )
+                            async with asyncio.timeout(10):
+                                stdout, stderr = await proc.communicate()
+                            if proc.returncode != 0:
+                                ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                                    command,
+                                    proc,
+                                    stdout,
+                                    stderr,
+                                )
+                                ansi_message.title = f"Error while setting user email {user_email}"
+                                _LOGGER.error(ansi_message)
+
+                        # Get user name
+                        command = ["git", "--no-pager", "log", "--format=format:%an", "-n", "1", commit.sha]
+                        proc = await asyncio.create_subprocess_exec(
+                            *command,
+                            stdout=asyncio.subprocess.PIPE,
+                            stderr=asyncio.subprocess.PIPE,
+                            cwd=cwd,
+                        )
+                        async with asyncio.timeout(60):
+                            stdout, stderr = await proc.communicate()
+                        if proc.returncode != 0:
+                            ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                                command,
+                                proc,
+                                stdout,
+                                stderr,
+                            )
+                            ansi_message.title = f"Error while getting user name {commit.sha}"
+                            _LOGGER.error(ansi_message)
+                        else:
+                            user_name = stdout.decode().strip()
+                            # Set the user name
+                            command = ["git", "config", "--global", "user.name", user_name]
+                            proc = await asyncio.create_subprocess_exec(
+                                *command,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE,
+                                cwd=cwd,
+                            )
+                            async with asyncio.timeout(10):
+                                stdout, stderr = await proc.communicate()
+                            if proc.returncode != 0:
+                                ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                                    command,
+                                    proc,
+                                    stdout,
+                                    stderr,
+                                )
+                                ansi_message.title = f"Error while setting user name {user_name}"
+                                _LOGGER.error(ansi_message)
+
                         command = ["git", "cherry-pick", commit.sha]
                         proc = await asyncio.create_subprocess_exec(
                             *command,
