@@ -34,6 +34,10 @@ _INTERMEDIATE_STATUS = TypeVar("_INTERMEDIATE_STATUS")  # pylint: disable=invali
 """The module intermediate status"""
 
 
+class GHCIError(Exception):
+    """Exception raised when the module cannot be processed, consider that a pertinent error message is already logged."""
+
+
 class Action(Generic[_EVENT_DATA]):
     """The action to be done by the module."""
 
