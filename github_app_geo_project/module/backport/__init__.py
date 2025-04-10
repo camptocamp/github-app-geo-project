@@ -342,6 +342,25 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             ansi_message.title = f"Error while cherry-picking {commit.sha}"
                             _LOGGER.error(ansi_message)
                             failed_commits.append(commit.sha)
+
+                            command = ["git", "cherry-pick", "--abort"]
+                            proc = await asyncio.create_subprocess_exec(
+                                *command,
+                                stdout=asyncio.subprocess.PIPE,
+                                stderr=asyncio.subprocess.PIPE,
+                                cwd=cwd,
+                            )
+                            async with asyncio.timeout(10):
+                                stdout, stderr = await proc.communicate()
+                            if proc.returncode != 0:
+                                ansi_message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                                    command,
+                                    proc,
+                                    stdout,
+                                    stderr,
+                                )
+                                ansi_message.title = f"Error while aborting the cherry-pick {commit.sha}"
+                                _LOGGER.error(ansi_message)
                     except module.GHCIError:
                         failed_commits.append(commit.sha)
 
