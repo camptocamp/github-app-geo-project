@@ -711,7 +711,7 @@ async def _get_dependencies(
             stdout=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
-        async with asyncio.timeout(1800):
+        async with asyncio.timeout(2700):  # 45 minutes
             stdout, stderr = await proc.communicate()
         message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
             command,
