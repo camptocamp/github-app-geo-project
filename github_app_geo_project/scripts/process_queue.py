@@ -517,7 +517,11 @@ async def _process_job(
             )
             _LOGGER.debug("Update issue %s, with:\n%s", dashboard_issue.number, issue_full_data)
             dashboard_issue.edit(body=issue_full_data)
-        elif new_issue_data:
+        elif new_issue_data and os.environ.get("GHCI_CREATE_DASHBOARD_ISSUE", "1").lower() in (
+            "1",
+            "true",
+            "on",
+        ):
             issue_full_data = utils.update_dashboard_issue_module(
                 f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{job.owner}/{job.repository})\n\n",
                 job.module,
@@ -580,6 +584,7 @@ def _get_dashboard_issue(
         state="open",
         creator=github_application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
     )
+    # TODO: delete duplicated issues # noqa: TD003
     if open_issues.totalCount > 0:
         for candidate in open_issues:
             if "dashboard" in candidate.title.lower().split():
