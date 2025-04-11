@@ -284,7 +284,7 @@ async def _process_job(
                 raise
             except Exception as exception:  # pylint: disable=broad-exception-caught
                 _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
-                raise GHCIError from exception
+                raise GHCIError(str(exception)) from exception
             finally:
                 root_logger.removeHandler(handler)
 
