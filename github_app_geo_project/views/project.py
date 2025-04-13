@@ -87,7 +87,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                 repo = github_project.github.get_repo(f"{owner}/{repository}")
                 for issue in repo.get_issues(
                     state="open",
-                    creator=f"{github_project.application.integration.get_app().slug}[bot]",  # type: ignore[arg-type]
+                    creator=f"{github_project.application.slug}[bot]",  # type: ignore[arg-type]
                 ):
                     if "dashboard" in issue.title.lower().split() and issue.state == "open":
                         applications[app]["issue_url"] = issue.html_url

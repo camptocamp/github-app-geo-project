@@ -683,7 +683,7 @@ async def create_pull_request(
             found = False
             issues = project.repo.get_issues(
                 state="open",
-                creator=project.application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
+                creator=project.application.slug + "[bot]",  # type: ignore[arg-type]
             )
             if issues.totalCount > 0:
                 for candidate in issues:
@@ -780,7 +780,7 @@ def close_pull_request_issues(new_branch: str, message: str, project: configurat
     title = f"Pull request {message} is open for 5 days"
     issues = project.repo.get_issues(
         state="open",
-        creator=project.application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
+        creator=project.application.slug + "[bot]",  # type: ignore[arg-type]
     )
     for issue in issues:
         if title == issue.title:

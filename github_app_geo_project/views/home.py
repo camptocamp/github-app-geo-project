@@ -1,12 +1,11 @@
 """Output view."""
 
+import asyncio
 import logging
 import os
 from typing import Any, Literal, cast
 
-import pyramid.httpexceptions
 import pyramid.request
-import pyramid.response
 import pyramid.security
 from pyramid.view import view_config
 
@@ -88,7 +87,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             try:
                 if "TEST_APPLICATION" not in os.environ:
                     github = (
-                        configuration.get_github_application(request.registry.settings, app)
+                        asyncio.run(configuration.get_github_application(request.registry.settings, app))
                         if admin
                         else None
                     )

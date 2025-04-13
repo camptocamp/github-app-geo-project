@@ -98,14 +98,13 @@ class _Formatter(logging.Formatter):
         return f"<pre>{str_msg}</pre>"
 
 
-def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
+async def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
     if "TEST_APPLICATION" in os.environ:
         return True
-    github_application = configuration.get_github_application(config, application)
-    github_app = github_application.integration.get_app()
+    github_application = await configuration.get_github_application(config, application)
     installation_id = event_data.get("installation", {}).get("id", 0)
-    if github_app.id == installation_id:
-        _LOGGER.error("Invalid installation id %i != %i", github_app.id, installation_id)
+    if github_application.id == installation_id:
+        _LOGGER.error("Invalid installation id %i != %i", github_application.id, installation_id)
         return False
     return True
 
@@ -133,7 +132,7 @@ async def _process_job(
     github_project: configuration.GithubProject | None = None
     check_run: github.CheckRun.CheckRun | None = None
     if "TEST_APPLICATION" not in os.environ:
-        github_application = configuration.get_github_application(config, job.application)
+        github_application = await configuration.get_github_application(config, job.application)
         github_project = await configuration.get_github_project(
             config,
             github_application,
@@ -558,7 +557,7 @@ async def _process_event(
                 ),
             )
         else:
-            github_application = configuration.get_github_application(config, application)
+            github_application = await configuration.get_github_application(config, application)
             for installation in github_application.integration.get_installations():
                 for repo in installation.get_repos():
                     await webhook.process_event(
@@ -582,7 +581,7 @@ def _get_dashboard_issue(
 ) -> github.Issue.Issue | None:
     open_issues = repo.get_issues(
         state="open",
-        creator=github_application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
+        creator=github_application.slug + "[bot]",  # type: ignore[arg-type]
     )
     # TODO: delete duplicated issues # noqa: TD003
     if open_issues.totalCount > 0:
@@ -601,7 +600,7 @@ async def _process_dashboard_issue(
     repository: str,
 ) -> None:
     """Process changes on the dashboard issue."""
-    github_application = configuration.get_github_application(config, application)
+    github_application = await configuration.get_github_application(config, application)
     github_project = await configuration.get_github_project(config, github_application, owner, repository)
 
     if event_data["issue"]["user"]["login"] == github_application.integration.get_app().slug + "[bot]":
@@ -668,7 +667,7 @@ async def _process_dashboard_issue(
         _LOGGER.debug(
             "Dashboard event ignored %s!=%s",
             event_data["issue"]["user"]["login"],
-            github_application.integration.get_app().slug + "[bot]",
+            github_application.slug + "[bot]",
         )
 
 
@@ -790,7 +789,7 @@ async def _process_one_job(
                 job.status = models.JobStatus.DONE
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             elif job.event_name == "dashboard":
-                success = _validate_job(config, job.application, job.event_data)
+                success = await _validate_job(config, job.application, job.event_data)
                 if success:
                     _LOGGER.info("Process dashboard issue %i", job.id)
                     await _process_dashboard_issue(
@@ -811,7 +810,7 @@ async def _process_one_job(
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
                 success = False
         else:
-            success = _validate_job(config, job.application, job.event_data)
+            success = await _validate_job(config, job.application, job.event_data)
             if success:
                 success = await _process_job(
                     config,
