@@ -83,6 +83,7 @@ lxml-html-clean = "0.4.1"
 tag-publish = "1.0.1"
 aiohttp = "3.11.15"
 aiofiles = "24.1.0"
+githubkit = "0.12.10"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }

@@ -1,5 +1,6 @@
 """Webhook view."""
 
+import asyncio
 import hashlib
 import hmac
 import logging
@@ -9,7 +10,6 @@ from typing import Any, NamedTuple
 
 import github
 import pyramid.request
-import sqlalchemy.engine
 import sqlalchemy.orm
 from pyramid.view import view_config
 from sqlalchemy.orm import Session
@@ -102,11 +102,13 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             and "TEST_APPLICATION" not in os.environ
         ):
             try:
-                project_github = configuration.get_github_project(
-                    request.registry.settings,
-                    application,
-                    owner,
-                    repository,
+                project_github = asyncio.run(
+                    configuration.get_github_project(
+                        request.registry.settings,
+                        application,
+                        owner,
+                        repository,
+                    ),
                 )
                 check_suite = project_github.repo.get_check_suite(data["check_suite"]["id"])
                 for check_run in check_suite.get_check_runs():
@@ -149,11 +151,13 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             )
             if "TEST_APPLICATION" not in os.environ:
                 try:
-                    project_github = configuration.get_github_project(
-                        request.registry.settings,
-                        application,
-                        owner,
-                        repository,
+                    project_github = asyncio.run(
+                        configuration.get_github_project(
+                            request.registry.settings,
+                            application,
+                            owner,
+                            repository,
+                        ),
                     )
                     project_github.repo.get_check_run(data["check_run"]["id"]).edit(status="queued")
                 except github.GithubException as exception:
@@ -183,17 +187,19 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 ),
             )
 
-        process_event(
-            ProcessContext(
-                owner=owner,
-                repository=repository,
-                config=request.registry.settings,
-                application=application,
-                event_name=request.headers.get("X-GitHub-Event", "undefined"),
-                event_data=data,
-                session=session,
-                github_application=application_object,
-                service_url=request.route_url("home"),
+        asyncio.run(
+            process_event(
+                ProcessContext(
+                    owner=owner,
+                    repository=repository,
+                    config=request.registry.settings,
+                    application=application,
+                    event_name=request.headers.get("X-GitHub-Event", "undefined"),
+                    event_data=data,
+                    session=session,
+                    github_application=application_object,
+                    service_url=request.route_url("home"),
+                ),
             ),
         )
         session.commit()
@@ -223,7 +229,7 @@ class ProcessContext(NamedTuple):
     """The service URL"""
 
 
-def process_event(context: ProcessContext) -> None:
+async def process_event(context: ProcessContext) -> None:
     """Process the event."""
     _LOGGER.debug("Processing event for application %s", context.application)
     for name in context.config.get(f"application.{context.application}.modules", "").split():
@@ -304,7 +310,7 @@ def process_event(context: ProcessContext) -> None:
 
                 repo = None
                 if "TEST_APPLICATION" not in os.environ:
-                    github_project = configuration.get_github_project(
+                    github_project = await configuration.get_github_project(
                         context.config,
                         context.application,
                         context.owner,

@@ -1,5 +1,6 @@
 """Output view."""
 
+import asyncio
 import datetime
 import logging
 import os
@@ -70,17 +71,18 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         applications.setdefault(app, {})
         try:
             if "TEST_APPLICATION" not in os.environ:
-                config = configuration.get_configuration(
-                    request.registry.settings,
-                    owner,
-                    repository,
-                    app,
+                github_project = asyncio.run(
+                    configuration.get_github_project(
+                        request.registry.settings,
+                        app,
+                        owner,
+                        repository,
+                    ),
                 )
-                github_project = configuration.get_github_project(
-                    request.registry.settings,
-                    app,
-                    owner,
-                    repository,
+                config = asyncio.run(
+                    configuration.get_configuration(
+                        github_project,
+                    ),
                 )
                 repo = github_project.github.get_repo(f"{owner}/{repository}")
                 for issue in repo.get_issues(

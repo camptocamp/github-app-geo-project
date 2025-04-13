@@ -7,6 +7,8 @@ from typing import Any, NamedTuple, cast
 
 import github
 import github as github_lib
+import githubkit.versions.latest.models
+import githubkit.versions.latest.types
 import jsonmerge
 import yaml
 
@@ -60,6 +62,9 @@ class GithubApplication(NamedTuple):
     """The application id"""
     private_key: str
     """The application private key"""
+    aoi_auth: githubkit.AppAuthStrategy
+    """The authentication strategy for the application"""
+    aoi_github: githubkit.GitHub[githubkit.AppAuthStrategy]
 
 
 class GithubProject(NamedTuple):
@@ -73,6 +78,19 @@ class GithubProject(NamedTuple):
     repository: str
     """The repository name"""
     repo: github_lib.Repository.Repository
+    """The repository object"""
+    aoi_installation: githubkit.Response[
+        githubkit.versions.latest.models.Installation,
+        githubkit.versions.latest.types.InstallationType,
+    ]
+    """The installation object for the repository"""
+    aoi_github: githubkit.GitHub[githubkit.AppInstallationAuthStrategy]
+    """The githubkit object for the repository"""
+    aoi_repo: githubkit.Response[
+        githubkit.versions.latest.models.FullRepository,
+        githubkit.versions.latest.types.FullRepositoryType,
+    ]
+    """The githubkit repository object"""
 
 
 GITHUB_APPLICATIONS: dict[str, GithubApplication] = {}
@@ -95,12 +113,18 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
         )
         application_id = config[f"application.{application_name}.github_app_id"]
         auth = github.Auth.AppAuth(application_id, private_key)
+
+        aoi_auth = githubkit.AppAuthStrategy(application_id, private_key)
+        aoi_github = githubkit.GitHub(aoi_auth)
+
         objects = GithubApplication(
             auth,
             github.GithubIntegration(auth=auth, retry=3),
             application_name,
             application_id,
             private_key,
+            aoi_auth,
+            aoi_github,
         )
 
         GITHUB_APPLICATIONS[application_name] = objects
@@ -108,7 +132,7 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
     return GITHUB_APPLICATIONS[application_name]
 
 
-def get_github_project(
+async def get_github_project(
     config: dict[str, Any],
     application: GithubApplication | str,
     owner: str,
@@ -122,14 +146,27 @@ def get_github_project(
     github_application = github.Github(login_or_token=token.token)
     repo = github_application.get_repo(f"{owner}/{repository}")
 
-    return GithubProject(objects, token.token, github_application, owner, repository, repo)
+    aoi_installation = await objects.aoi_github.rest.apps.async_get_repo_installation(owner, repository)
+    aoi_github = objects.aoi_github.with_auth(
+        objects.aoi_auth.as_installation(aoi_installation.parsed_data.id),
+    )
+    aoi_repo = await aoi_github.rest.repos.async_get(owner, repository)
+
+    return GithubProject(
+        objects,
+        token.token,
+        github_application,
+        owner,
+        repository,
+        repo,
+        aoi_installation,
+        aoi_github,
+        aoi_repo,
+    )
 
 
-def get_configuration(
-    config: dict[str, Any],
-    owner: str,
-    repository: str,
-    application: str,
+async def get_configuration(
+    github_project: GithubProject,
 ) -> project_configuration.GithubApplicationProjectConfiguration:
     """
     Get the Configuration for the repository.
@@ -137,8 +174,7 @@ def get_configuration(
     Parameter:
         repository: The repository name (<owner>/<name>)
     """
-    github_app = get_github_project(config, application, owner, repository)
-    repo = github_app.github.get_repo(f"{owner}/{repository}")
+    repo = github_project.github.get_repo(f"{github_project.owner}/{github_project.repository}")
     project_custom_configuration = {}
     try:
         project_configuration_content = repo.get_contents(".github/ghci.yaml")

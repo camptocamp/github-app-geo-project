@@ -134,7 +134,7 @@ async def _process_job(
     check_run: github.CheckRun.CheckRun | None = None
     if "TEST_APPLICATION" not in os.environ:
         github_application = configuration.get_github_application(config, job.application)
-        github_project = configuration.get_github_project(
+        github_project = await configuration.get_github_project(
             config,
             github_application,
             job.owner,
@@ -164,7 +164,7 @@ async def _process_job(
 
         module_config = cast(
             "project_configuration.ModuleConfiguration",
-            configuration.get_configuration(config, job.owner, job.repository, job.application).get(
+            (await configuration.get_configuration(github_project)).get(
                 job.module,
                 {},
             ),
@@ -535,7 +535,7 @@ async def _process_job(
     return True
 
 
-def _process_event(
+async def _process_event(
     config: dict[str, str],
     event_data: dict[str, str],
     session: sqlalchemy.orm.Session,
@@ -544,7 +544,7 @@ def _process_event(
         _LOGGER.info("Process the event: %s, application: %s", event_data.get("name"), application)
 
         if "TEST_APPLICATION" in os.environ:
-            webhook.process_event(
+            await webhook.process_event(
                 webhook.ProcessContext(
                     owner="camptocamp",
                     repository="test",
@@ -561,7 +561,7 @@ def _process_event(
             github_application = configuration.get_github_application(config, application)
             for installation in github_application.integration.get_installations():
                 for repo in installation.get_repos():
-                    webhook.process_event(
+                    await webhook.process_event(
                         webhook.ProcessContext(
                             owner=repo.owner.login,
                             repository=repo.name,
@@ -592,7 +592,7 @@ def _get_dashboard_issue(
     return None
 
 
-def _process_dashboard_issue(
+async def _process_dashboard_issue(
     config: dict[str, Any],
     session: sqlalchemy.orm.Session,
     event_data: dict[str, Any],
@@ -602,7 +602,7 @@ def _process_dashboard_issue(
 ) -> None:
     """Process changes on the dashboard issue."""
     github_application = configuration.get_github_application(config, application)
-    github_project = configuration.get_github_project(config, github_application, owner, repository)
+    github_project = await configuration.get_github_project(config, github_application, owner, repository)
 
     if event_data["issue"]["user"]["login"] == github_application.integration.get_app().slug + "[bot]":
         repo = github_project.repo
@@ -786,14 +786,14 @@ async def _process_one_job(
         success = True
         if not job.module:
             if job.event_data.get("type") == "event":
-                _process_event(config, job.event_data, session)
+                await _process_event(config, job.event_data, session)
                 job.status = models.JobStatus.DONE
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             elif job.event_name == "dashboard":
                 success = _validate_job(config, job.application, job.event_data)
                 if success:
                     _LOGGER.info("Process dashboard issue %i", job.id)
-                    _process_dashboard_issue(
+                    await _process_dashboard_issue(
                         config,
                         session,
                         job.event_data,
