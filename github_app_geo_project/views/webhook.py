@@ -6,9 +6,11 @@ import hmac
 import logging
 import os
 import urllib.parse
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
-import github
+import githubkit.exception
+import githubkit.versions.latest.models
+import githubkit.versions.v2022_11_28.rest.checks
 import pyramid.request
 import sqlalchemy.orm
 from pyramid.view import view_config
@@ -114,12 +116,25 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                         repository,
                     ),
                 )
-                check_suite = project_github.repo.get_check_suite(data["check_suite"]["id"])
-                for check_run in check_suite.get_check_runs():
+                check_suite = asyncio.run(
+                    project_github.aoi_github.rest.checks.async_get_suite(
+                        owner=owner,
+                        repo=repository,
+                        check_suite_id=data["check_suite"]["id"],
+                    ),
+                )
+                check_runs = asyncio.run(
+                    project_github.aoi_github.rest.checks.async_list_for_suite(
+                        owner=owner,
+                        repo=repository,
+                        check_suite_id=data["check_suite"]["id"],
+                    ),
+                )
+                for check_run in check_runs.parsed_data.check_runs:
                     _LOGGER.info(
                         "Rerequest the check run %s from check suite %s",
                         check_run.id,
-                        check_suite.id,
+                        check_suite.parsed_data.id,
                     )
                     session.execute(
                         sqlalchemy.update(models.Queue)
@@ -133,9 +148,16 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                         ),
                     )
                     session.commit()
-                    check_run.edit(status="queued")
-            except github.GithubException as exception:
-                if exception.status == 404:
+                    asyncio.run(
+                        project_github.aoi_github.rest.checks.async_update(
+                            owner=owner,
+                            repo=repository,
+                            check_run_id=check_run.id,
+                            data={"status": "queued"},
+                        ),
+                    )
+            except githubkit.exception.RequestFailed as exception:
+                if exception.response.status_code == 404:
                     _LOGGER.error("Repository not found: %s/%s", owner, repository)  # noqa: TRY400
                 else:
                     _LOGGER.exception("Error while getting check suite")
@@ -163,9 +185,16 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                             repository,
                         ),
                     )
-                    project_github.repo.get_check_run(data["check_run"]["id"]).edit(status="queued")
-                except github.GithubException as exception:
-                    if exception.status == 404:
+                    asyncio.run(
+                        project_github.aoi_github.rest.checks.async_update(
+                            owner=owner,
+                            repo=repository,
+                            check_run_id=data["check_run"]["id"],
+                            data={"status": "queued"},
+                        ),
+                    )
+                except githubkit.exception.RequestFailed as exception:
+                    if exception.response.status_code == 404:
                         _LOGGER.error("Repository not found: %s/%s", owner, repository)  # noqa: TRY400
                     else:
                         _LOGGER.exception("Error while getting check run")
@@ -311,8 +340,8 @@ async def process_event(context: ProcessContext) -> None:
                 job.module_data = module_data
                 context.session.add(job)
                 context.session.flush()
+                github_project = None
 
-                repo = None
                 if "TEST_APPLICATION" not in os.environ:
                     github_project = await configuration.get_github_project(
                         context.config,
@@ -320,7 +349,6 @@ async def process_event(context: ProcessContext) -> None:
                         context.owner,
                         context.repository,
                     )
-                    repo = github_project.repo
 
                 should_create_checks = action.checks
                 if should_create_checks is None:
@@ -329,12 +357,12 @@ async def process_event(context: ProcessContext) -> None:
                         if event_name in context.event_data:
                             should_create_checks = True
                             break
-                if should_create_checks:
-                    create_checks(
+                if should_create_checks and github_project is not None:
+                    await create_checks(
                         job,
                         context.session,
                         current_module,
-                        repo,  # type: ignore[arg-type]
+                        github_project,
                         context.event_data,
                         context.service_url,
                         action.title,
@@ -345,15 +373,15 @@ async def process_event(context: ProcessContext) -> None:
             _LOGGER.exception("Error while getting actions for %s", name)
 
 
-def create_checks(
+async def create_checks(
     job: models.Queue,
     session: Session,
     current_module: module.Module[Any, Any, Any, Any],
-    repo: github.Repository.Repository,
+    github_project: configuration.GithubProject,
     event_data: dict[str, Any],
     service_url: str,
     sub_name: str | None = None,
-) -> github.CheckRun.CheckRun:
+) -> githubkit.versions.latest.models.CheckRun:
     """Create the GitHub check run."""
     # Get the job id from the database
     session.flush()
@@ -374,14 +402,28 @@ def create_checks(
     if event_data.get("check_run", {}).get("head_sha"):
         sha = event_data["check_run"]["head_sha"]
     if sha is None:
-        sha = repo.get_branch(repo.default_branch).commit.sha
+        branch = (
+            await github_project.aoi_github.rest.repos.async_get_branch(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                branch=github_project.aoi_repo.parsed_data.default_branch,
+            )
+        ).parsed_data
+        sha = branch.commit.sha
 
     name = f"{current_module.title()}: {sub_name}" if sub_name else current_module.title()
-    check_run = repo.create_check_run(
-        name=name,
-        head_sha=sha,
-        details_url=service_url,
-        external_id=str(job.id),
+    check_run = cast(
+        "githubkit.versions.latest.models.CheckRun",
+        (
+            await github_project.aoi_github.rest.checks.async_create(  # type: ignore[call-overload]
+                owner=github_project.owner,
+                repo=github_project.repo,
+                name=name,
+                head_sha=sha,
+                details_url=service_url,
+                external_id=str(job.id),
+            )
+        ).parsed_data,
     )
     job.check_run_id = check_run.id
     session.commit()
