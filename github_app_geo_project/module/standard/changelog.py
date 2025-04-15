@@ -576,8 +576,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         if (
             event_data.get("action") in ("edited", "labeled", "unlabeled", "milestoned", "demilestoned")
             and event_data.get("pull_request", {}).get("state") == "closed"
-            and event_data.get("sender", {}).get("login")
-            != context.github_application.integration.get_app().slug + "[bot]"
+            and event_data.get("sender", {}).get("login") != context.github_application.slug + "[bot]"
         ):
             versions = set()
             milestone_version = event_data.get("milestone", {}).get("title")
@@ -601,8 +600,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         if (
             event_data.get("action") == "edited"
             and "milestone" in event_data
-            and event_data.get("sender", {}).get("login")
-            != context.github_application.integration.get_app().slug + "[bot]"
+            and event_data.get("sender", {}).get("login") != context.github_application.slug + "[bot]"
         ):
             versions = {event_data["milestone"]["title"]}
             if "changes" in event_data and "title" in event_data["changes"]:

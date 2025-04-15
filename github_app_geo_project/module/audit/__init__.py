@@ -296,7 +296,7 @@ async def _process_snyk_dpkg(
 
                 else:
                     _LOGGER.debug("No changes to commit")
-                    module_utils.close_pull_request_issues(
+                    await module_utils.close_pull_request_issues(
                         new_branch,
                         f"Audit {key}",
                         context.github_project,

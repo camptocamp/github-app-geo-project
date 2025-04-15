@@ -53,15 +53,6 @@ _LOGGER.debug("Configuration loaded: %s", APPLICATION_CONFIGURATION)
 class GithubApplication(NamedTuple):
     """The Github authentication objects."""
 
-    deprecated_auth: github.Auth.AppAuth
-    """The Github authentication (Deprecated)"""
-
-    @property
-    @deprecated("This property is deprecated and will be removed in a future release, use aio_auth instead.")
-    def auth(self) -> github.Auth.AppAuth:
-        """The Github authentication (Deprecated)."""
-        return self.deprecated_auth
-
     deprecated_integration: github.GithubIntegration
     """The Github integration (Deprecated)"""
 
@@ -161,7 +152,6 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
         assert isinstance(slug, str)
 
         objects = GithubApplication(
-            auth,
             github.GithubIntegration(auth=auth, retry=3),
             application_name,
             application_id,

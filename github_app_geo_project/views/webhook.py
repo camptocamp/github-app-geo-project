@@ -6,11 +6,10 @@ import hmac
 import logging
 import os
 import urllib.parse
-from typing import Any, NamedTuple, cast
+from typing import Any, NamedTuple
 
 import githubkit.exception
 import githubkit.versions.latest.models
-import githubkit.versions.v2022_11_28.rest.checks
 import pyramid.request
 import sqlalchemy.orm
 from pyramid.view import view_config
@@ -66,14 +65,14 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
         application_object = asyncio.run(
             configuration.get_github_application(request.registry.settings, application),
         )
-        if data.get("sender", {}).get("login") == application_object.integration.get_app().slug + "[bot]":
+        if data.get("sender", {}).get("login") == application_object.slug + "[bot]":
             _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
     except Exception:  # pylint: disable=broad-exception-caught
         del configuration.GITHUB_APPLICATIONS[application]
         application_object = asyncio.run(
             configuration.get_github_application(request.registry.settings, application),
         )
-        if data.get("sender", {}).get("login") == application_object.integration.get_app().slug + "[bot]":
+        if data.get("sender", {}).get("login") == application_object.slug + "[bot]":
             _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
 
     if "account" in data.get("installation", {}):
@@ -412,19 +411,16 @@ async def create_checks(
         sha = branch.commit.sha
 
     name = f"{current_module.title()}: {sub_name}" if sub_name else current_module.title()
-    check_run = cast(
-        "githubkit.versions.latest.models.CheckRun",
-        (
-            await github_project.aio_github.rest.checks.async_create(  # type: ignore[call-overload]
-                owner=github_project.owner,
-                repo=github_project.repo,
-                name=name,
-                head_sha=sha,
-                details_url=service_url,
-                external_id=str(job.id),
-            )
-        ).parsed_data,
-    )
+    check_run = (
+        await github_project.aio_github.rest.checks.async_create(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            name=name,
+            head_sha=sha,
+            details_url=service_url,
+            external_id=str(job.id),
+        )
+    ).parsed_data
     job.check_run_id = check_run.id
     session.commit()
     return check_run

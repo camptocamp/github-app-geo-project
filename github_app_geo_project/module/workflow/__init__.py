@@ -75,7 +75,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
 
         repo_data = transversal_status[full_repo]
 
-        repo = context.github_project.github.get_repo(full_repo)
+        repo = context.github_project.repo
 
         stabilization_branches = [repo.default_branch]
         security_file = None

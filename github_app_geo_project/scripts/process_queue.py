@@ -148,16 +148,18 @@ async def _process_job(
             job.repository,
         )
         # Get Rate limit status
-        if github_project.github.rate_limiting[0] < 1000:
+        rate_limit = (await github_project.aio_github.rest.rate_limit.async_get()).parsed_data
+        if rate_limit.rate.remaining < 1000:
             _LOGGER.warning(
-                "Rate limit status: %s",
-                github_project.github.rate_limiting,
+                "Rate limit status: %s/%s",
+                rate_limit.rate.remaining,
+                rate_limit.rate.limit,
             )
             # Wait until github_project.github.rate_limiting_resettime
             await asyncio.sleep(
                 max(
                     0,
-                    github_project.github.rate_limiting_resettime - time.time(),
+                    rate_limit.rate.reset - time.time(),
                 ),
             )
 
@@ -583,7 +585,7 @@ async def _process_job(
                 await github_project.aio_github.rest.issues.async_create(
                     owner=job.owner,
                     repo=job.repository,
-                    title=f"{github_application.integration.get_app().name} Dashboard",
+                    title=f"{github_application.name} Dashboard",
                     body=issue_full_data,
                 )
     return True
@@ -613,21 +615,23 @@ async def _process_event(
             )
         else:
             github_application = await configuration.get_github_application(config, application)
-            for installation in github_application.integration.get_installations():
-                for repo in installation.get_repos():
-                    await webhook.process_event(
-                        webhook.ProcessContext(
-                            owner=repo.owner.login,
-                            repository=repo.name,
-                            config=config,
-                            application=application,
-                            event_name="event",
-                            event_data=event_data,
-                            session=session,
-                            github_application=github_application,
-                            service_url=config["service-url"],
-                        ),
-                    )
+            repos = (
+                await github_application.aio_github.rest.apps.async_list_repos_accessible_to_installation()
+            ).parsed_data
+            for repo in repos.repositories:
+                await webhook.process_event(
+                    webhook.ProcessContext(
+                        owner=repo.owner.login,
+                        repository=repo.name,
+                        config=config,
+                        application=application,
+                        event_name="event",
+                        event_data=event_data,
+                        session=session,
+                        github_application=github_application,
+                        service_url=config["service-url"],
+                    ),
+                )
 
 
 async def _get_dashboard_issue(
