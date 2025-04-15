@@ -176,7 +176,7 @@ async def _process_job(
             ),
         )
         if job.check_run_id is not None:
-            check_run = await github_project.aoi_github.rest.checks.async_get(
+            check_run = await github_project.aio_github.rest.checks.async_get(
                 owner=job.owner,
                 repo=job.repository,
                 check_run_id=job.check_run_id,
@@ -195,7 +195,7 @@ async def _process_job(
                     )
 
                 assert check_run is not None
-                await github_project.aoi_github.rest.checks.async_update(
+                await github_project.aio_github.rest.checks.async_update(
                     owner=job.owner,
                     repo=job.repository,
                     check_run_id=check_run.parsed_data.id,
@@ -325,7 +325,7 @@ async def _process_job(
                 if len(check_output.get("text", "")) > 65535:
                     check_output["text"] = check_output["text"][:65532] + "..."
                 try:
-                    await github_project.aoi_github.rest.checks.async_update(
+                    await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
                         check_run_id=check_run.parsed_data.id,
@@ -403,7 +403,7 @@ async def _process_job(
             assert check_run is not None
             try:
                 if github_project is not None:
-                    await github_project.aoi_github.rest.checks.async_update(
+                    await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
                         check_run_id=check_run.parsed_data.id,
@@ -451,7 +451,7 @@ async def _process_job(
             assert check_run is not None
             try:
                 if github_project is not None:
-                    await github_project.aoi_github.rest.checks.async_update(
+                    await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
                         check_run_id=check_run.parsed_data.id,
@@ -487,7 +487,7 @@ async def _process_job(
                     root_logger.removeHandler(handler)
             if check_run is not None and github_project is not None:
                 try:
-                    await github_project.aoi_github.rest.checks.async_update(
+                    await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
                         check_run_id=check_run.parsed_data.id,
@@ -517,7 +517,7 @@ async def _process_job(
             _LOGGER.info("Module %s is disabled", job.module)
             job.status = models.JobStatus.SKIPPED
             if check_run is not None and github_project is not None:
-                await github_project.aoi_github.rest.checks.async_update(
+                await github_project.aio_github.rest.checks.async_update(
                     owner=job.owner,
                     repo=job.repository,
                     check_run_id=check_run.parsed_data.id,
@@ -545,7 +545,7 @@ async def _process_job(
 
     if (
         github_project is not None
-        and github_project.aoi_github is not None
+        and github_project.aio_github is not None
         and current_module.required_issue_dashboard()
         and new_issue_data is not None
     ):
@@ -562,7 +562,7 @@ async def _process_job(
             )
             _LOGGER.debug("Update issue %s, with:\n%s", dashboard_issue.number, issue_full_data)
             if github_project is not None:
-                await github_project.aoi_github.rest.issues.async_update(
+                await github_project.aio_github.rest.issues.async_update(
                     owner=job.owner,
                     repo=job.repository,
                     issue_number=dashboard_issue.number,
@@ -580,7 +580,7 @@ async def _process_job(
                 new_issue_data,
             )
             if github_project is not None:
-                await github_project.aoi_github.rest.issues.async_create(
+                await github_project.aio_github.rest.issues.async_create(
                     owner=job.owner,
                     repo=job.repository,
                     title=f"{github_application.integration.get_app().name} Dashboard",
@@ -634,7 +634,7 @@ async def _get_dashboard_issue(
     github_project: configuration.GithubProject,
 ) -> githubkit.versions.latest.models.Issue | None:
     open_issues = (
-        await github_project.aoi_github.rest.issues.async_list_for_repo(
+        await github_project.aio_github.rest.issues.async_list_for_repo(
             owner=github_project.owner,
             repo=github_project.repository,
             state="open",

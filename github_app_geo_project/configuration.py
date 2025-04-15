@@ -57,7 +57,7 @@ class GithubApplication(NamedTuple):
     """The Github authentication (Deprecated)"""
 
     @property
-    @deprecated("This property is deprecated and will be removed in a future release, use aoi_auth instead.")
+    @deprecated("This property is deprecated and will be removed in a future release, use aio_auth instead.")
     def auth(self) -> github.Auth.AppAuth:
         """The Github authentication (Deprecated)."""
         return self.deprecated_auth
@@ -67,7 +67,7 @@ class GithubApplication(NamedTuple):
 
     @property
     @deprecated(
-        "This property is deprecated and will be removed in a future release, use aoi_github instead.",
+        "This property is deprecated and will be removed in a future release, use aio_github instead.",
     )
     def integration(self) -> github.GithubIntegration:
         """The Github integration (Deprecated)."""
@@ -81,11 +81,11 @@ class GithubApplication(NamedTuple):
     """The application private key"""
     slug: str
     """The application slug"""
-    aoi_auth: githubkit.AppAuthStrategy
+    aio_auth: githubkit.AppAuthStrategy
     """The authentication strategy for the application"""
-    aoi_github: githubkit.GitHub[githubkit.AppAuthStrategy]
+    aio_github: githubkit.GitHub[githubkit.AppAuthStrategy]
     """The githubkit GitHub"""
-    aoi_application: githubkit.versions.latest.models.Integration
+    aio_application: githubkit.versions.latest.models.Integration
 
 
 class GithubProject(NamedTuple):
@@ -112,19 +112,19 @@ class GithubProject(NamedTuple):
     """The repository object (Deprecated)"""
 
     @property
-    @deprecated("This property is deprecated and will be removed in a future release, use aoi_repo instead.")
+    @deprecated("This property is deprecated and will be removed in a future release, use aio_repo instead.")
     def repo(self) -> github_lib.Repository.Repository:
         """The repository object (Deprecated)."""
         return self.deprecated_repo
 
-    aoi_installation: githubkit.Response[
+    aio_installation: githubkit.Response[
         githubkit.versions.latest.models.Installation,
         githubkit.versions.latest.types.InstallationType,
     ]
     """The installation object for the repository"""
-    aoi_github: githubkit.GitHub[githubkit.AppInstallationAuthStrategy]
+    aio_github: githubkit.GitHub[githubkit.AppInstallationAuthStrategy]
     """The githubkit object for the repository"""
-    aoi_repo: githubkit.Response[
+    aio_repo: githubkit.Response[
         githubkit.versions.latest.models.FullRepository,
         githubkit.versions.latest.types.FullRepositoryType,
     ]
@@ -152,12 +152,12 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
         application_id = config[f"application.{application_name}.github_app_id"]
         auth = github.Auth.AppAuth(application_id, private_key)
 
-        aoi_auth = githubkit.AppAuthStrategy(application_id, private_key)
-        aoi_github = githubkit.GitHub(aoi_auth)
-        aoi_application_response = await aoi_github.rest.apps.async_get_authenticated()
-        aoi_application = aoi_application_response.parsed_data
-        assert aoi_application is not None
-        slug = aoi_application.slug
+        aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
+        aio_github = githubkit.GitHub(aio_auth)
+        aio_application_response = await aio_github.rest.apps.async_get_authenticated()
+        aio_application = aio_application_response.parsed_data
+        assert aio_application is not None
+        slug = aio_application.slug
         assert isinstance(slug, str)
 
         objects = GithubApplication(
@@ -167,9 +167,9 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
             application_id,
             private_key,
             slug,
-            aoi_auth,
-            aoi_github,
-            aoi_application,
+            aio_auth,
+            aio_github,
+            aio_application,
         )
 
         GITHUB_APPLICATIONS[application_name] = objects
@@ -193,11 +193,11 @@ async def get_github_project(
     github_application = github.Github(login_or_token=token.token)
     repo = github_application.get_repo(f"{owner}/{repository}")
 
-    aoi_installation = await objects.aoi_github.rest.apps.async_get_repo_installation(owner, repository)
-    aoi_github = objects.aoi_github.with_auth(
-        objects.aoi_auth.as_installation(aoi_installation.parsed_data.id),
+    aio_installation = await objects.aio_github.rest.apps.async_get_repo_installation(owner, repository)
+    aio_github = objects.aio_github.with_auth(
+        objects.aio_auth.as_installation(aio_installation.parsed_data.id),
     )
-    aoi_repo = await aoi_github.rest.repos.async_get(owner, repository)
+    aio_repo = await aio_github.rest.repos.async_get(owner, repository)
 
     return GithubProject(
         objects,
@@ -206,9 +206,9 @@ async def get_github_project(
         owner,
         repository,
         repo,
-        aoi_installation,
-        aoi_github,
-        aoi_repo,
+        aio_installation,
+        aio_github,
+        aio_repo,
     )
 
 

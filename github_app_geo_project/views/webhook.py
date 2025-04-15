@@ -117,14 +117,14 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                     ),
                 )
                 check_suite = asyncio.run(
-                    project_github.aoi_github.rest.checks.async_get_suite(
+                    project_github.aio_github.rest.checks.async_get_suite(
                         owner=owner,
                         repo=repository,
                         check_suite_id=data["check_suite"]["id"],
                     ),
                 )
                 check_runs = asyncio.run(
-                    project_github.aoi_github.rest.checks.async_list_for_suite(
+                    project_github.aio_github.rest.checks.async_list_for_suite(
                         owner=owner,
                         repo=repository,
                         check_suite_id=data["check_suite"]["id"],
@@ -149,7 +149,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                     )
                     session.commit()
                     asyncio.run(
-                        project_github.aoi_github.rest.checks.async_update(
+                        project_github.aio_github.rest.checks.async_update(
                             owner=owner,
                             repo=repository,
                             check_run_id=check_run.id,
@@ -186,7 +186,7 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                         ),
                     )
                     asyncio.run(
-                        project_github.aoi_github.rest.checks.async_update(
+                        project_github.aio_github.rest.checks.async_update(
                             owner=owner,
                             repo=repository,
                             check_run_id=data["check_run"]["id"],
@@ -403,10 +403,10 @@ async def create_checks(
         sha = event_data["check_run"]["head_sha"]
     if sha is None:
         branch = (
-            await github_project.aoi_github.rest.repos.async_get_branch(
+            await github_project.aio_github.rest.repos.async_get_branch(
                 owner=github_project.owner,
                 repo=github_project.repository,
-                branch=github_project.aoi_repo.parsed_data.default_branch,
+                branch=github_project.aio_repo.parsed_data.default_branch,
             )
         ).parsed_data
         sha = branch.commit.sha
@@ -415,7 +415,7 @@ async def create_checks(
     check_run = cast(
         "githubkit.versions.latest.models.CheckRun",
         (
-            await github_project.aoi_github.rest.checks.async_create(  # type: ignore[call-overload]
+            await github_project.aio_github.rest.checks.async_create(  # type: ignore[call-overload]
                 owner=github_project.owner,
                 repo=github_project.repo,
                 name=name,

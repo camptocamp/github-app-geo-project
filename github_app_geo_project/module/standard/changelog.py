@@ -288,7 +288,7 @@ def get_release(
 
 
 def _get_discussion_url(github_project: GithubProject, tag: str) -> str | None:
-    categories = github_project.aoi_github.graphql(
+    categories = github_project.aio_github.graphql(
         """
         query DiscussionCategories($owner: String!, $name: String!) {
             repository(owner: $owner, name: $name) {
@@ -317,7 +317,7 @@ def _get_discussion_url(github_project: GithubProject, tag: str) -> str | None:
     ]
     if not category:
         return None
-    discussions_result = github_project.aoi_github.graphql(
+    discussions_result = github_project.aio_github.graphql(
         """
         query Discussion($owner: String!, $name: String!, $category: ID!) {
             repository(owner: $owner, name: $name) {
@@ -357,7 +357,7 @@ async def generate_changelog(
         for milestone in cast(
             "list[githubkit.versions.latest.models.Milestone]",
             (
-                await github_project.aoi_github.rest.issues.async_list_milestones(
+                await github_project.aio_github.rest.issues.async_list_milestones(
                     github_project.owner,
                     github_project.repository,
                 )
@@ -369,7 +369,7 @@ async def generate_changelog(
         milestones[0]
         if milestones
         else (
-            await github_project.aoi_github.rest.issues.async_create_milestone(
+            await github_project.aio_github.rest.issues.async_create_milestone(
                 github_project.owner,
                 github_project.repository,
                 data={"title": tag_str},
@@ -381,14 +381,14 @@ async def generate_changelog(
 
     tags: dict[Tag, Tag] = {}
     for github_tag in (
-        await github_project.aoi_github.rest.repos.async_list_tags(
+        await github_project.aio_github.rest.repos.async_list_tags(
             github_project.owner,
             github_project.repository,
         )
     ).parsed_data:
         try:
             commit = (
-                await github_project.aoi_github.rest.repos.async_get_commit(
+                await github_project.aio_github.rest.repos.async_get_commit(
                     github_project.owner,
                     github_project.repository,
                     github_tag.commit.sha,
@@ -414,7 +414,7 @@ async def generate_changelog(
 
     # Get the commits between oldTag and tag
     for commit in (
-        await github_project.aoi_github.rest.repos.async_compare_commits(
+        await github_project.aio_github.rest.repos.async_compare_commits(
             github_project.owner,
             github_project.repository,
             f"{old_tag.tag_str}...{tag.tag_str}",
@@ -422,7 +422,7 @@ async def generate_changelog(
     ).parsed_data.commits:
         has_pr = False
         for pull_request in (
-            await github_project.aoi_github.rest.repos.async_list_pull_requests_associated_with_commit(
+            await github_project.aio_github.rest.repos.async_list_pull_requests_associated_with_commit(
                 github_project.owner,
                 github_project.repository,
                 commit.sha,
@@ -436,7 +436,7 @@ async def generate_changelog(
                     else set()
                 )
                 commits = (
-                    await github_project.aoi_github.rest.pulls.async_list_commits(
+                    await github_project.aio_github.rest.pulls.async_list_commits(
                         github_project.owner,
                         github_project.repository,
                         pull_request.number,
@@ -645,7 +645,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
 
         if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
             labels = (
-                await context.github_project.aoi_github.rest.issues.async_list_labels_for_repo(
+                await context.github_project.aio_github.rest.issues.async_list_labels_for_repo(
                     context.github_project.owner,
                     context.github_project.repository,
                 )
@@ -654,7 +654,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             existing_labels = {label.name for label in labels}
             for label, config in context.module_config.get("labels", {}).items():
                 if label not in existing_labels:
-                    await context.github_project.aoi_github.rest.issues.async_create_label(
+                    await context.github_project.aio_github.rest.issues.async_create_label(
                         context.github_project.owner,
                         context.github_project.repository,
                         data={
@@ -674,7 +674,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
 
             prerelease = False
             try:
-                latest_release = await context.github_project.aoi_github.rest.repos.async_get_latest_release(
+                latest_release = await context.github_project.aio_github.rest.repos.async_get_latest_release(
                     context.github_project.owner,
                     context.github_project.repository,
                 )
@@ -685,7 +685,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             except githubkit.exception.RequestFailed as exception:
                 if exception.response.status_code != 404:
                     raise
-            await context.github_project.aoi_github.rest.repos.async_create_release(
+            await context.github_project.aio_github.rest.repos.async_create_release(
                 context.github_project.owner,
                 context.github_project.repository,
                 data={
@@ -711,7 +711,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             tags = [
                 tag
                 for tag in (
-                    await context.github_project.aoi_github.rest.repos.async_list_tags(
+                    await context.github_project.aio_github.rest.repos.async_list_tags(
                         context.github_project.owner,
                         context.github_project.repository,
                     )
@@ -737,7 +737,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         tags = [
             tag
             for tag in (
-                await context.github_project.aoi_github.rest.repos.async_list_tags(
+                await context.github_project.aio_github.rest.repos.async_list_tags(
                     context.github_project.owner,
                     context.github_project.repository,
                 )
@@ -748,13 +748,13 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             _LOGGER.info("No tag found '%s' on repository '%s'.", tag_str, repository)
             return module.ProcessOutput()
 
-        release = await context.github_project.aoi_github.rest.repos.async_get_release_by_tag(
+        release = await context.github_project.aio_github.rest.repos.async_get_release_by_tag(
             context.github_project.owner,
             context.github_project.repository,
             tag_str,
         )
         assert release is not None
-        await context.github_project.aoi_github.rest.repos.async_update_release(
+        await context.github_project.aio_github.rest.repos.async_update_release(
             context.github_project.owner,
             context.github_project.repository,
             release.parsed_data.id,
