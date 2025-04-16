@@ -169,30 +169,38 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
 
 async def get_github_project(
     config: dict[str, Any],
-    application: GithubApplication | str,
+    github_application: GithubApplication | str,
     owner: str,
     repository: str,
 ) -> GithubProject:
     """Get the Github Application by name."""
-    objects = (
-        await get_github_application(config, application) if isinstance(application, str) else application
+    github_application = (
+        await get_github_application(config, github_application)
+        if isinstance(github_application, str)
+        else github_application
     )
+    assert isinstance(github_application, GithubApplication)
 
-    token = objects.integration.get_access_token(objects.integration.get_installation(owner, repository).id)
+    token = github_application.integration.get_access_token(
+        github_application.integration.get_installation(owner, repository).id,
+    )
     _LOGGER.debug("Generate token for %s/%s that expire at: %s", owner, repository, token.expires_at)
-    github_application = github.Github(login_or_token=token.token)
-    repo = github_application.get_repo(f"{owner}/{repository}")
+    github_obj = github.Github(login_or_token=token.token)
+    repo = github_obj.get_repo(f"{owner}/{repository}")
 
-    aio_installation = await objects.aio_github.rest.apps.async_get_repo_installation(owner, repository)
-    aio_github = objects.aio_github.with_auth(
-        objects.aio_auth.as_installation(aio_installation.parsed_data.id),
+    aio_installation = await github_application.aio_github.rest.apps.async_get_repo_installation(
+        owner,
+        repository,
+    )
+    aio_github = github_application.aio_github.with_auth(
+        github_application.aio_auth.as_installation(aio_installation.parsed_data.id),
     )
     aio_repo = await aio_github.rest.repos.async_get(owner, repository)
 
     return GithubProject(
-        objects,
-        token.token,
         github_application,
+        token.token,
+        github_obj,
         owner,
         repository,
         repo,

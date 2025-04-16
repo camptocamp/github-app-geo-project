@@ -688,9 +688,8 @@ async def _get_dependencies(
     if os.environ.get("TEST") != "TRUE":
         github_project = context.github_project
         application = github_project.application
-        app = github_project.application.integration.get_app()
-        username = app.slug + "[bot]"
-        user = github_project.github.get_user(username)
+        username = application.slug + "[bot]"
+        user = (await github_project.aio_github.rest.users.async_get_by_username(username)).parsed_data
         command = ["renovate-graph", "--platform=local"]
         proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
             *command,
