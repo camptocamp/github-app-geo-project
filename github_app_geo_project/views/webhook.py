@@ -405,7 +405,7 @@ async def create_checks(
             await github_project.aio_github.rest.repos.async_get_branch(
                 owner=github_project.owner,
                 repo=github_project.repository,
-                branch=github_project.aio_repo.parsed_data.default_branch,
+                branch=github_project.aio_repo.default_branch,
             )
         ).parsed_data
         sha = branch.commit.sha

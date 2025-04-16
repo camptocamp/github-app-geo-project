@@ -83,18 +83,9 @@ class GithubProject(NamedTuple):
     """The Github Application objects."""
 
     application: GithubApplication
+    """The Github application"""
     token: str
-    deprecated_github: github_lib.Github
-    """The Github authentication (Deprecated)"""
-
-    @property
-    @deprecated(
-        "This property is deprecated and will be removed in a future release, use aio_github instead.",
-    )
-    def github(self) -> github_lib.Github:
-        """The Github authentication (Deprecated)."""
-        return self.deprecated_github
-
+    """The token for the repository"""
     owner: str
     """The owner of the repository"""
     repository: str
@@ -108,17 +99,11 @@ class GithubProject(NamedTuple):
         """The repository object (Deprecated)."""
         return self.deprecated_repo
 
-    aio_installation: githubkit.Response[
-        githubkit.versions.latest.models.Installation,
-        githubkit.versions.latest.types.InstallationType,
-    ]
+    aio_installation: githubkit.versions.latest.models.Installation
     """The installation object for the repository"""
     aio_github: githubkit.GitHub[githubkit.AppInstallationAuthStrategy]
     """The githubkit object for the repository"""
-    aio_repo: githubkit.Response[
-        githubkit.versions.latest.models.FullRepository,
-        githubkit.versions.latest.types.FullRepositoryType,
-    ]
+    aio_repo: githubkit.versions.latest.models.FullRepository
     """The githubkit repository object"""
 
 
@@ -188,19 +173,23 @@ async def get_github_project(
     github_obj = github.Github(login_or_token=token.token)
     repo = github_obj.get_repo(f"{owner}/{repository}")
 
-    aio_installation = await github_application.aio_github.rest.apps.async_get_repo_installation(
-        owner,
-        repository,
+    aio_installation = (
+        await github_application.aio_github.rest.apps.async_get_repo_installation(
+            owner,
+            repository,
+        )
+    ).parsed_data
+    aoi_installation_auth_strategy = github_application.aio_auth.as_installation(
+        aio_installation.id,
     )
-    aio_github = github_application.aio_github.with_auth(
-        github_application.aio_auth.as_installation(aio_installation.parsed_data.id),
-    )
-    aio_repo = await aio_github.rest.repos.async_get(owner, repository)
+    aio_github = github_application.aio_github.with_auth(aoi_installation_auth_strategy)
+    aio_repo = (await aio_github.rest.repos.async_get(owner, repository)).parsed_data
+    aio_app_auth = aio_github.auth.get_auth_flow(aio_github)
+    assert isinstance(aio_app_auth, githubkit.auth.app.AppAuth)
 
     return GithubProject(
         github_application,
-        token.token,
-        github_obj,
+        await aio_app_auth.aget_jwt(),
         owner,
         repository,
         repo,
@@ -219,7 +208,7 @@ async def get_configuration(
     Parameter:
         repository: The repository name (<owner>/<name>)
     """
-    repo = github_project.github.get_repo(f"{github_project.owner}/{github_project.repository}")
+    repo = github_project.repo
     project_custom_configuration = {}
     try:
         project_configuration_content = repo.get_contents(".github/ghci.yaml")
