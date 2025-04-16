@@ -1,8 +1,6 @@
 """Webhook view."""
 
 import asyncio
-import hashlib
-import hmac
 import logging
 import os
 import urllib.parse
@@ -10,6 +8,8 @@ from typing import Any, NamedTuple
 
 import githubkit.exception
 import githubkit.versions.latest.models
+import githubkit.webhooks
+import pyramid.httpexceptions
 import pyramid.request
 import sqlalchemy.orm
 from pyramid.view import view_config
@@ -19,8 +19,6 @@ from github_app_geo_project import configuration, models, module
 from github_app_geo_project.module import modules
 
 _LOGGER = logging.getLogger(__name__)
-
-# curl -X POST http://localhost:9120/webhook/generic -d '{"repository":{"full_name": "sbrunner/test-github-app"}}'
 
 
 @view_config(route_name="webhook", renderer="json")  # type: ignore[misc]
@@ -38,20 +36,15 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 message = "No signature in the request"
                 raise pyramid.httpexceptions.HTTPBadRequest(message)
 
-        else:
-            our_signature = hmac.new(
-                key=github_secret.encode("utf-8"),
-                msg=request.body,
-                digestmod=hashlib.sha256,
-            ).hexdigest()
-            if not hmac.compare_digest(
-                our_signature,
-                request.headers["X-Hub-Signature-256"].split("=", 1)[-1],
-            ):
-                _LOGGER.error("Invalid signature in the request")
-                if not dry_run:
-                    message = "Invalid signature in the request"
-                    raise pyramid.httpexceptions.HTTPBadRequest(message)
+        elif not githubkit.webhooks.verify(
+            github_secret.encode("utf-8"),
+            request.body,
+            request.headers["X-Hub-Signature-256"],
+        ):
+            _LOGGER.error("Invalid signature in the request")
+            if not dry_run:
+                message = "Invalid signature in the request"
+                raise pyramid.httpexceptions.HTTPBadRequest(message)
 
     _LOGGER.debug(
         "Webhook received for %s on %s",
