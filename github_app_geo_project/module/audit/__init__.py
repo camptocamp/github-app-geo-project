@@ -325,8 +325,6 @@ async def _process_snyk_dpkg(
     except Exception as exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
         return [f"Error while processing the audit {key}: {exception}"], False
-    finally:
-        os.chdir("/")
 
     return short_message, success
 

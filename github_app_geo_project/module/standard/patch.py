@@ -3,7 +3,6 @@
 import asyncio
 import io
 import logging
-import os
 import subprocess  # nosec
 import tempfile
 import zipfile
@@ -228,7 +227,6 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     )
                 message.title = "Pushed the changes"
                 _LOGGER.debug(message)
-            os.chdir("/")
         if is_clone and result_message:
             return module.ProcessOutput(
                 success=False,
