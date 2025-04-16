@@ -83,7 +83,7 @@ lxml-html-clean = "0.4.1"
 tag-publish = "1.0.1"
 aiohttp = "3.11.15"
 aiofiles = "24.1.0"
-githubkit = "0.12.10"
+githubkit = { version = "0.12.10", extras = ["auth"] }
 deprecated = "1.2.18"
 
 [tool.poetry.group.dev.dependencies]

@@ -1061,6 +1061,7 @@ anyio = ">=3.6.1,<5.0.0"
 hishel = ">=0.0.21,<=0.2.0"
 httpx = ">=0.23.0,<1.0.0"
 pydantic = ">=1.9.1,<2.5.0 || >2.5.0,<2.5.1 || >2.5.1,<3.0.0"
+PyJWT = {version = ">=2.4.0,<3.0.0", extras = ["crypto"], optional = true, markers = "extra == \"jwt\" or extra == \"auth-app\" or extra == \"auth\" or extra == \"all\""}
 typing-extensions = ">=4.11.0,<5.0.0"
 
 [package.extras]
@@ -4923,4 +4924,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "899dd0715776eca60a7099892fb9bb694aafe9a835a2fb0452c6640d9fd090a5"
+content-hash = "f97ac948d108012fe350b2bae100151da3f334af43ce1a6ecbd62a0cd6f210bf"
