@@ -194,6 +194,7 @@ async def _process_job(
                         session,
                         current_module,
                         github_project,
+                        job.event_name,
                         job.event_data,
                         config["service-url"],
                     )
@@ -376,6 +377,7 @@ async def _process_job(
                         session,
                         current_module,
                         github_project,
+                        job.event_name,
                         job.event_data,
                         config["service-url"],
                         action.title,
@@ -734,6 +736,7 @@ async def _process_dashboard_issue(
                                     session,
                                     current_module,
                                     github_project,
+                                    "",
                                     {},
                                     config["service-url"],
                                     action.title,
