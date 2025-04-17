@@ -8,6 +8,9 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import githubkit.exception
 import githubkit.versions.latest.models
+import githubkit.versions.v2022_11_28.webhooks.discussion
+import githubkit.versions.v2022_11_28.webhooks.pull_request
+import githubkit.webhooks
 import packaging.version
 
 from github_app_geo_project import module
@@ -558,75 +561,110 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        event_data = context.event_data
-        if "release" in event_data and event_data.get("action") == "created":
-            return [
-                module.Action(
-                    priority=module.PRIORITY_STATUS,
-                    data={"version": event_data["release"]["tag_name"]},
-                ),
-            ]
-        if event_data.get("ref_type") == "tag":
-            return [
-                module.Action(
-                    priority=module.PRIORITY_STATUS,
-                    data={"type": "tag", "version": event_data["ref"]},
-                ),
-            ]
-        if (
-            event_data.get("action") in ("edited", "labeled", "unlabeled", "milestoned", "demilestoned")
-            and event_data.get("pull_request", {}).get("state") == "closed"
-            and event_data.get("sender", {}).get("login") != context.github_application.slug + "[bot]"
-        ):
-            versions = set()
-            milestone_version = event_data.get("milestone", {}).get("title")
-            if milestone_version is not None:
-                versions.add(milestone_version)
-            pull_request_version = (
-                event_data["pull_request"]["milestone"].get("title")
-                if event_data.get("pull_request", {}).get("milestone")
-                else None
-            )
-            if pull_request_version is not None:
-                versions.add(pull_request_version)
-            return [
-                module.Action(
-                    priority=module.PRIORITY_CRON,
-                    data={"version": version},
+        if context.event_name == "release":
+            event_data_release = githubkit.webhooks.parse_obj("release", context.event_data)
+            if event_data_release.action == "created":
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"version": event_data_release.release.tag_name},
+                    ),
+                ]
+        if context.event_name == "create":
+            event_data_create = githubkit.webhooks.parse_obj("create", context.event_data)
+            if event_data_create.ref_type == "tag":
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"type": "tag", "version": event_data_create.ref},
+                    ),
+                ]
+        if context.event_name == "delete":
+            event_data_delete = githubkit.webhooks.parse_obj("delete", context.event_data)
+            if event_data_delete.ref_type == "tag":
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"type": "tag", "version": event_data_delete.ref},
+                    ),
+                ]
+        if context.event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            if (
+                event_data_pull_request.action
+                in ("edited", "labeled", "unlabeled", "milestoned", "demilestoned")
+                and event_data_pull_request.pull_request.state == "closed"
+                and (
+                    not event_data_pull_request.sender
+                    or event_data_pull_request.sender.login != context.github_application.slug + "[bot]"
                 )
-                for version in versions
-            ]
-
-        if (
-            event_data.get("action") == "edited"
-            and "milestone" in event_data
-            and event_data.get("sender", {}).get("login") != context.github_application.slug + "[bot]"
-        ):
-            versions = {event_data["milestone"]["title"]}
-            if "changes" in event_data and "title" in event_data["changes"]:
-                versions.add(event_data["changes"]["title"]["from"])
-
-            return [
-                module.Action(
-                    priority=module.PRIORITY_CRON,
-                    data={"version": version},
+            ):
+                versions = set()
+                if event_data_pull_request.action in ("milestoned", "demilestoned") and (
+                    isinstance(
+                        event_data_pull_request,
+                        githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestMilestoned  # type: ignore[attr-defined]
+                        | githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestDemilestoned,  # type: ignore[attr-defined]
+                    )
+                ):
+                    milestone_version = (
+                        event_data_pull_request.milestone.title if event_data_pull_request.milestone else None
+                    )
+                    if milestone_version is not None:
+                        versions.add(milestone_version)
+                pull_request_version = (
+                    event_data_pull_request.pull_request.milestone.title
+                    if event_data_pull_request.pull_request.milestone
+                    else None
                 )
-                for version in versions
-            ]
-        if event_data.get("action") in ("created", "closed") and "discussion" in event_data:
-            return [
-                module.Action(
-                    priority=module.PRIORITY_STATUS,
-                    data={"type": "discussion"},
-                ),
-            ]
-        if event_data.get("action") == "edited" and "title" in event_data.get("changes", {}):
-            return [
-                module.Action(
-                    priority=module.PRIORITY_STATUS,
-                    data={"type": "discussion"},
-                ),
-            ]
+                if pull_request_version is not None:
+                    versions.add(pull_request_version)
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_CRON,
+                        data={"version": version},
+                    )
+                    for version in versions
+                ]
+
+        if context.event_name == "milestone":
+            event_data_milestone = githubkit.webhooks.parse_obj("milestone", context.event_data)
+            if (
+                event_data_milestone.action == "edited"
+                and event_data_milestone.milestone
+                and event_data_milestone.sender.login != context.github_application.slug + "[bot]"
+            ):
+                versions = {event_data_milestone.milestone.title}
+                if event_data_milestone.changes and event_data_milestone.changes.title:
+                    versions.add(event_data_milestone.changes.title.from_)
+
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_CRON,
+                        data={"version": version},
+                    )
+                    for version in versions
+                ]
+        if context.event_name == "discussion":
+            event_data_discussion = githubkit.webhooks.parse_obj("discussion", context.event_data)
+            if event_data_discussion.action in ("created", "closed"):
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"type": "discussion"},
+                    ),
+                ]
+            if (
+                event_data_discussion.action == "edited"
+                and event_data_discussion.changes
+                and event_data_discussion.changes.title
+            ):
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"type": "discussion"},
+                    ),
+                ]
 
         return []
 
@@ -639,7 +677,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
 
         Note that this method is called in the queue consuming Pod
         """
-        repository = cast("str", context.event_data.get("repository", {}).get("full_name"))
+        repository = f"{context.github_project.owner}/{context.github_project.repository}"
 
         if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
             labels = (
@@ -702,10 +740,19 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 ],
             )
         if context.module_event_data.get("type") == "discussion":
+            assert context.event_name == "discussion"
+            event_data = githubkit.webhooks.parse_obj("discussion", context.event_data)
             title = set()
-            title.update(context.event_data.get("discussion", {}).get("title", "").split())
-            if "title" in context.event_data.get("changes", {}):
-                title.update(context.event_data["changes"]["title"]["from"].split())
+            title.update(event_data.discussion.title.split())
+            if (
+                isinstance(
+                    event_data,
+                    githubkit.versions.v2022_11_28.webhooks.discussion.WebhookDiscussionEdited,  # type: ignore[attr-defined]
+                )
+                and event_data.changes
+                and event_data.changes.title
+            ):
+                title.update(event_data.changes.title.from_.split())
             tags = [
                 tag
                 for tag in (
@@ -719,7 +766,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             if not tags:
                 _LOGGER.info(
                     "No tag found via for discussion %s on repository %s",
-                    context.event_data.get("discussion", {}).get("title"),
+                    event_data.discussion.title,
                     repository,
                 )
                 return module.ProcessOutput()
