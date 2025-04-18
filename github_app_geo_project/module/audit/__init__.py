@@ -5,7 +5,6 @@ import datetime
 import json
 import logging
 import os
-import os.path
 import shutil
 import subprocess  # nosec
 import tempfile
@@ -15,6 +14,7 @@ from typing import Any, cast
 
 import aiofiles
 import github
+import githubkit.webhooks
 import security_md
 import yaml
 from pydantic import BaseModel
@@ -296,7 +296,7 @@ async def _process_snyk_dpkg(
 
                 else:
                     _LOGGER.debug("No changes to commit")
-                    module_utils.close_pull_request_issues(
+                    await module_utils.close_pull_request_issues(
                         new_branch,
                         f"Audit {key}",
                         context.github_project,
@@ -325,8 +325,6 @@ async def _process_snyk_dpkg(
     except Exception as exception:  # pylint: disable=broad-except
         _LOGGER.exception("Audit %s error", key)
         return [f"Error while processing the audit {key}: {exception}"], False
-    finally:
-        os.chdir("/")
 
     return short_message, success
 
@@ -402,14 +400,21 @@ class Audit(
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if "SECURITY.md" in context.event_data.get("push", {}).get("files", []):
-            return [
-                module.Action(
-                    priority=module.PRIORITY_CRON,
-                    data=_EventData(type="outdated"),
-                    title="outdated",
-                ),
-            ]
+        if context.event_name == "push":
+            event_data_push = githubkit.webhooks.parse_obj("push", context.event_data)
+            for commit in event_data_push.commits:
+                if "SECURITY.md" in [
+                    *(commit.modified or []),
+                    *(commit.added or []),
+                    *(commit.removed or []),
+                ]:
+                    return [
+                        module.Action(
+                            priority=module.PRIORITY_CRON,
+                            data=_EventData(type="outdated"),
+                            title="outdated",
+                        ),
+                    ]
         results: list[module.Action[_EventData]] = []
         snyk = False
         dpkg = False

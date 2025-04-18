@@ -6,10 +6,15 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-import github
+import githubkit.exception
+import githubkit.versions.latest.models
+import githubkit.versions.v2022_11_28.webhooks.discussion
+import githubkit.versions.v2022_11_28.webhooks.pull_request
+import githubkit.webhooks
 import packaging.version
 
 from github_app_geo_project import module
+from github_app_geo_project.configuration import GithubProject
 from github_app_geo_project.module import utils
 from github_app_geo_project.module.standard import changelog_configuration
 
@@ -47,7 +52,7 @@ class Author:
 class ChangelogItem(NamedTuple):
     """Changelog item (pull request or commit."""
 
-    github: github.PullRequest.PullRequest | github.Commit.Commit
+    github: githubkit.versions.latest.models.PullRequest | githubkit.versions.latest.models.Commit
     ref: str
     title: str
     author: Author | None
@@ -173,14 +178,22 @@ class Tag:
     TAG_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
     TAG2_RE = re.compile(r"release_?(\d+)")
 
-    def __init__(self, tag_str: str | None = None, tag: github.Tag.Tag | None = None) -> None:
+    def __init__(
+        self,
+        tag_str: str | None = None,
+        tag: githubkit.versions.latest.models.Tag | None = None,
+        commit: githubkit.versions.latest.models.Commit | None = None,
+    ) -> None:
         """Create a tag."""
         if tag_str is None:
             assert tag is not None
             assert tag.name is not None
             tag_str = tag.name
+        if tag is not None:
+            assert commit is not None
         self.tag_str = tag_str
         self.tag = tag
+        self.commit = commit
         tag_match = self.TAG_RE.match(tag_str)
         if tag_match is None:
             tag_match = self.TAG2_RE.match(tag_str)
@@ -267,7 +280,9 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Tag | None:
     return None
 
 
-def get_release(tag: github.Tag.Tag) -> github.GitRelease.GitRelease | None:
+def get_release(
+    tag: githubkit.versions.latest.models.Tag,
+) -> githubkit.versions.latest.models.Repository | None:  # wrong type
     """Get the release from the tag."""
     for release in tag.get_repo().get_releases():  # type: ignore[attr-defined]
         if release.tag_name == tag.name:
@@ -275,13 +290,9 @@ def get_release(tag: github.Tag.Tag) -> github.GitRelease.GitRelease | None:
     return None
 
 
-def _get_discussion_url(repo: github.Repository.Repository, tag: str) -> str | None:
-    requester = repo._requester  # pylint: disable=protected-access
-    _, categories = requester.requestJsonAndCheck(
-        "POST",
-        requester.graphql_url,
-        input={
-            "query": """
+def _get_discussion_url(github_project: GithubProject, tag: str) -> str | None:
+    categories = github_project.aio_github.graphql(
+        """
         query DiscussionCategories($owner: String!, $name: String!) {
             repository(owner: $owner, name: $name) {
                 discussionCategories(first: 10) {
@@ -293,10 +304,9 @@ def _get_discussion_url(repo: github.Repository.Repository, tag: str) -> str | N
             }
         }
         """,
-            "variables": {
-                "owner": repo.owner.login,
-                "name": repo.name,
-            },
+        variables={
+            "owner": github_project.owner,
+            "name": github_project.repository,
         },
     )
 
@@ -310,11 +320,8 @@ def _get_discussion_url(repo: github.Repository.Repository, tag: str) -> str | N
     ]
     if not category:
         return None
-    _, discussions = requester.requestJsonAndCheck(
-        "POST",
-        requester.graphql_url,
-        input={
-            "query": """
+    discussions_result = github_project.aio_github.graphql(
+        """
         query Discussion($owner: String!, $name: String!, $category: ID!) {
             repository(owner: $owner, name: $name) {
                 discussions(first: 10, categoryId: $category) {
@@ -326,41 +333,74 @@ def _get_discussion_url(repo: github.Repository.Repository, tag: str) -> str | N
             }
         }
         """,
-            "variables": {
-                "owner": repo.owner.login,
-                "name": repo.name,
-                "category": category[0]["id"],
-            },
+        variables={
+            "owner": github_project.owner,
+            "name": github_project.repository,
+            "category": category[0]["id"],
         },
     )
-    discussions = discussions.get("data", {}).get("repository", {}).get("discussions", {}).get("nodes", [])
+    discussions = (
+        discussions_result.get("data", {}).get("repository", {}).get("discussions", {}).get("nodes", [])
+    )
     discussion = [d for d in discussions if tag in d.get("title", "").split()]
     if not discussion:
         return None
     return cast("str", discussion[0]["url"])
 
 
-def generate_changelog(
-    github_application: github.Github,
+async def generate_changelog(
+    github_project: GithubProject,
     configuration: changelog_configuration.Changelog,
     repository: str,
     tag_str: str,
 ) -> str:
     """Generate the changelog for a tag."""
-    repo = github_application.get_repo(repository)
+    milestones = [
+        milestone
+        for milestone in cast(
+            "list[githubkit.versions.latest.models.Milestone]",
+            (
+                await github_project.aio_github.rest.issues.async_list_milestones(
+                    github_project.owner,
+                    github_project.repository,
+                )
+            ).parsed_data,
+        )
+        if milestone.title == tag_str
+    ]
+    milestone = (
+        milestones[0]
+        if milestones
+        else (
+            await github_project.aio_github.rest.issues.async_create_milestone(
+                github_project.owner,
+                github_project.repository,
+                data={"title": tag_str},
+            )
+        ).parsed_data
+    )
 
-    milestones = [m for m in repo.get_milestones() if m.title == tag_str]
-    milestone = milestones[0] if milestones else repo.create_milestone(tag_str)
-
-    discussion_url = _get_discussion_url(repo, tag_str)
+    discussion_url = _get_discussion_url(github_project, tag_str)
 
     tags: dict[Tag, Tag] = {}
-    for tag_s in repo.get_tags():
+    for github_tag in (
+        await github_project.aio_github.rest.repos.async_list_tags(
+            github_project.owner,
+            github_project.repository,
+        )
+    ).parsed_data:
         try:
-            tag = Tag(tag=tag_s)
+            commit = (
+                await github_project.aio_github.rest.repos.async_get_commit(
+                    github_project.owner,
+                    github_project.repository,
+                    github_tag.commit.sha,
+                )
+            ).parsed_data
+            tag = Tag(tag=github_tag, commit=commit)
             tags[tag] = tag
         except ValueError:
-            _LOGGER.warning("Invalid tag: %s on repository %s", tag_s, repository)
+            _LOGGER.warning("Invalid tag: %s on repository %s", github_tag.name, repository)
             continue
 
     tag = Tag(tag_str)
@@ -373,19 +413,41 @@ def generate_changelog(
         _LOGGER.warning("No previous tag found for tag %s on repository %s", tag_str, repository)
         return ""
 
-    changelog_items: set[ChangelogItem] = set()
+    changelog_items = set()
 
     # Get the commits between oldTag and tag
-    assert old_tag.tag is not None
-    assert tag.tag is not None
-    for commit in repo.compare(old_tag.tag.name, tag.tag.name).commits:
+    for commit in (
+        await github_project.aio_github.rest.repos.async_compare_commits(
+            github_project.owner,
+            github_project.repository,
+            f"{old_tag.tag_str}...{tag.tag_str}",
+        )
+    ).parsed_data.commits:
         has_pr = False
-        for pull_request in commit.get_pulls():
+        for pull_request in (
+            await github_project.aio_github.rest.repos.async_list_pull_requests_associated_with_commit(
+                github_project.owner,
+                github_project.repository,
+                commit.sha,
+            )
+        ).parsed_data:
             has_pr = True
             if pull_request.milestone is None or pull_request.milestone.number == milestone.number:
-                authors = {Author(pull_request.user.login, pull_request.user.html_url)}
-                for commit_ in pull_request.get_commits():
-                    if commit_.author is not None:
+                authors = (
+                    {Author(pull_request.user.login, pull_request.user.html_url)}
+                    if pull_request.user
+                    else set()
+                )
+                commits = (
+                    await github_project.aio_github.rest.pulls.async_list_commits(
+                        github_project.owner,
+                        github_project.repository,
+                        pull_request.number,
+                    )
+                ).parsed_data
+                assert commits is not None
+                for commit_ in commits:
+                    if commit_.author:
                         authors.add(Author(commit_.author.login, commit_.author.html_url))
                 pull_request.as_issue().edit(milestone=milestone)
                 changelog_items.add(
@@ -396,12 +458,19 @@ def generate_changelog(
                         author=Author(pull_request.user.login, pull_request.user.html_url),
                         authors=authors,
                         branch=pull_request.head.ref,
-                        files={github_file.filename for github_file in pull_request.get_files()},
-                        labels={label.name for label in pull_request.get_labels()},
+                        files={file.filename for file in pull_request.files},
+                        labels={label.name for label in pull_request.labels},
                     ),
                 )
         if not has_pr:
-            author = Author(commit.author.login, commit.author.html_url) if commit.author else None
+            author = (
+                Author(commit.author.login, commit.author.html_url)
+                if isinstance(
+                    commit.author,
+                    githubkit.versions.latest.models.SimpleUser,
+                )
+                else None
+            )
             changelog_items.add(
                 ChangelogItem(
                     github=commit,
@@ -410,7 +479,7 @@ def generate_changelog(
                     author=author,
                     authors={author} if author else set(),
                     branch=None,
-                    files={f.filename for f in commit.files},
+                    files={file.filename for file in (commit.files or [])},
                     labels=set(),
                 ),
             )
@@ -434,7 +503,8 @@ def generate_changelog(
     message_obj.title = f"Changelog for {tag.major}.{tag.minor}.{tag.patch}"
     _LOGGER.debug(message_obj)
 
-    created = tag.tag.commit.commit.author.date
+    assert tag.commit is not None
+    created = tag.commit.commit.author.date if tag.commit.commit.author else None
     result = [f"# {tag.major}.{tag.minor}.{tag.patch} ({created:%Y-%m-%d})", ""]
     if discussion_url:
         result.append(f"[See announcement]({discussion_url}).")
@@ -491,77 +561,110 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        event_data = context.event_data
-        if "release" in event_data and event_data.get("action") == "created":
-            return [
-                module.Action(
-                    priority=module.PRIORITY_STATUS,
-                    data={"version": event_data["release"]["tag_name"]},
-                ),
-            ]
-        if event_data.get("ref_type") == "tag":
-            return [
-                module.Action(
-                    priority=module.PRIORITY_STATUS,
-                    data={"type": "tag", "version": event_data["ref"]},
-                ),
-            ]
-        if (
-            event_data.get("action") in ("edited", "labeled", "unlabeled", "milestoned", "demilestoned")
-            and event_data.get("pull_request", {}).get("state") == "closed"
-            and event_data.get("sender", {}).get("login")
-            != context.github_application.integration.get_app().slug + "[bot]"
-        ):
-            versions = set()
-            milestone_version = event_data.get("milestone", {}).get("title")
-            if milestone_version is not None:
-                versions.add(milestone_version)
-            pull_request_version = (
-                event_data["pull_request"]["milestone"].get("title")
-                if event_data.get("pull_request", {}).get("milestone")
-                else None
-            )
-            if pull_request_version is not None:
-                versions.add(pull_request_version)
-            return [
-                module.Action(
-                    priority=module.PRIORITY_CRON,
-                    data={"version": version},
+        if context.event_name == "release":
+            event_data_release = githubkit.webhooks.parse_obj("release", context.event_data)
+            if event_data_release.action == "created":
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"version": event_data_release.release.tag_name},
+                    ),
+                ]
+        if context.event_name == "create":
+            event_data_create = githubkit.webhooks.parse_obj("create", context.event_data)
+            if event_data_create.ref_type == "tag":
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"type": "tag", "version": event_data_create.ref},
+                    ),
+                ]
+        if context.event_name == "delete":
+            event_data_delete = githubkit.webhooks.parse_obj("delete", context.event_data)
+            if event_data_delete.ref_type == "tag":
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"type": "tag", "version": event_data_delete.ref},
+                    ),
+                ]
+        if context.event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            if (
+                event_data_pull_request.action
+                in ("edited", "labeled", "unlabeled", "milestoned", "demilestoned")
+                and event_data_pull_request.pull_request.state == "closed"
+                and (
+                    not event_data_pull_request.sender
+                    or event_data_pull_request.sender.login != context.github_application.slug + "[bot]"
                 )
-                for version in versions
-            ]
-
-        if (
-            event_data.get("action") == "edited"
-            and "milestone" in event_data
-            and event_data.get("sender", {}).get("login")
-            != context.github_application.integration.get_app().slug + "[bot]"
-        ):
-            versions = {event_data["milestone"]["title"]}
-            if "changes" in event_data and "title" in event_data["changes"]:
-                versions.add(event_data["changes"]["title"]["from"])
-
-            return [
-                module.Action(
-                    priority=module.PRIORITY_CRON,
-                    data={"version": version},
+            ):
+                versions = set()
+                if event_data_pull_request.action in ("milestoned", "demilestoned") and (
+                    isinstance(
+                        event_data_pull_request,
+                        githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestMilestoned  # type: ignore[attr-defined]
+                        | githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestDemilestoned,  # type: ignore[attr-defined]
+                    )
+                ):
+                    milestone_version = (
+                        event_data_pull_request.milestone.title if event_data_pull_request.milestone else None
+                    )
+                    if milestone_version is not None:
+                        versions.add(milestone_version)
+                pull_request_version = (
+                    event_data_pull_request.pull_request.milestone.title
+                    if event_data_pull_request.pull_request.milestone
+                    else None
                 )
-                for version in versions
-            ]
-        if event_data.get("action") in ("created", "closed") and "discussion" in event_data:
-            return [
-                module.Action(
-                    priority=module.PRIORITY_STATUS,
-                    data={"type": "discussion"},
-                ),
-            ]
-        if event_data.get("action") == "edited" and "title" in event_data.get("changes", {}):
-            return [
-                module.Action(
-                    priority=module.PRIORITY_STATUS,
-                    data={"type": "discussion"},
-                ),
-            ]
+                if pull_request_version is not None:
+                    versions.add(pull_request_version)
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_CRON,
+                        data={"version": version},
+                    )
+                    for version in versions
+                ]
+
+        if context.event_name == "milestone":
+            event_data_milestone = githubkit.webhooks.parse_obj("milestone", context.event_data)
+            if (
+                event_data_milestone.action == "edited"
+                and event_data_milestone.milestone
+                and event_data_milestone.sender.login != context.github_application.slug + "[bot]"
+            ):
+                versions = {event_data_milestone.milestone.title}
+                if event_data_milestone.changes and event_data_milestone.changes.title:
+                    versions.add(event_data_milestone.changes.title.from_)
+
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_CRON,
+                        data={"version": version},
+                    )
+                    for version in versions
+                ]
+        if context.event_name == "discussion":
+            event_data_discussion = githubkit.webhooks.parse_obj("discussion", context.event_data)
+            if event_data_discussion.action in ("created", "closed"):
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"type": "discussion"},
+                    ),
+                ]
+            if (
+                event_data_discussion.action == "edited"
+                and event_data_discussion.changes
+                and event_data_discussion.changes.title
+            ):
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data={"type": "discussion"},
+                    ),
+                ]
 
         return []
 
@@ -574,17 +677,27 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
 
         Note that this method is called in the queue consuming Pod
         """
-        repository = cast("str", context.event_data.get("repository", {}).get("full_name"))
-        repo = context.github_project.github.get_repo(repository)
+        repository = f"{context.github_project.owner}/{context.github_project.repository}"
 
         if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
-            existing_labels = {label.name for label in repo.get_labels()}
+            labels = (
+                await context.github_project.aio_github.rest.issues.async_list_labels_for_repo(
+                    context.github_project.owner,
+                    context.github_project.repository,
+                )
+            ).parsed_data
+            assert labels is not None
+            existing_labels = {label.name for label in labels}
             for label, config in context.module_config.get("labels", {}).items():
                 if label not in existing_labels:
-                    repo.create_label(
-                        name=label,
-                        color=config["color"],
-                        description=config.get("description", ""),
+                    await context.github_project.aio_github.rest.issues.async_create_label(
+                        context.github_project.owner,
+                        context.github_project.repository,
+                        data={
+                            "name": label,
+                            "color": config["color"],
+                            "description": config.get("description", ""),
+                        },
                     )
 
         tag_str = cast("str", context.module_event_data.get("version"))
@@ -597,15 +710,27 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
 
             prerelease = False
             try:
-                latest_release = repo.get_latest_release()
+                latest_release = await context.github_project.aio_github.rest.repos.async_get_latest_release(
+                    context.github_project.owner,
+                    context.github_project.repository,
+                )
                 if latest_release is not None:
                     prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
-                        latest_release.tag_name,
+                        latest_release.parsed_data.tag_name,
                     )
-            except github.GithubException as exception:
-                if exception.status != 404:
+            except githubkit.exception.RequestFailed as exception:
+                if exception.response.status_code != 404:
                     raise
-            repo.create_git_release(tag_str, tag_str, "", prerelease=prerelease)
+            await context.github_project.aio_github.rest.repos.async_create_release(
+                context.github_project.owner,
+                context.github_project.repository,
+                data={
+                    "tag_name": tag_str,
+                    "name": tag_str,
+                    "body": "",
+                    "prerelease": prerelease,
+                },
+            )
             return module.ProcessOutput(
                 actions=[
                     module.Action(
@@ -615,15 +740,33 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 ],
             )
         if context.module_event_data.get("type") == "discussion":
+            assert context.event_name == "discussion"
+            event_data = githubkit.webhooks.parse_obj("discussion", context.event_data)
             title = set()
-            title.update(context.event_data.get("discussion", {}).get("title", "").split())
-            if "title" in context.event_data.get("changes", {}):
-                title.update(context.event_data["changes"]["title"]["from"].split())
-            tags = [tag for tag in repo.get_tags() if tag.name in title]
+            title.update(event_data.discussion.title.split())
+            if (
+                isinstance(
+                    event_data,
+                    githubkit.versions.v2022_11_28.webhooks.discussion.WebhookDiscussionEdited,  # type: ignore[attr-defined]
+                )
+                and event_data.changes
+                and event_data.changes.title
+            ):
+                title.update(event_data.changes.title.from_.split())
+            tags = [
+                tag
+                for tag in (
+                    await context.github_project.aio_github.rest.repos.async_list_tags(
+                        context.github_project.owner,
+                        context.github_project.repository,
+                    )
+                ).parsed_data
+                if tag.name in title
+            ]
             if not tags:
                 _LOGGER.info(
                     "No tag found via for discussion %s on repository %s",
-                    context.event_data.get("discussion", {}).get("title"),
+                    event_data.discussion.title,
                     repository,
                 )
                 return module.ProcessOutput()
@@ -636,22 +779,40 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 ],
             )
 
-        tags = [tag for tag in repo.get_tags() if tag.name == tag_str]
+        tags = [
+            tag
+            for tag in (
+                await context.github_project.aio_github.rest.repos.async_list_tags(
+                    context.github_project.owner,
+                    context.github_project.repository,
+                )
+            ).parsed_data
+            if tag.name == tag_str
+        ]
         if not tags:
             _LOGGER.info("No tag found '%s' on repository '%s'.", tag_str, repository)
             return module.ProcessOutput()
 
-        release = repo.get_release(tag_str)
-        assert release is not None
-        release.update_release(
+        release = await context.github_project.aio_github.rest.repos.async_get_release_by_tag(
+            context.github_project.owner,
+            context.github_project.repository,
             tag_str,
-            tag_name=tag_str,
-            message=generate_changelog(
-                context.github_project.github,
-                context.module_config,
-                repository,
-                tag_str,
-            ),
+        )
+        assert release is not None
+        await context.github_project.aio_github.rest.repos.async_update_release(
+            context.github_project.owner,
+            context.github_project.repository,
+            release.parsed_data.id,
+            data={
+                "tag_name": tag_str,
+                "name": tag_str,
+                "body": await generate_changelog(
+                    context.github_project,
+                    context.module_config,
+                    repository,
+                    tag_str,
+                ),
+            },
         )
         return module.ProcessOutput()
 

@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 import github
+import githubkit.webhooks
 import security_md
 
 from github_app_geo_project import module, utils
@@ -46,11 +47,10 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """Get the action related to the module and the event."""
-        if (
-            context.event_data.get("action") == "completed"
-            and context.event_data.get("workflow_run", {}).get("event", "pull_request") != "pull_request"
-        ):
-            return [module.Action({}, priority=module.PRIORITY_STATUS + 2)]
+        if context.event_name == "workflow_run":
+            event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
+            if event_data.action == "completed" and event_data.workflow_run.event != "pull_request":
+                return [module.Action({}, priority=module.PRIORITY_STATUS + 2)]
         return []
 
     async def process(
@@ -75,7 +75,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
 
         repo_data = transversal_status[full_repo]
 
-        repo = context.github_project.github.get_repo(full_repo)
+        repo = context.github_project.repo
 
         stabilization_branches = [repo.default_branch]
         security_file = None
@@ -97,7 +97,9 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             if key not in stabilization_branches and key != "updated":
                 del repo_data[key]
 
-        head_branch = context.event_data.get("workflow_run", {}).get("head_branch")
+        assert context.event_name == "workflow_run"
+        event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
+        head_branch = event_data.workflow_run.head_branch
         if head_branch not in stabilization_branches:
             _LOGGER.info(
                 "The workflow run %s is not on a stabilization branch (%s), skipping",
@@ -107,8 +109,8 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             return None
 
         branch_data = repo_data.setdefault(head_branch, {})
-        workflow_name = context.event_data.get("workflow", {}).get("name", "Un named")
-        if context.event_data.get("workflow_run", {}).get("conclusion") == "success":
+        workflow_name = event_data.workflow.name if event_data.workflow else "Un named"
+        if event_data.workflow_run.conclusion == "success":
             if workflow_name in branch_data:
                 del branch_data[workflow_name]
             if not branch_data:
@@ -121,10 +123,11 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             )
             return transversal_status
 
+        workflow_data_jobs: list[Any] = []
         workflow_data = {
-            "url": context.event_data.get("workflow_run", {}).get("html_url"),
-            "date": context.event_data.get("workflow_run", {}).get("created_at"),
-            "jobs": [],
+            "url": event_data.workflow_run.html_url,
+            "date": event_data.workflow_run.created_at,
+            "jobs": workflow_data_jobs,
         }
         branch_data[workflow_name] = workflow_data
         _LOGGER.info(
@@ -132,12 +135,11 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             workflow_name,
         )
 
-        workflow_run = repo.get_workflow_run(context.event_data.get("workflow_run", {}).get("id"))
+        workflow_run = repo.get_workflow_run(event_data.workflow_run.id)
         jobs = workflow_run.jobs()
-
-        for job in jobs:
-            if job.conclusion != "success":
-                workflow_data["jobs"].append({"name": job.name, "run_url": job.html_url})
+        workflow_data_jobs.extend(
+            {"name": job.name, "run_url": job.html_url} for job in jobs if job.conclusion != "success"
+        )
 
         if repo_data.keys() == ["updated"]:
             del transversal_status[context.github_project.owner + "/" + context.github_project.repository]

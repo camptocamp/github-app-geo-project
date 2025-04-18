@@ -3,10 +3,7 @@
 import logging
 from typing import Any
 
-import pyramid.httpexceptions
 import pyramid.request
-import pyramid.response
-import pyramid.security
 from pyramid.view import view_config
 
 from github_app_geo_project import configuration

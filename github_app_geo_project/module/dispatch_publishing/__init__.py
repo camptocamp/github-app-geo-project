@@ -6,6 +6,8 @@ import os
 import re
 from typing import Any
 
+import githubkit.versions.v2022_11_28.webhooks.repository_dispatch
+import githubkit.webhooks
 from pydantic import BaseModel
 
 from github_app_geo_project import module
@@ -81,11 +83,13 @@ class DispatchPublishing(module.Module[None, None, None, None]):
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if (
-            context.event_name == " repository_dispatch.published"
-            and context.event_data.get("action") == "published"
-        ):
-            return [module.Action(None)]
+        if context.event_name == "repository_dispatch":
+            event_data = githubkit.webhooks.parse_obj("repository_dispatch", context.event_data)
+            if event_data.action == "published" and isinstance(
+                event_data,
+                githubkit.versions.v2022_11_28.webhooks.RepositoryDispatchEvent,
+            ):
+                return [module.Action(None)]
         return []
 
     async def process(
@@ -97,6 +101,8 @@ class DispatchPublishing(module.Module[None, None, None, None]):
 
         Note that this method is called in the queue consuming Pod
         """
+
+        assert context.event_name == "repository_dispatch"
         content = context.event_data.get("client_payload", {}).get("content", {})
 
         for destination in CONFIG.destinations:
@@ -127,11 +133,14 @@ class DispatchPublishing(module.Module[None, None, None, None]):
                 payload["name"] = " ".join(names)
 
             if payload:
-                context.github_project.github.get_repo(
-                    destination.destination_repository,
-                ).create_repository_dispatch(
-                    destination.event_type,
-                    payload,
+                repo = await context.github_project.aio_github.rest.repos.async_get(
+                    *destination.destination_repository.split("/"),
+                )
+                await context.github_project.aio_github.rest.repos.async_create_dispatch_event(
+                    repo.parsed_data.owner.login,
+                    repo.parsed_data.name,
+                    event_type=destination.event_type,
+                    client_payload=payload,
                 )
         return module.ProcessOutput()
 

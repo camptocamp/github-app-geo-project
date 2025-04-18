@@ -3,14 +3,18 @@
 import asyncio
 import json
 import logging
-import os.path
+import os
 import subprocess  # nosec
 import tempfile
 from pathlib import Path
 from typing import Any, cast
 
 import aiohttp
-import github
+import githubkit.exception
+import githubkit.versions
+import githubkit.versions.latest
+import githubkit.versions.latest.models
+import githubkit.webhooks
 import tag_publish.configuration
 import yaml
 from pydantic import BaseModel
@@ -64,26 +68,30 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
         """Get the action related to the module and the event."""
-        if context.event_data.get("action") == "closed" and "pull_request" in context.event_data:
-            return [
-                module.Action(
-                    _ActionData(
-                        type="pull_request",
-                        names=[
-                            str(context.event_data.get("number")),
-                            context.event_data.get("pull_request", {}).get("head", {}).get("ref"),
-                        ],
+        if context.event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            if event_data_pull_request.action == "closed":
+                return [
+                    module.Action(
+                        _ActionData(
+                            type="pull_request",
+                            names=[
+                                str(event_data_pull_request.number),
+                                event_data_pull_request.pull_request.head.ref,
+                            ],
+                        ),
+                        priority=module.PRIORITY_CRON,
                     ),
-                    priority=module.PRIORITY_CRON,
-                ),
-            ]
-        if context.event_name == "delete" and context.event_data.get("ref_type") == "branch":
-            return [
-                module.Action(
-                    _ActionData(type="branch", names=[context.event_data.get("ref", "")]),
-                    priority=module.PRIORITY_CRON,
-                ),
-            ]
+                ]
+        if context.event_name == "delete":
+            event_data_delete = githubkit.webhooks.parse_obj("delete", context.event_data)
+            if event_data_delete.ref_type == "branch":
+                return [
+                    module.Action(
+                        _ActionData(type="branch", names=[event_data_delete.ref]),
+                        priority=module.PRIORITY_CRON,
+                    ),
+                ]
         return []
 
     async def process(
@@ -103,17 +111,29 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
         context: module.ProcessContext[configuration.CleanConfiguration, _ActionData],
     ) -> None:
         """Clean the Docker images on Docker Hub for the branch we delete."""
-        # get the .github/publish.yaml
-
         try:
-            publish_configuration_content = context.github_project.repo.get_contents(".github/publish.yaml")
-            assert not isinstance(publish_configuration_content, list)
-            publish_config = cast(
-                "tag_publish.configuration.Configuration",
-                yaml.load(publish_configuration_content.decoded_content, Loader=yaml.SafeLoader),
-            )
-        except github.GithubException as exception:
-            if exception.status != 404:
+            publish_configuration_content = (
+                await context.github_project.aio_github.rest.repos.async_get_content(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    path=".github/publish.yaml",
+                )
+            ).parsed_data
+            if isinstance(
+                publish_configuration_content,
+                githubkit.versions.latest.models.ContentFile,
+            ) and isinstance(publish_configuration_content.content, str):
+                publish_config = cast(
+                    "tag_publish.configuration.Configuration",
+                    yaml.load(
+                        publish_configuration_content.content,
+                        Loader=yaml.SafeLoader,
+                    ),
+                )
+            else:
+                publish_config = {}
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code != 404:
                 raise
             return
 
@@ -252,7 +272,6 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     raise CleanError(exception_message)
                 cwd = new_cwd
 
-                os.chdir(context.github_project.repository)
                 command = ["git", "rm", folder]
                 proc = await asyncio.create_subprocess_exec(
                     *command,
