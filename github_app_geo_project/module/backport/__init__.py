@@ -509,7 +509,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 backport_branch,
                 f"[Backport {target_branch}] {pull_request.title}",
                 "\n".join(message),
-                project=context.github_project,
+                github_project=context.github_project,
                 cwd=cwd,
                 auto_merge=False,
             )

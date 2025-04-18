@@ -84,9 +84,7 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
                 and get_re(condition.get("title")).match(context.event_data["pull_request"]["title"])
                 and get_re(condition.get("branch")).match(context.event_data["pull_request"]["head"]["ref"])
             ):
-                repository = context.github_project.github.get_repo(
-                    context.event_data["repository"]["full_name"],
-                )
+                repository = context.github_project.repo
                 pull_request = repository.get_pull(context.event_data["pull_request"]["number"])
                 self.do_action(context, pull_request)
                 return module.ProcessOutput()

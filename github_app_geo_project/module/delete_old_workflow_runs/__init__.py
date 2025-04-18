@@ -1,17 +1,44 @@
 """Utility functions for the auto* modules."""
 
-import asyncio
 import datetime
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, TypedDict
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils
 from github_app_geo_project.module.delete_old_workflow_runs import configuration
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class _ListWorkflowRunsForRepoArguments(TypedDict, total=False):
+    """Arguments for the list workflow runs for repo API call."""
+
+    created: str
+    actor: str | None
+    branch: str | None
+    event: str | None
+    status: (
+        Literal[
+            "completed",
+            "action_required",
+            "cancelled",
+            "failure",
+            "neutral",
+            "skipped",
+            "stale",
+            "success",
+            "timed_out",
+            "in_progress",
+            "queued",
+            "requested",
+            "waiting",
+            "pending",
+        ]
+        | None
+    )
 
 
 class DeleteOldWorkflowRuns(
@@ -67,8 +94,6 @@ class DeleteOldWorkflowRuns(
 
         Note that this method is called in the queue consuming Pod
         """
-        repo = context.github_project.repo
-
         deleted_number = 0
         deleted_workflows = []
 
@@ -80,7 +105,7 @@ class DeleteOldWorkflowRuns(
             event = rule.get("event")
             status = rule.get("status")
 
-            arguments = {
+            arguments: _ListWorkflowRunsForRepoArguments = {
                 "created": f"<{datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=older_than_days):%Y-%m-%d}",
             }
             if actor:
@@ -94,13 +119,23 @@ class DeleteOldWorkflowRuns(
 
             _LOGGER.info(
                 "Deleting workflow runs with arguments:\n%s",
-                "\n".join([": ".join(a) for a in arguments.items()]),
+                "\n".join([": ".join(a) for a in arguments.items()]),  # type: ignore[arg-type]
             )
-            workflow_runs = repo.get_workflow_runs(**arguments)  # type: ignore[arg-type]
-            for workflow_run in workflow_runs:
+            workflow_runs = (
+                await context.github_project.aio_github.rest.actions.async_list_workflow_runs_for_repo(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    **arguments,
+                )
+            ).parsed_data
+            for workflow_run in workflow_runs.workflow_runs:
                 if not workflow or workflow_run.name == workflow:
                     deleted_workflows.append(f"{workflow_run.name} ({workflow_run.created_at})")
-                    await asyncio.to_thread(workflow_run.delete)
+                    await context.github_project.aio_github.rest.actions.async_delete_workflow_run(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                        run_id=workflow_run.id,
+                    )
                     deleted_number += 1
         message = utils.HtmlMessage("\n".join(deleted_workflows))
         message.title = f"Deleted {deleted_number} workflow runs"

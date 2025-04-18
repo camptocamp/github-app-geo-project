@@ -127,11 +127,14 @@ class DispatchPublishing(module.Module[None, None, None, None]):
                 payload["name"] = " ".join(names)
 
             if payload:
-                context.github_project.github.get_repo(
-                    destination.destination_repository,
-                ).create_repository_dispatch(
-                    destination.event_type,
-                    payload,
+                repo = await context.github_project.aio_github.rest.repos.async_get(
+                    *destination.destination_repository.split("/"),
+                )
+                await context.github_project.aio_github.rest.repos.async_create_dispatch_event(
+                    repo.parsed_data.owner.login,
+                    repo.parsed_data.name,
+                    event_type=destination.event_type,
+                    client_payload=payload,
                 )
         return module.ProcessOutput()
 

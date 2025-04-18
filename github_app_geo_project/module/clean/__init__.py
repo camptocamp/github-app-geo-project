@@ -3,14 +3,17 @@
 import asyncio
 import json
 import logging
-import os.path
+import os
 import subprocess  # nosec
 import tempfile
 from pathlib import Path
 from typing import Any, cast
 
 import aiohttp
-import github
+import githubkit.exception
+import githubkit.versions
+import githubkit.versions.latest
+import githubkit.versions.latest.models
 import tag_publish.configuration
 import yaml
 from pydantic import BaseModel
@@ -103,17 +106,29 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
         context: module.ProcessContext[configuration.CleanConfiguration, _ActionData],
     ) -> None:
         """Clean the Docker images on Docker Hub for the branch we delete."""
-        # get the .github/publish.yaml
-
         try:
-            publish_configuration_content = context.github_project.repo.get_contents(".github/publish.yaml")
-            assert not isinstance(publish_configuration_content, list)
-            publish_config = cast(
-                "tag_publish.configuration.Configuration",
-                yaml.load(publish_configuration_content.decoded_content, Loader=yaml.SafeLoader),
-            )
-        except github.GithubException as exception:
-            if exception.status != 404:
+            publish_configuration_content = (
+                await context.github_project.aio_github.rest.repos.async_get_content(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    path=".github/publish.yaml",
+                )
+            ).parsed_data
+            if isinstance(
+                publish_configuration_content,
+                githubkit.versions.latest.models.ContentFile,
+            ) and isinstance(publish_configuration_content.content, str):
+                publish_config = cast(
+                    "tag_publish.configuration.Configuration",
+                    yaml.load(
+                        publish_configuration_content.content,
+                        Loader=yaml.SafeLoader,
+                    ),
+                )
+            else:
+                publish_config = {}
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code != 404:
                 raise
             return
 
@@ -252,7 +267,6 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     raise CleanError(exception_message)
                 cwd = new_cwd
 
-                os.chdir(context.github_project.repository)
                 command = ["git", "rm", folder]
                 proc = await asyncio.create_subprocess_exec(
                     *command,

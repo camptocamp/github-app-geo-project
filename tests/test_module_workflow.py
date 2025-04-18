@@ -13,7 +13,7 @@ async def test_process_success() -> None:
     context.github_project.owner = "owner"
     context.github_project.repository = "repository"
     repo = MagicMock()
-    context.github_project.github.get_repo.return_value = repo
+    context.github_project.repo = repo
     repo.get_contents.side_effect = github.GithubException(status=404)
     repo.default_branch = "master"
     context.event_data = {
@@ -54,7 +54,7 @@ async def test_process_failure() -> None:
     context.github_project.owner = "owner"
     context.github_project.repository = "repository"
     repo = MagicMock()
-    context.github_project.github.get_repo.return_value = repo
+    context.github_project.repo = repo
     repo.get_contents.side_effect = github.GithubException(status=404)
     repo.default_branch = "master"
     context.event_data = {

@@ -1,12 +1,11 @@
 """Output view."""
 
+import asyncio
 import logging
 import os
 from typing import Any, Literal, cast
 
-import pyramid.httpexceptions
 import pyramid.request
-import pyramid.response
 import pyramid.security
 from pyramid.view import view_config
 
@@ -87,13 +86,20 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
         if admin:
             try:
                 if "TEST_APPLICATION" not in os.environ:
-                    github = (
-                        configuration.get_github_application(request.registry.settings, app)
+                    github_application = (
+                        asyncio.run(configuration.get_github_application(request.registry.settings, app))
                         if admin
                         else None
                     )
 
-                    github_events = set(github.integration.get_app().events)
+                    github_authenticated_response = asyncio.run(
+                        github_application.aio_github.rest.apps.async_get_authenticated(),
+                    )
+                    github_authenticated = github_authenticated_response.parsed_data
+                    assert github_authenticated is not None
+                    github_events = set(
+                        github_authenticated.events,
+                    )
                     # test that all events are in github_events
                     if not events.issubset(github_events):
                         application["errors"].append(
@@ -116,7 +122,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                             ", ".join(github_events - events),
                         )
 
-                    github_permissions = cast("module.Permissions", github.integration.get_app().permissions)
+                    github_permissions = cast("module.Permissions", github_authenticated.permissions)
                     # Test that all permissions are in github_permissions
                     for permission, access in permissions.items():
                         if permission not in github_permissions or _gt_access(
