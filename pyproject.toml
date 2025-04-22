@@ -83,6 +83,8 @@ lxml-html-clean = "0.4.1"
 tag-publish = "1.0.1"
 aiohttp = "3.11.15"
 aiofiles = "24.1.0"
+githubkit = { version = "0.12.10", extras = ["auth"] }
+deprecated = "1.2.18"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }
@@ -96,6 +98,7 @@ types-setuptools = "78.1.0.20250329"
 types-markdown = "3.7.0.20250322"
 types-requests = "2.32.0.20250328"
 types-aiofiles = "24.1.0.20250326"
+types-deprecated = "1.2.15.20250304"
 
 [tool.poetry-dynamic-versioning]
 enable = true

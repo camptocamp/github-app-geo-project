@@ -7,8 +7,11 @@ from typing import Any, NamedTuple, cast
 
 import github
 import github as github_lib
+import githubkit.versions.latest.models
+import githubkit.versions.latest.types
 import jsonmerge
 import yaml
+from deprecated import deprecated
 
 from github_app_geo_project import application_configuration, project_configuration
 
@@ -50,35 +53,64 @@ _LOGGER.debug("Configuration loaded: %s", APPLICATION_CONFIGURATION)
 class GithubApplication(NamedTuple):
     """The Github authentication objects."""
 
-    auth: github.Auth.AppAuth
-    """Alias of integration.auth"""
-    integration: github.GithubIntegration
-    """The Github integration object"""
+    deprecated_integration: github.GithubIntegration
+    """The Github integration (Deprecated)"""
+
+    @property
+    @deprecated(
+        "This property is deprecated and will be removed in a future release, use aio_github instead.",
+    )
+    def integration(self) -> github.GithubIntegration:
+        """The Github integration (Deprecated)."""
+        return self.deprecated_integration
+
     name: str
     """The application name"""
     id: int
     """The application id"""
     private_key: str
     """The application private key"""
+    slug: str
+    """The application slug"""
+    aio_auth: githubkit.AppAuthStrategy
+    """The authentication strategy for the application"""
+    aio_github: githubkit.GitHub[githubkit.AppAuthStrategy]
+    """The githubkit GitHub"""
+    aio_application: githubkit.versions.latest.models.Integration
 
 
 class GithubProject(NamedTuple):
     """The Github Application objects."""
 
     application: GithubApplication
+    """The Github application"""
     token: str
-    github: github.Github
+    """The token for the repository"""
     owner: str
     """The owner of the repository"""
     repository: str
     """The repository name"""
-    repo: github_lib.Repository.Repository
+    deprecated_repo: github_lib.Repository.Repository
+    """The repository object (Deprecated)"""
+
+    @property
+    @deprecated("This property is deprecated and will be removed in a future release, use aio_repo instead.")
+    def repo(self) -> github_lib.Repository.Repository:
+        """The repository object (Deprecated)."""
+        return self.deprecated_repo
+
+    aio_installation: githubkit.versions.latest.models.Installation
+    """The installation object for the repository"""
+    aio_github: githubkit.GitHub[githubkit.AppInstallationAuthStrategy]
+    """The githubkit object for the repository"""
+    aio_repo: githubkit.versions.latest.models.FullRepository
+    """The githubkit repository object"""
 
 
 GITHUB_APPLICATIONS: dict[str, GithubApplication] = {}
 
 
-def get_github_application(config: dict[str, Any], application_name: str) -> GithubApplication:
+async def get_github_application(config: dict[str, Any], application_name: str) -> GithubApplication:
     """Get the Github Application objects by name."""
     applications = config.get("applications", "").split()
     if application_name not in applications:
@@ -95,12 +127,24 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
         )
         application_id = config[f"application.{application_name}.github_app_id"]
         auth = github.Auth.AppAuth(application_id, private_key)
+
+        aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
+        aio_github = githubkit.GitHub(aio_auth)
+        aio_application_response = await aio_github.rest.apps.async_get_authenticated()
+        aio_application = aio_application_response.parsed_data
+        assert aio_application is not None
+        slug = aio_application.slug
+        assert isinstance(slug, str)
+
         objects = GithubApplication(
-            auth,
             github.GithubIntegration(auth=auth, retry=3),
             application_name,
             application_id,
             private_key,
+            slug,
+            aio_auth,
+            aio_github,
+            aio_application,
         )
 
         GITHUB_APPLICATIONS[application_name] = objects
@@ -108,28 +152,55 @@ def get_github_application(config: dict[str, Any], application_name: str) -> Git
     return GITHUB_APPLICATIONS[application_name]
 
 
-def get_github_project(
+async def get_github_project(
     config: dict[str, Any],
-    application: GithubApplication | str,
+    github_application: GithubApplication | str,
     owner: str,
     repository: str,
 ) -> GithubProject:
     """Get the Github Application by name."""
-    objects = get_github_application(config, application) if isinstance(application, str) else application
+    github_application = (
+        await get_github_application(config, github_application)
+        if isinstance(github_application, str)
+        else github_application
+    )
+    assert isinstance(github_application, GithubApplication)
 
-    token = objects.integration.get_access_token(objects.integration.get_installation(owner, repository).id)
+    token = github_application.integration.get_access_token(
+        github_application.integration.get_installation(owner, repository).id,
+    )
     _LOGGER.debug("Generate token for %s/%s that expire at: %s", owner, repository, token.expires_at)
-    github_application = github.Github(login_or_token=token.token)
-    repo = github_application.get_repo(f"{owner}/{repository}")
+    github_obj = github.Github(login_or_token=token.token)
+    repo = github_obj.get_repo(f"{owner}/{repository}")
 
-    return GithubProject(objects, token.token, github_application, owner, repository, repo)
+    aio_installation = (
+        await github_application.aio_github.rest.apps.async_get_repo_installation(
+            owner,
+            repository,
+        )
+    ).parsed_data
+    aoi_installation_auth_strategy = github_application.aio_auth.as_installation(
+        aio_installation.id,
+    )
+    aio_github = github_application.aio_github.with_auth(aoi_installation_auth_strategy)
+    aio_repo = (await aio_github.rest.repos.async_get(owner, repository)).parsed_data
+    aio_app_auth = aio_github.auth.get_auth_flow(aio_github)
+    assert isinstance(aio_app_auth, githubkit.auth.app.AppAuth)
+
+    return GithubProject(
+        github_application,
+        await aio_app_auth.aget_jwt(),
+        owner,
+        repository,
+        repo,
+        aio_installation,
+        aio_github,
+        aio_repo,
+    )
 
 
-def get_configuration(
-    config: dict[str, Any],
-    owner: str,
-    repository: str,
-    application: str,
+async def get_configuration(
+    github_project: GithubProject,
 ) -> project_configuration.GithubApplicationProjectConfiguration:
     """
     Get the Configuration for the repository.
@@ -137,8 +208,7 @@ def get_configuration(
     Parameter:
         repository: The repository name (<owner>/<name>)
     """
-    github_app = get_github_project(config, application, owner, repository)
-    repo = github_app.github.get_repo(f"{owner}/{repository}")
+    repo = github_project.repo
     project_custom_configuration = {}
     try:
         project_configuration_content = repo.get_contents(".github/ghci.yaml")

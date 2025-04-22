@@ -26,7 +26,23 @@
             "type": "string"
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "completed",
+              "action_required",
+              "cancelled",
+              "failure",
+              "neutral",
+              "skipped",
+              "stale",
+              "success",
+              "timed_out",
+              "in_progress",
+              "queued",
+              "requested",
+              "waiting",
+              "pending"
+            ]
           }
         },
         "required": ["older-than-days"]

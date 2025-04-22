@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any, cast
 
 import aiofiles
-import github
+import githubkit.exception
+import githubkit.versions.latest.models
 import html_sanitizer
 import markdownify
 import security_md
@@ -646,10 +647,10 @@ async def create_pull_request(
     new_branch: str,
     message: str,
     body: str,
-    project: configuration.GithubProject,
+    github_project: configuration.GithubProject,
     cwd: Path,
     auto_merge: bool = True,
-) -> tuple[bool, github.PullRequest.PullRequest | None]:
+) -> tuple[bool, githubkit.versions.latest.models.PullRequest | None]:
     """Create a pull request."""
     command = ["git", "push", "--force", "origin", new_branch]
     proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
@@ -666,8 +667,16 @@ async def create_pull_request(
         _LOGGER.warning(proc_message)
         return False, None
 
-    pulls = project.repo.get_pulls(state="open", head=f"{project.repo.full_name.split('/')[0]}:{new_branch}")
-    if pulls.totalCount > 0:
+    pulls = (
+        await github_project.aio_github.rest.pulls.async_list(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            state="open",
+            head=f"{github_project.owner}:{new_branch}",
+        )
+    ).parsed_data
+    assert pulls is not None
+    if pulls.total_count > 0:
         pull_request = pulls[0]
         _LOGGER.debug(
             "Found pull request #%s (%s - %s)",
@@ -675,16 +684,20 @@ async def create_pull_request(
             pull_request.created_at,
             pull_request.head.ref,
         )
-        # Create an issue it the pull request is open for 5 days
+        # Create an issue if the pull request is open for 5 days
         if pull_request.created_at < datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=5):
             _LOGGER.warning("Pull request #%s is open for 5 days", pull_request.number)
             title = f"Pull request {message} is open for 5 days"
             body = f"See: #{pull_request.number}"
             found = False
-            issues = project.repo.get_issues(
-                state="open",
-                creator=project.application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
-            )
+            issues = (
+                await github_project.aio_github.rest.issues.async_list_for_repo(
+                    owner=github_project.owner,
+                    repo=github_project.repository,
+                    creator=f"{github_project.application.slug}[bot]",
+                    state="open",
+                )
+            ).parsed_data
             if issues.totalCount > 0:
                 for candidate in issues:
                     if title == candidate.title:
@@ -693,39 +706,52 @@ async def create_pull_request(
                         if body != candidate.body:
                             candidate.edit(body=body)
             if not found:
-                project.repo.create_issue(
+                await github_project.aio_github.rest.issues.async_create(
+                    owner=github_project.owner,
+                    repo=github_project.repository,
                     title=title,
                     body=body,
                 )
             return False, pull_request
     else:
-        pull_request = project.repo.create_pull(
-            title=message,
-            body=body,
-            head=new_branch,
-            base=branch,
+        pull_request = await github_project.aio_github.rest.pulls.async_create(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            data={
+                "title": message,
+                "body": body,
+                "head": new_branch,
+                "base": branch,
+            },
         )
         if auto_merge:
-            await auto_merge_pull_request(pull_request)
-        return True, pull_request
+            await auto_merge_pull_request(github_project, pull_request.parsed_data)
+        return True, pull_request.parsed_data
     return True, None
 
 
-async def auto_merge_pull_request(pull_request: github.PullRequest.PullRequest) -> None:
+async def auto_merge_pull_request(
+    github_project: configuration.GithubProject,
+    pull_request: githubkit.versions.latest.models.PullRequest,
+) -> None:
     """Enable the automerge of a pull request."""
     exception: Exception | None = None
     for n in range(10):
         try:
             if n != 0:
                 await asyncio.sleep(math.pow(n, 2))
-            pull_request.enable_automerge(merge_method="MERGE")
-        except github.GithubException as exception:
-            errors = exception.data.get("errors", [])
-            if (
-                exception.status == 400
-                and len(errors) == 1
-                and errors[0].get("message") == "Pull request Pull request is in clean status"
-            ):
+            await github_project.aio_github.graphql.arequest(
+                """
+                mutation EnableAutoMerge($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {
+                        clientMutationId
+                    }
+                }
+                """,
+                variables={"pullRequestId": pull_request.id},
+            )
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code == 400:
                 continue
             raise
         else:
@@ -741,7 +767,7 @@ async def create_commit_pull_request(
     body: str,
     project: configuration.GithubProject,
     cwd: Path,
-) -> tuple[bool, github.PullRequest.PullRequest | None]:
+) -> tuple[bool, githubkit.versions.latest.models.PullRequest | None]:
     """Do a commit, then create a pull request."""
     if (cwd / ".pre-commit-config.yaml").exists():
         try:
@@ -764,27 +790,49 @@ async def create_commit_pull_request(
     return await create_pull_request(branch, new_branch, message, body, project, cwd)
 
 
-def close_pull_request_issues(new_branch: str, message: str, project: configuration.GithubProject) -> None:
+async def close_pull_request_issues(
+    new_branch: str,
+    message: str,
+    github_project: configuration.GithubProject,
+) -> None:
     """
     Close the pull request, issue and delete the branch.
 
     The 'Pull request is open for 5 days' issue.
     """
-    pulls = project.repo.get_pulls(state="open", head=f"{project.repo.full_name.split('/')[0]}:{new_branch}")
+    pulls = (
+        await github_project.aio_github.rest.pulls.async_list(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            state="open",
+            head=f"{github_project.owner}:{new_branch}",
+        )
+    ).parsed_data
+    assert pulls is not None
     if pulls.totalCount > 0:
-        pull_request = pulls[0]
+        pull_request = next(pulls)
         pull_request.edit(state="closed")
 
-        project.repo.get_git_ref(f"heads/{new_branch}").delete()
+        await github_project.aio_github.rest.git.async_delete_ref(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            ref=new_branch,
+        )
 
     title = f"Pull request {message} is open for 5 days"
-    issues = project.repo.get_issues(
-        state="open",
-        creator=project.application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
-    )
-    for issue in issues:
-        if title == issue.title:
-            issue.edit(state="closed")
+    issues = (
+        await github_project.aio_github.rest.issues.async_list_for_repo(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            state="open",
+            creator=github_project.application.slug + "[bot]",
+        )
+    ).parsed_data
+    assert issues is not None
+    if issues.totalCount > 0:
+        for issue in issues:
+            if title == issue.title:
+                issue.edit(state="closed")
 
 
 _SSH_LOCK = asyncio.Lock()
@@ -827,8 +875,11 @@ async def git_clone(
     _LOGGER.debug(message)
 
     cwd = cwd / github_project.repository.split("/")[-1]
-    app = github_project.application.integration.get_app()
-    user = github_project.github.get_user(app.slug + "[bot]")
+    user = (
+        await github_project.aio_github.rest.users.async_get_by_username(
+            github_project.application.slug + "[bot]",
+        )
+    ).parsed_data
     command = [
         "git",
         "config",

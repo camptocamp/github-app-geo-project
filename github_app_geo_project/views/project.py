@@ -1,13 +1,12 @@
 """Output view."""
 
+import asyncio
 import datetime
 import logging
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
-import pyramid.httpexceptions
 import pyramid.request
-import pyramid.response
 import pyramid.security
 import sqlalchemy
 from pyramid.view import view_config
@@ -15,6 +14,9 @@ from pyramid.view import view_config
 from github_app_geo_project import configuration, models, project_configuration, utils
 from github_app_geo_project.module import modules
 from github_app_geo_project.templates import pprint_duration, pprint_full_date, pprint_short_date
+
+if TYPE_CHECKING:
+    import githubkit.versions.latest.models
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,23 +72,30 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         applications.setdefault(app, {})
         try:
             if "TEST_APPLICATION" not in os.environ:
-                config = configuration.get_configuration(
-                    request.registry.settings,
-                    owner,
-                    repository,
-                    app,
+                github_project = asyncio.run(
+                    configuration.get_github_project(
+                        request.registry.settings,
+                        app,
+                        owner,
+                        repository,
+                    ),
                 )
-                github_project = configuration.get_github_project(
-                    request.registry.settings,
-                    app,
-                    owner,
-                    repository,
+                config = asyncio.run(
+                    configuration.get_configuration(
+                        github_project,
+                    ),
                 )
-                repo = github_project.github.get_repo(f"{owner}/{repository}")
-                for issue in repo.get_issues(
-                    state="open",
-                    creator=f"{github_project.application.integration.get_app().slug}[bot]",  # type: ignore[arg-type]
-                ):
+                issues = asyncio.run(
+                    github_project.aio_github.rest.issues.async_list_for_repo(
+                        owner,
+                        repository,
+                        state="open",
+                        creator=f"{github_project.application.slug}[bot]",
+                    ),
+                ).parsed_data
+                assert isinstance(issues, list)
+                issues = cast("list[githubkit.versions.latest.models.Issue]", issues)
+                for issue in issues:
                     if "dashboard" in issue.title.lower().split() and issue.state == "open":
                         applications[app]["issue_url"] = issue.html_url
 

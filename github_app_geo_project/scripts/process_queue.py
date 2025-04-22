@@ -19,7 +19,9 @@ from typing import Any, NamedTuple, cast
 
 import aiofiles
 import c2cwsgiutils.setup_process
-import github
+import githubkit.exception
+import githubkit.versions.latest.models
+import githubkit.versions.latest.types
 import plaster
 import prometheus_client.exposition
 import sentry_sdk
@@ -98,14 +100,13 @@ class _Formatter(logging.Formatter):
         return f"<pre>{str_msg}</pre>"
 
 
-def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
+async def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
     if "TEST_APPLICATION" in os.environ:
         return True
-    github_application = configuration.get_github_application(config, application)
-    github_app = github_application.integration.get_app()
+    github_application = await configuration.get_github_application(config, application)
     installation_id = event_data.get("installation", {}).get("id", 0)
-    if github_app.id == installation_id:
-        _LOGGER.error("Invalid installation id %i != %i", github_app.id, installation_id)
+    if github_application.id == installation_id:
+        _LOGGER.error("Invalid installation id %i != %i", github_application.id, installation_id)
         return False
     return True
 
@@ -131,61 +132,79 @@ async def _process_job(
     issue_data = ""
     module_config: project_configuration.ModuleConfiguration = {}
     github_project: configuration.GithubProject | None = None
-    check_run: github.CheckRun.CheckRun | None = None
+    check_run: (
+        githubkit.Response[
+            githubkit.versions.latest.models.CheckRun,
+            githubkit.versions.latest.types.CheckRunType,
+        ]
+        | None
+    ) = None
     if "TEST_APPLICATION" not in os.environ:
-        github_application = configuration.get_github_application(config, job.application)
-        github_project = configuration.get_github_project(
+        github_application = await configuration.get_github_application(config, job.application)
+        github_project = await configuration.get_github_project(
             config,
             github_application,
             job.owner,
             job.repository,
         )
         # Get Rate limit status
-        if github_project.github.rate_limiting[0] < 1000:
+        rate_limit = (await github_project.aio_github.rest.rate_limit.async_get()).parsed_data
+        if rate_limit.rate.remaining < 1000:
             _LOGGER.warning(
-                "Rate limit status: %s",
-                github_project.github.rate_limiting,
+                "Rate limit status: %s/%s",
+                rate_limit.rate.remaining,
+                rate_limit.rate.limit,
             )
             # Wait until github_project.github.rate_limiting_resettime
             await asyncio.sleep(
                 max(
                     0,
-                    github_project.github.rate_limiting_resettime - time.time(),
+                    rate_limit.rate.reset - time.time(),
                 ),
             )
 
-        repo = github_project.repo
-
         if current_module.required_issue_dashboard():
-            dashboard_issue = _get_dashboard_issue(github_application, repo)
+            dashboard_issue = await _get_dashboard_issue(github_project)
             if dashboard_issue:
                 issue_full_data = dashboard_issue.body
+                assert isinstance(issue_full_data, str)
                 issue_data = utils.get_dashboard_issue_module(issue_full_data, job.module)
 
         module_config = cast(
             "project_configuration.ModuleConfiguration",
-            configuration.get_configuration(config, job.owner, job.repository, job.application).get(
+            (await configuration.get_configuration(github_project)).get(
                 job.module,
                 {},
             ),
         )
         if job.check_run_id is not None:
-            check_run = repo.get_check_run(job.check_run_id)
+            check_run = await github_project.aio_github.rest.checks.async_get(
+                owner=job.owner,
+                repo=job.repository,
+                check_run_id=job.check_run_id,
+            )
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         try:
-            if "TEST_APPLICATION" not in os.environ:
+            if "TEST_APPLICATION" not in os.environ and github_project is not None:
                 if job.check_run_id is None:
                     check_run = webhook.create_checks(
                         job,
                         session,
                         current_module,
-                        github_project.repo,
+                        github_project,
                         job.event_data,
                         config["service-url"],
                     )
 
                 assert check_run is not None
-                check_run.edit(external_id=str(job.id), status="in_progress", details_url=logs_url)
+                await github_project.aio_github.rest.checks.async_update(
+                    owner=job.owner,
+                    repo=job.repository,
+                    check_run_id=check_run.parsed_data.id,
+                    external_id=str(job.id),
+                    status="in_progress",
+                    details_url=logs_url,
+                )
 
             # Close transaction if one is open
             session.commit()
@@ -308,30 +327,37 @@ async def _process_job(
                 if len(check_output.get("text", "")) > 65535:
                     check_output["text"] = check_output["text"][:65532] + "..."
                 try:
-                    check_run.edit(
+                    await github_project.aio_github.rest.checks.async_update(
+                        owner=job.owner,
+                        repo=job.repository,
+                        check_run_id=check_run.parsed_data.id,
                         status="completed",
                         conclusion="success" if result is None or result.success else "failure",
-                        output=check_output,
+                        output={
+                            "title": check_output["title"],
+                            "summary": check_output["summary"],
+                            "text": check_output.get("text", ""),
+                        },
                     )
-                except github.GithubException as exception:
+                except githubkit.exception.RequestFailed as exception:
                     _LOGGER.exception(
                         "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
                         job.check_run_id,
-                        exception.data,
+                        exception.response.text,
                         (
-                            "\n".join(f"{k}: {v}" for k, v in exception.headers.items())
-                            if exception.headers
+                            "\n".join(f"{k}: {v}" for k, v in exception.response.headers.items())
+                            if exception.response.headers
                             else ""
                         ),
-                        exception.message,
-                        exception.status,
+                        exception.response.reason_phrase,
+                        exception.response.status_code,
                     )
                     raise
             job.status = models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
-            if result is not None:
+            if result is not None and github_project is not None:
                 _LOGGER.debug("Process actions")
                 for action in result.actions:
                     new_job = models.Queue()
@@ -343,11 +369,11 @@ async def _process_job(
                     new_job.event_data = job.event_data
                     new_job.module = job.module
                     new_job.module_data = current_module.event_data_to_json(action.data)
-                    webhook.create_checks(
+                    await webhook.create_checks(
                         new_job,
                         session,
                         current_module,
-                        repo,
+                        github_project,
                         job.event_data,
                         config["service-url"],
                         action.title,
@@ -356,7 +382,7 @@ async def _process_job(
                     session.add(new_job)
             session.commit()
             new_issue_data = result.dashboard if result is not None else None
-        except github.GithubException as exception:
+        except githubkit.exception.RequestFailed as exception:
             job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             root_logger.addHandler(handler)
@@ -365,41 +391,45 @@ async def _process_job(
                     "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
                     job.id,
                     job.module,
-                    exception.data,
+                    exception.response.text,
                     (
-                        "\n".join(f"{k}: {v}" for k, v in exception.headers.items())
-                        if exception.headers
+                        "\n".join(f"{k}: {v}" for k, v in exception.response.headers.items())
+                        if exception.response.headers
                         else ""
                     ),
-                    exception.message,
-                    exception.status,
+                    exception.response.reason_phrase,
+                    exception.response.status_code,
                 )
             finally:
                 root_logger.removeHandler(handler)
             assert check_run is not None
             try:
-                check_run.edit(
-                    status="completed",
-                    conclusion="failure",
-                    output={
-                        "title": current_module.title(),
-                        "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
-                    },
-                )
-            except github.GithubException as github_exception:
+                if github_project is not None:
+                    await github_project.aio_github.rest.checks.async_update(
+                        owner=job.owner,
+                        repo=job.repository,
+                        check_run_id=check_run.parsed_data.id,
+                        status="completed",
+                        conclusion="failure",
+                        output={
+                            "title": current_module.title(),
+                            "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
+                        },
+                    )
+            except githubkit.exception.RequestFailed as github_exception:
                 root_logger.addHandler(handler)
                 try:
                     _LOGGER.exception(
                         "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
                         job.check_run_id,
-                        github_exception.data,
+                        github_exception.response.text,
                         (
-                            "\n".join(f"{k}: {v}" for k, v in github_exception.headers.items())
-                            if github_exception.headers
+                            "\n".join(f"{k}: {v}" for k, v in github_exception.response.headers.items())
+                            if github_exception.response.headers
                             else ""
                         ),
-                        github_exception.message,
-                        github_exception.status,
+                        github_exception.response.reason_phrase,
+                        github_exception.response.status_code,
                     )
                 finally:
                     root_logger.removeHandler(handler)
@@ -422,26 +452,30 @@ async def _process_job(
                 root_logger.removeHandler(handler)
             assert check_run is not None
             try:
-                check_run.edit(
-                    status="completed",
-                    conclusion="failure",
-                    output={
-                        "title": current_module.title(),
-                        "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url}))",
-                    },
-                )
-            except github.GithubException as exception:
+                if github_project is not None:
+                    await github_project.aio_github.rest.checks.async_update(
+                        owner=job.owner,
+                        repo=job.repository,
+                        check_run_id=check_run.parsed_data.id,
+                        status="completed",
+                        conclusion="failure",
+                        output={
+                            "title": current_module.title(),
+                            "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url}))",
+                        },
+                    )
+            except githubkit.exception.RequestFailed as exception:
                 _LOGGER.exception(
                     "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
                     job.check_run_id,
-                    exception.data,
+                    exception.response.text,
                     (
-                        "\n".join(f"{k}: {v}" for k, v in exception.headers.items())
-                        if exception.headers
+                        "\n".join(f"{k}: {v}" for k, v in exception.response.headers.items())
+                        if exception.response.headers
                         else ""
                     ),
-                    exception.message,
-                    exception.status,
+                    exception.response.reason_phrase,
+                    exception.response.status_code,
                 )
             raise
         except Exception as exception:
@@ -453,9 +487,12 @@ async def _process_job(
                     _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
                 finally:
                     root_logger.removeHandler(handler)
-            if check_run is not None:
+            if check_run is not None and github_project is not None:
                 try:
-                    check_run.edit(
+                    await github_project.aio_github.rest.checks.async_update(
+                        owner=job.owner,
+                        repo=job.repository,
+                        check_run_id=check_run.parsed_data.id,
                         status="completed",
                         conclusion="failure",
                         output={
@@ -463,26 +500,29 @@ async def _process_job(
                             "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
                         },
                     )
-                except github.GithubException as github_exception:
+                except githubkit.exception.RequestFailed as github_exception:
                     _LOGGER.exception(
                         "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
                         job.check_run_id,
-                        github_exception.data,
+                        github_exception.response.text,
                         (
-                            "\n".join(f"{k}: {v}" for k, v in github_exception.headers.items())
-                            if github_exception.headers
+                            "\n".join(f"{k}: {v}" for k, v in github_exception.response.headers.items())
+                            if github_exception.response.headers
                             else ""
                         ),
-                        github_exception.message,
-                        github_exception.status,
+                        github_exception.response.reason_phrase,
+                        github_exception.response.status_code,
                     )
             raise
     else:
         try:
             _LOGGER.info("Module %s is disabled", job.module)
             job.status = models.JobStatus.SKIPPED
-            if check_run is not None:
-                check_run.edit(
+            if check_run is not None and github_project is not None:
+                await github_project.aio_github.rest.checks.async_update(
+                    owner=job.owner,
+                    repo=job.repository,
+                    check_run_id=check_run.parsed_data.id,
                     status="completed",
                     conclusion="skipped",
                 )
@@ -505,18 +545,31 @@ async def _process_job(
             )
             raise
 
-    if current_module.required_issue_dashboard() and new_issue_data is not None:
-        dashboard_issue = _get_dashboard_issue(github_application, repo)
+    if (
+        github_project is not None
+        and github_project.aio_github is not None
+        and current_module.required_issue_dashboard()
+        and new_issue_data is not None
+    ):
+        dashboard_issue = await _get_dashboard_issue(github_project)
 
         if dashboard_issue:
+            body = dashboard_issue.body
+            assert isinstance(body, str)
             issue_full_data = utils.update_dashboard_issue_module(
-                dashboard_issue.body,
+                body,
                 job.module,
                 current_module,
                 new_issue_data,
             )
             _LOGGER.debug("Update issue %s, with:\n%s", dashboard_issue.number, issue_full_data)
-            dashboard_issue.edit(body=issue_full_data)
+            if github_project is not None:
+                await github_project.aio_github.rest.issues.async_update(
+                    owner=job.owner,
+                    repo=job.repository,
+                    issue_number=dashboard_issue.number,
+                    body=issue_full_data,
+                )
         elif new_issue_data and os.environ.get("GHCI_CREATE_DASHBOARD_ISSUE", "1").lower() in (
             "1",
             "true",
@@ -528,14 +581,17 @@ async def _process_job(
                 current_module,
                 new_issue_data,
             )
-            repo.create_issue(
-                f"{github_application.integration.get_app().name} Dashboard",
-                issue_full_data,
-            )
+            if github_project is not None:
+                await github_project.aio_github.rest.issues.async_create(
+                    owner=job.owner,
+                    repo=job.repository,
+                    title=f"{github_application.name} Dashboard",
+                    body=issue_full_data,
+                )
     return True
 
 
-def _process_event(
+async def _process_event(
     config: dict[str, str],
     event_data: dict[str, str],
     session: sqlalchemy.orm.Session,
@@ -544,7 +600,7 @@ def _process_event(
         _LOGGER.info("Process the event: %s, application: %s", event_data.get("name"), application)
 
         if "TEST_APPLICATION" in os.environ:
-            webhook.process_event(
+            await webhook.process_event(
                 webhook.ProcessContext(
                     owner="camptocamp",
                     repository="test",
@@ -558,41 +614,46 @@ def _process_event(
                 ),
             )
         else:
-            github_application = configuration.get_github_application(config, application)
-            for installation in github_application.integration.get_installations():
-                for repo in installation.get_repos():
-                    webhook.process_event(
-                        webhook.ProcessContext(
-                            owner=repo.owner.login,
-                            repository=repo.name,
-                            config=config,
-                            application=application,
-                            event_name="event",
-                            event_data=event_data,
-                            session=session,
-                            github_application=github_application,
-                            service_url=config["service-url"],
-                        ),
-                    )
+            github_application = await configuration.get_github_application(config, application)
+            repos = (
+                await github_application.aio_github.rest.apps.async_list_repos_accessible_to_installation()
+            ).parsed_data
+            for repo in repos.repositories:
+                await webhook.process_event(
+                    webhook.ProcessContext(
+                        owner=repo.owner.login,
+                        repository=repo.name,
+                        config=config,
+                        application=application,
+                        event_name="event",
+                        event_data=event_data,
+                        session=session,
+                        github_application=github_application,
+                        service_url=config["service-url"],
+                    ),
+                )
 
 
-def _get_dashboard_issue(
-    github_application: configuration.GithubApplication,
-    repo: github.Repository.Repository,
-) -> github.Issue.Issue | None:
-    open_issues = repo.get_issues(
-        state="open",
-        creator=github_application.integration.get_app().slug + "[bot]",  # type: ignore[arg-type]
-    )
+async def _get_dashboard_issue(
+    github_project: configuration.GithubProject,
+) -> githubkit.versions.latest.models.Issue | None:
+    open_issues = (
+        await github_project.aio_github.rest.issues.async_list_for_repo(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            state="open",
+            creator=f"{github_project.application.slug}[bot]",
+        )
+    ).parsed_data
     # TODO: delete duplicated issues # noqa: TD003
-    if open_issues.totalCount > 0:
-        for candidate in open_issues:
+    if isinstance(open_issues, list):
+        for candidate in open_issues:  # type: ignore[attr-defined]
             if "dashboard" in candidate.title.lower().split():
-                return candidate
+                return candidate  # type: ignore[no-any-return]
     return None
 
 
-def _process_dashboard_issue(
+async def _process_dashboard_issue(
     config: dict[str, Any],
     session: sqlalchemy.orm.Session,
     event_data: dict[str, Any],
@@ -601,12 +662,11 @@ def _process_dashboard_issue(
     repository: str,
 ) -> None:
     """Process changes on the dashboard issue."""
-    github_application = configuration.get_github_application(config, application)
-    github_project = configuration.get_github_project(config, github_application, owner, repository)
+    github_application = await configuration.get_github_application(config, application)
+    github_project = await configuration.get_github_project(config, github_application, owner, repository)
 
-    if event_data["issue"]["user"]["login"] == github_application.integration.get_app().slug + "[bot]":
-        repo = github_project.repo
-        dashboard_issue = _get_dashboard_issue(github_application, repo)
+    if event_data["issue"]["user"]["login"] == f"{github_application.slug}[bot]":
+        dashboard_issue = await _get_dashboard_issue(github_project)
 
         if dashboard_issue and dashboard_issue.number == event_data["issue"]["number"]:
             _LOGGER.debug("Dashboard issue edited")
@@ -654,11 +714,11 @@ def _process_dashboard_issue(
                             session.add(job)
                             session.flush()
                             if action.checks:
-                                webhook.create_checks(
+                                await webhook.create_checks(
                                     job,
                                     session,
                                     current_module,
-                                    repo,
+                                    github_project,
                                     {},
                                     config["service-url"],
                                     action.title,
@@ -668,7 +728,7 @@ def _process_dashboard_issue(
         _LOGGER.debug(
             "Dashboard event ignored %s!=%s",
             event_data["issue"]["user"]["login"],
-            github_application.integration.get_app().slug + "[bot]",
+            f"{github_application.slug}[bot]",
         )
 
 
@@ -786,14 +846,14 @@ async def _process_one_job(
         success = True
         if not job.module:
             if job.event_data.get("type") == "event":
-                _process_event(config, job.event_data, session)
+                await _process_event(config, job.event_data, session)
                 job.status = models.JobStatus.DONE
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             elif job.event_name == "dashboard":
-                success = _validate_job(config, job.application, job.event_data)
+                success = await _validate_job(config, job.application, job.event_data)
                 if success:
                     _LOGGER.info("Process dashboard issue %i", job.id)
-                    _process_dashboard_issue(
+                    await _process_dashboard_issue(
                         config,
                         session,
                         job.event_data,
@@ -811,7 +871,7 @@ async def _process_one_job(
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
                 success = False
         else:
-            success = _validate_job(config, job.application, job.event_data)
+            success = await _validate_job(config, job.application, job.event_data)
             if success:
                 success = await _process_job(
                     config,
