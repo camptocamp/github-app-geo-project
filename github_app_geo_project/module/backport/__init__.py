@@ -9,6 +9,9 @@ from typing import TYPE_CHECKING, Any
 
 import aiofiles
 import github
+import githubkit.versions.v2022_11_28.webhooks
+import githubkit.versions.v2022_11_28.webhooks.pull_request
+import githubkit.webhooks
 import security_md
 from pydantic import BaseModel
 
@@ -68,38 +71,42 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
         """Get the action related to the module and the event."""
-        # SECURITY.md update
-        if (
-            context.event_data.get("action") in ("opened", "reopened", "synchronize")
-            and "pull_request" in context.event_data
-        ):
-            for prefix in _BRANCH_PREFIXES:
-                if context.event_data["pull_request"]["head"]["ref"].startswith(prefix):
-                    return [
-                        module.Action(
-                            _ActionData(
-                                type="check",
-                                branch=context.event_data["pull_request"]["head"]["ref"],
-                            ),
-                            checks=True,
-                            priority=module.PRIORITY_STATUS,
-                        ),
-                    ]
-        security_md_update = False
-        for commit in context.event_data.get("commits", []):
-            for file in {*commit.get("added", []), *commit.get("modified", []), *commit.get("removed", [])}:
-                if file == "SECURITY.md":
-                    security_md_update = True
-                    break
-            if security_md_update:
-                break
-        if security_md_update:
-            return [module.Action(_ActionData(type="SECURITY.md"), priority=module.PRIORITY_CRON)]
 
-        if context.event_data.get("action") == "closed" and "pull_request" in context.event_data:
-            return [module.Action(_ActionData(type="pull_request"), priority=module.PRIORITY_STANDARD)]
-        if context.event_data.get("action") == "labeled" and "pull_request" in context.event_data:
-            return [module.Action(_ActionData(type="pull_request"), priority=module.PRIORITY_STANDARD)]
+        if context.event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+
+            # SECURITY.md update
+            if (
+                event_data_pull_request.action in ("opened", "reopened", "synchronize")
+                and "pull_request" in context.event_data
+            ):
+                for prefix in _BRANCH_PREFIXES:
+                    if event_data_pull_request.pull_request.head.ref.startswith(prefix):
+                        return [
+                            module.Action(
+                                _ActionData(
+                                    type="check",
+                                    branch=event_data_pull_request.pull_request.head.ref,
+                                ),
+                                checks=True,
+                                priority=module.PRIORITY_STATUS,
+                            ),
+                        ]
+            actions = (
+                [module.Action(_ActionData(type="SECURITY.md"), priority=module.PRIORITY_CRON)]
+                if event_data_pull_request.action == "closed"
+                else []
+            )
+
+            if event_data_pull_request.action == "closed":
+                actions.append(
+                    module.Action(_ActionData(type="pull_request"), priority=module.PRIORITY_STANDARD),
+                )
+            if event_data_pull_request.action == "labeled":
+                actions.append(
+                    module.Action(_ActionData(type="pull_request"), priority=module.PRIORITY_STANDARD),
+                )
+            return actions
         return []
 
     async def process(
@@ -136,46 +143,67 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     },
                 )
 
-        elif context.module_event_data.type == "SECURITY.md":
-            repo = context.github_project.repo
-            if context.event_data.get("ref") == f"refs/heads/{repo.default_branch}":
-                try:
-                    security_file = repo.get_contents("SECURITY.md")
-                    assert isinstance(security_file, github.ContentFile.ContentFile)
-                    security = security_md.Security(security_file.decoded_content.decode("utf-8"))
-                    branches = {*security.branches()}
-                except github.GithubException as exception:
-                    if exception.status == 404:
-                        _LOGGER.debug("No SECURITY.md file in the repository")
-                        branches = set()
+        elif context.module_event_data.type == "SECURITY.md" and context.event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            if isinstance(
+                event_data_pull_request,
+                githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestClosed,  # type: ignore[attr-defined]
+            ):
+                has_security_md = False
+                commits = (
+                    await context.github_project.aio_github.rest.pulls.async_list_commits(
+                        context.github_project.owner,
+                        context.github_project.repository,
+                        event_data_pull_request.number,
+                    )
+                ).parsed_data
+                for commit in commits:  # type: ignore[attr-defined]
+                    if "SECURITY.md" in [file.filename for file in commit.files]:
+                        has_security_md = True
+                        break
 
-                    else:
-                        _LOGGER.exception("Error while getting SECURITY.md")
-                        raise
+                if not has_security_md:
+                    repo = context.github_project.repo
+                    if event_data_pull_request.pull_request.base.ref == repo.default_branch:
+                        try:
+                            security_file = repo.get_contents("SECURITY.md")
+                            assert isinstance(security_file, github.ContentFile.ContentFile)
+                            security = security_md.Security(security_file.decoded_content.decode("utf-8"))
+                            branches = {*security.branches()}
+                        except github.GithubException as exception:
+                            if exception.status == 404:
+                                _LOGGER.debug("No SECURITY.md file in the repository")
+                                branches = set()
 
-                if branches:
-                    branches.add(repo.default_branch)
+                            else:
+                                _LOGGER.exception("Error while getting SECURITY.md")
+                                raise
 
-                labels_config = context.module_config.get("labels", {})
-                if labels_config.get("auto-delete", configuration.AUTO_DELETE_DEFAULT):
-                    for label in repo.get_labels():
-                        if label.name.startswith("backport "):
-                            branch = label.name[len("backport ") :]
-                            if branch not in branches:
-                                label.delete()
+                        if branches:
+                            branches.add(repo.default_branch)
 
-                if labels_config.get("auto-create", configuration.AUTO_CREATE_DEFAULT):
-                    for branch in branches:
-                        if not repo.get_label(f"backport {branch}"):
-                            repo.create_label(
-                                f"backport {branch}",
-                                labels_config.get("color", configuration.COLOR_DEFAULT),
-                            )
+                        labels_config = context.module_config.get("labels", {})
+                        if labels_config.get("auto-delete", configuration.AUTO_DELETE_DEFAULT):
+                            for label in repo.get_labels():
+                                if label.name.startswith("backport "):
+                                    branch = label.name[len("backport ") :]
+                                    if branch not in branches:
+                                        label.delete()
+
+                        if labels_config.get("auto-create", configuration.AUTO_CREATE_DEFAULT):
+                            for branch in branches:
+                                if not repo.get_label(f"backport {branch}"):
+                                    repo.create_label(
+                                        f"backport {branch}",
+                                        labels_config.get("color", configuration.COLOR_DEFAULT),
+                                    )
 
             return module.ProcessOutput()
 
         if context.module_event_data.type == "pull_request":
-            pull_request = context.github_project.repo.get_pull(context.event_data["pull_request"]["number"])
+            pull_request = context.github_project.repo.get_pull(
+                event_data_pull_request.pull_request.number,
+            )
             if pull_request.state == "closed" and pull_request.merged:
                 branches = set()
                 for label in pull_request.labels:
@@ -201,7 +229,12 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             assert context.module_event_data.pull_request_number is not None
             pull_request = context.github_project.repo.get_pull(context.module_event_data.pull_request_number)
             assert context.module_event_data.branch is not None
-            if await self._backport(context, pull_request, context.module_event_data.branch):
+            if await self._backport(
+                context,
+                event_data_pull_request,
+                pull_request,
+                context.module_event_data.branch,
+            ):
                 return module.ProcessOutput()
             return module.ProcessOutput(
                 success=False,
@@ -215,6 +248,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
     async def _backport(
         self,
         context: module.ProcessContext[configuration.BackportConfiguration, _ActionData],
+        event_data_pull_request: githubkit.versions.v2022_11_28.webhooks.PullRequestEvent,
         pull_request: github.PullRequest.PullRequest,
         target_branch: str,
     ) -> bool:
@@ -289,7 +323,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             pull_request_commits = pull_request.get_commits()
             commits: Iterable[pygithub.Commit] = pull_request_commits
             if pull_request_commits.totalCount != 1:
-                merge_commit_sha = context.event_data["pull_request"].get("merge_commit_sha")
+                merge_commit_sha = event_data_pull_request.pull_request.merge_commit_sha
                 merge_commit = (
                     context.github_project.repo.get_commit(merge_commit_sha) if merge_commit_sha else None
                 )

@@ -7,6 +7,7 @@ from typing import Any
 
 import github
 import github.PullRequest
+import githubkit.webhooks
 
 from github_app_geo_project import module
 from github_app_geo_project.module.pull_request import links_configuration
@@ -111,18 +112,17 @@ class Links(
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """Get the actions to execute."""
-        if (
-            context.event_data.get("action") in ("opened", "reopened", "synchronize")
-            and "pull_request" in context.event_data
-        ):
-            return [
-                module.Action(
-                    {
-                        "pull-request-number": context.event_data.get("pull_request", {}).get("number"),
-                    },
-                    priority=module.PRIORITY_STATUS,
-                ),
-            ]
+        if context.event_name == "pull_request":
+            event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            if event_data.action in ("opened", "reopened", "synchronize"):
+                return [
+                    module.Action(
+                        {
+                            "pull-request-number": event_data.pull_request.number,
+                        },
+                        priority=module.PRIORITY_STATUS,
+                    ),
+                ]
         return []
 
     async def process(

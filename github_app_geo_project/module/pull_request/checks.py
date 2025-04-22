@@ -12,6 +12,9 @@ from typing import Any
 import github
 import github.Commit
 import github.PullRequest
+import githubkit
+import githubkit.versions.v2022_11_28.webhooks
+import githubkit.webhooks
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
@@ -30,6 +33,7 @@ def _get_code_spell_command(
         checks_configuration.PullRequestChecksConfiguration,
         dict[str, Any],
     ],
+    event_data: githubkit.versions.v2022_11_28.webhooks.PullRequestEvent,
     ignore_file: NamedTemporaryFileStr,
 ) -> list[str]:
     """Get the codespell command."""
@@ -45,7 +49,7 @@ def _get_code_spell_command(
         try:
             content = context.github_project.repo.get_contents(
                 spell_ignore_file,
-                ref=context.event_data.get("pull_request", {}).get("head", {}).get("sha"),
+                ref=event_data.pull_request.head.sha,
             )
             if isinstance(content, github.ContentFile.ContentFile):
                 ignore_file.write(content.decoded_content.decode("utf-8"))
@@ -291,19 +295,18 @@ class Checks(
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """Get the actions to execute."""
-        if (
-            context.event_data.get("action") in ("opened", "reopened", "edited", "synchronize")
-            and "pull_request" in context.event_data
-        ):
-            return [
-                module.Action(
-                    {
-                        "pull-request-number": context.event_data.get("pull_request", {}).get("number"),
-                    },
-                    checks=True,
-                    priority=module.PRIORITY_STATUS,
-                ),
-            ]
+        if context.event_name == "pull_request":
+            event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            if event_data.action in ("opened", "reopened", "edited", "synchronize"):
+                return [
+                    module.Action(
+                        {
+                            "pull-request-number": event_data.pull_request.number,
+                        },
+                        checks=True,
+                        priority=module.PRIORITY_STATUS,
+                    ),
+                ]
         return []
 
     async def process(
@@ -314,13 +317,16 @@ class Checks(
         ],
     ) -> module.ProcessOutput[dict[str, Any], None]:
         """Process the module."""
+
+        assert context.event_name == "pull_request"
+        event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
         repo = context.github_project.repo
 
         pull_request = repo.get_pull(number=context.module_event_data["pull-request-number"])
         commits = list(pull_request.get_commits())
 
         with tempfile.NamedTemporaryFile("w+t", encoding="utf-8") as ignore_file:
-            spellcheck_cmd = _get_code_spell_command(context, ignore_file)
+            spellcheck_cmd = _get_code_spell_command(context, event_data, ignore_file)
             success_1, messages_1 = _commits_messages(context.module_config, commits)
             success_2, messages_2 = await _commits_spell(context.module_config, commits, spellcheck_cmd)
             success_3, messages_3 = await _pull_request_spell(

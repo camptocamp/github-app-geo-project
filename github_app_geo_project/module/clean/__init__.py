@@ -14,6 +14,7 @@ import githubkit.exception
 import githubkit.versions
 import githubkit.versions.latest
 import githubkit.versions.latest.models
+import githubkit.webhooks
 import tag_publish.configuration
 import yaml
 from pydantic import BaseModel
@@ -67,26 +68,30 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
         """Get the action related to the module and the event."""
-        if context.event_data.get("action") == "closed" and "pull_request" in context.event_data:
-            return [
-                module.Action(
-                    _ActionData(
-                        type="pull_request",
-                        names=[
-                            str(context.event_data.get("number")),
-                            context.event_data.get("pull_request", {}).get("head", {}).get("ref"),
-                        ],
+        if context.event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            if event_data_pull_request.action == "closed":
+                return [
+                    module.Action(
+                        _ActionData(
+                            type="pull_request",
+                            names=[
+                                str(event_data_pull_request.number),
+                                event_data_pull_request.pull_request.head.ref,
+                            ],
+                        ),
+                        priority=module.PRIORITY_CRON,
                     ),
-                    priority=module.PRIORITY_CRON,
-                ),
-            ]
-        if context.event_name == "delete" and context.event_data.get("ref_type") == "branch":
-            return [
-                module.Action(
-                    _ActionData(type="branch", names=[context.event_data.get("ref", "")]),
-                    priority=module.PRIORITY_CRON,
-                ),
-            ]
+                ]
+        if context.event_name == "delete":
+            event_data_delete = githubkit.webhooks.parse_obj("delete", context.event_data)
+            if event_data_delete.ref_type == "branch":
+                return [
+                    module.Action(
+                        _ActionData(type="branch", names=[event_data_delete.ref]),
+                        priority=module.PRIORITY_CRON,
+                    ),
+                ]
         return []
 
     async def process(

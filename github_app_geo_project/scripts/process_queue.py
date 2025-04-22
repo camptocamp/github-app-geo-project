@@ -22,6 +22,8 @@ import c2cwsgiutils.setup_process
 import githubkit.exception
 import githubkit.versions.latest.models
 import githubkit.versions.latest.types
+import githubkit.versions.v2022_11_28.webhooks.issues
+import githubkit.webhooks
 import plaster
 import prometheus_client.exposition
 import sentry_sdk
@@ -192,6 +194,7 @@ async def _process_job(
                         session,
                         current_module,
                         github_project,
+                        job.event_name,
                         job.event_data,
                         config["service-url"],
                     )
@@ -374,6 +377,7 @@ async def _process_job(
                         session,
                         current_module,
                         github_project,
+                        job.event_name,
                         job.event_data,
                         config["service-url"],
                         action.title,
@@ -664,14 +668,27 @@ async def _process_dashboard_issue(
     """Process changes on the dashboard issue."""
     github_application = await configuration.get_github_application(config, application)
     github_project = await configuration.get_github_project(config, github_application, owner, repository)
+    event_data_issue = githubkit.webhooks.parse_obj("issues", event_data)
 
-    if event_data["issue"]["user"]["login"] == f"{github_application.slug}[bot]":
+    if not isinstance(event_data_issue, githubkit.versions.v2022_11_28.webhooks.issues.WebhookIssuesEdited):  # type: ignore[attr-defined]
+        _LOGGER.debug("Dashboard issue not edited")
+        return
+
+    if event_data_issue.issue.user is None:
+        _LOGGER.warning("No user in the event data")
+        return
+
+    if event_data_issue.issue.user.login == f"{github_application.slug}[bot]":
         dashboard_issue = await _get_dashboard_issue(github_project)
 
-        if dashboard_issue and dashboard_issue.number == event_data["issue"]["number"]:
+        if dashboard_issue and dashboard_issue.number == event_data_issue.issue.number:
             _LOGGER.debug("Dashboard issue edited")
-            old_data = event_data.get("changes", {}).get("body", {}).get("from", "")
-            new_data = event_data["issue"]["body"]
+            old_data = (
+                event_data_issue.changes.body.from_
+                if event_data_issue.changes and event_data_issue.changes.body
+                else ""
+            )
+            new_data = event_data_issue.issue.body or ""
 
             for name in config.get(f"application.{github_project.application.name}.modules", "").split():
                 current_module = modules.MODULES.get(name)
@@ -719,6 +736,7 @@ async def _process_dashboard_issue(
                                     session,
                                     current_module,
                                     github_project,
+                                    "",
                                     {},
                                     config["service-url"],
                                     action.title,
@@ -727,7 +745,7 @@ async def _process_dashboard_issue(
     else:
         _LOGGER.debug(
             "Dashboard event ignored %s!=%s",
-            event_data["issue"]["user"]["login"],
+            event_data_issue.issue.user.login,
             f"{github_application.slug}[bot]",
         )
 

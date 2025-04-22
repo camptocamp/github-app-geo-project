@@ -5,9 +5,11 @@ import logging
 import re
 from abc import abstractmethod
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import github
+import githubkit
+import githubkit.webhooks
 
 from github_app_geo_project import module
 from github_app_geo_project.module.standard import auto_configuration
@@ -49,12 +51,10 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        event_data = context.event_data
-        if (
-            event_data.get("action") in ("opened", "reopened")
-            and event_data.get("pull_request", {}).get("state") == "open"
-        ):
-            return [module.Action(priority=module.PRIORITY_STANDARD, data={}, checks=False)]
+        if context.event_name == "pull_request":
+            event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            if event_data.action in ("opened", "reopened") and event_data.pull_request.state == "open":
+                return [module.Action(priority=module.PRIORITY_STANDARD, data={}, checks=False)]
 
         return []
 
@@ -75,17 +75,19 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
 
         Note that this method is called in the queue consuming Pod
         """
+        assert context.event_name == "pull_request"
+        event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
         for condition in context.module_config.get("conditions", []):
             if (
                 equals_if_defined(
                     condition.get("author"),
-                    cast("str", context.event_data["pull_request"]["user"]["login"]),
+                    event_data.pull_request.user.login if event_data.pull_request.user else "",
                 )
-                and get_re(condition.get("title")).match(context.event_data["pull_request"]["title"])
-                and get_re(condition.get("branch")).match(context.event_data["pull_request"]["head"]["ref"])
+                and get_re(condition.get("title")).match(event_data.pull_request.title)
+                and get_re(condition.get("branch")).match(event_data.pull_request.head.ref)
             ):
                 repository = context.github_project.repo
-                pull_request = repository.get_pull(context.event_data["pull_request"]["number"])
+                pull_request = repository.get_pull(event_data.pull_request.number)
                 self.do_action(context, pull_request)
                 return module.ProcessOutput()
         return module.ProcessOutput()

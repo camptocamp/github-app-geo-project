@@ -347,16 +347,20 @@ async def process_event(context: ProcessContext) -> None:
                 should_create_checks = action.checks
                 if should_create_checks is None:
                     # Auto (major of event that comes from GitHub)
-                    for event_name in ["pull_request", "pusher", "check_run", "check_suite", "workflow_run"]:
-                        if event_name in context.event_data:
-                            should_create_checks = True
-                            break
+                    should_create_checks = context.event_name in [
+                        "pull_request",
+                        "pusher",
+                        "check_run",
+                        "check_suite",
+                        "workflow_run",
+                    ]
                 if should_create_checks and github_project is not None:
                     await create_checks(
                         job,
                         context.session,
                         current_module,
                         github_project,
+                        context.event_name,
                         context.event_data,
                         context.service_url,
                         action.title,
@@ -372,6 +376,7 @@ async def create_checks(
     session: Session,
     current_module: module.Module[Any, Any, Any, Any],
     github_project: configuration.GithubProject,
+    event_name: str,
     event_data: dict[str, Any],
     service_url: str,
     sub_name: str | None = None,
@@ -385,16 +390,21 @@ async def create_checks(
     service_url = urllib.parse.urljoin(service_url, str(job.id))
 
     sha = None
-    if event_data.get("pull_request", {}).get("head", {}).get("sha"):
-        sha = event_data["pull_request"]["head"]["sha"]
-    if "ref" in event_data and "after" in event_data and event_data.get("deleted") is False:
-        sha = event_data["after"]
-    if event_data.get("workflow_run", {}).get("head_sha"):
-        sha = event_data["workflow_run"]["head_sha"]
-    if event_data.get("check_suite", {}).get("head_sha"):
-        sha = event_data["check_suite"]["head_sha"]
-    if event_data.get("check_run", {}).get("head_sha"):
-        sha = event_data["check_run"]["head_sha"]
+    if event_name == "pull_request":
+        event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", event_data)
+        sha = event_data_pull_request.pull_request.head.sha
+    if event_name == "push":
+        event_data_push = githubkit.webhooks.parse_obj("push", event_data)
+        sha = event_data_push.after
+    if event_name == "workflow_run":
+        event_data_workflow_run = githubkit.webhooks.parse_obj("workflow_run", event_data)
+        sha = event_data_workflow_run.workflow_run.head_sha
+    if event_name == "check_suite":
+        event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", event_data)
+        sha = event_data_check_suite.check_suite.head_sha
+    if event_name == "check_run":
+        event_data_check_run = githubkit.webhooks.parse_obj("check_run", event_data)
+        sha = event_data_check_run.check_run.head_sha
     if sha is None:
         branch = (
             await github_project.aio_github.rest.repos.async_get_branch(

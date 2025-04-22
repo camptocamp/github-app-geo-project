@@ -7,9 +7,10 @@ import subprocess  # nosec
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import aiohttp
+import githubkit.webhooks
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
@@ -64,13 +65,15 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if (
-            context.event_data.get("action") == "completed"
-            and context.event_data.get("workflow_run", {}).get("conclusion") == "failure"
-            # Don't run on dynamic workflows like CodeQL
-            and not context.event_data.get("workflow", {}).get("path", {}).startswith("dynamic/")
-        ):
-            return [module.Action(priority=module.PRIORITY_STANDARD, data={})]
+        if context.event_name == "workflow_run":
+            event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
+            if (
+                event_data.action == "completed"
+                and event_data.workflow_run.conclusion == "failure"
+                # Don't run on dynamic workflows like CodeQL
+                and (event_data.workflow is None or not event_data.workflow.path.startswith("dynamic/"))
+            ):
+                return [module.Action(priority=module.PRIORITY_STANDARD, data={})]
         return []
 
     async def process(
@@ -82,18 +85,19 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
 
         Note that this method is called in the queue consuming Pod
         """
+        assert context.event_name == "workflow_run"
+        event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
         repo = context.github_project.repo
-        workflow_run = repo.get_workflow_run(cast("int", context.event_data["workflow_run"]["id"]))
+        workflow_run = repo.get_workflow_run(event_data.workflow_run.id)
         if not workflow_run.get_artifacts():
             _LOGGER.debug("No artifacts found")
             return module.ProcessOutput()
 
-        is_clone = context.event_data.get("workflow_run", {}).get("head_repository", {}).get("owner", {}).get(
-            "login",
-            "",
-        ) != context.event_data.get("workflow_run", {}).get("repository", {}).get("owner", {}).get(
-            "login",
-            "",
+        is_clone = (
+            event_data.workflow_run.head_repository.owner.login
+            != event_data.workflow_run.repository.owner.login
+            if event_data.workflow_run.head_repository.owner and event_data.workflow_run.repository.owner
+            else False
         )
         should_push = False
         result_message = []
