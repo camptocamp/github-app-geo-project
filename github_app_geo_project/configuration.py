@@ -186,10 +186,13 @@ async def get_github_project(
     aio_repo = (await aio_github.rest.repos.async_get(owner, repository)).parsed_data
     aio_app_auth = aio_github.auth.get_auth_flow(aio_github)
     assert isinstance(aio_app_auth, githubkit.auth.app.AppAuth)
+    aio_access_token = (
+        await aio_github.rest.apps.async_create_installation_access_token(aio_installation.id)
+    ).parsed_data
 
     return GithubProject(
         github_application,
-        await aio_app_auth.aget_jwt(),
+        aio_access_token.token,
         owner,
         repository,
         repo,
