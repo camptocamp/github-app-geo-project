@@ -112,19 +112,24 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.rw_engine
     SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
+    project_github = (
+        await configuration.get_github_project(
+            request.registry.settings,
+            application,
+            owner,
+            repository,
+        )
+        if "TEST_APPLICATION" not in os.environ
+        else None
+    )
     with SessionMaker() as session:
         re_requested_check_suite_id = _get_re_requested_check_suite_id(
             request.headers.get("X-GitHub-Event", "undefined"),
             data,
         )
-        if re_requested_check_suite_id is not None:
+        if re_requested_check_suite_id is not None and "TEST_APPLICATION" not in os.environ:
+            assert project_github is not None
             try:
-                project_github = await configuration.get_github_project(
-                    request.registry.settings,
-                    application,
-                    owner,
-                    repository,
-                )
                 check_suite = await project_github.aio_github.rest.checks.async_get_suite(
                     owner=owner,
                     repo=repository,
@@ -179,13 +184,8 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
                 ),
             )
             if "TEST_APPLICATION" not in os.environ:
+                assert project_github is not None
                 try:
-                    project_github = await configuration.get_github_project(
-                        request.registry.settings,
-                        application,
-                        owner,
-                        repository,
-                    )
                     await project_github.aio_github.rest.checks.async_update(
                         owner=owner,
                         repo=repository,
@@ -338,14 +338,6 @@ async def process_event(context: ProcessContext) -> None:
                 context.session.add(job)
                 context.session.flush()
                 github_project = None
-
-                if "TEST_APPLICATION" not in os.environ:
-                    github_project = await configuration.get_github_project(
-                        context.config,
-                        context.application,
-                        context.owner,
-                        context.repository,
-                    )
 
                 should_create_checks = action.checks
                 if should_create_checks is None:
