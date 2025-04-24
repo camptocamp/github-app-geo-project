@@ -21,6 +21,22 @@ from github_app_geo_project.module import modules
 _LOGGER = logging.getLogger(__name__)
 
 
+def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]) -> int | None:
+    """Check if the event is a rerequested event."""
+    if event_name != "check_run":
+        return None
+
+    event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", event_data)
+    if (
+        event_data_check_suite.action == "rerequested"
+        and event_data_check_suite.check_suite
+        and event_data_check_suite.check_suite.id
+        and "TEST_APPLICATION" not in os.environ
+    ):
+        return event_data_check_suite.check_suite.id
+    return None
+
+
 async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
     """Receive GitHub application webhook URL."""
     application = request.matchdict["application"]
@@ -97,11 +113,11 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
     engine = session_factory.rw_engine
     SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
     with SessionMaker() as session:
-        if (
-            data.get("action") == "rerequested"
-            and data.get("check_suite", {}).get("id")
-            and "TEST_APPLICATION" not in os.environ
-        ):
+        re_requested_check_suite_id = _get_re_requested_check_suite_id(
+            request.headers.get("X-GitHub-Event", "undefined"),
+            data,
+        )
+        if re_requested_check_suite_id is not None:
             try:
                 project_github = await configuration.get_github_project(
                     request.registry.settings,
@@ -112,16 +128,16 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
                 check_suite = await project_github.aio_github.rest.checks.async_get_suite(
                     owner=owner,
                     repo=repository,
-                    check_suite_id=data["check_suite"]["id"],
+                    check_suite_id=re_requested_check_suite_id,
                 )
                 check_runs = await project_github.aio_github.rest.checks.async_list_for_suite(
                     owner=owner,
                     repo=repository,
-                    check_suite_id=data["check_suite"]["id"],
+                    check_suite_id=re_requested_check_suite_id,
                 )
                 for check_run in check_runs.parsed_data.check_runs:
                     _LOGGER.info(
-                        "Rerequest the check run %s from check suite %s",
+                        "Re request the check run %s from check suite %s",
                         check_run.id,
                         check_suite.parsed_data.id,
                     )
