@@ -7,9 +7,10 @@ from typing import Any, NamedTuple, cast
 
 import github
 import github as github_lib
+import githubkit.cache
 import githubkit.versions.latest.models
-import githubkit.versions.latest.types
 import jsonmerge
+import redis.asyncio.client
 import yaml
 from deprecated import deprecated
 
@@ -77,6 +78,9 @@ class GithubApplication(NamedTuple):
     aio_github: githubkit.GitHub[githubkit.AppAuthStrategy]
     """The githubkit GitHub"""
     aio_application: githubkit.versions.latest.models.Integration
+    """The githubkit application object"""
+    aio_cache_strategy: githubkit.cache.BaseCacheStrategy
+    """The githubkit cache strategy for the application"""
 
 
 class GithubProject(NamedTuple):
@@ -129,7 +133,18 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
         auth = github.Auth.AppAuth(application_id, private_key)
 
         aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
-        aio_github = githubkit.GitHub(aio_auth)
+        aio_cache_strategy = githubkit.cache.AsyncRedisCacheStrategy(
+            redis.asyncio.client.Redis(
+                host=os.environ.get("REDIS_HOST", "localhost"),
+                port=int(os.environ.get("REDIS_PORT", "6379")),
+                db=int(os.environ.get("REDIS_DB", "0")),
+                username=os.environ.get("REDIS_USERNAME"),
+                password=os.environ.get("REDIS_PASSWORD"),
+                ssl=os.environ.get("REDIS_SSL", "false").lower() in ("true", "1", "yes"),
+            ),
+            prefix="githubkit-",
+        )
+        aio_github = githubkit.GitHub(aio_auth, cache_strategy=aio_cache_strategy)
         aio_application_response = await aio_github.rest.apps.async_get_authenticated()
         aio_application = aio_application_response.parsed_data
         assert aio_application is not None
@@ -145,6 +160,7 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
             aio_auth,
             aio_github,
             aio_application,
+            aio_cache_strategy,
         )
 
         GITHUB_APPLICATIONS[application_name] = objects
@@ -182,7 +198,9 @@ async def get_github_project(
     aoi_installation_auth_strategy = github_application.aio_auth.as_installation(
         aio_installation.id,
     )
-    aio_github = github_application.aio_github.with_auth(aoi_installation_auth_strategy)
+    aio_github = github_application.aio_github.with_auth(
+        aoi_installation_auth_strategy,
+    )
     aio_repo = (await aio_github.rest.repos.async_get(owner, repository)).parsed_data
     aio_app_auth = aio_github.auth.get_auth_flow(aio_github)
     assert isinstance(aio_app_auth, githubkit.auth.app.AppAuth)
