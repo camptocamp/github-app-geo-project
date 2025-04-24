@@ -21,8 +21,7 @@ from github_app_geo_project.module import modules
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="webhook", renderer="json")  # type: ignore[misc]
-def webhook(request: pyramid.request.Request) -> dict[str, None]:
+async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
     """Receive GitHub application webhook URL."""
     application = request.matchdict["application"]
     data = request.json
@@ -57,15 +56,17 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
     application_object = None
     # triggering_actor can also be used to avoid infinite event loop
     try:
-        application_object = asyncio.run(
-            configuration.get_github_application(request.registry.settings, application),
+        application_object = await configuration.get_github_application(
+            request.registry.settings,
+            application,
         )
         if data.get("sender", {}).get("login") == application_object.slug + "[bot]":
             _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
     except Exception:  # pylint: disable=broad-exception-caught
         del configuration.GITHUB_APPLICATIONS[application]
-        application_object = asyncio.run(
-            configuration.get_github_application(request.registry.settings, application),
+        application_object = await configuration.get_github_application(
+            request.registry.settings,
+            application,
         )
         if data.get("sender", {}).get("login") == application_object.slug + "[bot]":
             _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
@@ -102,27 +103,21 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             and "TEST_APPLICATION" not in os.environ
         ):
             try:
-                project_github = asyncio.run(
-                    configuration.get_github_project(
-                        request.registry.settings,
-                        application,
-                        owner,
-                        repository,
-                    ),
+                project_github = await configuration.get_github_project(
+                    request.registry.settings,
+                    application,
+                    owner,
+                    repository,
                 )
-                check_suite = asyncio.run(
-                    project_github.aio_github.rest.checks.async_get_suite(
-                        owner=owner,
-                        repo=repository,
-                        check_suite_id=data["check_suite"]["id"],
-                    ),
+                check_suite = await project_github.aio_github.rest.checks.async_get_suite(
+                    owner=owner,
+                    repo=repository,
+                    check_suite_id=data["check_suite"]["id"],
                 )
-                check_runs = asyncio.run(
-                    project_github.aio_github.rest.checks.async_list_for_suite(
-                        owner=owner,
-                        repo=repository,
-                        check_suite_id=data["check_suite"]["id"],
-                    ),
+                check_runs = await project_github.aio_github.rest.checks.async_list_for_suite(
+                    owner=owner,
+                    repo=repository,
+                    check_suite_id=data["check_suite"]["id"],
                 )
                 for check_run in check_runs.parsed_data.check_runs:
                     _LOGGER.info(
@@ -142,13 +137,11 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                         ),
                     )
                     session.commit()
-                    asyncio.run(
-                        project_github.aio_github.rest.checks.async_update(
-                            owner=owner,
-                            repo=repository,
-                            check_run_id=check_run.id,
-                            data={"status": "queued"},
-                        ),
+                    await project_github.aio_github.rest.checks.async_update(
+                        owner=owner,
+                        repo=repository,
+                        check_run_id=check_run.id,
+                        data={"status": "queued"},
                     )
             except githubkit.exception.RequestFailed as exception:
                 if exception.response.status_code == 404:
@@ -171,21 +164,17 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
             )
             if "TEST_APPLICATION" not in os.environ:
                 try:
-                    project_github = asyncio.run(
-                        configuration.get_github_project(
-                            request.registry.settings,
-                            application,
-                            owner,
-                            repository,
-                        ),
+                    project_github = await configuration.get_github_project(
+                        request.registry.settings,
+                        application,
+                        owner,
+                        repository,
                     )
-                    asyncio.run(
-                        project_github.aio_github.rest.checks.async_update(
-                            owner=owner,
-                            repo=repository,
-                            check_run_id=data["check_run"]["id"],
-                            data={"status": "queued"},
-                        ),
+                    await project_github.aio_github.rest.checks.async_update(
+                        owner=owner,
+                        repo=repository,
+                        check_run_id=data["check_run"]["id"],
+                        data={"status": "queued"},
                     )
                 except githubkit.exception.RequestFailed as exception:
                     if exception.response.status_code == 404:
@@ -214,19 +203,17 @@ def webhook(request: pyramid.request.Request) -> dict[str, None]:
                 ),
             )
 
-        asyncio.run(
-            process_event(
-                ProcessContext(
-                    owner=owner,
-                    repository=repository,
-                    config=request.registry.settings,
-                    application=application,
-                    event_name=request.headers.get("X-GitHub-Event", "undefined"),
-                    event_data=data,
-                    session=session,
-                    github_application=application_object,
-                    service_url=request.route_url("home"),
-                ),
+        await process_event(
+            ProcessContext(
+                owner=owner,
+                repository=repository,
+                config=request.registry.settings,
+                application=application,
+                event_name=request.headers.get("X-GitHub-Event", "undefined"),
+                event_data=data,
+                session=session,
+                github_application=application_object,
+                service_url=request.route_url("home"),
             ),
         )
         session.commit()
@@ -429,3 +416,9 @@ async def create_checks(
     job.check_run_id = check_run.id
     session.commit()
     return check_run
+
+
+@view_config(route_name="webhook", renderer="json")  # type: ignore[misc]
+def webhook(request: pyramid.request.Request) -> dict[str, None]:
+    """Receive GitHub application webhook URL."""
+    return asyncio.run(async_webhook(request))
