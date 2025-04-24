@@ -342,6 +342,7 @@ async def _process_job(
                             "text": check_output.get("text", ""),
                         },
                     )
+                    _LOGGER.debug("Check run %s updated", job.check_run_id)
                 except githubkit.exception.RequestFailed as exception:
                     _LOGGER.exception(
                         "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
@@ -386,6 +387,7 @@ async def _process_job(
                     session.add(new_job)
             session.commit()
             new_issue_data = result.dashboard if result is not None else None
+            _LOGGER.debug("Job queue updated")
         except githubkit.exception.RequestFailed as exception:
             job.status = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
@@ -555,6 +557,7 @@ async def _process_job(
         and current_module.required_issue_dashboard()
         and new_issue_data is not None
     ):
+        _LOGGER.debug("Update dashboard issue")
         dashboard_issue = await _get_dashboard_issue(github_project)
 
         if dashboard_issue:
