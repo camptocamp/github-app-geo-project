@@ -1,18 +1,15 @@
 """Output view."""
 
-import asyncio
 import json
 import logging
 from pathlib import Path
 from typing import Any
 
-import pyramid.httpexceptions
 import pyramid.request
-import pyramid.response
-import pyramid.security
 from pyramid.view import view_config
 
 from github_app_geo_project.module import modules
+from github_app_geo_project.views import get_event_loop
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -42,7 +39,7 @@ def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
             "description": modules.MODULES[module_name].description(),
             "allOf": [
                 {"$ref": "#/$defs/module-configuration"},
-                asyncio.run(modules.MODULES[module_name].get_json_schema()),
+                get_event_loop().run_until_complete(modules.MODULES[module_name].get_json_schema()),
             ],
         }
 

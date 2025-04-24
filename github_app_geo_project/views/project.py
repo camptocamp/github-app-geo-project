@@ -1,6 +1,5 @@
 """Output view."""
 
-import asyncio
 import datetime
 import logging
 import os
@@ -14,6 +13,7 @@ from pyramid.view import view_config
 from github_app_geo_project import configuration, models, project_configuration, utils
 from github_app_geo_project.module import modules
 from github_app_geo_project.templates import pprint_duration, pprint_full_date, pprint_short_date
+from github_app_geo_project.views import get_event_loop
 
 if TYPE_CHECKING:
     import githubkit.versions.latest.models
@@ -72,7 +72,7 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
         applications.setdefault(app, {})
         try:
             if "TEST_APPLICATION" not in os.environ:
-                github_project = asyncio.run(
+                github_project = get_event_loop().run_until_complete(
                     configuration.get_github_project(
                         request.registry.settings,
                         app,
@@ -80,19 +80,23 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                         repository,
                     ),
                 )
-                config = asyncio.run(
+                config = get_event_loop().run_until_complete(
                     configuration.get_configuration(
                         github_project,
                     ),
                 )
-                issues = asyncio.run(
-                    github_project.aio_github.rest.issues.async_list_for_repo(
-                        owner,
-                        repository,
-                        state="open",
-                        creator=f"{github_project.application.slug}[bot]",
-                    ),
-                ).parsed_data
+                issues = (
+                    get_event_loop()
+                    .run_until_complete(
+                        github_project.aio_github.rest.issues.async_list_for_repo(
+                            owner,
+                            repository,
+                            state="open",
+                            creator=f"{github_project.application.slug}[bot]",
+                        ),
+                    )
+                    .parsed_data
+                )
                 assert isinstance(issues, list)
                 issues = cast("list[githubkit.versions.latest.models.Issue]", issues)
                 for issue in issues:

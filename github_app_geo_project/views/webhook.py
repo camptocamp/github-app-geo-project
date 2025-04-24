@@ -1,6 +1,5 @@
 """Webhook view."""
 
-import asyncio
 import logging
 import os
 import urllib.parse
@@ -17,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from github_app_geo_project import configuration, models, module
 from github_app_geo_project.module import modules
+from github_app_geo_project.views import get_event_loop
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -437,4 +437,4 @@ async def create_checks(
 @view_config(route_name="webhook", renderer="json")  # type: ignore[misc]
 def webhook(request: pyramid.request.Request) -> dict[str, None]:
     """Receive GitHub application webhook URL."""
-    return asyncio.run(async_webhook(request))
+    return get_event_loop().run_until_complete(async_webhook(request))

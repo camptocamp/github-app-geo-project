@@ -1,6 +1,5 @@
 """Output view."""
 
-import asyncio
 import logging
 import os
 from typing import Any, Literal, cast
@@ -11,6 +10,7 @@ from pyramid.view import view_config
 
 from github_app_geo_project import configuration, module
 from github_app_geo_project.module import modules
+from github_app_geo_project.views import get_event_loop
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,12 +87,14 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             try:
                 if "TEST_APPLICATION" not in os.environ:
                     github_application = (
-                        asyncio.run(configuration.get_github_application(request.registry.settings, app))
+                        get_event_loop().run_until_complete(
+                            configuration.get_github_application(request.registry.settings, app),
+                        )
                         if admin
                         else None
                     )
 
-                    github_authenticated_response = asyncio.run(
+                    github_authenticated_response = get_event_loop().run_until_complete(
                         github_application.aio_github.rest.apps.async_get_authenticated(),
                     )
                     github_authenticated = github_authenticated_response.parsed_data
