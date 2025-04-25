@@ -1,6 +1,6 @@
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
-import github
+import githubkit.exception
 import pytest
 
 from github_app_geo_project.module.workflow import Workflow
@@ -161,13 +161,22 @@ async def test_process_success() -> None:
     context = MagicMock()
     context.github_project.owner = "owner"
     context.github_project.repository = "repository"
-    repo = MagicMock()
-    context.github_project.repo = repo
-    repo.get_contents.side_effect = github.GithubException(status=404)
-    repo.default_branch = "master"
     context.event_name = "workflow_run"
     context.event_data = dict(_EVENT)
     context.event_data["workflow_run"]["conclusion"] = "success"
+
+    repo = MagicMock()
+    context.github_project.aio_repo = repo
+    repo.default_branch = "master"
+    github = MagicMock()
+    context.github_project.aio_github = github
+    rest = MagicMock()
+    github.rest = rest
+    repos = AsyncMock()
+    rest.repos = repos
+    response = MagicMock()
+    response.status_code = 404
+    repos.async_get_content.side_effect = githubkit.exception.RequestFailed(response)
 
     # Create an instance of the Workflow class
     workflow = Workflow()
@@ -196,13 +205,22 @@ async def test_process_failure() -> None:
     context = MagicMock()
     context.github_project.owner = "owner"
     context.github_project.repository = "repository"
-    repo = MagicMock()
-    context.github_project.repo = repo
-    repo.get_contents.side_effect = github.GithubException(status=404)
-    repo.default_branch = "master"
     context.event_name = "workflow_run"
     context.event_data = dict(_EVENT)
     context.event_data["workflow_run"]["conclusion"] = "failure"
+
+    repo = MagicMock()
+    context.github_project.aio_repo = repo
+    repo.default_branch = "master"
+    github = MagicMock()
+    context.github_project.aio_github = github
+    rest = MagicMock()
+    github.rest = rest
+    repos = AsyncMock()
+    rest.repos = repos
+    response = MagicMock()
+    response.status_code = 404
+    repos.async_get_content.side_effect = githubkit.exception.RequestFailed(response)
 
     # Create an instance of the Workflow class
     workflow = Workflow()
