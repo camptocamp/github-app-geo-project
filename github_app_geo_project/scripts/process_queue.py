@@ -21,7 +21,6 @@ import aiofiles
 import c2cwsgiutils.setup_process
 import githubkit.exception
 import githubkit.versions.latest.models
-import githubkit.versions.latest.types
 import githubkit.versions.v2022_11_28.webhooks.issues
 import githubkit.webhooks
 import plaster
@@ -603,17 +602,41 @@ async def _process_event(
         _LOGGER.info("Process the event: %s, application: %s", event_data.get("name"), application)
 
         if "TEST_APPLICATION" in os.environ:
+            test_application = os.environ["TEST_APPLICATION"]
+            github_application = configuration.GithubApplication(
+                None,  # type: ignore[arg-type]
+                test_application,
+                0,
+                "",
+                "",
+                None,  # type: ignore[arg-type]
+                None,  # type: ignore[arg-type]
+                None,  # type: ignore[arg-type]
+                None,
+            )
+            github_project = configuration.GithubProject(
+                github_application,
+                "",
+                "camptocamp",
+                "test",
+                None,  # type: ignore[arg-type]
+                None,  # type: ignore[arg-type]
+                None,  # type: ignore[arg-type]
+                None,
+            )
             await webhook.process_event(
-                webhook.ProcessContext(
-                    owner="camptocamp",
-                    repository="test",
-                    config=config,
-                    application=os.environ["TEST_APPLICATION"],
+                module.ProcessContext(
                     event_name="event",
                     event_data=event_data,
                     session=session,
-                    github_application=None,  # type: ignore[arg-type]
+                    github_project=github_project,
                     service_url=config["service-url"],
+                    module_config=None,
+                    module_event_data={
+                        "modules": config.get(f"application.{test_application}.modules", "").split(),
+                    },
+                    issue_data="",
+                    job_id=0,
                 ),
             )
         else:
@@ -622,17 +645,25 @@ async def _process_event(
                 await github_application.aio_github.rest.apps.async_list_repos_accessible_to_installation()
             ).parsed_data
             for repo in repos.repositories:
+                github_project = await configuration.get_github_project(
+                    config,
+                    github_application,
+                    repo.owner.login,
+                    repo.name,
+                )
                 await webhook.process_event(
-                    webhook.ProcessContext(
-                        owner=repo.owner.login,
-                        repository=repo.name,
-                        config=config,
-                        application=application,
+                    module.ProcessContext(
                         event_name="event",
                         event_data=event_data,
                         session=session,
-                        github_application=github_application,
+                        github_project=github_project,
                         service_url=config["service-url"],
+                        module_config=None,
+                        module_event_data={
+                            "modules": config.get(f"application.{application}.modules", "").split(),
+                        },
+                        issue_data="",
+                        job_id=0,
                     ),
                 )
 

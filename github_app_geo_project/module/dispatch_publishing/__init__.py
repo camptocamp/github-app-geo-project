@@ -6,7 +6,6 @@ import os
 import re
 from typing import Any
 
-import githubkit.versions.v2022_11_28.webhooks.repository_dispatch
 import githubkit.webhooks
 from pydantic import BaseModel
 
