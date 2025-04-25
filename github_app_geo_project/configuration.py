@@ -79,7 +79,7 @@ class GithubApplication(NamedTuple):
     """The githubkit GitHub"""
     aio_application: githubkit.versions.latest.models.Integration
     """The githubkit application object"""
-    aio_cache_strategy: githubkit.cache.BaseCacheStrategy
+    aio_cache_strategy: githubkit.cache.BaseCacheStrategy | None
     """The githubkit cache strategy for the application"""
 
 
@@ -133,16 +133,20 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
         auth = github.Auth.AppAuth(application_id, private_key)
 
         aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
-        aio_cache_strategy = githubkit.cache.AsyncRedisCacheStrategy(
-            redis.asyncio.client.Redis(
-                host=os.environ.get("REDIS_HOST", "localhost"),
-                port=int(os.environ.get("REDIS_PORT", "6379")),
-                db=int(os.environ.get("REDIS_DB", "0")),
-                username=os.environ.get("REDIS_USERNAME"),
-                password=os.environ.get("REDIS_PASSWORD"),
-                ssl=os.environ.get("REDIS_SSL", "false").lower() in ("true", "1", "yes"),
-            ),
-            prefix="githubkit-",
+        aio_cache_strategy = (
+            githubkit.cache.AsyncRedisCacheStrategy(
+                redis.asyncio.client.Redis(
+                    host=os.environ["REDIS_HOST"],
+                    port=int(os.environ.get("REDIS_PORT", "6379")),
+                    db=int(os.environ.get("REDIS_DB", "0")),
+                    username=os.environ.get("REDIS_USERNAME"),
+                    password=os.environ.get("REDIS_PASSWORD"),
+                    ssl=os.environ.get("REDIS_SSL", "false").lower() in ("true", "1", "yes"),
+                ),
+                prefix="githubkit-",
+            )
+            if "REDIS_HOST" in os.environ
+            else None
         )
         aio_github = githubkit.GitHub(aio_auth, cache_strategy=aio_cache_strategy)
         aio_application_response = await aio_github.rest.apps.async_get_authenticated()
