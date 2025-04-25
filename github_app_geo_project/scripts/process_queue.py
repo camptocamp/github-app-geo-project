@@ -134,13 +134,7 @@ async def _process_job(
     issue_data = ""
     module_config: project_configuration.ModuleConfiguration = {}
     github_project: configuration.GithubProject | None = None
-    check_run: (
-        githubkit.Response[
-            githubkit.versions.latest.models.CheckRun,
-            githubkit.versions.latest.types.CheckRunType,
-        ]
-        | None
-    ) = None
+    check_run: githubkit.versions.latest.models.CheckRun | None = None
     if "TEST_APPLICATION" not in os.environ:
         github_application = await configuration.get_github_application(config, job.application)
         github_project = await configuration.get_github_project(
@@ -180,11 +174,13 @@ async def _process_job(
             ),
         )
         if job.check_run_id is not None:
-            check_run = await github_project.aio_github.rest.checks.async_get(
-                owner=job.owner,
-                repo=job.repository,
-                check_run_id=job.check_run_id,
-            )
+            check_run = (
+                await github_project.aio_github.rest.checks.async_get(
+                    owner=job.owner,
+                    repo=job.repository,
+                    check_run_id=job.check_run_id,
+                )
+            ).parsed_data
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         try:
             if "TEST_APPLICATION" not in os.environ and github_project is not None:
@@ -203,7 +199,7 @@ async def _process_job(
                 await github_project.aio_github.rest.checks.async_update(
                     owner=job.owner,
                     repo=job.repository,
-                    check_run_id=check_run.parsed_data.id,
+                    check_run_id=check_run.id,
                     external_id=str(job.id),
                     status="in_progress",
                     details_url=logs_url,
@@ -333,7 +329,7 @@ async def _process_job(
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
-                        check_run_id=check_run.parsed_data.id,
+                        check_run_id=check_run.id,
                         status="completed",
                         conclusion="success" if result is None or result.success else "failure",
                         output={
@@ -414,7 +410,7 @@ async def _process_job(
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
-                        check_run_id=check_run.parsed_data.id,
+                        check_run_id=check_run.id,
                         status="completed",
                         conclusion="failure",
                         output={
@@ -462,7 +458,7 @@ async def _process_job(
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
-                        check_run_id=check_run.parsed_data.id,
+                        check_run_id=check_run.id,
                         status="completed",
                         conclusion="failure",
                         output={
@@ -498,7 +494,7 @@ async def _process_job(
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
-                        check_run_id=check_run.parsed_data.id,
+                        check_run_id=check_run.id,
                         status="completed",
                         conclusion="failure",
                         output={
@@ -528,7 +524,7 @@ async def _process_job(
                 await github_project.aio_github.rest.checks.async_update(
                     owner=job.owner,
                     repo=job.repository,
-                    check_run_id=check_run.parsed_data.id,
+                    check_run_id=check_run.id,
                     status="completed",
                     conclusion="skipped",
                 )
