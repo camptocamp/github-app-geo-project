@@ -189,7 +189,7 @@ async def _process_job(
         try:
             if "TEST_APPLICATION" not in os.environ and github_project is not None:
                 if job.check_run_id is None:
-                    check_run = webhook.create_checks(
+                    check_run = await webhook.create_checks(
                         job,
                         session,
                         current_module,
