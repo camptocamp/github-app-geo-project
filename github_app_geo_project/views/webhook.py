@@ -401,6 +401,7 @@ async def create_checks(
         event_data_check_run = githubkit.webhooks.parse_obj("check_run", event_data)
         sha = event_data_check_run.check_run.head_sha
     if sha is None:
+        assert github_project.aio_repo is not None
         branch = (
             await github_project.aio_github.rest.repos.async_get_branch(
                 owner=github_project.owner,
