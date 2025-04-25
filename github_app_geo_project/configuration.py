@@ -112,9 +112,6 @@ class GithubProject(NamedTuple):
     """The githubkit repository object"""
 
 
-GITHUB_APPLICATIONS: dict[str, GithubApplication] = {}
-
-
 async def get_github_application(config: dict[str, Any], application_name: str) -> GithubApplication:
     """Get the Github Application objects by name."""
     applications = config.get("applications", "").split()
@@ -123,54 +120,49 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
             f"Application {application_name} not found, available applications: {', '.join(applications)}"
         )
         raise ValueError(message)
-    if application_name not in GITHUB_APPLICATIONS:  # pylint: disable=undefined-variable
-        private_key = "\n".join(
-            [
-                e.strip()
-                for e in config[f"application.{application_name}.github_app_private_key"].strip().split("\n")
-            ],
+    private_key = "\n".join(
+        [
+            e.strip()
+            for e in config[f"application.{application_name}.github_app_private_key"].strip().split("\n")
+        ],
+    )
+    application_id = config[f"application.{application_name}.github_app_id"]
+    auth = github.Auth.AppAuth(application_id, private_key)
+
+    aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
+    aio_cache_strategy = (
+        githubkit.cache.AsyncRedisCacheStrategy(
+            redis.asyncio.client.Redis(
+                host=os.environ["REDIS_HOST"],
+                port=int(os.environ.get("REDIS_PORT", "6379")),
+                db=int(os.environ.get("REDIS_DB", "0")),
+                username=os.environ.get("REDIS_USERNAME"),
+                password=os.environ.get("REDIS_PASSWORD"),
+                ssl=os.environ.get("REDIS_SSL", "false").lower() in ("true", "1", "yes"),
+            ),
+            prefix="githubkit-",
         )
-        application_id = config[f"application.{application_name}.github_app_id"]
-        auth = github.Auth.AppAuth(application_id, private_key)
+        if "REDIS_HOST" in os.environ
+        else None
+    )
+    aio_github = githubkit.GitHub(aio_auth, cache_strategy=aio_cache_strategy)
+    aio_application_response = await aio_github.rest.apps.async_get_authenticated()
+    aio_application = aio_application_response.parsed_data
+    assert aio_application is not None
+    slug = aio_application.slug
+    assert isinstance(slug, str)
 
-        aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
-        aio_cache_strategy = (
-            githubkit.cache.AsyncRedisCacheStrategy(
-                redis.asyncio.client.Redis(
-                    host=os.environ["REDIS_HOST"],
-                    port=int(os.environ.get("REDIS_PORT", "6379")),
-                    db=int(os.environ.get("REDIS_DB", "0")),
-                    username=os.environ.get("REDIS_USERNAME"),
-                    password=os.environ.get("REDIS_PASSWORD"),
-                    ssl=os.environ.get("REDIS_SSL", "false").lower() in ("true", "1", "yes"),
-                ),
-                prefix="githubkit-",
-            )
-            if "REDIS_HOST" in os.environ
-            else None
-        )
-        aio_github = githubkit.GitHub(aio_auth, cache_strategy=aio_cache_strategy)
-        aio_application_response = await aio_github.rest.apps.async_get_authenticated()
-        aio_application = aio_application_response.parsed_data
-        assert aio_application is not None
-        slug = aio_application.slug
-        assert isinstance(slug, str)
-
-        objects = GithubApplication(
-            github.GithubIntegration(auth=auth, retry=3),
-            application_name,
-            application_id,
-            private_key,
-            slug,
-            aio_auth,
-            aio_github,
-            aio_application,
-            aio_cache_strategy,
-        )
-
-        GITHUB_APPLICATIONS[application_name] = objects
-
-    return GITHUB_APPLICATIONS[application_name]
+    return GithubApplication(
+        github.GithubIntegration(auth=auth, retry=3),
+        application_name,
+        application_id,
+        private_key,
+        slug,
+        aio_auth,
+        aio_github,
+        aio_application,
+        aio_cache_strategy,
+    )
 
 
 async def get_github_project(
