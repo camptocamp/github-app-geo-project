@@ -100,11 +100,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
             if event_data_pull_request.action == "closed":
                 actions.append(
-                    module.Action(_ActionData(type="pull_request"), priority=module.PRIORITY_STANDARD),
+                    module.Action(_ActionData(type="backport"), priority=module.PRIORITY_STANDARD),
                 )
             if event_data_pull_request.action == "labeled":
                 actions.append(
-                    module.Action(_ActionData(type="pull_request"), priority=module.PRIORITY_STANDARD),
+                    module.Action(_ActionData(type="backport"), priority=module.PRIORITY_STANDARD),
                 )
             return actions
         return []
@@ -115,35 +115,36 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
     ) -> module.ProcessOutput[_ActionData, None]:
         """Process the action."""
         if context.module_event_data.type == "check":
+            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
             # get the BACKPORT_TODO file
-            repo = context.github_project.repo
-            try:
-                branch = context.module_event_data.branch
-                assert branch is not None
-                backport_todo = repo.get_contents("BACKPORT_TODO", ref=branch)
-                assert isinstance(backport_todo, github.ContentFile.ContentFile)
-                return module.ProcessOutput(
-                    success=False,
-                    output={
-                        "title": "BACKPORT_TODO file found",
-                        "summary": "There is a BACKPORT_TODO file in the branch, he should be threaded and removed\n\n"
-                        + backport_todo.decoded_content.decode("utf-8"),
-                    },
-                )
+            if event_data_pull_request.action in ("opened", "reopened", "synchronize"):
+                repo = context.github_project.repo
+                try:
+                    branch = context.module_event_data.branch
+                    assert branch is not None
+                    backport_todo = repo.get_contents("BACKPORT_TODO", ref=branch)
+                    assert isinstance(backport_todo, github.ContentFile.ContentFile)
+                    return module.ProcessOutput(
+                        success=False,
+                        output={
+                            "title": "BACKPORT_TODO file found",
+                            "summary": "There is a BACKPORT_TODO file in the branch, he should be threaded and removed\n\n"
+                            + backport_todo.decoded_content.decode("utf-8"),
+                        },
+                    )
 
-            except github.GithubException as exception:
-                if exception.status == 404:
-                    return module.ProcessOutput()
-                _LOGGER.exception("Error while getting BACKPORT_TODO file")
-                return module.ProcessOutput(
-                    success=False,
-                    output={
-                        "title": "BACKPORT_TODO error",
-                        "summary": "Error while getting BACKPORT_TODO file",
-                    },
-                )
-
-        elif context.module_event_data.type == "SECURITY.md" and context.event_name == "pull_request":
+                except github.GithubException as exception:
+                    if exception.status == 404:
+                        return module.ProcessOutput()
+                    _LOGGER.exception("Error while getting BACKPORT_TODO file")
+                    return module.ProcessOutput(
+                        success=False,
+                        output={
+                            "title": "BACKPORT_TODO error",
+                            "summary": "Error while getting BACKPORT_TODO file",
+                        },
+                    )
+        elif context.module_event_data.type == "SECURITY.md":
             event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
             if isinstance(
                 event_data_pull_request,
@@ -199,8 +200,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                                     )
 
             return module.ProcessOutput()
-
-        if context.module_event_data.type == "pull_request":
+        elif context.module_event_data.type == "backport":
+            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
             pull_request = context.github_project.repo.get_pull(
                 event_data_pull_request.pull_request.number,
             )
