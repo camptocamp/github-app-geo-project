@@ -92,7 +92,7 @@ class CleanupContext(NamedTuple, Generic[_EVENT_DATA]):
     """The github application."""
     event_name: str
     """The event name present in the X-GitHub-Event header."""
-    event_data: Mapping[str, Any]
+    event_data: dict[str, Any]
     """The event data."""
     module_data: _EVENT_DATA
     """The data given by the get_actions method."""
@@ -107,7 +107,7 @@ class ProcessContext(NamedTuple, Generic[_CONFIGURATION, _EVENT_DATA]):
     """The github application."""
     event_name: str
     """The event name present in the X-GitHub-Event header."""
-    event_data: Mapping[str, Any]
+    event_data: dict[str, Any]
     """The event data."""
     module_config: _CONFIGURATION
     """The module configuration."""

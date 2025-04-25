@@ -3,7 +3,7 @@
 import logging
 import os
 import urllib.parse
-from typing import Any, NamedTuple
+from typing import Any
 
 import githubkit.exception
 import githubkit.versions.latest.models
@@ -63,9 +63,10 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
                 message = "Invalid signature in the request"
                 raise pyramid.httpexceptions.HTTPBadRequest(message)
 
+    event_name = request.headers.get("X-GitHub-Event", "undefined")
     _LOGGER.debug(
         "Webhook received for %s on %s",
-        request.headers.get("X-GitHub-Event", "undefined"),
+        event_name,
         application,
     )
 
@@ -124,7 +125,7 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
     )
     with SessionMaker() as session:
         re_requested_check_suite_id = _get_re_requested_check_suite_id(
-            request.headers.get("X-GitHub-Event", "undefined"),
+            event_name,
             data,
         )
         if re_requested_check_suite_id is not None and "TEST_APPLICATION" not in os.environ:
@@ -170,108 +171,55 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
                 else:
                     _LOGGER.exception("Error while getting check suite")
 
-        if data.get("action") == "rerequested" and data.get("check_run", {}).get("id"):
-            _LOGGER.info("Rerequest the check run %s", data["check_run"]["id"])
-            session.execute(
-                sqlalchemy.update(models.Queue)
-                .where(models.Queue.check_run_id == data["check_run"]["id"])
-                .values(
-                    {
-                        "status": models.JobStatus.NEW,
-                        "started_at": None,
-                        "finished_at": None,
-                    },
-                ),
-            )
-            if "TEST_APPLICATION" not in os.environ:
-                assert project_github is not None
-                try:
-                    await project_github.aio_github.rest.checks.async_update(
-                        owner=owner,
-                        repo=repository,
-                        check_run_id=data["check_run"]["id"],
-                        data={"status": "queued"},
-                    )
-                except githubkit.exception.RequestFailed as exception:
-                    if exception.response.status_code == 404:
-                        _LOGGER.error("Repository not found: %s/%s", owner, repository)  # noqa: TRY400
-                    else:
-                        _LOGGER.exception("Error while getting check run")
-
-        if (
-            data.get("action") == "edited"
-            and "issue" in data
-            and "dashboard" in data["issue"]["title"].lower().split()
-        ):
-            session.execute(
-                sqlalchemy.insert(models.Queue).values(
-                    {
-                        "priority": module.PRIORITY_HIGH,
-                        "application": application,
-                        "owner": owner,
-                        "repository": repository,
-                        "event_name": "dashboard",
-                        "event_data": data,
-                        "module_data": {
-                            "type": "dashboard",
+        elif event_name == "issues":
+            event = githubkit.webhooks.parse_obj("issues", data)
+            if event.action == "edited" and event.issue and "dashboard" in event.issue.title:
+                session.execute(
+                    sqlalchemy.insert(models.Queue).values(
+                        {
+                            "priority": module.PRIORITY_HIGH,
+                            "application": application,
+                            "owner": owner,
+                            "repository": repository,
+                            "event_name": "dashboard",
+                            "event_data": data,
+                            "module_data": {
+                                "type": "dashboard",
+                            },
                         },
-                    },
-                ),
-            )
+                    ),
+                )
 
-        await process_event(
-            ProcessContext(
-                owner=owner,
-                repository=repository,
-                config=request.registry.settings,
-                application=application,
-                event_name=request.headers.get("X-GitHub-Event", "undefined"),
-                event_data=data,
-                session=session,
-                github_application=application_object,
-                service_url=request.route_url("home"),
-            ),
-        )
+        _LOGGER.debug("Processing event for application %s", application)
+        job = models.Queue()
+        job.priority = 0
+        job.application = application
+        job.owner = owner
+        job.repository = repository
+        job.event_name = event_name
+        job.event_data = data
+        job.module = "webhook"
+        job.module_data = {
+            "modules": request.registry.settings.get(f"application.{application}.modules", "").split(),
+        }
+        session.add(job)
         session.commit()
     return {}
 
 
-class ProcessContext(NamedTuple):
-    """The context of the process."""
-
-    owner: str
-    """The GitHub project owner"""
-    repository: str
-    """The GitHub project repository"""
-    config: dict[str, Any]
-    """The application configuration"""
-    application: str
-    """The application name"""
-    event_name: str
-    """The event name present in the X-GitHub-Event header"""
-    event_data: dict[str, Any]
-    """The event data"""
-    session: sqlalchemy.orm.Session
-    """The session to be used"""
-    github_application: configuration.GithubApplication
-    """The github application."""
-    service_url: str
-    """The service URL"""
-
-
-async def process_event(context: ProcessContext) -> None:
+async def process_event(context: module.ProcessContext[None, dict[str, Any]]) -> None:
     """Process the event."""
-    _LOGGER.debug("Processing event for application %s", context.application)
-    for name in context.config.get(f"application.{context.application}.modules", "").split():
+    _LOGGER.debug("Processing event for application %s", context.github_project.application.name)
+    for name in context.module_event_data.get("modules", []):
         current_module = modules.MODULES.get(name)
         if current_module is None:
             _LOGGER.error("Unknown module %s", name)
             continue
         _LOGGER.info(
             "Getting actions for the application: %s, repository: %s/%s, module: %s",
-            context.application,
-            context.owner,
-            context.repository,
+            context.github_project.application.name,
+            context.github_project.owner,
+            context.github_project.repository,
             name,
         )
         try:
@@ -279,9 +227,9 @@ async def process_event(context: ProcessContext) -> None:
                 module.GetActionContext(
                     event_name=context.event_name,
                     event_data=context.event_data,
-                    owner=context.owner,
-                    repository=context.repository,
-                    github_application=context.github_application,
+                    owner=context.github_project.owner,
+                    repository=context.github_project.repository,
+                    github_application=context.github_project.application,
                 ),
             ):
                 priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
@@ -293,16 +241,18 @@ async def process_event(context: ProcessContext) -> None:
                     update = (
                         sqlalchemy.update(models.Queue)
                         .where(models.Queue.status == models.JobStatus.NEW)
-                        .where(models.Queue.application == context.application)
+                        .where(models.Queue.application == context.github_project.application.name)
                         .where(models.Queue.module == name)
                     )
                     for key in jobs_unique_on:
                         if key == "priority":
                             update = update.where(models.Queue.priority == priority)
                         elif key == "owner":
-                            update = update.where(models.Queue.owner == context.owner)
+                            update = update.where(models.Queue.owner == context.github_project.owner)
                         elif key == "repository":
-                            update = update.where(models.Queue.repository == context.repository)
+                            update = update.where(
+                                models.Queue.repository == context.github_project.repository,
+                            )
                         elif key == "event_name":
                             update = update.where(models.Queue.event_name == event_name)
                         elif key == "event_data":
@@ -328,9 +278,9 @@ async def process_event(context: ProcessContext) -> None:
 
                 job = models.Queue()
                 job.priority = priority
-                job.application = context.application
-                job.owner = context.owner
-                job.repository = context.repository
+                job.application = context.github_project.application.name
+                job.owner = context.github_project.owner
+                job.repository = context.github_project.repository
                 job.event_name = event_name
                 job.event_data = context.event_data
                 job.module = name
@@ -360,10 +310,9 @@ async def process_event(context: ProcessContext) -> None:
                         context.service_url,
                         action.title,
                     )
-
-                context.session.commit()
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Error while getting actions for %s", name)
+    context.session.commit()
 
 
 async def create_checks(
