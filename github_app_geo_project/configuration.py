@@ -8,6 +8,7 @@ from typing import Any, NamedTuple, cast
 import github
 import github as github_lib
 import githubkit.cache
+import githubkit.exception
 import githubkit.versions.latest.models
 import jsonmerge
 import redis.asyncio.client
@@ -107,7 +108,7 @@ class GithubProject(NamedTuple):
     """The installation object for the repository"""
     aio_github: githubkit.GitHub[githubkit.AppInstallationAuthStrategy]
     """The githubkit object for the repository"""
-    aio_repo: githubkit.versions.latest.models.FullRepository
+    aio_repo: githubkit.versions.latest.models.FullRepository | None
     """The githubkit repository object"""
 
 
@@ -202,10 +203,13 @@ async def get_github_project(
     aoi_installation_auth_strategy = github_application.aio_auth.as_installation(
         aio_installation.id,
     )
-    aio_github = github_application.aio_github.with_auth(
-        aoi_installation_auth_strategy,
-    )
-    aio_repo = (await aio_github.rest.repos.async_get(owner, repository)).parsed_data
+    aio_github = github_application.aio_github.with_auth(aoi_installation_auth_strategy)
+    aio_repo = None
+    try:
+        aio_repo = (await aio_github.rest.repos.async_get(owner, repository)).parsed_data
+    except githubkit.exception.RequestFailed as exception:
+        if exception.response.status_code != 404:
+            raise
     aio_app_auth = aio_github.auth.get_auth_flow(aio_github)
     assert isinstance(aio_app_auth, githubkit.auth.app.AppAuth)
     aio_access_token = (
