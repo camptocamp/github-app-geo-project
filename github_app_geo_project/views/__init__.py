@@ -10,6 +10,6 @@ def get_event_loop() -> asyncio.AbstractEventLoop:
     If there is no current event loop, create a new one.
     """
     try:
-        return asyncio.get_running_loop()
+        return asyncio.get_event_loop()
     except RuntimeError:
         return asyncio.new_event_loop()
