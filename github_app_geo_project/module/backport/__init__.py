@@ -159,7 +159,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     )
                 ).parsed_data
                 for commit in commits:  # type: ignore[attr-defined]
-                    if "SECURITY.md" in [file.filename for file in commit.files]:
+                    if "SECURITY.md" in [file.filename for file in commit.files or []]:
                         has_security_md = True
                         break
 
