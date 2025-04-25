@@ -80,7 +80,6 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
         if data.get("sender", {}).get("login") == application_object.slug + "[bot]":
             _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
     except Exception:  # pylint: disable=broad-exception-caught
-        del configuration.GITHUB_APPLICATIONS[application]
         application_object = await configuration.get_github_application(
             request.registry.settings,
             application,
