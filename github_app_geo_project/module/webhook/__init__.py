@@ -60,17 +60,24 @@ class Webhook(module.Module[None, dict[str, Any], None, None]):
         Process the action.
         """
 
-        await process_event(context)
-        return module.ProcessOutput()
+        outputs = await process_event(context)
+        if outputs:
+            return module.ProcessOutput(
+                output={"summary": "\n".join(outputs)},
+            )
+        return module.ProcessOutput(
+            output={"summary": "No action to process"},
+        )
 
     def has_transversal_dashboard(self) -> bool:
         """Return True if the module has a transversal dashboard."""
         return False
 
 
-async def process_event(context: module.ProcessContext[None, dict[str, Any]]) -> None:
+async def process_event(context: module.ProcessContext[None, dict[str, Any]]) -> list[str]:
     """Process the event."""
     _LOGGER.debug("Processing event for application %s", context.github_project.application.name)
+    outputs = []
     for name in context.module_event_data.get("modules", []):
         current_module = modules.MODULES.get(name)
         if current_module is None:
@@ -96,6 +103,7 @@ async def process_event(context: module.ProcessContext[None, dict[str, Any]]) ->
                     "Got action %s",
                     action.title or "Untitled",
                 )
+                outputs.append(f"Create job for module {name} with action {action.title or 'Untitled'}")
                 priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
                 event_name = action.title or context.event_name
                 module_data = current_module.event_data_to_json(action.data)
@@ -177,6 +185,7 @@ async def process_event(context: module.ProcessContext[None, dict[str, Any]]) ->
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Error while getting actions for %s", name)
     context.session.commit()
+    return outputs
 
 
 async def create_checks(
