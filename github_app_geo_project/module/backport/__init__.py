@@ -107,11 +107,19 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
             if event_data_pull_request.action == "closed":
                 actions.append(
-                    module.Action(_ActionData(type="backport"), priority=module.PRIORITY_STANDARD),
+                    module.Action(
+                        _ActionData(type="backport"),
+                        priority=module.PRIORITY_STANDARD,
+                        title="Main",
+                    ),
                 )
             if event_data_pull_request.action == "labeled":
                 actions.append(
-                    module.Action(_ActionData(type="backport"), priority=module.PRIORITY_STANDARD),
+                    module.Action(
+                        _ActionData(type="backport"),
+                        priority=module.PRIORITY_STANDARD,
+                        title="Main",
+                    ),
                 )
             return actions
         return []
