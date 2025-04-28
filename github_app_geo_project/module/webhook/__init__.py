@@ -77,8 +77,7 @@ async def process_event(context: module.ProcessContext[None, dict[str, Any]]) ->
             _LOGGER.error("Unknown module %s", name)
             continue
         _LOGGER.info(
-            "Getting actions for the application: %s, repository: %s/%s, module: %s",
-            context.github_project.application.name,
+            "Getting actions for the repository: %s/%s, module: %s",
             context.github_project.owner,
             context.github_project.repository,
             name,
@@ -93,6 +92,10 @@ async def process_event(context: module.ProcessContext[None, dict[str, Any]]) ->
                     github_application=context.github_project.application,
                 ),
             ):
+                _LOGGER.info(
+                    "Got action %s",
+                    action.title or "Untitled",
+                )
                 priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
                 event_name = action.title or context.event_name
                 module_data = current_module.event_data_to_json(action.data)
