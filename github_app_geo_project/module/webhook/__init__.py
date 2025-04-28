@@ -266,13 +266,14 @@ def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]
     if event_name != "check_run":
         return None
 
-    event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", event_data)
+    event_data_check_suite = githubkit.webhooks.parse_obj("check_run", event_data)
     if (
         event_data_check_suite.action == "rerequested"
-        and event_data_check_suite.check_suite
-        and event_data_check_suite.check_suite.id
+        and event_data_check_suite.check_run
+        and event_data_check_suite.check_run.check_suite
+        and event_data_check_suite.check_run.check_suite.id
     ):
-        return event_data_check_suite.check_suite.id
+        return event_data_check_suite.check_run.check_suite.id
     return None
 
 
