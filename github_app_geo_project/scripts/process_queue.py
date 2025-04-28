@@ -30,9 +30,8 @@ import sqlalchemy.orm
 from prometheus_client import Gauge
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
-from github_app_geo_project.module import GHCIError, modules
+from github_app_geo_project.module import GHCIError, modules, webhook
 from github_app_geo_project.module import utils as module_utils
-from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER_WSGI = logging.getLogger("prometheus_client.wsgi")
