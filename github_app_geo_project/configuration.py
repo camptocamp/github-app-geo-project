@@ -74,12 +74,8 @@ class GithubApplication(NamedTuple):
     """The application private key"""
     slug: str
     """The application slug"""
-    aio_auth: githubkit.AppAuthStrategy
-    """The authentication strategy for the application"""
     aio_github: githubkit.GitHub[githubkit.AppAuthStrategy]
     """The githubkit GitHub"""
-    aio_application: githubkit.versions.latest.models.Integration
-    """The githubkit application object"""
     aio_cache_strategy: githubkit.cache.BaseCacheStrategy | None
     """The githubkit cache strategy for the application"""
 
@@ -146,8 +142,12 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
         else None
     )
     aio_github = githubkit.GitHub(aio_auth, cache_strategy=aio_cache_strategy)
-    aio_application_response = await aio_github.rest.apps.async_get_authenticated()
-    aio_application = aio_application_response.parsed_data
+    async with aio_github as app:
+        installations = await app.rest.apps.async_list_installations()
+        installation_id = installations.parsed_data[0].id
+    aio_installation_auth = aio_auth.as_installation(installation_id)
+    aio_github = githubkit.GitHub(aio_installation_auth)
+    aio_application = (await aio_github.rest.apps.async_get_authenticated()).parsed_data
     assert aio_application is not None
     slug = aio_application.slug
     assert isinstance(slug, str)
@@ -158,9 +158,7 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
         application_id,
         private_key,
         slug,
-        aio_auth,
         aio_github,
-        aio_application,
         aio_cache_strategy,
     )
 
