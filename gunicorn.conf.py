@@ -17,7 +17,9 @@ worker_class = "gthread"  # pylint: disable=invalid-name
 workers = int(os.environ.get("GUNICORN_WORKERS", "2"))
 threads = int(os.environ.get("GUNICORN_THREADS", "10"))
 
-preload_app = True  # pylint: disable=invalid-name
+max_requests = int(os.environ.get("GUNICORN_MAX_REQUESTS", "1000"))
+max_requests_jitter = int(os.environ.get("GUNICORN_MAX_REQUESTS_JITTER", "100"))
+limit_request_line = int(os.environ.get("GUNICORN_LIMIT_REQUEST_LINE", "8190"))
 
 paste = get_paste_config()
 wsgi_app = paste
