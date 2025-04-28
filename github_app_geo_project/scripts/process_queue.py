@@ -317,7 +317,6 @@ async def _process_job(
                 root_logger.removeHandler(handler)
 
             if github_project is not None:
-                _LOGGER.debug("Update check run %s", job.check_run_id)
                 check_output = {
                     "title": current_module.title(),
                     "summary": (
@@ -336,6 +335,7 @@ async def _process_job(
                 if len(check_output.get("text", "")) > 65535:
                     check_output["text"] = check_output["text"][:65532] + "..."
                 try:
+                    _LOGGER.debug("Update check run %s", job.check_run_id)
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
