@@ -48,6 +48,8 @@ class Webhook(module.Module[None, dict[str, Any], None, None]):
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
         """
         Get the actions of the module.
+
+        Not needed for this module
         """
         del context
         return []
@@ -60,13 +62,23 @@ class Webhook(module.Module[None, dict[str, Any], None, None]):
         Process the action.
         """
 
-        outputs = await process_event(context)
-        if outputs:
-            return module.ProcessOutput(
-                output={"summary": "\n".join(outputs)},
-            )
+        re_requested_check_suite_id = _get_re_requested_check_suite_id(
+            context.event_name,
+            context.event_data,
+        )
+        outputs = (
+            await _re_requested_check_suite(context, re_requested_check_suite_id)
+            if re_requested_check_suite_id is not None
+            else []
+        )
+        if not outputs:
+            outputs.append("")
+
+        process_event_outputs = await process_event(context)
+        if not process_event_outputs:
+            process_event_outputs.append("No action to process")
         return module.ProcessOutput(
-            output={"summary": "No action to process"},
+            output={"summary": "\n".join([*outputs, *process_event_outputs])},
         )
 
     def has_transversal_dashboard(self) -> bool:
@@ -247,3 +259,82 @@ async def create_checks(
     job.check_run_id = check_run.id
     session.commit()
     return check_run
+
+
+def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]) -> int | None:
+    """Check if the event is a rerequested event."""
+    if event_name != "check_run":
+        return None
+
+    event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", event_data)
+    if (
+        event_data_check_suite.action == "rerequested"
+        and event_data_check_suite.check_suite
+        and event_data_check_suite.check_suite.id
+    ):
+        return event_data_check_suite.check_suite.id
+    return None
+
+
+async def _re_requested_check_suite(
+    context: module.ProcessContext[None, dict[str, Any]],
+    check_suite_id: int,
+) -> list[str]:
+    outputs = []
+    assert context.github_project is not None
+    try:
+        check_suite = (
+            await context.github_project.aio_github.rest.checks.async_get_suite(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                check_suite_id=check_suite_id,
+            )
+        ).parsed_data
+        check_runs = (
+            await context.github_project.aio_github.rest.checks.async_list_for_suite(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                check_suite_id=check_suite_id,
+            )
+        ).parsed_data
+        for check_run in check_runs.check_runs:
+            _LOGGER.info(
+                "Re request the check run %s from check suite %s",
+                check_run.id,
+                check_suite.id,
+            )
+            outputs.append(f"Re request the check run {check_run.id} from check suite {check_suite.id}")
+            context.session.execute(
+                sqlalchemy.update(models.Queue)
+                .where(models.Queue.check_run_id == check_run.id)
+                .values(
+                    {
+                        "status": models.JobStatus.NEW,
+                        "started_at": None,
+                        "finished_at": None,
+                    },
+                ),
+            )
+            context.session.commit()
+            await context.github_project.aio_github.rest.checks.async_update(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                check_run_id=check_run.id,
+                data={"status": "queued"},
+            )
+    except githubkit.exception.RequestFailed as exception:
+        if exception.response.status_code == 404:
+            _LOGGER.error(  # noqa: TRY400
+                "Repository not found: %s/%s",
+                context.github_project.owner,
+                context.github_project.repository,
+            )
+            outputs.append(
+                f"Repository not found: {context.github_project.owner}/{context.github_project.repository}",
+            )
+        else:
+            _LOGGER.exception("Error while getting check suite")
+            outputs.append(
+                "Error while getting check suite",
+            )
+    return outputs

@@ -2,35 +2,18 @@
 
 import logging
 import os
-from typing import Any
 
-import githubkit.exception
 import githubkit.webhooks
 import pyramid.httpexceptions
 import pyramid.request
 import sqlalchemy.orm
 from pyramid.view import view_config
 
-from github_app_geo_project import configuration, models, module
+from github_app_geo_project import models, module
 from github_app_geo_project.views import get_event_loop
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]) -> int | None:
-    """Check if the event is a rerequested event."""
-    if event_name != "check_run":
-        return None
-
-    event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", event_data)
-    if (
-        event_data_check_suite.action == "rerequested"
-        and event_data_check_suite.check_suite
-        and event_data_check_suite.check_suite.id
-        and "TEST_APPLICATION" not in os.environ
-    ):
-        return event_data_check_suite.check_suite.id
-    return None
+_APPLICATIONS_SLUG: dict[str, str] = {}
 
 
 async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
@@ -66,21 +49,30 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
         application,
     )
 
-    application_object = None
     # triggering_actor can also be used to avoid infinite event loop
-    try:
-        application_object = await configuration.get_github_application(
-            request.registry.settings,
-            application,
-        )
-        if data.get("sender", {}).get("login") == application_object.slug + "[bot]":
+    if application not in _APPLICATIONS_SLUG:
+        try:
+            config = request.registry.settings
+            private_key = "\n".join(
+                [
+                    e.strip()
+                    for e in config[f"application.{application}.github_app_private_key"].strip().split("\n")
+                ],
+            )
+            application_id = config[f"application.{application}.github_app_id"]
+
+            aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
+            aio_github = githubkit.GitHub(aio_auth)
+            aio_application_response = await aio_github.rest.apps.async_get_authenticated()
+            aio_application = aio_application_response.parsed_data
+            assert aio_application is not None
+            if isinstance(aio_application.slug, str):
+                _APPLICATIONS_SLUG[application] = aio_application.slug
+        except Exception:  # pylint: disable=broad-exception-caught
             _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
-    except Exception:  # pylint: disable=broad-exception-caught
-        application_object = await configuration.get_github_application(
-            request.registry.settings,
-            application,
-        )
-        if data.get("sender", {}).get("login") == application_object.slug + "[bot]":
+
+    if application in _APPLICATIONS_SLUG:  # noqa: SIM102
+        if data.get("sender", {}).get("login") == _APPLICATIONS_SLUG[application] + "[bot]":
             _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
 
     if "account" in data.get("installation", {}):
@@ -108,65 +100,8 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
     session_factory = request.registry["dbsession_factory"]
     engine = session_factory.rw_engine
     SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
-    project_github = (
-        await configuration.get_github_project(
-            request.registry.settings,
-            application,
-            owner,
-            repository,
-        )
-        if "TEST_APPLICATION" not in os.environ
-        else None
-    )
     with SessionMaker() as session:
-        re_requested_check_suite_id = _get_re_requested_check_suite_id(
-            event_name,
-            data,
-        )
-        if re_requested_check_suite_id is not None and "TEST_APPLICATION" not in os.environ:
-            assert project_github is not None
-            try:
-                check_suite = await project_github.aio_github.rest.checks.async_get_suite(
-                    owner=owner,
-                    repo=repository,
-                    check_suite_id=re_requested_check_suite_id,
-                )
-                check_runs = await project_github.aio_github.rest.checks.async_list_for_suite(
-                    owner=owner,
-                    repo=repository,
-                    check_suite_id=re_requested_check_suite_id,
-                )
-                for check_run in check_runs.parsed_data.check_runs:
-                    _LOGGER.info(
-                        "Re request the check run %s from check suite %s",
-                        check_run.id,
-                        check_suite.parsed_data.id,
-                    )
-                    session.execute(
-                        sqlalchemy.update(models.Queue)
-                        .where(models.Queue.check_run_id == check_run.id)
-                        .values(
-                            {
-                                "status": models.JobStatus.NEW,
-                                "started_at": None,
-                                "finished_at": None,
-                            },
-                        ),
-                    )
-                    session.commit()
-                    await project_github.aio_github.rest.checks.async_update(
-                        owner=owner,
-                        repo=repository,
-                        check_run_id=check_run.id,
-                        data={"status": "queued"},
-                    )
-            except githubkit.exception.RequestFailed as exception:
-                if exception.response.status_code == 404:
-                    _LOGGER.error("Repository not found: %s/%s", owner, repository)  # noqa: TRY400
-                else:
-                    _LOGGER.exception("Error while getting check suite")
-
-        elif event_name == "issues":
+        if event_name == "issues":
             event = githubkit.webhooks.parse_obj("issues", data)
             if event.action == "edited" and event.issue and "dashboard" in event.issue.title:
                 session.execute(
