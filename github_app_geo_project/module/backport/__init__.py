@@ -90,10 +90,17 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                                 ),
                                 checks=True,
                                 priority=module.PRIORITY_STATUS,
+                                title="Check",
                             ),
                         ]
             actions = (
-                [module.Action(_ActionData(type="SECURITY.md"), priority=module.PRIORITY_CRON)]
+                [
+                    module.Action(
+                        _ActionData(type="SECURITY.md"),
+                        priority=module.PRIORITY_CRON,
+                        title="SECURITY.md",
+                    ),
+                ]
                 if event_data_pull_request.action == "closed"
                 else []
             )
@@ -215,18 +222,19 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     actions=[
                         module.Action(
                             _ActionData(
-                                type="backport",
+                                type="version",
                                 pull_request_number=pull_request.number,
                                 branch=branch,
                             ),
                             priority=module.PRIORITY_STANDARD,
+                            title=f"{branch}",
                         )
                         for branch in branches
                     ],
                 )
             return module.ProcessOutput()
 
-        if context.module_event_data.type == "backport":
+        if context.module_event_data.type == "version":
             assert context.module_event_data.pull_request_number is not None
             pull_request = context.github_project.repo.get_pull(context.module_event_data.pull_request_number)
             assert context.module_event_data.branch is not None
@@ -236,7 +244,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 pull_request,
                 context.module_event_data.branch,
             ):
-                return module.ProcessOutput()
+                return module.ProcessOutput(
+                    output={
+                        "summary": "Backport pull request created",
+                    },
+                )
             return module.ProcessOutput(
                 success=False,
                 output={
