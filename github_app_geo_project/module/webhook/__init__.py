@@ -24,7 +24,7 @@ class Webhook(module.Module[None, dict[str, Any], None, None]):
 
     def title(self) -> str:
         """Get the title of the module."""
-        return "Webhook"
+        return "Dispatcher"
 
     def description(self) -> str:
         """Get the description of the module."""

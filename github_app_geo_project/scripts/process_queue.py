@@ -183,15 +183,27 @@ async def _process_job(
         try:
             if "TEST_APPLICATION" not in os.environ and github_project is not None:
                 if job.check_run_id is None:
-                    check_run = await webhook.create_checks(
-                        job,
-                        session,
-                        current_module,
-                        github_project,
-                        job.event_name,
-                        job.event_data,
-                        config["service-url"],
-                    )
+                    if job.module == "webhook":
+                        check_run = await webhook.create_checks(
+                            job,
+                            session,
+                            current_module,
+                            github_project,
+                            job.event_name,
+                            job.event_data,
+                            config["service-url"],
+                            job.event_name,
+                        )
+                    else:
+                        check_run = await webhook.create_checks(
+                            job,
+                            session,
+                            current_module,
+                            github_project,
+                            job.event_name,
+                            job.event_data,
+                            config["service-url"],
+                        )
 
                 assert check_run is not None
                 await github_project.aio_github.rest.checks.async_update(
