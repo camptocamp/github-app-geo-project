@@ -30,9 +30,8 @@ import sqlalchemy.orm
 from prometheus_client import Gauge
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
-from github_app_geo_project.module import GHCIError, modules
+from github_app_geo_project.module import GHCIError, modules, webhook
 from github_app_geo_project.module import utils as module_utils
-from github_app_geo_project.views import webhook
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER_WSGI = logging.getLogger("prometheus_client.wsgi")
@@ -184,15 +183,27 @@ async def _process_job(
         try:
             if "TEST_APPLICATION" not in os.environ and github_project is not None:
                 if job.check_run_id is None:
-                    check_run = await webhook.create_checks(
-                        job,
-                        session,
-                        current_module,
-                        github_project,
-                        job.event_name,
-                        job.event_data,
-                        config["service-url"],
-                    )
+                    if job.module == "webhook":
+                        check_run = await webhook.create_checks(
+                            job,
+                            session,
+                            current_module,
+                            github_project,
+                            job.event_name,
+                            job.event_data,
+                            config["service-url"],
+                            job.event_name,
+                        )
+                    else:
+                        check_run = await webhook.create_checks(
+                            job,
+                            session,
+                            current_module,
+                            github_project,
+                            job.event_name,
+                            job.event_data,
+                            config["service-url"],
+                        )
 
                 assert check_run is not None
                 await github_project.aio_github.rest.checks.async_update(
@@ -863,7 +874,7 @@ async def _process_one_job(
     message = module_utils.HtmlMessage(
         f"<p>module data:</p>{module_data_formatted}<p>event data:</p>{event_data_formatted}",
     )
-    message.title = f"Start process job '{job.event_name}' id: {job.id}, on {job.owner}/{job.repository} on module: {job.module}, on application {job.application}"
+    message.title = f"Start process job '{job.event_name}' id: {job.id}, on {job.owner}/{job.repository} on module: {job.module}, on event: {job.event_name}, with priority: {job.priority} on application {job.application}"
     root_logger.addHandler(handler)
     _LOGGER.info(message)
     _RUNNING_JOBS[job.id] = _JobInfo(
