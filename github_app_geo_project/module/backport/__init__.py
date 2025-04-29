@@ -243,6 +243,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             return module.ProcessOutput()
 
         if context.module_event_data.type == "version":
+            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
             assert context.module_event_data.pull_request_number is not None
             pull_request = context.github_project.repo.get_pull(context.module_event_data.pull_request_number)
             assert context.module_event_data.branch is not None
