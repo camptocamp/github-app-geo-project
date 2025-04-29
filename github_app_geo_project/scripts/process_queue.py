@@ -12,6 +12,7 @@ import signal
 import socket
 import subprocess  # nosec
 import sys
+import threading
 import time
 import urllib.parse
 from pathlib import Path
@@ -336,9 +337,8 @@ async def _process_job(
                     check_output["text"] = check_output["text"][:65532] + "..."
                 try:
                     _LOGGER.debug("Update check run %s", job.check_run_id)
-                    # timeout
-                    async with asyncio.timeout(30):
-                        await github_project.aio_github.rest.checks.async_update(
+                    task = asyncio.create_task(
+                        github_project.aio_github.rest.checks.async_update(
                             owner=job.owner,
                             repo=job.repository,
                             check_run_id=check_run.id,
@@ -349,7 +349,9 @@ async def _process_job(
                                 "summary": check_output["summary"],
                                 "text": check_output.get("text", ""),
                             },
-                        )
+                        ),
+                    )
+                    await asyncio.wait_for(task, timeout=30)
                     _LOGGER.debug("Check run %s updated", job.check_run_id)
                 except githubkit.exception.RequestFailed as exception:
                     _LOGGER.exception(
@@ -1021,7 +1023,7 @@ class _PrometheusWatch:
     def _watch(self) -> None:
         cont = 0
         while True:
-            _LOGGER.debug("Prometheus watch: alive")
+            _LOGGER.debug("Prometheus watch: alive (%i running thread)", len(threading.enumerate()))
             try:
                 _NB_JOBS.labels("Tasks").set(len(asyncio.all_tasks()))
                 cont += 1
