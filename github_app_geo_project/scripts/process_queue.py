@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import concurrent
 import contextvars
 import datetime
 import functools
@@ -891,7 +892,7 @@ async def _process_one_job(
     message = module_utils.HtmlMessage(
         f"<p>module data:</p>{module_data_formatted}<p>event data:</p>{event_data_formatted}",
     )
-    message.title = f"Start process job - id: {job.id}, on {job.owner}/{job.repository}, on module: {job.module}, on event: {job.event_name}, with priority: {job.priority}, on application: {job.application}"
+    message.title = f"Start process job {job.module}: {job.event_name} - id: {job.id}, on {job.owner}/{job.repository}, with priority: {job.priority}, on application: {job.application}"
     root_logger.addHandler(handler)
     _LOGGER.info(message)
     _RUNNING_JOBS[job.id] = _JobInfo(
@@ -1016,9 +1017,11 @@ class _PrometheusWatch:
         Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
             sqlalchemy.orm.Session
         ],
+        loop: asyncio.AbstractEventLoop,
     ) -> None:
         self.Session = Session  # pylint: disable=invalid-name
         self.last_run = time.time()
+        self.loop = loop
 
     async def __call__(self, *args: Any, **kwargs: Any) -> Any:
         del args, kwargs
@@ -1030,9 +1033,19 @@ class _PrometheusWatch:
     def _watch(self) -> None:
         cont = 0
         while True:
+            log_message = (
+                [
+                    "Prometheus watch: alive",
+                    "== Threads ==",
+                    *[str(thread) for thread in threading.enumerate()],
+                    "== Tasks ==",
+                    *[str(task) for task in asyncio.all_tasks(self.loop)],
+                ]
+                if os.environ.get("GHCI_DEBUG", "0").lower() in ("1", "true", "on")
+                else ["Prometheus watch: alive"]
+            )
             _LOGGER.debug(
-                "Prometheus watch: alive (running threads: %s)",
-                ", ".join([t.name for t in threading.enumerate()]),
+                "\n    ".join(log_message),
             )
             try:
                 _NB_JOBS.labels("Tasks").set(len(asyncio.all_tasks()))
@@ -1086,7 +1099,7 @@ class _PrometheusWatch:
             with Path("/var/ghci/job_info").open("w", encoding="utf-8") as file_:
                 file_.write("\n".join(text))
                 file_.write("\n")
-            time.sleep(10)
+            time.sleep(60)
 
 
 class _WatchDog:
@@ -1140,9 +1153,14 @@ async def _async_main() -> None:
     c2cwsgiutils.setup_process.init(args.config_uri)
 
     loop = asyncio.get_running_loop()
+    loop.set_default_executor(
+        concurrent.futures.ThreadPoolExecutor(max_workers=int(os.environ.get("GHCI_MAX_WORKERS", "2"))),
+    )
     loop.slow_callback_duration = float(
         os.environ.get("GHCI_SLOW_CALLBACK_DURATION", "60"),
     )  # 1 minute by default
+    if os.environ.get("GHCI_DEBUG", "0").lower() in ("1", "true", "on"):
+        asyncio.get_running_loop().set_debug(True)
 
     def do_exit(loop: asyncio.AbstractEventLoop) -> None:
         print("Exiting...")
@@ -1197,7 +1215,7 @@ async def _async_main() -> None:
     tasks = []
     if not args.exit_when_empty:
         tasks.append(asyncio.create_task(_WatchDog()(), name="Watch Dog"))
-        tasks.append(asyncio.create_task(_PrometheusWatch(Session)(), name="Prometheus Watch"))
+        tasks.append(asyncio.create_task(_PrometheusWatch(Session, loop)(), name="Prometheus Watch"))
 
     tasks.extend(
         [
