@@ -676,7 +676,7 @@ async def create_pull_request(
         )
     ).parsed_data
     assert pulls is not None
-    if pulls.total_count > 0:
+    if len(pulls) > 0:
         pull_request = pulls[0]
         _LOGGER.debug(
             "Found pull request #%s (%s - %s)",
