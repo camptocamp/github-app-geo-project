@@ -134,6 +134,7 @@ async def _process_job(
     module_config: project_configuration.ModuleConfiguration = {}
     github_project: configuration.GithubProject | None = None
     check_run: githubkit.versions.latest.models.CheckRun | None = None
+    tasks: list[asyncio.Task[Any]] = []
     if "TEST_APPLICATION" not in os.environ:
         github_application = await configuration.get_github_application(config, job.application)
         github_project = await configuration.get_github_project(
@@ -337,22 +338,23 @@ async def _process_job(
                     check_output["text"] = check_output["text"][:65532] + "..."
                 try:
                     _LOGGER.debug("Update check run %s", job.check_run_id)
-                    task = asyncio.create_task(
-                        github_project.aio_github.rest.checks.async_update(
-                            owner=job.owner,
-                            repo=job.repository,
-                            check_run_id=check_run.id,
-                            status="completed",
-                            conclusion="success" if result is None or result.success else "failure",
-                            output={
-                                "title": check_output["title"],
-                                "summary": check_output["summary"],
-                                "text": check_output.get("text", ""),
-                            },
+                    tasks.append(
+                        asyncio.create_task(
+                            github_project.aio_github.rest.checks.async_update(
+                                owner=job.owner,
+                                repo=job.repository,
+                                check_run_id=check_run.id,
+                                status="completed",
+                                conclusion="success" if result is None or result.success else "failure",
+                                output={
+                                    "title": check_output["title"],
+                                    "summary": check_output["summary"],
+                                    "text": check_output.get("text", ""),
+                                },
+                            ),
+                            name=f"Update check run {job.check_run_id}",
                         ),
                     )
-                    await asyncio.wait_for(task, timeout=30)
-                    _LOGGER.debug("Check run %s updated", job.check_run_id)
                 except githubkit.exception.RequestFailed as exception:
                     _LOGGER.exception(
                         "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
@@ -611,6 +613,11 @@ async def _process_job(
                     title=f"{github_application.name} Dashboard",
                     body=issue_full_data,
                 )
+
+    async with asyncio.timeout(60):
+        if tasks:
+            await asyncio.gather(*tasks)
+
     return True
 
 
