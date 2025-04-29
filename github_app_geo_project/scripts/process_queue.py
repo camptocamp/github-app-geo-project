@@ -882,7 +882,7 @@ async def _process_one_job(
     message = module_utils.HtmlMessage(
         f"<p>module data:</p>{module_data_formatted}<p>event data:</p>{event_data_formatted}",
     )
-    message.title = f"Start process job '{job.event_name}' id: {job.id}, on {job.owner}/{job.repository} on module: {job.module}, on event: {job.event_name}, with priority: {job.priority} on application {job.application}"
+    message.title = f"Start process job - id: {job.id}, on {job.owner}/{job.repository}, on module: {job.module}, on event: {job.event_name}, with priority: {job.priority}, on application: {job.application}"
     root_logger.addHandler(handler)
     _LOGGER.info(message)
     _RUNNING_JOBS[job.id] = _JobInfo(
