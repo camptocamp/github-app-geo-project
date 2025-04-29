@@ -336,18 +336,20 @@ async def _process_job(
                     check_output["text"] = check_output["text"][:65532] + "..."
                 try:
                     _LOGGER.debug("Update check run %s", job.check_run_id)
-                    await github_project.aio_github.rest.checks.async_update(
-                        owner=job.owner,
-                        repo=job.repository,
-                        check_run_id=check_run.id,
-                        status="completed",
-                        conclusion="success" if result is None or result.success else "failure",
-                        output={
-                            "title": check_output["title"],
-                            "summary": check_output["summary"],
-                            "text": check_output.get("text", ""),
-                        },
-                    )
+                    # timeout
+                    async with asyncio.timeout(30):
+                        await github_project.aio_github.rest.checks.async_update(
+                            owner=job.owner,
+                            repo=job.repository,
+                            check_run_id=check_run.id,
+                            status="completed",
+                            conclusion="success" if result is None or result.success else "failure",
+                            output={
+                                "title": check_output["title"],
+                                "summary": check_output["summary"],
+                                "text": check_output.get("text", ""),
+                            },
+                        )
                     _LOGGER.debug("Check run %s updated", job.check_run_id)
                 except githubkit.exception.RequestFailed as exception:
                     _LOGGER.exception(
@@ -362,7 +364,13 @@ async def _process_job(
                         exception.response.reason_phrase,
                         exception.response.status_code,
                     )
-                    raise
+                except TimeoutError:
+                    _LOGGER.exception("Timeout while updating check run %s", job.check_run_id)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    _LOGGER.exception(
+                        "Failed to update check run %s",
+                        job.check_run_id,
+                    )
             job.status = models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
