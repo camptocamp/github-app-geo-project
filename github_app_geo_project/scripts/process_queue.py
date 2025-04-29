@@ -1023,7 +1023,10 @@ class _PrometheusWatch:
     def _watch(self) -> None:
         cont = 0
         while True:
-            _LOGGER.debug("Prometheus watch: alive (%i running thread)", len(threading.enumerate()))
+            _LOGGER.debug(
+                "Prometheus watch: alive (running threads: %s)",
+                ", ".join([t.name for t in threading.enumerate()]),
+            )
             try:
                 _NB_JOBS.labels("Tasks").set(len(asyncio.all_tasks()))
                 cont += 1
