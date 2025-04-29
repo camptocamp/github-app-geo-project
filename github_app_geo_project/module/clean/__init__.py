@@ -19,7 +19,7 @@ import tag_publish.configuration
 import yaml
 from pydantic import BaseModel
 
-from github_app_geo_project import module
+from github_app_geo_project import module, utils
 from github_app_geo_project.configuration import GithubProject
 from github_app_geo_project.module import utils as module_utils
 
@@ -130,6 +130,8 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                         Loader=yaml.SafeLoader,
                     ),
                 )
+                message = module_utils.HtmlMessage(utils.format_json(publish_config))  # type: ignore[arg-type]
+                message.title = "Used publish configuration"
             else:
                 publish_config = {}
         except githubkit.exception.RequestFailed as exception:
