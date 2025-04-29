@@ -438,7 +438,7 @@ async def _process_job(
                         conclusion="failure",
                         output={
                             "title": current_module.title(),
-                            "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
+                            "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url})",
                         },
                     )
             except githubkit.exception.RequestFailed as github_exception:
@@ -486,7 +486,7 @@ async def _process_job(
                         conclusion="failure",
                         output={
                             "title": current_module.title(),
-                            "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url}))",
+                            "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url})",
                         },
                     )
             except githubkit.exception.RequestFailed as exception:
