@@ -31,6 +31,7 @@ def main() -> None:
     engine = sqlalchemy.engine_from_config(loader.get_settings("app:app"), "sqlalchemy.")
     Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
 
+    config = loader.get_settings("app:app")
     with Session() as session:
         job = github_app_geo_project.models.Queue()
         job.application = args.application
@@ -38,6 +39,10 @@ def main() -> None:
         job.event_data = {
             "type": "event",
             "name": args.event,
+        }
+        job.module = "dispatcher"
+        job.module_data = {
+            "modules": config.get(f"application.{args.application}.modules", "").split(),
         }
         job.priority = github_app_geo_project.module.PRIORITY_CRON
         session.add(job)

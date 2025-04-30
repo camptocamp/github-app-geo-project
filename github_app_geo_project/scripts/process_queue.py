@@ -32,7 +32,7 @@ import sqlalchemy.orm
 from prometheus_client import Gauge
 
 from github_app_geo_project import configuration, models, module, project_configuration, utils
-from github_app_geo_project.module import GHCIError, modules, webhook
+from github_app_geo_project.module import GHCIError, modules
 from github_app_geo_project.module import utils as module_utils
 
 _LOGGER = logging.getLogger(__name__)
@@ -187,7 +187,7 @@ async def _process_job(
             if "TEST_APPLICATION" not in os.environ and github_project is not None:
                 if job.check_run_id is None:
                     if job.module == "webhook":
-                        check_run = await webhook.create_checks(
+                        check_run = await module_utils.create_checks(
                             job,
                             session,
                             current_module,
@@ -198,7 +198,7 @@ async def _process_job(
                             job.event_name,
                         )
                     else:
-                        check_run = await webhook.create_checks(
+                        check_run = await module_utils.create_checks(
                             job,
                             session,
                             current_module,
@@ -392,7 +392,7 @@ async def _process_job(
                     new_job.event_data = job.event_data
                     new_job.module = job.module
                     new_job.module_data = current_module.event_data_to_json(action.data)
-                    await webhook.create_checks(
+                    await module_utils.create_checks(
                         new_job,
                         session,
                         current_module,
@@ -622,81 +622,6 @@ async def _process_job(
     return True
 
 
-async def _process_event(
-    config: dict[str, str],
-    event_data: dict[str, str],
-    session: sqlalchemy.orm.Session,
-) -> None:
-    for application in config["applications"].split():
-        _LOGGER.info("Process the event: %s, application: %s", event_data.get("name"), application)
-
-        if "TEST_APPLICATION" in os.environ:
-            test_application = os.environ["TEST_APPLICATION"]
-            github_application = configuration.GithubApplication(
-                None,  # type: ignore[arg-type]
-                test_application,
-                0,
-                "",
-                "",
-                None,  # type: ignore[arg-type]
-                None,  # type: ignore[arg-type]
-                None,  # type: ignore[arg-type]
-                None,
-            )
-            github_project = configuration.GithubProject(
-                github_application,
-                "",
-                "camptocamp",
-                "test",
-                None,  # type: ignore[arg-type]
-                None,  # type: ignore[arg-type]
-                None,  # type: ignore[arg-type]
-                None,
-            )
-            await webhook.process_event(
-                module.ProcessContext(
-                    event_name="event",
-                    event_data=event_data,
-                    session=session,
-                    github_project=github_project,
-                    service_url=config["service-url"],
-                    module_config=None,
-                    module_event_data={
-                        "modules": config.get(f"application.{test_application}.modules", "").split(),
-                    },
-                    issue_data="",
-                    job_id=0,
-                ),
-            )
-        else:
-            github_application = await configuration.get_github_application(config, application)
-            repos = (
-                await github_application.aio_github.rest.apps.async_list_repos_accessible_to_installation()
-            ).parsed_data
-            for repo in repos.repositories:
-                github_project = await configuration.get_github_project(
-                    config,
-                    github_application,
-                    repo.owner.login,
-                    repo.name,
-                )
-                await webhook.process_event(
-                    module.ProcessContext(
-                        event_name="event",
-                        event_data=event_data,
-                        session=session,
-                        github_project=github_project,
-                        service_url=config["service-url"],
-                        module_config=None,
-                        module_event_data={
-                            "modules": config.get(f"application.{application}.modules", "").split(),
-                        },
-                        issue_data="",
-                        job_id=0,
-                    ),
-                )
-
-
 async def _get_dashboard_issue(
     github_project: configuration.GithubProject,
 ) -> githubkit.versions.latest.models.Issue | None:
@@ -790,7 +715,7 @@ async def _process_dashboard_issue(
                             session.add(job)
                             session.flush()
                             if action.checks:
-                                await webhook.create_checks(
+                                await module_utils.create_checks(
                                     job,
                                     session,
                                     current_module,
@@ -922,11 +847,7 @@ async def _process_one_job(
 
         success = True
         if not job.module:
-            if job.event_data.get("type") == "event":
-                await _process_event(config, job.event_data, session)
-                job.status = models.JobStatus.DONE
-                job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-            elif job.event_name == "dashboard":
+            if job.event_name == "dashboard":
                 success = await _validate_job(config, job.application, job.event_data)
                 if success:
                     _LOGGER.info("Process dashboard issue %i", job.id)

@@ -38,7 +38,7 @@ health-check = "github_app_geo_project.scripts.health_check:main"
 main = "github_app_geo_project.server:main"
 
 [tool.poetry.plugins."ghci.module"]
-webhook = "github_app_geo_project.module.webhook:Webhook"
+dispatcher = "github_app_geo_project.module.internal:Dispatcher"
 test = "github_app_geo_project.module.tests:TestModule"
 changelog = "github_app_geo_project.module.standard.changelog:Changelog"
 audit = "github_app_geo_project.module.audit:Audit"
