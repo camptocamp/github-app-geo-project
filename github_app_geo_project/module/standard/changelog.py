@@ -351,7 +351,6 @@ def _get_discussion_url(github_project: GithubProject, tag: str) -> str | None:
 async def generate_changelog(
     github_project: GithubProject,
     configuration: changelog_configuration.Changelog,
-    repository: str,
     tag_str: str,
 ) -> str:
     """Generate the changelog for a tag."""
@@ -381,6 +380,8 @@ async def generate_changelog(
     )
 
     discussion_url = _get_discussion_url(github_project, tag_str)
+
+    repository = f"{github_project.owner}/{github_project.repository}"
 
     tags: dict[Tag, Tag] = {}
     for github_tag in (
@@ -449,7 +450,13 @@ async def generate_changelog(
                 for commit_ in commits:
                     if commit_.author:
                         authors.add(Author(commit_.author.login, commit_.author.html_url))
-                pull_request.as_issue().edit(milestone=milestone)
+                await github_project.aio_github.rest.issues.async_update(
+                    github_project.owner,
+                    github_project.repository,
+                    pull_request.number,
+                    data={"milestone": milestone.number},
+                )
+
                 changelog_items.add(
                     ChangelogItem(
                         github=pull_request,
@@ -809,7 +816,6 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 "body": await generate_changelog(
                     context.github_project,
                     context.module_config,
-                    repository,
                     tag_str,
                 ),
             },
