@@ -132,6 +132,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 )
                 message = module_utils.HtmlMessage(utils.format_json(publish_config))  # type: ignore[arg-type]
                 message.title = "Used publish configuration"
+                _LOGGER.info(message)
             else:
                 publish_config = {}
         except githubkit.exception.RequestFailed as exception:
