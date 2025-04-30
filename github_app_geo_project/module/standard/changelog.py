@@ -457,6 +457,14 @@ async def generate_changelog(
                     data={"milestone": milestone.number},
                 )
 
+                files = (
+                    await github_project.aio_github.rest.pulls.async_list_files(
+                        github_project.owner,
+                        github_project.repository,
+                        pull_request.number,
+                    )
+                ).parsed_data
+
                 changelog_items.add(
                     ChangelogItem(
                         github=pull_request,
@@ -465,7 +473,7 @@ async def generate_changelog(
                         author=Author(pull_request.user.login, pull_request.user.html_url),
                         authors=authors,
                         branch=pull_request.head.ref,
-                        files={file.filename for file in pull_request.files},
+                        files={file.filename for file in files},
                         labels={label.name for label in pull_request.labels},
                     ),
                 )
