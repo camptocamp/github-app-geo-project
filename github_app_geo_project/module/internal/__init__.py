@@ -1,25 +1,30 @@
 """Module to dispatch publishing event."""
 
 import logging
-import urllib.parse
+import os
 from typing import Any
 
-import githubkit.versions.latest.models
 import githubkit.webhooks
 import sqlalchemy
-from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
-from github_app_geo_project import configuration, models, module
+from github_app_geo_project import models, module
 from github_app_geo_project.module import modules
+from github_app_geo_project.module import utils as module_utils
 
 _LOGGER = logging.getLogger(__name__)
 
 
-class Webhook(module.Module[None, dict[str, Any], None, None]):
-    """
-    The version module.
+class _EventData(BaseModel):
+    modules: list[str] = []
+    """The list of modules to dispatch the event to."""
 
-    Create a dashboard to show the back ref versions with support check
+
+class Dispatcher(module.Module[None, _EventData, None, None]):
+    """
+    The event dispatcher module.
+
+    Dispatch webhook and cli event across the repository and modules.
     """
 
     def title(self) -> str:
@@ -45,7 +50,7 @@ class Webhook(module.Module[None, dict[str, Any], None, None]):
             events=set(),
         )
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_EventData]]:
         """
         Get the actions of the module.
 
@@ -56,11 +61,19 @@ class Webhook(module.Module[None, dict[str, Any], None, None]):
 
     async def process(
         self,
-        context: module.ProcessContext[None, dict[str, Any]],
-    ) -> module.ProcessOutput[dict[str, Any], None]:
+        context: module.ProcessContext[None, _EventData],
+    ) -> module.ProcessOutput[_EventData, None]:
         """
         Process the action.
         """
+
+        if context.event_name == "event":
+            await _process_event(context)
+            return module.ProcessOutput(output={"summary": "Event processed"})
+
+        if context.event_name == "repo_event":
+            await _process_repo_event(context)
+            return module.ProcessOutput(output={"summary": "Event processed on repository"})
 
         re_requested_check_suite_id = _get_re_requested_check_suite_id(
             context.event_name,
@@ -86,19 +99,26 @@ class Webhook(module.Module[None, dict[str, Any], None, None]):
         return False
 
 
-async def process_event(context: module.ProcessContext[None, dict[str, Any]]) -> list[str]:
+async def process_event(context: module.ProcessContext[None, _EventData]) -> list[str]:
     """Process the event."""
-    _LOGGER.debug("Processing event for application %s", context.github_project.application.name)
+    owner = "camptocamp" if "TEST_APPLICATION" in os.environ else context.github_project.owner
+    repository = "test" if "TEST_APPLICATION" in os.environ else context.github_project.repository
+    application = (
+        os.environ["TEST_APPLICATION"]  # noqa: SIM401
+        if "TEST_APPLICATION" in os.environ
+        else context.github_project.application.name
+    )
+    _LOGGER.debug("Processing event for application %s", application)
     outputs = []
-    for name in context.module_event_data.get("modules", []):
+    for name in context.module_event_data.modules:
         current_module = modules.MODULES.get(name)
         if current_module is None:
             _LOGGER.error("Unknown module %s", name)
             continue
         _LOGGER.info(
             "Getting actions for the repository: %s/%s, module: %s",
-            context.github_project.owner,
-            context.github_project.repository,
+            owner,
+            repository,
             name,
         )
         try:
@@ -106,9 +126,9 @@ async def process_event(context: module.ProcessContext[None, dict[str, Any]]) ->
                 module.GetActionContext(
                     event_name=context.event_name,
                     event_data=context.event_data,
-                    owner=context.github_project.owner,
-                    repository=context.github_project.repository,
-                    github_application=context.github_project.application,
+                    owner=owner,
+                    repository=repository,
+                    github_application=context.github_project.application if context.github_project else None,
                 ),
             ):
                 _LOGGER.info(
@@ -125,17 +145,17 @@ async def process_event(context: module.ProcessContext[None, dict[str, Any]]) ->
                     update = (
                         sqlalchemy.update(models.Queue)
                         .where(models.Queue.status == models.JobStatus.NEW)
-                        .where(models.Queue.application == context.github_project.application.name)
+                        .where(models.Queue.application == application)
                         .where(models.Queue.module == name)
                     )
                     for key in jobs_unique_on:
                         if key == "priority":
                             update = update.where(models.Queue.priority == priority)
                         elif key == "owner":
-                            update = update.where(models.Queue.owner == context.github_project.owner)
+                            update = update.where(models.Queue.owner == owner)
                         elif key == "repository":
                             update = update.where(
-                                models.Queue.repository == context.github_project.repository,
+                                models.Queue.repository == repository,
                             )
                         elif key == "event_name":
                             update = update.where(models.Queue.event_name == event_name)
@@ -162,9 +182,9 @@ async def process_event(context: module.ProcessContext[None, dict[str, Any]]) ->
 
                 job = models.Queue()
                 job.priority = priority
-                job.application = context.github_project.application.name
-                job.owner = context.github_project.owner
-                job.repository = context.github_project.repository
+                job.application = application
+                job.owner = owner
+                job.repository = repository
                 job.event_name = event_name
                 job.event_data = context.event_data
                 job.module = name
@@ -184,7 +204,7 @@ async def process_event(context: module.ProcessContext[None, dict[str, Any]]) ->
                         "workflow_run",
                     ]
                 if should_create_checks and github_project is not None:
-                    await create_checks(
+                    await module_utils.create_checks(
                         job,
                         context.session,
                         current_module,
@@ -198,67 +218,6 @@ async def process_event(context: module.ProcessContext[None, dict[str, Any]]) ->
             _LOGGER.exception("Error while getting actions for %s", name)
     context.session.commit()
     return outputs
-
-
-async def create_checks(
-    job: models.Queue,
-    session: Session,
-    current_module: module.Module[Any, Any, Any, Any],
-    github_project: configuration.GithubProject,
-    event_name: str,
-    event_data: dict[str, Any],
-    service_url: str,
-    sub_name: str | None = None,
-) -> githubkit.versions.latest.models.CheckRun:
-    """Create the GitHub check run."""
-    # Get the job id from the database
-    session.flush()
-
-    service_url = service_url if service_url.endswith("/") else service_url + "/"
-    service_url = urllib.parse.urljoin(service_url, "logs/")
-    service_url = urllib.parse.urljoin(service_url, str(job.id))
-
-    sha = None
-    if event_name == "pull_request":
-        event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", event_data)
-        sha = event_data_pull_request.pull_request.head.sha
-    if event_name == "push":
-        event_data_push = githubkit.webhooks.parse_obj("push", event_data)
-        sha = event_data_push.before if event_data_push.deleted else event_data_push.after
-    if event_name == "workflow_run":
-        event_data_workflow_run = githubkit.webhooks.parse_obj("workflow_run", event_data)
-        sha = event_data_workflow_run.workflow_run.head_sha
-    if event_name == "check_suite":
-        event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", event_data)
-        sha = event_data_check_suite.check_suite.head_sha
-    if event_name == "check_run":
-        event_data_check_run = githubkit.webhooks.parse_obj("check_run", event_data)
-        sha = event_data_check_run.check_run.head_sha
-    if sha is None:
-        assert github_project.aio_repo is not None
-        branch = (
-            await github_project.aio_github.rest.repos.async_get_branch(
-                owner=github_project.owner,
-                repo=github_project.repository,
-                branch=github_project.aio_repo.default_branch,
-            )
-        ).parsed_data
-        sha = branch.commit.sha
-
-    name = f"{current_module.title()}: {sub_name}" if sub_name else current_module.title()
-    check_run = (
-        await github_project.aio_github.rest.checks.async_create(
-            owner=github_project.owner,
-            repo=github_project.repository,
-            name=name,
-            head_sha=sha,
-            details_url=service_url,
-            external_id=str(job.id),
-        )
-    ).parsed_data
-    job.check_run_id = check_run.id
-    session.commit()
-    return check_run
 
 
 def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]) -> int | None:
@@ -278,7 +237,7 @@ def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]
 
 
 async def _re_requested_check_suite(
-    context: module.ProcessContext[None, dict[str, Any]],
+    context: module.ProcessContext[None, _EventData],
     check_suite_id: int,
 ) -> list[str]:
     outputs = []
@@ -339,3 +298,44 @@ async def _re_requested_check_suite(
                 "Error while getting check suite",
             )
     return outputs
+
+
+async def _process_event(context: module.ProcessContext[None, _EventData]) -> None:
+    if "TEST_APPLICATION" in os.environ:
+        job = models.Queue()
+        job.priority = 0
+        job.application = os.environ["TEST_APPLICATION"]
+        job.owner = "camptocamp"
+        job.repository = "test"
+        job.event_name = "repo_event"
+        job.event_data = context.event_data
+        job.module = "dispatcher"
+        job.module_data = context.module_event_data.model_dump()
+        context.session.add(job)
+    else:
+        repos = (
+            await context.github_project.application.aio_github.rest.apps.async_list_repos_accessible_to_installation()
+        ).parsed_data
+        for repo in repos.repositories:
+            job = models.Queue()
+            job.priority = 0
+            job.application = context.github_project.application.name
+            job.owner = repo.owner.login
+            job.repository = repo.name
+            job.event_name = "repo_event"
+            job.event_data = context.event_data
+            job.module = "dispatcher"
+            job.module_data = context.module_event_data.model_dump()
+            context.session.add(job)
+    context.session.flush()
+
+
+async def _process_repo_event(context: module.ProcessContext[None, _EventData]) -> None:
+    _LOGGER.info(
+        "Process the event: %s, application: %s",
+        context.event_data.get("name"),
+        os.environ["TEST_APPLICATION"]  # noqa: SIM401
+        if "TEST_APPLICATION" in os.environ
+        else context.github_project.application.name,
+    )
+    await process_event(context)

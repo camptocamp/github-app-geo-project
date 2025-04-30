@@ -128,7 +128,7 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
         job.repository = repository
         job.event_name = event_name
         job.event_data = data
-        job.module = "webhook"
+        job.module = "dispatcher"
         job.module_data = {
             "modules": request.registry.settings.get(f"application.{application}.modules", "").split(),
         }
