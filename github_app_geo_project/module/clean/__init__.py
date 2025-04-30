@@ -1,6 +1,7 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -126,7 +127,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 publish_config = cast(
                     "tag_publish.configuration.Configuration",
                     yaml.load(
-                        publish_configuration_content.content,
+                        base64.b64decode(publish_configuration_content.content).decode("utf-8"),
                         Loader=yaml.SafeLoader,
                     ),
                 )
