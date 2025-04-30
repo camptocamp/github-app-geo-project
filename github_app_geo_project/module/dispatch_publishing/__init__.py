@@ -113,7 +113,7 @@ class DispatchPublishing(module.Module[None, None, None, None]):
             names = []
 
             for item in content.get("items", []):
-                if destination.package_type and destination.package_type != item.package_type:
+                if destination.package_type and destination.package_type != item.get("package_type"):
                     continue
 
                 if not image_re.match(item.get("image", "")):

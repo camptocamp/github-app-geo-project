@@ -728,16 +728,41 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             except githubkit.exception.RequestFailed as exception:
                 if exception.response.status_code != 404:
                     raise
-            await context.github_project.aio_github.rest.repos.async_create_release(
-                context.github_project.owner,
-                context.github_project.repository,
-                data={
-                    "tag_name": tag_str,
-                    "name": tag_str,
-                    "body": "",
-                    "prerelease": prerelease,
-                },
-            )
+            release = None
+            try:
+                release = (
+                    await context.github_project.aio_github.rest.repos.async_get_release_by_tag(
+                        context.github_project.owner,
+                        context.github_project.repository,
+                        tag_str,
+                    )
+                ).parsed_data
+            except githubkit.exception.RequestFailed as exception:
+                if exception.response.status_code != 404:
+                    raise
+            if release is None:
+                await context.github_project.aio_github.rest.repos.async_create_release(
+                    context.github_project.owner,
+                    context.github_project.repository,
+                    data={
+                        "tag_name": tag_str,
+                        "name": tag_str,
+                        "body": "",
+                        "prerelease": prerelease,
+                    },
+                )
+            else:
+                await context.github_project.aio_github.rest.repos.async_update_release(
+                    context.github_project.owner,
+                    context.github_project.repository,
+                    release.id,
+                    data={
+                        "tag_name": tag_str,
+                        "name": tag_str,
+                        "body": "",
+                        "prerelease": prerelease,
+                    },
+                )
             return module.ProcessOutput(
                 actions=[
                     module.Action(
@@ -800,16 +825,18 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
             _LOGGER.info("No tag found '%s' on repository '%s'.", tag_str, repository)
             return module.ProcessOutput()
 
-        release = await context.github_project.aio_github.rest.repos.async_get_release_by_tag(
-            context.github_project.owner,
-            context.github_project.repository,
-            tag_str,
-        )
+        release = (
+            await context.github_project.aio_github.rest.repos.async_get_release_by_tag(
+                context.github_project.owner,
+                context.github_project.repository,
+                tag_str,
+            )
+        ).parsed_data
         assert release is not None
         await context.github_project.aio_github.rest.repos.async_update_release(
             context.github_project.owner,
             context.github_project.repository,
-            release.parsed_data.id,
+            release.id,
             data={
                 "tag_name": tag_str,
                 "name": tag_str,
