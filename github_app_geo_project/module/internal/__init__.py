@@ -75,13 +75,13 @@ class Dispatcher(module.Module[None, _EventData, None, None]):
             await _process_repo_event(context)
             return module.ProcessOutput(output={"summary": "Event processed on repository"})
 
-        re_requested_check_suite_id = _get_re_requested_check_suite_id(
+        re_requested_check_ids = _get_re_requested_check_suite_id(
             context.event_name,
             context.event_data,
         )
         outputs = (
-            await _re_requested_check_suite(context, re_requested_check_suite_id)
-            if re_requested_check_suite_id is not None
+            await _re_requested_check_suite(context, *re_requested_check_ids)
+            if re_requested_check_ids is not None
             else []
         )
         if not outputs:
@@ -220,7 +220,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> lis
     return outputs
 
 
-def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]) -> int | None:
+def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]) -> tuple[int, int] | None:
     """Check if the event is a rerequested event."""
     if event_name != "check_run":
         return None
@@ -232,13 +232,14 @@ def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]
         and event_data_check_suite.check_run.check_suite
         and event_data_check_suite.check_run.check_suite.id
     ):
-        return event_data_check_suite.check_run.check_suite.id
+        return event_data_check_suite.check_run.check_suite.id, event_data_check_suite.check_run.id
     return None
 
 
 async def _re_requested_check_suite(
     context: module.ProcessContext[None, _EventData],
     check_suite_id: int,
+    check_run_id: int,
 ) -> list[str]:
     outputs = []
     assert context.github_project is not None
@@ -258,30 +259,31 @@ async def _re_requested_check_suite(
             )
         ).parsed_data
         for check_run in check_runs.check_runs:
-            _LOGGER.info(
-                "Re request the check run %s from check suite %s",
-                check_run.id,
-                check_suite.id,
-            )
-            outputs.append(f"Re request the check run {check_run.id} from check suite {check_suite.id}")
-            context.session.execute(
-                sqlalchemy.update(models.Queue)
-                .where(models.Queue.check_run_id == check_run.id)
-                .values(
-                    {
-                        "status": models.JobStatus.NEW,
-                        "started_at": None,
-                        "finished_at": None,
-                    },
-                ),
-            )
-            context.session.commit()
-            await context.github_project.aio_github.rest.checks.async_update(
-                owner=context.github_project.owner,
-                repo=context.github_project.repository,
-                check_run_id=check_run.id,
-                data={"status": "queued"},
-            )
+            if check_run.id == check_run_id:
+                _LOGGER.info(
+                    "Re request the check run %s from check suite %s",
+                    check_run.id,
+                    check_suite.id,
+                )
+                outputs.append(f"Re request the check run {check_run.id} from check suite {check_suite.id}")
+                context.session.execute(
+                    sqlalchemy.update(models.Queue)
+                    .where(models.Queue.check_run_id == check_run.id)
+                    .values(
+                        {
+                            "status": models.JobStatus.NEW,
+                            "started_at": None,
+                            "finished_at": None,
+                        },
+                    ),
+                )
+                context.session.commit()
+                await context.github_project.aio_github.rest.checks.async_update(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    check_run_id=check_run.id,
+                    data={"status": "queued"},
+                )
     except githubkit.exception.RequestFailed as exception:
         if exception.response.status_code == 404:
             _LOGGER.error(  # noqa: TRY400
