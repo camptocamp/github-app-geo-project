@@ -75,23 +75,27 @@ class Dispatcher(module.Module[None, _EventData, None, None]):
             await _process_repo_event(context)
             return module.ProcessOutput(output={"summary": "Event processed on repository"})
 
-        re_requested_check_suite_id = _get_re_requested_check_suite_id(
+        re_requested_check_ids = _get_re_requested_check_suite_id(
             context.event_name,
             context.event_data,
         )
-        outputs = (
-            await _re_requested_check_suite(context, re_requested_check_suite_id)
-            if re_requested_check_suite_id is not None
-            else []
+        outputs, nb_re_run = (
+            await _re_requested_check_suite(context, *re_requested_check_ids)
+            if re_requested_check_ids is not None
+            else ([], 0)
         )
         if not outputs:
             outputs.append("")
 
-        process_event_outputs = await process_event(context)
+        process_event_outputs, nb_modules_action = await process_event(context)
         if not process_event_outputs:
-            process_event_outputs.append("No action to process")
+            process_event_outputs.append("No action to process from other modules")
         return module.ProcessOutput(
-            output={"summary": "\n".join([*outputs, *process_event_outputs])},
+            output={
+                "title": f"Dispatch {context.event_name} events to modules and do check re-runs",
+                "summary": f"Create {nb_modules_action} actions and performed {nb_re_run} check re-runs",
+                "text": "\n".join([*outputs, "", *process_event_outputs]),
+            },
         )
 
     def has_transversal_dashboard(self) -> bool:
@@ -99,7 +103,7 @@ class Dispatcher(module.Module[None, _EventData, None, None]):
         return False
 
 
-async def process_event(context: module.ProcessContext[None, _EventData]) -> list[str]:
+async def process_event(context: module.ProcessContext[None, _EventData]) -> tuple[list[str], int]:
     """Process the event."""
     owner = "camptocamp" if "TEST_APPLICATION" in os.environ else context.github_project.owner
     repository = "test" if "TEST_APPLICATION" in os.environ else context.github_project.repository
@@ -110,6 +114,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> lis
     )
     _LOGGER.debug("Processing event for application %s", application)
     outputs = []
+    number = 0
     for name in context.module_event_data.modules:
         current_module = modules.MODULES.get(name)
         if current_module is None:
@@ -136,6 +141,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> lis
                     action.title or "Untitled",
                 )
                 outputs.append(f"Create job for module {name} with action {action.title or 'Untitled'}")
+                number += 1
                 priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
                 event_name = action.title or context.event_name
                 module_data = current_module.event_data_to_json(action.data)
@@ -217,11 +223,25 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> lis
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Error while getting actions for %s", name)
     context.session.commit()
-    return outputs
+    return outputs, number
 
 
-def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]) -> int | None:
-    """Check if the event is a rerequested event."""
+def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]) -> tuple[int, int] | None:
+    """
+    Check if the event is a rerequested event and return relevant IDs.
+
+    Arguments
+    ---------
+        event_name: The name of the event.
+        event_data: The data associated with the event.
+
+    Returns
+    -------
+        tuple[int, int] | None: A tuple containing:
+            - check_suite_id (int): The ID of the check suite.
+            - check_run_id (int): The ID of the check run.
+        Returns None if the event is not a rerequested check_run event or if the required data is missing.
+    """
     if event_name != "check_run":
         return None
 
@@ -232,15 +252,17 @@ def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]
         and event_data_check_suite.check_run.check_suite
         and event_data_check_suite.check_run.check_suite.id
     ):
-        return event_data_check_suite.check_run.check_suite.id
+        return event_data_check_suite.check_run.check_suite.id, event_data_check_suite.check_run.id
     return None
 
 
 async def _re_requested_check_suite(
     context: module.ProcessContext[None, _EventData],
     check_suite_id: int,
-) -> list[str]:
+    check_run_id: int,
+) -> tuple[list[str], int]:
     outputs = []
+    number = 0
     assert context.github_project is not None
     try:
         check_suite = (
@@ -258,30 +280,32 @@ async def _re_requested_check_suite(
             )
         ).parsed_data
         for check_run in check_runs.check_runs:
-            _LOGGER.info(
-                "Re request the check run %s from check suite %s",
-                check_run.id,
-                check_suite.id,
-            )
-            outputs.append(f"Re request the check run {check_run.id} from check suite {check_suite.id}")
-            context.session.execute(
-                sqlalchemy.update(models.Queue)
-                .where(models.Queue.check_run_id == check_run.id)
-                .values(
-                    {
-                        "status": models.JobStatus.NEW,
-                        "started_at": None,
-                        "finished_at": None,
-                    },
-                ),
-            )
-            context.session.commit()
-            await context.github_project.aio_github.rest.checks.async_update(
-                owner=context.github_project.owner,
-                repo=context.github_project.repository,
-                check_run_id=check_run.id,
-                data={"status": "queued"},
-            )
+            if check_run.id == check_run_id:
+                _LOGGER.info(
+                    "Re request the check run %s from check suite %s",
+                    check_run.id,
+                    check_suite.id,
+                )
+                outputs.append(f"Re request the check run {check_run.id} from check suite {check_suite.id}")
+                number += 1
+                context.session.execute(
+                    sqlalchemy.update(models.Queue)
+                    .where(models.Queue.check_run_id == check_run.id)
+                    .values(
+                        {
+                            "status": models.JobStatus.NEW,
+                            "started_at": None,
+                            "finished_at": None,
+                        },
+                    ),
+                )
+                context.session.commit()
+                await context.github_project.aio_github.rest.checks.async_update(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    check_run_id=check_run.id,
+                    data={"status": "queued"},
+                )
     except githubkit.exception.RequestFailed as exception:
         if exception.response.status_code == 404:
             _LOGGER.error(  # noqa: TRY400
@@ -297,7 +321,7 @@ async def _re_requested_check_suite(
             outputs.append(
                 "Error while getting check suite",
             )
-    return outputs
+    return outputs, number
 
 
 async def _process_event(context: module.ProcessContext[None, _EventData]) -> None:
