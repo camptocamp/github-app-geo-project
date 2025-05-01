@@ -1,6 +1,7 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
 import asyncio
+import base64
 import json
 import logging
 import tempfile
@@ -9,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import aiofiles
 import github
+import githubkit.versions.latest.models
 import githubkit.versions.v2022_11_28.webhooks
 import githubkit.versions.v2022_11_28.webhooks.pull_request
 import githubkit.webhooks
@@ -137,19 +139,27 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 try:
                     branch = context.module_event_data.branch
                     assert branch is not None
-                    backport_todo = repo.get_contents("BACKPORT_TODO", ref=branch)
-                    assert isinstance(backport_todo, github.ContentFile.ContentFile)
+                    backport_todo = (
+                        await context.github_project.aio_github.rest.repos.async_get_content(
+                            owner=context.github_project.owner,
+                            repo=context.github_project.repository,
+                            ref=branch,
+                            path="BACKPORT_TODO",
+                        )
+                    ).parsed_data
+                    assert isinstance(backport_todo, githubkit.versions.latest.models.ContentFile)
+                    assert backport_todo.content is not None
                     return module.ProcessOutput(
                         success=False,
                         output={
                             "title": "BACKPORT_TODO file found",
                             "summary": "There is a BACKPORT_TODO file in the branch, he should be threaded and removed\n\n"
-                            + backport_todo.decoded_content.decode("utf-8"),
+                            + base64.b64decode(backport_todo.content).decode("utf-8"),
                         },
                     )
 
-                except github.GithubException as exception:
-                    if exception.status == 404:
+                except githubkit.exception.RequestFailed as exception:
+                    if exception.response.status_code == 404:
                         return module.ProcessOutput()
                     _LOGGER.exception("Error while getting BACKPORT_TODO file")
                     return module.ProcessOutput(
@@ -182,15 +192,23 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     repo = context.github_project.repo
                     if event_data_pull_request.pull_request.base.ref == repo.default_branch:
                         try:
-                            security_file = repo.get_contents("SECURITY.md")
-                            assert isinstance(security_file, github.ContentFile.ContentFile)
-                            security = security_md.Security(security_file.decoded_content.decode("utf-8"))
+                            security_file = (
+                                await context.github_project.aio_github.rest.repos.async_get_content(
+                                    owner=context.github_project.owner,
+                                    repo=context.github_project.repository,
+                                    path="SECURITY.md",
+                                )
+                            ).parsed_data
+                            assert isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+                            assert security_file.content is not None
+                            security = security_md.Security(
+                                base64.b64decode(security_file.content).decode("utf-8"),
+                            )
                             branches = {*security.branches()}
-                        except github.GithubException as exception:
-                            if exception.status == 404:
+                        except githubkit.exception.RequestFailed as exception:
+                            if exception.response.status_code == 404:
                                 _LOGGER.debug("No SECURITY.md file in the repository")
                                 branches = set()
-
                             else:
                                 _LOGGER.exception("Error while getting SECURITY.md")
                                 raise

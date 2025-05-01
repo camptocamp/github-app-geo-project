@@ -1,5 +1,6 @@
 """Manage configuration of the application."""
 
+import base64
 import logging
 import os
 from pathlib import Path
@@ -229,17 +230,23 @@ async def get_configuration(
     Parameter:
         repository: The repository name (<owner>/<name>)
     """
-    repo = github_project.repo
     project_custom_configuration = {}
     try:
-        project_configuration_content = repo.get_contents(".github/ghci.yaml")
-        assert not isinstance(project_configuration_content, list)
+        project_configuration_content = (
+            await github_project.aio_github.rest.repos.async_get_content(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                path=".github/ghci.yaml",
+            )
+        ).parsed_data
+        assert isinstance(project_configuration_content, githubkit.versions.latest.models.ContentFile)
+        assert project_configuration_content is not None
         project_custom_configuration = yaml.load(
-            project_configuration_content.decoded_content,
+            base64.b64decode(project_configuration_content.content).decode("utf-8"),
             Loader=yaml.SafeLoader,
         )
-    except github.GithubException as exception:
-        if exception.status != 404:
+    except githubkit.exception.RequestFailed as exception:
+        if exception.response.status_code != 404:
             raise
 
     return jsonmerge.merge(  # type: ignore[no-any-return]

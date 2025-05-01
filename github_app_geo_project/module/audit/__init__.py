@@ -1,6 +1,7 @@
 """the audit modules."""
 
 import asyncio
+import base64
 import datetime
 import json
 import logging
@@ -13,7 +14,6 @@ from pathlib import Path
 from typing import Any, cast
 
 import aiofiles
-import github
 import githubkit.webhooks
 import security_md
 import yaml
@@ -111,20 +111,26 @@ def _process_error(
     return output_url
 
 
-def _process_outdated(
+async def _process_outdated(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     issue_check: module_utils.DashboardIssue,
 ) -> None:
-    repo = context.github_project.repo
     try:
-        security_file = repo.get_contents("SECURITY.md")
-        assert isinstance(security_file, github.ContentFile.ContentFile)
-        security = security_md.Security(security_file.decoded_content.decode("utf-8"))
+        security_file = (
+            await context.github_project.aio_github.rest.repos.async_get_content(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                path="SECURITY.md",
+            )
+        ).parsed_data
+        assert isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+        assert security_file.content is not None
+        security = security_md.Security(base64.b64decode(security_file.content).decode("utf-8"))
 
         error_message = audit_utils.outdated_versions(security)
         _process_error(context, _OUTDATED, issue_check, error_message)
-    except github.GithubException as exception:
-        if exception.status == 404:
+    except githubkit.exception.RequestFailed as exception:
+        if exception.response.status_code == 404:
             _LOGGER.debug("No SECURITY.md file in the repository")
             _process_error(context, _OUTDATED, issue_check, message="No SECURITY.md file in the repository")
         else:
@@ -479,9 +485,15 @@ class Audit(
         key_starts = []
         security_file = None
         try:
-            security_file = repo.get_contents("SECURITY.md")
-        except github.GithubException as exception:
-            if exception.status == 404:
+            security_file = (
+                await context.github_project.aio_github.rest.repos.async_get_content(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    path="SECURITY.md",
+                )
+            ).parsed_data
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code == 404:
                 _LOGGER.debug("No security file in the repository")
             else:
                 raise
@@ -499,16 +511,16 @@ class Audit(
 
         dpkg_version = None
         try:
-            dpkg_version = repo.get_contents(".github/dpkg-versions.yaml")
-        except github.GithubException as exception:
-            if exception.status == 404:
-                try:
-                    dpkg_version = repo.get_contents("ci/dpkg-versions.yaml")
-                except github.GithubException as exception2:
-                    if exception2.status == 404:
-                        _LOGGER.debug("No dpkg-versions.yaml file in the repository")
-                    else:
-                        raise
+            dpkg_version = (
+                await context.github_project.aio_github.rest.repos.async_get_content(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    path=".github/dpkg-versions.yaml",
+                )
+            ).parsed_data
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code != 404:
+                _LOGGER.debug("No dpkg-versions.yaml file in the repository")
             else:
                 raise
         if (
@@ -521,13 +533,15 @@ class Audit(
             issue_check.remove_check("dpkg")
 
         if context.module_event_data.type == "outdated":
-            _process_outdated(context, issue_check)
+            await _process_outdated(context, issue_check)
         elif context.module_event_data.version is None:
             # Creates new jobs with the versions from the SECURITY.md
             versions = []
-            if security_file is not None:
-                assert isinstance(security_file, github.ContentFile.ContentFile)
-                security = security_md.Security(security_file.decoded_content.decode("utf-8"))
+            if (
+                isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+                and security_file.content is not None
+            ):
+                security = security_md.Security(base64.b64decode(security_file.content).decode("utf-8"))
 
                 versions = module_utils.get_stabilization_versions(security)
             else:

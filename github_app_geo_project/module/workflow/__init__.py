@@ -1,9 +1,11 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
+import base64
 import logging
 from typing import Any
 
-import github
+import githubkit.exception
+import githubkit.versions.latest.models
 import githubkit.webhooks
 import security_md
 
@@ -75,18 +77,25 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
 
         repo_data = transversal_status[full_repo]
 
-        repo = context.github_project.repo
-
-        stabilization_branches = [repo.default_branch]
+        assert context.github_project.aio_repo is not None
+        stabilization_branches = [context.github_project.aio_repo.default_branch]
         security_file = None
         try:
-            security_file = repo.get_contents("SECURITY.md")
-        except github.GithubException as exc:
-            if exc.status != 404:
+            security_file = (
+                await context.github_project.aio_github.rest.repos.async_get_content(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    path="SECURITY.md",
+                )
+            ).parsed_data
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code != 404:
                 raise
-        if security_file is not None:
-            assert isinstance(security_file, github.ContentFile.ContentFile)
-            security = security_md.Security(security_file.decoded_content.decode("utf-8"))
+        if (
+            isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+            and security_file.content is not None
+        ):
+            security = security_md.Security(base64.b64decode(security_file.content).decode("utf-8"))
 
             stabilization_branches += module_utils.get_stabilization_versions(security)
 
@@ -135,7 +144,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             workflow_name,
         )
 
-        workflow_run = repo.get_workflow_run(event_data.workflow_run.id)
+        workflow_run = context.github_project.repo.get_workflow_run(event_data.workflow_run.id)
         jobs = workflow_run.jobs()
         workflow_data_jobs.extend(
             {"name": job.name, "run_url": job.html_url} for job in jobs if job.conclusion != "success"

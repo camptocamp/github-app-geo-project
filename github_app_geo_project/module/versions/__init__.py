@@ -1,6 +1,7 @@
 """Utility functions for the auto* modules."""
 
 import asyncio
+import base64
 import datetime
 import io
 import json
@@ -16,7 +17,8 @@ from typing import Any
 import aiofiles
 import aiohttp
 import c2cciutils.configuration
-import github
+import githubkit.exception
+import githubkit.versions.latest.models
 import security_md
 import yaml
 from pydantic import BaseModel
@@ -197,16 +199,24 @@ class Versions(
 
             repo = context.github_project.repo
             stabilization_versions = []
-            security_file = None
+            security_file_content = None
             security = None
             try:
-                security_file = repo.get_contents("SECURITY.md")
-            except github.GithubException as exc:
-                if exc.status != 404:
+                security_file_content = (
+                    await context.github_project.aio_github.rest.repos.async_get_content(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                        path="SECURITY.md",
+                    )
+                ).parsed_data
+            except githubkit.exception.RequestFailed as exception:
+                if exception.response.status_code != 404:
                     raise
-            if security_file is not None:
-                assert isinstance(security_file, github.ContentFile.ContentFile)
-                security = security_md.Security(security_file.decoded_content.decode("utf-8"))
+            if security_file_content is not None:
+                assert isinstance(security_file_content, githubkit.versions.latest.models.ContentFile)
+                security = security_md.Security(
+                    base64.b64decode(security_file_content.content).decode("utf-8"),
+                )
 
                 stabilization_versions = module_utils.get_stabilization_versions(security)
                 intermediate_status.has_security_policy = True

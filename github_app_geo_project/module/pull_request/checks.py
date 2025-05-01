@@ -1,6 +1,7 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
 import asyncio
+import base64
 import json
 import logging
 import re
@@ -13,6 +14,8 @@ import github
 import github.Commit
 import github.PullRequest
 import githubkit
+import githubkit.exception
+import githubkit.versions.latest.models
 import githubkit.versions.v2022_11_28.webhooks
 import githubkit.webhooks
 
@@ -28,7 +31,7 @@ else:
     NamedTemporaryFileStr = tempfile._TemporaryFileWrapper  # pylint: disable=protected-access
 
 
-def _get_code_spell_command(
+async def _get_code_spell_command(
     context: module.ProcessContext[
         checks_configuration.PullRequestChecksConfiguration,
         dict[str, Any],
@@ -47,18 +50,24 @@ def _get_code_spell_command(
         ".spell-ignore-words.txt",
     ):
         try:
-            content = context.github_project.repo.get_contents(
-                spell_ignore_file,
-                ref=event_data.pull_request.head.sha,
-            )
-            if isinstance(content, github.ContentFile.ContentFile):
-                ignore_file.write(content.decoded_content.decode("utf-8"))
-                ignore_file.flush()
-                command.append(f"--ignore-words={ignore_file.name}")
-                break
-        except github.GithubException as exc:
-            if exc.status != 404:
+            content = (
+                await context.github_project.aio_github.rest.repos.async_get_content(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    ref=event_data.pull_request.head.sha,
+                    path=spell_ignore_file,
+                )
+            ).parsed_data
+            assert isinstance(content, githubkit.versions.latest.models.ContentFile)
+            assert content.content is not None
+            ignore_file.write(base64.b64decode(content.content).decode("utf-8"))
+            ignore_file.flush()
+            command.append(f"--ignore-words={ignore_file.name}")
+            break
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code != 404:
                 raise
+
     dictionaries = code_spell_config.get(
         "internal-dictionaries",
         checks_configuration.CODESPELL_DICTIONARIES_DEFAULT,
@@ -326,7 +335,7 @@ class Checks(
         commits = list(pull_request.get_commits())
 
         with tempfile.NamedTemporaryFile("w+t", encoding="utf-8") as ignore_file:
-            spellcheck_cmd = _get_code_spell_command(context, event_data, ignore_file)
+            spellcheck_cmd = await _get_code_spell_command(context, event_data, ignore_file)
             success_1, messages_1 = _commits_messages(context.module_config, commits)
             success_2, messages_2 = await _commits_spell(context.module_config, commits, spellcheck_cmd)
             success_3, messages_3 = await _pull_request_spell(
