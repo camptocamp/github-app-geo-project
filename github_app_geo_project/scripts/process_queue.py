@@ -138,53 +138,54 @@ async def _process_job(
     tasks: list[asyncio.Task[Any]] = []
     if "TEST_APPLICATION" not in os.environ:
         github_application = await configuration.get_github_application(config, job.application)
-        github_project = await configuration.get_github_project(
-            config,
-            github_application,
-            job.owner,
-            job.repository,
-        )
-        # Get Rate limit status
-        rate_limit = (await github_project.aio_github.rest.rate_limit.async_get()).parsed_data
-        if rate_limit.rate.remaining < 1000:
-            _LOGGER.warning(
-                "Rate limit status: %s/%s",
-                rate_limit.rate.remaining,
-                rate_limit.rate.limit,
+        if job.owner is None or job.repository is None:
+            github_project = await configuration.get_github_project(
+                config,
+                github_application,
+                job.owner,
+                job.repository,
             )
-            # Wait until github_project.github.rate_limiting_resettime
-            await asyncio.sleep(
-                max(
-                    0,
-                    rate_limit.rate.reset - time.time(),
+            # Get Rate limit status
+            rate_limit = (await github_project.aio_github.rest.rate_limit.async_get()).parsed_data
+            if rate_limit.rate.remaining < 1000:
+                _LOGGER.warning(
+                    "Rate limit status: %s/%s",
+                    rate_limit.rate.remaining,
+                    rate_limit.rate.limit,
+                )
+                # Wait until github_project.github.rate_limiting_resettime
+                await asyncio.sleep(
+                    max(
+                        0,
+                        rate_limit.rate.reset - time.time(),
+                    ),
+                )
+
+            if current_module.required_issue_dashboard():
+                dashboard_issue = await _get_dashboard_issue(github_project)
+                if dashboard_issue:
+                    issue_full_data = dashboard_issue.body
+                    assert isinstance(issue_full_data, str)
+                    issue_data = utils.get_dashboard_issue_module(issue_full_data, job.module)
+
+            module_config = cast(
+                "project_configuration.ModuleConfiguration",
+                (await configuration.get_configuration(github_project)).get(
+                    job.module,
+                    {},
                 ),
             )
-
-        if current_module.required_issue_dashboard():
-            dashboard_issue = await _get_dashboard_issue(github_project)
-            if dashboard_issue:
-                issue_full_data = dashboard_issue.body
-                assert isinstance(issue_full_data, str)
-                issue_data = utils.get_dashboard_issue_module(issue_full_data, job.module)
-
-        module_config = cast(
-            "project_configuration.ModuleConfiguration",
-            (await configuration.get_configuration(github_project)).get(
-                job.module,
-                {},
-            ),
-        )
-        if job.check_run_id is not None:
-            check_run = (
-                await github_project.aio_github.rest.checks.async_get(
-                    owner=job.owner,
-                    repo=job.repository,
-                    check_run_id=job.check_run_id,
-                )
-            ).parsed_data
+            if job.check_run_id is not None:
+                check_run = (
+                    await github_project.aio_github.rest.checks.async_get(
+                        owner=job.owner,
+                        repo=job.repository,
+                        check_run_id=job.check_run_id,
+                    )
+                ).parsed_data
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         try:
-            if "TEST_APPLICATION" not in os.environ and github_project is not None:
+            if "TEST_APPLICATION" not in os.environ:
                 if job.check_run_id is None:
                     if job.module == "webhook":
                         check_run = await module_utils.create_checks(
@@ -208,15 +209,16 @@ async def _process_job(
                             config["service-url"],
                         )
 
-                assert check_run is not None
-                await github_project.aio_github.rest.checks.async_update(
-                    owner=job.owner,
-                    repo=job.repository,
-                    check_run_id=check_run.id,
-                    external_id=str(job.id),
-                    status="in_progress",
-                    details_url=logs_url,
-                )
+                if github_project is not None:
+                    assert check_run is not None
+                    await github_project.aio_github.rest.checks.async_update(
+                        owner=job.owner,
+                        repo=job.repository,
+                        check_run_id=check_run.id,
+                        external_id=str(job.id),
+                        status="in_progress",
+                        details_url=logs_url,
+                    )
 
             # Close transaction if one is open
             session.commit()
