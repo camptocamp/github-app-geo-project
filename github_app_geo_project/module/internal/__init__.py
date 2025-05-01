@@ -226,7 +226,10 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
     return outputs, number
 
 
-def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]) -> tuple[int, int] | None:
+def _get_re_requested_check_suite_id(
+    event_name: str,
+    event_data: dict[str, Any],
+) -> tuple[int, int | None] | None:
     """
     Check if the event is a rerequested event and return relevant IDs.
 
@@ -242,24 +245,21 @@ def _get_re_requested_check_suite_id(event_name: str, event_data: dict[str, Any]
             - check_run_id (int): The ID of the check run.
         Returns None if the event is not a rerequested check_run event or if the required data is missing.
     """
-    if event_name != "check_run":
-        return None
-
-    event_data_check_suite = githubkit.webhooks.parse_obj("check_run", event_data)
-    if (
-        event_data_check_suite.action == "rerequested"
-        and event_data_check_suite.check_run
-        and event_data_check_suite.check_run.check_suite
-        and event_data_check_suite.check_run.check_suite.id
-    ):
-        return event_data_check_suite.check_run.check_suite.id, event_data_check_suite.check_run.id
+    if event_name == "check_run":
+        event_data_check_run = githubkit.webhooks.parse_obj("check_run", event_data)
+        if event_data_check_run.action == "rerequested" and event_data_check_run.check_run.check_suite.id:
+            return event_data_check_run.check_run.check_suite.id, event_data_check_run.check_run.id
+    elif event_name == "check_suite":
+        event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", event_data)
+        if event_data_check_suite.action == "rerequested":
+            return event_data_check_suite.check_suite.id, None
     return None
 
 
 async def _re_requested_check_suite(
     context: module.ProcessContext[None, _EventData],
     check_suite_id: int,
-    check_run_id: int,
+    check_run_id: int | None,
 ) -> tuple[list[str], int]:
     outputs = []
     number = 0
@@ -280,7 +280,7 @@ async def _re_requested_check_suite(
             )
         ).parsed_data
         for check_run in check_runs.check_runs:
-            if check_run.id == check_run_id:
+            if check_run_id is None or check_run.id == check_run_id:
                 _LOGGER.info(
                     "Re request the check run %s from check suite %s",
                     check_run.id,
