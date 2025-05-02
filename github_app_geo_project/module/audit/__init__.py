@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import aiofiles
+import githubkit.exception
 import githubkit.webhooks
 import security_md
 import yaml
@@ -519,7 +520,7 @@ class Audit(
                 )
             ).parsed_data
         except githubkit.exception.RequestFailed as exception:
-            if exception.response.status_code != 404:
+            if exception.response.status_code == 404:
                 _LOGGER.debug("No dpkg-versions.yaml file in the repository")
             else:
                 raise
