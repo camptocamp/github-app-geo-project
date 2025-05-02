@@ -138,7 +138,7 @@ async def _process_job(
     tasks: list[asyncio.Task[Any]] = []
     if "TEST_APPLICATION" not in os.environ:
         github_application = await configuration.get_github_application(config, job.application)
-        if job.owner is None or job.repository is None:
+        if job.owner is not None and job.repository is not None:
             github_project = await configuration.get_github_project(
                 config,
                 github_application,
