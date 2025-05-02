@@ -337,20 +337,28 @@ async def _process_event(context: module.ProcessContext[None, _EventData]) -> No
         job.module_data = context.module_event_data.model_dump()
         context.session.add(job)
     else:
-        repos = (
-            await context.github_project.application.aio_github.rest.apps.async_list_repos_accessible_to_installation()
+        installations = (
+            await context.github_project.application.aio_github.rest.apps.async_list_installations()
         ).parsed_data
-        for repo in repos.repositories:
-            job = models.Queue()
-            job.priority = 0
-            job.application = context.github_project.application.name
-            job.owner = repo.owner.login
-            job.repository = repo.name
-            job.event_name = "repo_event"
-            job.event_data = context.event_data
-            job.module = "dispatcher"
-            job.module_data = context.module_event_data.model_dump()
-            context.session.add(job)
+        for installation in installations:
+            aoi_installation_auth_strategy = context.github_project.application.aio_auth.as_installation(
+                installation.id,
+            )
+            aio_github = context.github_project.application.aio_github.with_auth(
+                aoi_installation_auth_strategy,
+            )
+            repos = (await aio_github.rest.apps.async_list_repos_accessible_to_installation()).parsed_data
+            for repo in repos.repositories:
+                job = models.Queue()
+                job.priority = 0
+                job.application = context.github_project.application.name
+                job.owner = repo.owner.login
+                job.repository = repo.name
+                job.event_name = "repo_event"
+                job.event_data = context.event_data
+                job.module = "dispatcher"
+                job.module_data = context.module_event_data.model_dump()
+                context.session.add(job)
     context.session.flush()
 
 
