@@ -968,6 +968,17 @@ class _PrometheusWatch:
     def _watch(self) -> None:
         cont = 0
         while True:
+            running_task_thread = []
+            for task in asyncio.all_tasks(self.loop):
+                if task.get_coro().cr_running:  # type: ignore[union-attr]
+                    running_task_thread.append(f"= {task.get_name()} ")
+                    running_task_thread.extend(
+                        f"  at {frame.f_code.co_filename}:{frame.f_lineno} {frame.f_code.co_name}"
+                        for frame in task.get_stack()
+                    )
+            running_task_thread = (
+                ["== Running tasks trace ==", *running_task_thread] if running_task_thread else []
+            )
             log_message = (
                 [
                     "Prometheus watch: alive",
@@ -975,6 +986,7 @@ class _PrometheusWatch:
                     *[str(thread) for thread in threading.enumerate()],
                     "== Tasks ==",
                     *[str(task) for task in asyncio.all_tasks(self.loop)],
+                    *running_task_thread,
                 ]
                 if os.environ.get("GHCI_DEBUG", "0").lower() in ("1", "true", "on")
                 else ["Prometheus watch: alive"]
