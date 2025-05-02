@@ -221,7 +221,7 @@ async def _process_job(
                             config["service-url"],
                         )
 
-                if github_project is not None:
+                if github_project is not None and github_project.aio_github is not None:
                     assert check_run is not None
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
@@ -333,7 +333,7 @@ async def _process_job(
             finally:
                 root_logger.removeHandler(handler)
 
-            if github_project is not None:
+            if github_project is not None and github_project.aio_github is not None:
                 check_output = {
                     "title": current_module.title(),
                     "summary": (
@@ -394,7 +394,7 @@ async def _process_job(
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
-            if result is not None and github_project is not None:
+            if result is not None and github_project is not None and github_project.aio_github is not None:
                 _LOGGER.debug("Process actions")
                 for action in result.actions:
                     new_job = models.Queue()
@@ -443,7 +443,7 @@ async def _process_job(
                 root_logger.removeHandler(handler)
             assert check_run is not None
             try:
-                if github_project is not None:
+                if github_project is not None and github_project.aio_github is not None:
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
@@ -491,7 +491,7 @@ async def _process_job(
                 root_logger.removeHandler(handler)
             assert check_run is not None
             try:
-                if github_project is not None:
+                if github_project is not None and github_project.aio_github is not None:
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
@@ -526,7 +526,7 @@ async def _process_job(
                     _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
                 finally:
                     root_logger.removeHandler(handler)
-            if check_run is not None and github_project is not None:
+            if check_run is not None and github_project is not None and github_project.aio_github is not None:
                 try:
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
@@ -557,7 +557,7 @@ async def _process_job(
         try:
             _LOGGER.info("Module %s is disabled", job.module)
             job.status = models.JobStatus.SKIPPED
-            if check_run is not None and github_project is not None:
+            if check_run is not None and github_project is not None and github_project.aio_github is not None:
                 await github_project.aio_github.rest.checks.async_update(
                     owner=job.owner,
                     repo=job.repository,
