@@ -186,7 +186,7 @@ async def _process_job(
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         try:
             if "TEST_APPLICATION" not in os.environ:
-                if job.check_run_id is None:
+                if job.check_run_id is None and job.owner is not None and job.repository is not None:
                     if job.module == "webhook":
                         check_run = await module_utils.create_checks(
                             job,
