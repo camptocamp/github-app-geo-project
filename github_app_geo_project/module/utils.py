@@ -1082,8 +1082,7 @@ async def create_checks(
     if event_name == "check_run":
         event_data_check_run = githubkit.webhooks.parse_obj("check_run", event_data)
         sha = event_data_check_run.check_run.head_sha
-    if sha is None:
-        assert github_project.aio_repo is not None
+    if sha is None and github_project.aio_repo is not None:
         branch = (
             await github_project.aio_github.rest.repos.async_get_branch(
                 owner=github_project.owner,
@@ -1092,6 +1091,9 @@ async def create_checks(
             )
         ).parsed_data
         sha = branch.commit.sha
+    if sha is None:
+        message = f"No sha found for the job {job.id} in {event_name}"
+        raise ValueError(message)
 
     name = f"{current_module.title()}: {sub_name}" if sub_name else current_module.title()
     check_run = (
