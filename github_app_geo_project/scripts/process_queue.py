@@ -183,6 +183,18 @@ async def _process_job(
                         check_run_id=job.check_run_id,
                     )
                 ).parsed_data
+        else:
+            github_project = configuration.GithubProject(
+                application=github_application,
+                token=None,
+                owner=None,
+                repository=None,
+                deprecated_repo=None,
+                aio_installation=None,
+                aio_github=None,
+                aio_repo=None,
+            )
+
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         try:
             if "TEST_APPLICATION" not in os.environ:
