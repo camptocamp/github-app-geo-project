@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, cast
 
 import aiofiles
+import aiomonitor
 import c2cwsgiutils.setup_process
 import githubkit.exception
 import githubkit.versions.latest.models
@@ -1100,80 +1101,81 @@ async def _async_main() -> None:
     c2cwsgiutils.setup_process.init(args.config_uri)
 
     loop = asyncio.get_running_loop()
-    loop.set_default_executor(
-        concurrent.futures.ThreadPoolExecutor(max_workers=int(os.environ.get("GHCI_MAX_WORKERS", "2"))),
-    )
-    loop.slow_callback_duration = float(
-        os.environ.get("GHCI_SLOW_CALLBACK_DURATION", "60"),
-    )  # 1 minute by default
-    if os.environ.get("GHCI_DEBUG", "0").lower() in ("1", "true", "on"):
-        asyncio.get_running_loop().set_debug(True)
-
-    def do_exit(loop: asyncio.AbstractEventLoop) -> None:
-        print("Exiting...")
-        loop.stop()
-
-    for signal_type in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(signal_type, functools.partial(do_exit, loop))
-
-    loader = plaster.get_loader(args.config_uri)
-    config = loader.get_settings("app:app")
-    engine = sqlalchemy.engine_from_config(config, "sqlalchemy.")
-    Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
-
-    # Create tables if they do not exist
-    models.Base.metadata.create_all(engine)
-
-    handle_sigint = HandleSigint(Session)
-    loop = asyncio.get_running_loop()
-    loop.add_signal_handler(signal.SIGINT, handle_sigint)
-
-    if args.only_one:
-        await _get_process_one_job(
-            config,
-            Session,
-            no_steal_long_pending=args.exit_when_empty,
-            make_pending=args.make_pending,
+    with aiomonitor.start_monitor(loop):
+        loop.set_default_executor(
+            concurrent.futures.ThreadPoolExecutor(max_workers=int(os.environ.get("GHCI_MAX_WORKERS", "2"))),
         )
-        sys.exit(0)
-    if args.make_pending:
-        await _get_process_one_job(
-            config,
-            Session,
-            no_steal_long_pending=args.exit_when_empty,
-            make_pending=True,
-        )
-        sys.exit(0)
+        loop.slow_callback_duration = float(
+            os.environ.get("GHCI_SLOW_CALLBACK_DURATION", "60"),
+        )  # 1 minute by default
+        if os.environ.get("GHCI_DEBUG", "0").lower() in ("1", "true", "on"):
+            loop.set_debug(True)
 
-    if not args.exit_when_empty and "C2C_PROMETHEUS_PORT" in os.environ:
+        def do_exit(loop: asyncio.AbstractEventLoop) -> None:
+            print("Exiting...")
+            loop.stop()
 
-        class LogHandler(prometheus_client.exposition._SilentHandler):  # pylint: disable=protected-access
-            """WSGI handler that does not log requests."""
+        for signal_type in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(signal_type, functools.partial(do_exit, loop))
 
-            def log_message(self, *args: Any) -> None:
-                _LOGGER_WSGI.debug(*args)
+        loader = plaster.get_loader(args.config_uri)
+        config = loader.get_settings("app:app")
+        engine = sqlalchemy.engine_from_config(config, "sqlalchemy.")
+        Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
 
-        prometheus_client.exposition._SilentHandler = LogHandler  # type: ignore[misc] # pylint: disable=protected-access
+        # Create tables if they do not exist
+        models.Base.metadata.create_all(engine)
 
-        prometheus_client.start_http_server(int(os.environ["C2C_PROMETHEUS_PORT"]))
+        handle_sigint = HandleSigint(Session)
+        loop = asyncio.get_running_loop()
+        loop.add_signal_handler(signal.SIGINT, handle_sigint)
 
-    priority_groups = [int(e) for e in os.environ.get("GHCI_PRIORITY_GROUPS", "2147483647").split(",")]
-
-    tasks = []
-    if not args.exit_when_empty:
-        tasks.append(asyncio.create_task(_WatchDog()(), name="Watch Dog"))
-        tasks.append(asyncio.create_task(_PrometheusWatch(Session, loop)(), name="Prometheus Watch"))
-
-    tasks.extend(
-        [
-            asyncio.create_task(
-                _Run(config, Session, args.exit_when_empty, priority)(),
-                name=f"Run ({priority})",
+        if args.only_one:
+            await _get_process_one_job(
+                config,
+                Session,
+                no_steal_long_pending=args.exit_when_empty,
+                make_pending=args.make_pending,
             )
-            for priority in priority_groups
-        ],
-    )
-    await asyncio.gather(*tasks)
+            sys.exit(0)
+        if args.make_pending:
+            await _get_process_one_job(
+                config,
+                Session,
+                no_steal_long_pending=args.exit_when_empty,
+                make_pending=True,
+            )
+            sys.exit(0)
+
+        if not args.exit_when_empty and "C2C_PROMETHEUS_PORT" in os.environ:
+
+            class LogHandler(prometheus_client.exposition._SilentHandler):  # pylint: disable=protected-access
+                """WSGI handler that does not log requests."""
+
+                def log_message(self, *args: Any) -> None:
+                    _LOGGER_WSGI.debug(*args)
+
+            prometheus_client.exposition._SilentHandler = LogHandler  # type: ignore[misc] # pylint: disable=protected-access
+
+            prometheus_client.start_http_server(int(os.environ["C2C_PROMETHEUS_PORT"]))
+
+        priority_groups = [int(e) for e in os.environ.get("GHCI_PRIORITY_GROUPS", "2147483647").split(",")]
+
+        tasks = []
+        if not args.exit_when_empty:
+            tasks.append(asyncio.create_task(_WatchDog()(), name="Watch Dog"))
+            tasks.append(asyncio.create_task(_PrometheusWatch(Session, loop)(), name="Prometheus Watch"))
+
+        tasks.extend(
+            [
+                asyncio.create_task(
+                    _Run(config, Session, args.exit_when_empty, priority)(),
+                    name=f"Run ({priority})",
+                )
+                for priority in priority_groups
+            ],
+        )
+        await asyncio.gather(*tasks)
 
 
 def main() -> None:
