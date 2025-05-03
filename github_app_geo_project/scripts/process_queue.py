@@ -253,7 +253,11 @@ async def _process_job(
                 job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", str(50 * 60)))
                 transversal_status = None
                 async with asyncio.timeout(job_timeout):
-                    result = await current_module.process(context)
+                    task = asyncio.create_task(
+                        current_module.process(context),
+                        name=f"Process Job {job.id} - {job.event_name} - {job.module or '-'}",
+                    )
+                    result = await task
                     if result.updated_transversal_status:
                         if job.module not in _MODULE_STATUS_LOCK:
                             _MODULE_STATUS_LOCK[job.module] = asyncio.Lock()
@@ -805,10 +809,7 @@ async def _get_process_one_job(
             _LOGGER.debug("Process one job (max priority: %i): Steal long pending job", max_priority)
             return True
 
-        await asyncio.create_task(
-            _process_one_job(job, session, config, make_pending, max_priority),
-            name=f"Process Job {job.id} - {job.event_name} - {job.module or '-'}",
-        )
+        await _process_one_job(job, session, config, make_pending, max_priority)
 
         return False
 
