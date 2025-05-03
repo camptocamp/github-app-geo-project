@@ -634,9 +634,8 @@ async def _process_job(
                     body=issue_full_data,
                 )
 
-    async with asyncio.timeout(60):
-        if tasks:
-            await asyncio.gather(*tasks)
+    if tasks:
+        await asyncio.wait_for(asyncio.gather(*tasks), timeout=60)
 
     return True
 
