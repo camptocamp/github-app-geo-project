@@ -6,6 +6,7 @@ import concurrent
 import contextvars
 import datetime
 import functools
+import inspect
 import io
 import logging
 import os
@@ -17,7 +18,7 @@ import threading
 import time
 import urllib.parse
 from pathlib import Path
-from typing import Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import aiofiles
 import aiomonitor
@@ -35,6 +36,9 @@ from prometheus_client import Gauge
 from github_app_geo_project import configuration, models, module, project_configuration, utils
 from github_app_geo_project.module import GHCIError, modules
 from github_app_geo_project.module import utils as module_utils
+
+if TYPE_CHECKING:
+    import types
 
 _LOGGER = logging.getLogger(__name__)
 _LOGGER_WSGI = logging.getLogger("prometheus_client.wsgi")
@@ -977,10 +981,36 @@ class _PrometheusWatch:
             for task in asyncio.all_tasks(self.loop):
                 if task.get_coro().cr_running:  # type: ignore[union-attr]
                     running_task_thread.append(f"= {task.get_name()} ")
-                    running_task_thread.extend(
-                        f"  at {frame.f_code.co_filename}:{frame.f_lineno} {frame.f_code.co_name}"
-                        for frame in task.get_stack()
-                    )
+
+                    frames: list[types.FrameType] = []
+                    frame: types.FrameType | None = task.get_coro().cr_frame  # type: ignore[union-attr]
+
+                    while frame is not None:
+                        frames.append(frame)
+                        frame = frame.f_back
+
+                    stack = [
+                        inspect.FrameInfo(
+                            frame,
+                            frame.f_code.co_filename,
+                            frame.f_lineno,
+                            frame.f_code.co_name,
+                            None,
+                            None,
+                        )
+                        for frame in reversed(frames)
+                    ]
+
+                    if stack:
+                        for frame_info in stack:
+                            filename = frame_info.filename
+                            filename = filename.removeprefix("/app/")
+                            running_task_thread.extend(
+                                f'  File "{filename}", line {frame_info.lineno}, in {frame_info.function}',
+                            )
+                            if frame_info.code_context:
+                                running_task_thread.extend(f"    {frame_info.code_context[0].strip()}")
+
             running_task_thread = (
                 ["== Running tasks trace ==", *running_task_thread] if running_task_thread else []
             )
