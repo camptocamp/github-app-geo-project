@@ -932,12 +932,16 @@ class _Run:
         while True:
             empty = True
             try:
-                empty = await _get_process_one_job(
-                    self.config,
-                    self.Session,
-                    no_steal_long_pending=self.end_when_empty,
-                    max_priority=self.max_priority,
+                task = asyncio.create_task(
+                    _get_process_one_job(
+                        self.config,
+                        self.Session,
+                        no_steal_long_pending=self.end_when_empty,
+                        max_priority=self.max_priority,
+                    ),
+                    name="Process one job",
                 )
+                empty = await task
                 if self.end_when_empty and empty:
                     return
             except TimeoutError:
