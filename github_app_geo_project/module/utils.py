@@ -811,7 +811,7 @@ async def close_pull_request_issues(
         )
     ).parsed_data
     assert pulls is not None
-    if pulls.totalCount > 0:
+    if pulls:
         pull_request = next(pulls)
         pull_request.edit(state="closed")
 
