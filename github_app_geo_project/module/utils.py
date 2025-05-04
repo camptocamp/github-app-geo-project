@@ -743,14 +743,16 @@ async def auto_merge_pull_request(
             if n != 0:
                 await asyncio.sleep(math.pow(n, 2))
             await github_project.aio_github.graphql.arequest(
-                """
-                mutation EnableAutoMerge($pullRequestId: ID!) {
-                    enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {
-                        clientMutationId
-                    }
-                }
-                """,
-                variables={"pullRequestId": pull_request.id},
+                "\n".join(  # noqa: FLY002
+                    [
+                        "mutation EnableAutoMerge($pullRequestId: ID!) {",
+                        "    enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {",
+                        "        clientMutationId",
+                        "    }",
+                        "}",
+                    ],
+                ),
+                variables={"pullRequestId": pull_request.node_id},
             )
         except githubkit.exception.RequestFailed as exception:
             if exception.response.status_code == 400:
@@ -811,7 +813,7 @@ async def close_pull_request_issues(
         )
     ).parsed_data
     assert pulls is not None
-    if pulls.totalCount > 0:
+    if pulls:
         pull_request = next(pulls)
         pull_request.edit(state="closed")
 
