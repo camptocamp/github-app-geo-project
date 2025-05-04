@@ -1005,11 +1005,11 @@ class _PrometheusWatch:
                         for frame_info in stack:
                             filename = frame_info.filename
                             filename = filename.removeprefix("/app/")
-                            running_task_thread.extend(
+                            running_task_thread.append(
                                 f'  File "{filename}", line {frame_info.lineno}, in {frame_info.function}',
                             )
                             if frame_info.code_context:
-                                running_task_thread.extend(f"    {frame_info.code_context[0].strip()}")
+                                running_task_thread.append(f"    {frame_info.code_context[0].strip()}")
 
             running_task_thread = (
                 ["== Running tasks trace ==", *running_task_thread] if running_task_thread else []
