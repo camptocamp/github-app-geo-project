@@ -90,12 +90,12 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                 raise Exception("Exception")  # pylint: disable=broad-exception-raised
 
             if type_ == "success":
-                result["output-multi-line-id"] = module_utils.add_output(
+                result["output-multi-line-id"] = await module_utils.add_output(
                     context,
                     "Test",
                     ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}],
                 )
-                result["output-error-id"] = module_utils.add_output(
+                result["output-error-id"] = await module_utils.add_output(
                     context,
                     "Test",
                     ["Test error"],

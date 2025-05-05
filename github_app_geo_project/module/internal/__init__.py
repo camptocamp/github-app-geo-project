@@ -184,7 +184,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
                         },
                     )
 
-                    context.session.execute(update)
+                    await context.session.execute(update)
 
                 job = models.Queue()
                 job.priority = priority
@@ -196,7 +196,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
                 job.module = name
                 job.module_data = module_data
                 context.session.add(job)
-                context.session.flush()
+                await context.session.flush()
                 github_project = None
 
                 should_create_checks = action.checks
@@ -222,7 +222,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
                     )
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Error while getting actions for %s", name)
-    context.session.commit()
+    await context.session.commit()
     return outputs, number
 
 
@@ -288,7 +288,7 @@ async def _re_requested_check_suite(
                 )
                 outputs.append(f"Re request the check run {check_run.id} from check suite {check_suite.id}")
                 number += 1
-                context.session.execute(
+                await context.session.execute(
                     sqlalchemy.update(models.Queue)
                     .where(models.Queue.check_run_id == check_run.id)
                     .values(
@@ -299,7 +299,7 @@ async def _re_requested_check_suite(
                         },
                     ),
                 )
-                context.session.commit()
+                await context.session.commit()
                 await context.github_project.aio_github.rest.checks.async_update(
                     owner=context.github_project.owner,
                     repo=context.github_project.repository,
@@ -359,7 +359,7 @@ async def _process_event(context: module.ProcessContext[None, _EventData]) -> No
                 job.module = "dispatcher"
                 job.module_data = context.module_event_data.model_dump()
                 context.session.add(job)
-    context.session.flush()
+    await context.session.flush()
 
 
 async def _process_repo_event(context: module.ProcessContext[None, _EventData]) -> None:

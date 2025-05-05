@@ -7,8 +7,8 @@ from collections.abc import Mapping
 from types import GenericAlias
 from typing import Any, Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar
 
+import sqlalchemy.ext.asyncio
 from pydantic import BaseModel, ValidationError
-from sqlalchemy.orm import Session
 
 from github_app_geo_project import configuration
 
@@ -101,7 +101,7 @@ class CleanupContext(NamedTuple, Generic[_EVENT_DATA]):
 class ProcessContext(NamedTuple, Generic[_CONFIGURATION, _EVENT_DATA]):
     """The context of the process."""
 
-    session: Session
+    session: sqlalchemy.ext.asyncio.AsyncSession
     """The session to be used."""
     github_project: configuration.GithubProject
     """The github application."""
