@@ -82,7 +82,7 @@ def _get_process_output(
     )
 
 
-def _process_error(
+async def _process_error(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     key: str,
     issue_check: module_utils.DashboardIssue,
@@ -92,7 +92,7 @@ def _process_error(
     output_url = None
     if error_message:
         logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
-        output_id = module_utils.add_output(
+        output_id = await module_utils.add_output(
             context,
             key,
             [*error_message, f'<a href="{logs_url}">Logs</a>'],
@@ -129,14 +129,19 @@ async def _process_outdated(
         security = security_md.Security(base64.b64decode(security_file.content).decode("utf-8"))
 
         error_message = audit_utils.outdated_versions(security)
-        _process_error(context, _OUTDATED, issue_check, error_message)
+        await _process_error(context, _OUTDATED, issue_check, error_message)
     except githubkit.exception.RequestFailed as exception:
         if exception.response.status_code == 404:
             _LOGGER.debug("No SECURITY.md file in the repository")
-            _process_error(context, _OUTDATED, issue_check, message="No SECURITY.md file in the repository")
+            await _process_error(
+                context,
+                _OUTDATED,
+                issue_check,
+                message="No SECURITY.md file in the repository",
+            )
         else:
             _LOGGER.exception("Error while getting SECURITY.md")
-            _process_error(context, _OUTDATED, issue_check, message="Error while getting SECURITY.md")
+            await _process_error(context, _OUTDATED, issue_check, message="Error while getting SECURITY.md")
             raise
 
 
@@ -197,7 +202,7 @@ async def _process_snyk_dpkg(
                 body_md = body.to_markdown() if body is not None else ""
                 del body
                 success &= new_success
-                output_url = _process_error(
+                output_url = await _process_error(
                     context,
                     key,
                     issue_check,

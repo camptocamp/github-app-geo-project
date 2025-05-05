@@ -16,8 +16,8 @@ import githubkit.versions.latest.models
 import html_sanitizer
 import markdownify
 import security_md
+import sqlalchemy.ext.asyncio
 from ansi2html import Ansi2HTMLConverter
-from sqlalchemy.orm import Session
 
 from github_app_geo_project import configuration, models, module, utils
 
@@ -25,7 +25,7 @@ _LOGGER = logging.getLogger(__name__)
 WORKING_DIRECTORY_LOCK = asyncio.Lock()
 
 
-def add_output(
+async def add_output(
     context: module.ProcessContext[Any, Any],
     title: str,
     data: list[str | models.OutputData],
@@ -42,7 +42,8 @@ def add_output(
         data=data,
     )
     context.session.add(output)
-    context.session.commit()
+    await context.session.commit()
+    await context.session.refresh(output)
     return output.id
 
 
@@ -743,16 +744,14 @@ async def auto_merge_pull_request(
             if n != 0:
                 await asyncio.sleep(math.pow(n, 2))
             await github_project.aio_github.graphql.arequest(
-                "\n".join(  # noqa: FLY002
-                    [
-                        "mutation EnableAutoMerge($pullRequestId: ID!) {",
-                        "    enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {",
-                        "        clientMutationId",
-                        "    }",
-                        "}",
-                    ],
-                ),
-                variables={"pullRequestId": pull_request.node_id},
+                """
+                mutation EnableAutoMerge($pullRequestId: ID!) {
+                    enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {
+                        clientMutationId
+                    }
+                }
+                """,
+                variables={"pullRequestId": pull_request.id},
             )
         except githubkit.exception.RequestFailed as exception:
             if exception.response.status_code == 400:
@@ -813,7 +812,7 @@ async def close_pull_request_issues(
         )
     ).parsed_data
     assert pulls is not None
-    if pulls:
+    if pulls.totalCount > 0:
         pull_request = next(pulls)
         pull_request.edit(state="closed")
 
@@ -1052,7 +1051,7 @@ def manage_updated_separated(
 
 async def create_checks(
     job: models.Queue,
-    session: Session,
+    session: sqlalchemy.ext.asyncio.AsyncSession,
     current_module: module.Module[Any, Any, Any, Any],
     github_project: configuration.GithubProject,
     event_name: str,
@@ -1062,7 +1061,7 @@ async def create_checks(
 ) -> githubkit.versions.latest.models.CheckRun:
     """Create the GitHub check run."""
     # Get the job id from the database
-    session.flush()
+    await session.flush()
 
     service_url = service_url if service_url.endswith("/") else service_url + "/"
     service_url = urllib.parse.urljoin(service_url, "logs/")
@@ -1109,5 +1108,6 @@ async def create_checks(
         )
     ).parsed_data
     job.check_run_id = check_run.id
-    session.commit()
+    await session.commit()
+    await session.refresh(job)
     return check_run

@@ -30,6 +30,7 @@ import githubkit.webhooks
 import plaster
 import prometheus_client.exposition
 import sentry_sdk
+import sqlalchemy.ext.asyncio
 import sqlalchemy.orm
 from prometheus_client import Gauge
 
@@ -120,7 +121,7 @@ async def _validate_job(config: dict[str, Any], application: str, event_data: di
 
 async def _process_job(
     config: dict[str, str],
-    session: sqlalchemy.orm.Session,
+    session: sqlalchemy.ext.asyncio.AsyncSession,
     root_logger: logging.Logger,
     handler: _Handler,
     job: models.Queue,
@@ -238,7 +239,8 @@ async def _process_job(
                     )
 
             # Close transaction if one is open
-            session.commit()
+            await session.commit()
+            await session.refresh(job)
             context = module.ProcessContext(
                 session=session,
                 github_project=github_project,  # type: ignore[arg-type]
@@ -263,14 +265,20 @@ async def _process_job(
                     )
                     result = await task
                     if result.updated_transversal_status:
+                        root_logger.removeHandler(handler)
+                        await session.refresh(job)
                         if job.module not in _MODULE_STATUS_LOCK:
                             _MODULE_STATUS_LOCK[job.module] = asyncio.Lock()
                         async with _MODULE_STATUS_LOCK[job.module]:
-                            root_logger.removeHandler(handler)
                             module_status = (
-                                session.query(models.ModuleStatus)
-                                .filter(models.ModuleStatus.module == job.module)
-                                .with_for_update(of=models.ModuleStatus)
+                                (
+                                    await session.execute(
+                                        sqlalchemy.select(models.ModuleStatus)
+                                        .where(models.ModuleStatus.module == job.module)
+                                        .with_for_update(),
+                                    )
+                                )
+                                .scalars()
                                 .one_or_none()
                             )
                             root_logger.addHandler(handler)
@@ -300,7 +308,7 @@ async def _process_job(
                                     )
                                     session.add(module_status)
                                 else:
-                                    session.execute(
+                                    await session.execute(
                                         sqlalchemy.update(models.ModuleStatus)
                                         .where(models.ModuleStatus.module == job.module)
                                         .values(
@@ -312,6 +320,9 @@ async def _process_job(
                                 del module_status
                                 root_logger.addHandler(handler)
 
+                root_logger.removeHandler(handler)
+                await session.refresh(job)
+                root_logger.addHandler(handler)
                 _LOGGER.debug("Module %s took %s", job.module, datetime.datetime.now(tz=datetime.UTC) - start)
 
                 if result is not None:
@@ -337,6 +348,9 @@ async def _process_job(
             except GHCIError:
                 raise
             except Exception as exception:  # pylint: disable=broad-exception-caught
+                root_logger.removeHandler(handler)
+                await session.refresh(job)
+                root_logger.addHandler(handler)
                 _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
                 raise GHCIError(str(exception)) from exception
             finally:
@@ -427,7 +441,8 @@ async def _process_job(
                     )
 
                     session.add(new_job)
-            session.commit()
+                await session.commit()
+                await session.refresh(job)
             new_issue_data = result.dashboard if result is not None else None
             _LOGGER.debug("Job queue updated")
         except githubkit.exception.RequestFailed as exception:
@@ -665,7 +680,7 @@ async def _get_dashboard_issue(
 
 async def _process_dashboard_issue(
     config: dict[str, Any],
-    session: sqlalchemy.orm.Session,
+    session: sqlalchemy.ext.asyncio.AsyncSession,
     event_data: dict[str, Any],
     application: str,
     owner: str,
@@ -704,7 +719,11 @@ async def _process_dashboard_issue(
                 module_old = utils.get_dashboard_issue_module(old_data, name)
                 module_new = utils.get_dashboard_issue_module(new_data, name)
                 if module_old != module_new:
-                    _LOGGER.debug("Dashboard issue edited for module %s: %s", name, current_module.title())
+                    _LOGGER.debug(
+                        "Dashboard issue edited for module %s: %s",
+                        name,
+                        current_module.title(),
+                    )
                     if current_module.required_issue_dashboard():
                         for action in current_module.get_actions(
                             module.GetActionContext(
@@ -735,7 +754,7 @@ async def _process_dashboard_issue(
                             job.module = name
                             job.module_data = current_module.event_data_to_json(action.data)
                             session.add(job)
-                            session.flush()
+                            await session.flush()
                             if action.checks:
                                 await module_utils.create_checks(
                                     job,
@@ -747,7 +766,8 @@ async def _process_dashboard_issue(
                                     config["service-url"],
                                     action.title,
                                 )
-                            session.commit()
+                            await session.commit()
+                            await session.refresh(job)
     else:
         _LOGGER.debug(
             "Dashboard event ignored %s!=%s",
@@ -759,34 +779,37 @@ async def _process_dashboard_issue(
 # Where 2147483647 is the PostgreSQL max int, see: https://www.postgresql.org/docs/current/datatype-numeric.html
 async def _get_process_one_job(
     config: dict[str, Any],
-    Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
-        sqlalchemy.orm.Session
+    Session: sqlalchemy.ext.asyncio.async_sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
+        sqlalchemy.ext.asyncio.AsyncSession
     ],
     no_steal_long_pending: bool = False,
     make_pending: bool = False,
     max_priority: int = 2147483647,
 ) -> bool:
     _LOGGER.debug("Process one job (max priority: %i): Start", max_priority)
-    with Session() as session:
+    async with Session() as session:
         job = (
-            session.query(models.Queue)
-            .filter(
-                models.Queue.status == models.JobStatus.NEW,
-                models.Queue.priority <= max_priority,
+            await session.execute(
+                sqlalchemy.select(models.Queue)
+                .where(
+                    models.Queue.status == models.JobStatus.NEW,
+                    models.Queue.priority <= max_priority,
+                )
+                .order_by(
+                    models.Queue.priority.asc(),
+                    models.Queue.created_at.asc(),
+                )
+                .with_for_update(skip_locked=True),
             )
-            .order_by(
-                models.Queue.priority.asc(),
-                models.Queue.created_at.asc(),
-            )
-            .with_for_update(of=models.Queue, skip_locked=True)
-            .first()
-        )
+        ).scalar()
+
         if job is None:
             if no_steal_long_pending:
                 _LOGGER.debug("Process one job (max priority: %i): No job to process", max_priority)
                 return True
+
             # Very long pending job => error
-            session.execute(
+            await session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(
                     models.Queue.status == models.JobStatus.PENDING,
@@ -796,8 +819,9 @@ async def _get_process_one_job(
                 )
                 .values(status=models.JobStatus.ERROR),
             )
+
             # Get too old pending jobs
-            session.execute(
+            await session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(
                     models.Queue.status == models.JobStatus.PENDING,
@@ -807,7 +831,8 @@ async def _get_process_one_job(
                 )
                 .values(status=models.JobStatus.NEW),
             )
-            session.commit()
+            await session.commit()
+            await session.refresh(job)
 
             _LOGGER.debug("Process one job (max priority: %i): Steal long pending job", max_priority)
             return True
@@ -819,7 +844,7 @@ async def _get_process_one_job(
 
 async def _process_one_job(
     job: models.Queue,
-    session: sqlalchemy.orm.Session,
+    session: sqlalchemy.ext.asyncio.AsyncSession,
     config: dict[str, Any],
     make_pending: bool,
     max_priority: int,
@@ -852,17 +877,23 @@ async def _process_one_job(
         _LOGGER.info("Make job ID %s pending", job.id)
         job.status = models.JobStatus.PENDING
         job.started_at = datetime.datetime.now(tz=datetime.UTC)
-        session.commit()
+        await session.commit()
+        await session.refresh(job)
         _LOGGER.debug("Process one job (max priority: %i): Make pending", max_priority)
         return
 
     try:
         job.status = models.JobStatus.PENDING
         job.started_at = datetime.datetime.now(tz=datetime.UTC)
-        session.commit()
-        _NB_JOBS.labels(models.JobStatus.PENDING.name).set(
-            session.query(models.Queue).filter(models.Queue.status == models.JobStatus.PENDING).count(),
+        await session.commit()
+        await session.refresh(job)
+        pending_count = await session.scalar(
+            sqlalchemy.select(sqlalchemy.func.count())  # pylint: disable=not-callable
+            .select_from(models.Queue)
+            .where(models.Queue.status == models.JobStatus.PENDING),
         )
+        assert pending_count is not None
+        _NB_JOBS.labels(models.JobStatus.PENDING.name).set(pending_count)
 
         success = True
         if not job.module:
@@ -907,7 +938,8 @@ async def _process_one_job(
             _LOGGER.error("Job %s finished with pending status", job.id)
             job.status = models.JobStatus.ERROR
         job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-        session.commit()
+        await session.commit()
+        await session.refresh(job)
         _RUNNING_JOBS.pop(job.id)
 
     _LOGGER.debug("Process one job (max priority: %i): Done", max_priority)
@@ -917,8 +949,8 @@ class _Run:
     def __init__(
         self,
         config: dict[str, Any],
-        Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
-            sqlalchemy.orm.Session
+        Session: sqlalchemy.ext.asyncio.async_sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
+            sqlalchemy.ext.asyncio.AsyncSession
         ],
         return_when_empty: bool,
         max_priority: int,
@@ -1118,7 +1150,6 @@ class HandleSigint:
             ):
                 job.status = models.JobStatus.NEW
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-            session.commit()
         sys.exit()
 
 
@@ -1154,11 +1185,21 @@ async def _async_main() -> None:
 
         loader = plaster.get_loader(args.config_uri)
         config = loader.get_settings("app:app")
+        options = {key[len("sqlalchemy.") :]: config[key] for key in config if key.startswith("sqlalchemy.")}
+        url = options.pop("url")
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        for key in ("pool_recycle", "pool_size", "max_overflow"):
+            if key in options:
+                options[key] = int(options[key])
+        async_engine = sqlalchemy.ext.asyncio.create_async_engine(url, **options)
         engine = sqlalchemy.engine_from_config(config, "sqlalchemy.")
         Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
+        AsyncSession = sqlalchemy.ext.asyncio.async_sessionmaker(bind=async_engine)  # pylint: disable=invalid-name
 
         # Create tables if they do not exist
-        models.Base.metadata.create_all(engine)
+        async with async_engine.begin() as connection:
+            await connection.run_sync(models.Base.metadata.create_all)
 
         handle_sigint = HandleSigint(Session)
         loop = asyncio.get_running_loop()
@@ -1167,7 +1208,7 @@ async def _async_main() -> None:
         if args.only_one:
             await _get_process_one_job(
                 config,
-                Session,
+                AsyncSession,
                 no_steal_long_pending=args.exit_when_empty,
                 make_pending=args.make_pending,
             )
@@ -1175,7 +1216,7 @@ async def _async_main() -> None:
         if args.make_pending:
             await _get_process_one_job(
                 config,
-                Session,
+                AsyncSession,
                 no_steal_long_pending=args.exit_when_empty,
                 make_pending=True,
             )
@@ -1203,7 +1244,7 @@ async def _async_main() -> None:
         tasks.extend(
             [
                 asyncio.create_task(
-                    _Run(config, Session, args.exit_when_empty, priority)(),
+                    _Run(config, AsyncSession, args.exit_when_empty, priority)(),
                     name=f"Run ({priority})",
                 )
                 for priority in priority_groups

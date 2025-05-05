@@ -87,6 +87,8 @@ aiofiles = "24.1.0"
 githubkit = { version = "0.12.12", extras = ["auth"] }
 deprecated = "1.2.18"
 aiomonitor = "0.7.1"
+sqlalchemy = {extras = ["asyncio"], version = "2.0.40"}
+asyncpg = "0.30.0"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }
