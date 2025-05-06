@@ -103,8 +103,8 @@
     </div>
     <h1 class="bd-title">${title}</h1>
     <p>
-      [${job.status.value}] created ${job.created_at|pprint_date}, started ${job.started_at|pprint_date},
-      finished ${job.finished_at|pprint_date},
+      [${job.status}] created ${job.created_at|pprint_date}, started ${job.started_at|pprint_date}, finished
+      ${job.finished_at|pprint_date},
       <a href="${request.route_url('project', owner=job.owner, repository=job.repository)}">project</a>.
     </p>
 

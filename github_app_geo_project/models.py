@@ -39,11 +39,10 @@ class Queue(Base):
     __table_args__ = {"schema": _SCHEMA}  # noqa: RUF012
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
-    status: Mapped[JobStatus] = mapped_column(
-        Enum(JobStatus, create_type=False),
-        native_enum=False,
+    status: Mapped[str] = mapped_column(
+        Unicode,
         nullable=False,
-        default=JobStatus.NEW,
+        default=JobStatus.NEW.value,
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -68,6 +67,16 @@ class Queue(Base):
     def __repr__(self) -> str:
         """Return the representation of the job."""
         return f"Queue {self.id} [{self.status}]"
+
+    @property
+    def status_enum(self) -> JobStatus:
+        """Return the status as an enum."""
+        return JobStatus(self.status)
+
+    @status_enum.setter
+    def status_enum(self, value: JobStatus) -> None:
+        """Set the status from an enum."""
+        self.status = value.value
 
 
 class OutputStatus(enum.Enum):
