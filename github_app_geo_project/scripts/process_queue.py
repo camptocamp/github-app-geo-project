@@ -833,7 +833,7 @@ async def _get_process_one_job(
                     < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60),
                 )
-                .values(status=models.JobStatus.NEW),
+                .values(status=models.JobStatus.NEW.value),
             )
             await session.commit()
             await session.refresh(job)
