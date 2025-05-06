@@ -940,9 +940,8 @@ async def _process_one_job(
             _LOGGER.error("Job %s finished with pending status", job.id)
             job.status_enum = models.JobStatus.ERROR
         job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-        await session.commit()
-        await session.refresh(job)
         _RUNNING_JOBS.pop(job.id)
+        await session.commit()
 
     _LOGGER.debug("Process one job (max priority: %i): Done", max_priority)
 
