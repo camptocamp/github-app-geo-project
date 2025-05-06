@@ -835,8 +835,6 @@ async def _get_process_one_job(
                 )
                 .values(status=models.JobStatus.NEW.value),
             )
-            await session.commit()
-            await session.refresh(job)
 
             _LOGGER.debug("Process one job (max priority: %i): Steal long pending job", max_priority)
             return True
