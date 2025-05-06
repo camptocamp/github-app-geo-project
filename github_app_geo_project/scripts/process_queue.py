@@ -58,6 +58,8 @@ class _JobInfo(NamedTuple):
 
 _RUNNING_JOBS: dict[int, _JobInfo] = {}
 
+_LAST_RUN_TIME = time.time()
+
 
 class _Handler(logging.Handler):
     context_var: contextvars.ContextVar[int] = contextvars.ContextVar("job_id")
@@ -965,6 +967,8 @@ class _Run:
         empty_thread_sleep = int(os.environ.get("GHCI_EMPTY_THREAD_SLEEP", "10"))
 
         while True:
+            global _LAST_RUN_TIME  # pylint: disable=global-statement
+            _LAST_RUN_TIME = time.time()
             empty = True
             try:
                 task = asyncio.create_task(
@@ -1009,110 +1013,136 @@ class _PrometheusWatch:
     def _watch(self) -> None:
         cont = 0
         while True:
-            running_task_thread = []
-            for task in asyncio.all_tasks(self.loop):
-                if task.get_coro().cr_running:  # type: ignore[union-attr]
-                    running_task_thread.append(f"= {task.get_name()} ")
+            if time.time() - _LAST_RUN_TIME > 60:
+                running_task_thread = []
+                for task in asyncio.all_tasks(self.loop):
+                    if task.get_coro().cr_running:  # type: ignore[union-attr]
+                        running_task_thread.append(f"= {task.get_name()} ")
 
-                    frames: list[types.FrameType] = []
-                    frame: types.FrameType | None = task.get_coro().cr_frame  # type: ignore[union-attr]
+                        frames: list[types.FrameType] = []
+                        frame: types.FrameType | None = task.get_coro().cr_frame  # type: ignore[union-attr]
 
-                    while frame is not None:
-                        frames.append(frame)
-                        frame = frame.f_back
+                        while frame is not None:
+                            frames.append(frame)
+                            frame = frame.f_back
 
-                    stack = [
-                        inspect.FrameInfo(
-                            frame,
-                            frame.f_code.co_filename,
-                            frame.f_lineno,
-                            frame.f_code.co_name,
-                            None,
-                            None,
-                        )
-                        for frame in reversed(frames)
-                    ]
-
-                    if stack:
-                        for frame_info in stack:
-                            filename = frame_info.filename
-                            filename = filename.removeprefix("/app/")
-                            running_task_thread.append(
-                                f'  File "{filename}", line {frame_info.lineno}, in {frame_info.function}',
+                        stack = [
+                            inspect.FrameInfo(
+                                frame,
+                                frame.f_code.co_filename,
+                                frame.f_lineno,
+                                frame.f_code.co_name,
+                                None,
+                                None,
                             )
-                            if frame_info.code_context:
-                                running_task_thread.append(f"    {frame_info.code_context[0].strip()}")
+                            for frame in reversed(frames)
+                        ]
 
-            running_task_thread = (
-                ["== Running tasks trace ==", *running_task_thread] if running_task_thread else []
-            )
-            log_message = (
-                [
-                    "Prometheus watch: alive",
-                    "== Threads ==",
-                    *[str(thread) for thread in threading.enumerate()],
-                    "== Tasks ==",
-                    *[str(task) for task in asyncio.all_tasks(self.loop)],
-                    *running_task_thread,
-                ]
-                if os.environ.get("GHCI_DEBUG", "0").lower() in ("1", "true", "on")
-                else ["Prometheus watch: alive"]
-            )
-            _LOGGER.debug(
-                "\n    ".join(log_message),
-            )
-            try:
-                _NB_JOBS.labels("Tasks").set(len(asyncio.all_tasks()))
-                cont += 1
-                if cont % 10 == 0:
-                    tasks_messages = []
-                    for task in asyncio.all_tasks():
-                        if not task.done():
-                            tasks_messages.append(task.get_name())
-                            if cont % 100 == 0:
-                                string_io = io.StringIO()
-                                task.print_stack(limit=5, file=string_io)
-                                tasks_messages.append(string_io.getvalue())
-                                tasks_messages.append("")
-                    message = module_utils.HtmlMessage("<br>\n".join(tasks_messages))
-                    message.title = "Running tasks"
-                    _LOGGER.debug(message)
-            except RuntimeError:
-                pass
-            with self.Session() as session:
-                for status in models.JobStatus:
-                    _NB_JOBS.labels(status.name).set(
-                        session.query(models.Queue).filter(models.Queue.status == status).count(),
-                    )
-            text = []
-            for id_, job in _RUNNING_JOBS.items():
-                text.append(
-                    f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})",
+                        if stack:
+                            for frame_info in stack:
+                                filename = frame_info.filename
+                                filename = filename.removeprefix("/app/")
+                                running_task_thread.append(
+                                    f'  File "{filename}", line {frame_info.lineno}, in {frame_info.function}',
+                                )
+                                if frame_info.code_context:
+                                    running_task_thread.append(f"    {frame_info.code_context[0].strip()}")
+
+                running_task_thread = (
+                    ["== Running tasks trace ==", *running_task_thread] if running_task_thread else []
                 )
-            try:
-                for task in asyncio.all_tasks():
-                    txt = io.StringIO()
-                    task.print_stack(file=txt)
-                    text.append("-" * 30)
-                    text.append(txt.getvalue())
-            except RuntimeError as exception:
-                text.append(str(exception))
 
-            if time.time() - self.last_run > 300:
-                error_message = ["Old Status"]
-                with Path("/var/ghci/job_info").open(encoding="utf-8") as file_:
-                    error_message.extend(file_.read().split("\n"))
-                error_message.append("-" * 30)
-                error_message.append("New status")
-                error_message.extend(text)
-                message = module_utils.HtmlMessage("<br>\n".join(error_message))
-                message.title = "Too long waiting for a schedule"
-                _LOGGER.error(message)
-            self.last_run = time.time()
+                event_loop_stack = []
+                for thread in threading.enumerate():
+                    if thread.name == "MainThread":
+                        for thread_id, frame in sys._current_frames().items():  # pylint: disable=protected-access
+                            if thread_id == thread.ident:
+                                event_loop_stack = [f"== Event loop thread stack trace '{thread.name}' =="]
 
-            with Path("/var/ghci/job_info").open("w", encoding="utf-8") as file_:
-                file_.write("\n".join(text))
-                file_.write("\n")
+                                frames = []
+
+                                frame1: types.FrameType | None = frame
+                                while frame1 is not None:
+                                    frames.append(frame1)
+                                    frame1 = frame1.f_back
+
+                                for frame2 in frames:
+                                    filename = frame2.f_code.co_filename
+                                    filename = filename.removeprefix("/app/")
+                                    event_loop_stack.append(
+                                        f'  File "{filename}", line {frame2.f_lineno}, in {frame2.f_code.co_name}',
+                                    )
+
+                log_message = (
+                    [
+                        "Prometheus watch: alive",
+                        "== Threads ==",
+                        *[str(thread) for thread in threading.enumerate()],
+                        "== Tasks ==",
+                        *[str(task) for task in asyncio.all_tasks(self.loop)],
+                        *running_task_thread,
+                        *event_loop_stack,
+                    ]
+                    if os.environ.get("GHCI_DEBUG", "0").lower() in ("1", "true", "on")
+                    else ["Prometheus watch: alive"]
+                )
+                _LOGGER.debug(
+                    "\n    ".join(log_message),
+                )
+                try:
+                    _NB_JOBS.labels("Tasks").set(len(asyncio.all_tasks()))
+                    cont += 1
+                    if cont % 10 == 0:
+                        tasks_messages = []
+                        for task in asyncio.all_tasks():
+                            if not task.done():
+                                tasks_messages.append(task.get_name())
+                                if cont % 100 == 0:
+                                    string_io = io.StringIO()
+                                    task.print_stack(limit=5, file=string_io)
+                                    tasks_messages.append(string_io.getvalue())
+                                    tasks_messages.append("")
+                        message = module_utils.HtmlMessage("<br>\n".join(tasks_messages))
+                        message.title = "Running tasks"
+                        _LOGGER.debug(message)
+                except RuntimeError:
+                    pass
+                with self.Session() as session:
+                    for status in models.JobStatus:
+                        _NB_JOBS.labels(status.name).set(
+                            session.query(models.Queue).filter(models.Queue.status == status).count(),
+                        )
+                text = []
+                for id_, job in _RUNNING_JOBS.items():
+                    text.append(
+                        f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})",
+                    )
+                try:
+                    for task in asyncio.all_tasks():
+                        txt = io.StringIO()
+                        task.print_stack(file=txt)
+                        text.append("-" * 30)
+                        text.append(txt.getvalue())
+                except RuntimeError as exception:
+                    text.append(str(exception))
+
+                if time.time() - self.last_run > 300:
+                    error_message = ["Old Status"]
+                    with Path("/var/ghci/job_info").open(encoding="utf-8") as file_:
+                        error_message.extend(file_.read().split("\n"))
+                    error_message.append("-" * 30)
+                    error_message.append("New status")
+                    error_message.extend(text)
+                    message = module_utils.HtmlMessage("<br>\n".join(error_message))
+                    message.title = "Too long waiting for a schedule"
+                    _LOGGER.error(message)
+                self.last_run = time.time()
+
+                with Path("/var/ghci/job_info").open("w", encoding="utf-8") as file_:
+                    file_.write("\n".join(text))
+                    file_.write("\n")
+            else:
+                _LOGGER.debug("Prometheus watch: alive")
             time.sleep(60)
 
 
