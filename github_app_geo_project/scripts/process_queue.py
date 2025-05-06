@@ -821,7 +821,7 @@ async def _get_process_one_job(
                     < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", "86400"))),
                 )
-                .values(status=models.JobStatus.ERROR),
+                .values(status=models.JobStatus.ERROR.value),
             )
 
             # Get too old pending jobs
