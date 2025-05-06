@@ -415,7 +415,9 @@ async def _process_job(
                         "Failed to update check run %s",
                         job.check_run_id,
                     )
-            job.status = models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
+            job.status_enum = (
+                models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
+            )
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
@@ -448,7 +450,7 @@ async def _process_job(
             new_issue_data = result.dashboard if result is not None else None
             _LOGGER.debug("Job queue updated")
         except githubkit.exception.RequestFailed as exception:
-            job.status = models.JobStatus.ERROR
+            job.status_enum = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             root_logger.addHandler(handler)
             try:
@@ -500,7 +502,7 @@ async def _process_job(
                     root_logger.removeHandler(handler)
             raise
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
-            job.status = models.JobStatus.ERROR
+            job.status_enum = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
             message = module_utils.AnsiProcessMessage(
@@ -544,7 +546,7 @@ async def _process_job(
                 )
             raise
         except Exception as exception:
-            job.status = models.JobStatus.ERROR
+            job.status_enum = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             if not isinstance(exception, GHCIError):
                 root_logger.addHandler(handler)
@@ -582,7 +584,7 @@ async def _process_job(
     else:
         try:
             _LOGGER.info("Module %s is disabled", job.module)
-            job.status = models.JobStatus.SKIPPED
+            job.status_enum = models.JobStatus.SKIPPED
             if check_run is not None and github_project is not None and github_project.aio_github is not None:
                 await github_project.aio_github.rest.checks.async_update(
                     owner=job.owner,
@@ -794,7 +796,7 @@ async def _get_process_one_job(
             await session.execute(
                 sqlalchemy.select(models.Queue)
                 .where(
-                    models.Queue.status == models.JobStatus.NEW,
+                    models.Queue.status == models.JobStatus.NEW.value,
                     models.Queue.priority <= max_priority,
                 )
                 .order_by(
@@ -814,7 +816,7 @@ async def _get_process_one_job(
             await session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(
-                    models.Queue.status == models.JobStatus.PENDING,
+                    models.Queue.status == models.JobStatus.PENDING.value,
                     models.Queue.created_at
                     < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", "86400"))),
@@ -826,7 +828,7 @@ async def _get_process_one_job(
             await session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(
-                    models.Queue.status == models.JobStatus.PENDING,
+                    models.Queue.status == models.JobStatus.PENDING.value,
                     models.Queue.started_at
                     < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60),
@@ -877,7 +879,7 @@ async def _process_one_job(
 
     if make_pending:
         _LOGGER.info("Make job ID %s pending", job.id)
-        job.status = models.JobStatus.PENDING
+        job.status_enum = models.JobStatus.PENDING
         job.started_at = datetime.datetime.now(tz=datetime.UTC)
         await session.commit()
         await session.refresh(job)
@@ -885,14 +887,14 @@ async def _process_one_job(
         return
 
     try:
-        job.status = models.JobStatus.PENDING
+        job.status_enum = models.JobStatus.PENDING
         job.started_at = datetime.datetime.now(tz=datetime.UTC)
         await session.commit()
         await session.refresh(job)
         pending_count = await session.scalar(
             sqlalchemy.select(sqlalchemy.func.count())  # pylint: disable=not-callable
             .select_from(models.Queue)
-            .where(models.Queue.status == models.JobStatus.PENDING),
+            .where(models.Queue.status == models.JobStatus.PENDING.value),
         )
         assert pending_count is not None
         _NB_JOBS.labels(models.JobStatus.PENDING.name).set(pending_count)
@@ -911,13 +913,13 @@ async def _process_one_job(
                         job.owner,
                         job.repository,
                     )
-                    job.status = models.JobStatus.DONE
+                    job.status_enum = models.JobStatus.DONE
                 else:
-                    job.status = models.JobStatus.ERROR
+                    job.status_enum = models.JobStatus.ERROR
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             else:
                 _LOGGER.error("Unknown event name: %s", job.event_name)
-                job.status = models.JobStatus.ERROR
+                job.status_enum = models.JobStatus.ERROR
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
                 success = False
         else:
@@ -936,9 +938,9 @@ async def _process_one_job(
         job.log = "\n".join([handler.format(msg) for msg in handler.results])
     finally:
         sentry_sdk.set_context("job", {})
-        if job.status == models.JobStatus.PENDING:
+        if job.status_enum == models.JobStatus.PENDING:
             _LOGGER.error("Job %s finished with pending status", job.id)
-            job.status = models.JobStatus.ERROR
+            job.status_enum = models.JobStatus.ERROR
         job.finished_at = datetime.datetime.now(tz=datetime.UTC)
         await session.commit()
         await session.refresh(job)
@@ -1110,7 +1112,7 @@ class _PrometheusWatch:
                 with self.Session() as session:
                     for status in models.JobStatus:
                         _NB_JOBS.labels(status.name).set(
-                            session.query(models.Queue).filter(models.Queue.status == status).count(),
+                            session.query(models.Queue).filter(models.Queue.status == status.value).count(),
                         )
                 text = []
                 for id_, job in _RUNNING_JOBS.items():
@@ -1175,10 +1177,10 @@ class HandleSigint:
             for job in session.query(models.Queue).filter(
                 sqlalchemy.and_(
                     models.Queue.id.in_(jobs_ids),
-                    models.Queue.status == models.JobStatus.PENDING,
+                    models.Queue.status == models.JobStatus.PENDING.value,
                 ),
             ):
-                job.status = models.JobStatus.NEW
+                job.status_enum = models.JobStatus.NEW
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
         sys.exit()
 

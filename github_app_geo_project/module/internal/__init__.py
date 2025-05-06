@@ -150,7 +150,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
                 if jobs_unique_on:
                     update = (
                         sqlalchemy.update(models.Queue)
-                        .where(models.Queue.status == models.JobStatus.NEW)
+                        .where(models.Queue.status == models.JobStatus.NEW.value)
                         .where(models.Queue.application == application)
                         .where(models.Queue.module == name)
                     )
@@ -180,7 +180,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
 
                     update = update.values(
                         {
-                            "status": models.JobStatus.SKIPPED,
+                            "status": models.JobStatus.SKIPPED.value,
                         },
                     )
 
@@ -293,7 +293,7 @@ async def _re_requested_check_suite(
                     .where(models.Queue.check_run_id == check_run.id)
                     .values(
                         {
-                            "status": models.JobStatus.NEW,
+                            "status": models.JobStatus.NEW.value,
                             "started_at": None,
                             "finished_at": None,
                         },
