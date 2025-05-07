@@ -1088,60 +1088,62 @@ class _PrometheusWatch:
                 _LOGGER.debug(
                     "\n    ".join(log_message),
                 )
-                try:
-                    _NB_JOBS.labels("Tasks").set(len(asyncio.all_tasks()))
-                    cont += 1
-                    if cont % 10 == 0:
-                        tasks_messages = []
-                        for task in asyncio.all_tasks():
-                            if not task.done():
-                                tasks_messages.append(task.get_name())
-                                if cont % 100 == 0:
-                                    string_io = io.StringIO()
-                                    task.print_stack(limit=5, file=string_io)
-                                    tasks_messages.append(string_io.getvalue())
-                                    tasks_messages.append("")
-                        message = module_utils.HtmlMessage("<br>\n".join(tasks_messages))
-                        message.title = "Running tasks"
-                        _LOGGER.debug(message)
-                except RuntimeError:
-                    pass
-                with self.Session() as session:
-                    for status in models.JobStatus:
-                        _NB_JOBS.labels(status.name).set(
-                            session.query(models.Queue).filter(models.Queue.status == status.name).count(),
-                        )
-                text = []
-                for id_, job in _RUNNING_JOBS.items():
-                    text.append(
-                        f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})",
-                    )
-                try:
-                    for task in asyncio.all_tasks():
-                        txt = io.StringIO()
-                        task.print_stack(file=txt)
-                        text.append("-" * 30)
-                        text.append(txt.getvalue())
-                except RuntimeError as exception:
-                    text.append(str(exception))
-
-                if time.time() - self.last_run > 300:
-                    error_message = ["Old Status"]
-                    with Path("/var/ghci/job_info").open(encoding="utf-8") as file_:
-                        error_message.extend(file_.read().split("\n"))
-                    error_message.append("-" * 30)
-                    error_message.append("New status")
-                    error_message.extend(text)
-                    message = module_utils.HtmlMessage("<br>\n".join(error_message))
-                    message.title = "Too long waiting for a schedule"
-                    _LOGGER.error(message)
-                self.last_run = time.time()
-
-                with Path("/var/ghci/job_info").open("w", encoding="utf-8") as file_:
-                    file_.write("\n".join(text))
-                    file_.write("\n")
             else:
+                # Log to indicate that the Prometheus monitoring system is active.
+                # This branch is executed when debugging is disabled.
                 _LOGGER.debug("Prometheus watch: alive")
+            try:
+                _NB_JOBS.labels("Tasks").set(len(asyncio.all_tasks()))
+                cont += 1
+                if cont % 10 == 0:
+                    tasks_messages = []
+                    for task in asyncio.all_tasks():
+                        if not task.done():
+                            tasks_messages.append(task.get_name())
+                            if cont % 100 == 0:
+                                string_io = io.StringIO()
+                                task.print_stack(limit=5, file=string_io)
+                                tasks_messages.append(string_io.getvalue())
+                                tasks_messages.append("")
+                    message = module_utils.HtmlMessage("<br>\n".join(tasks_messages))
+                    message.title = "Running tasks"
+                    _LOGGER.debug(message)
+            except RuntimeError:
+                pass
+            with self.Session() as session:
+                for status in models.JobStatus:
+                    _NB_JOBS.labels(status.name).set(
+                        session.query(models.Queue).filter(models.Queue.status == status.name).count(),
+                    )
+            text = []
+            for id_, job in _RUNNING_JOBS.items():
+                text.append(
+                    f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})",
+                )
+            try:
+                for task in asyncio.all_tasks():
+                    txt = io.StringIO()
+                    task.print_stack(file=txt)
+                    text.append("-" * 30)
+                    text.append(txt.getvalue())
+            except RuntimeError as exception:
+                text.append(str(exception))
+
+            if time.time() - self.last_run > 300:
+                error_message = ["Old Status"]
+                with Path("/var/ghci/job_info").open(encoding="utf-8") as file_:
+                    error_message.extend(file_.read().split("\n"))
+                error_message.append("-" * 30)
+                error_message.append("New status")
+                error_message.extend(text)
+                message = module_utils.HtmlMessage("<br>\n".join(error_message))
+                message.title = "Too long waiting for a schedule"
+                _LOGGER.error(message)
+            self.last_run = time.time()
+
+            with Path("/var/ghci/job_info").open("w", encoding="utf-8") as file_:
+                file_.write("\n".join(text))
+                file_.write("\n")
             time.sleep(60)
 
 
