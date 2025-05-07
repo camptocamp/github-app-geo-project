@@ -40,7 +40,7 @@ class Queue(Base):
     status: Mapped[str] = mapped_column(
         Unicode,
         nullable=False,
-        default=JobStatus.NEW.value,
+        default=JobStatus.NEW.name,
         index=True,
     )
     created_at: Mapped[datetime] = mapped_column(
@@ -69,12 +69,12 @@ class Queue(Base):
     @property
     def status_enum(self) -> JobStatus:
         """Return the status as an enum."""
-        return JobStatus(self.status)
+        return JobStatus[self.status]
 
     @status_enum.setter
     def status_enum(self, value: JobStatus) -> None:
         """Set the status from an enum."""
-        self.status = value.value
+        self.status = value.name
 
 
 class OutputStatus(enum.Enum):

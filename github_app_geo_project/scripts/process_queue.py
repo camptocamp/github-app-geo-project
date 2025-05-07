@@ -796,7 +796,7 @@ async def _get_process_one_job(
             await session.execute(
                 sqlalchemy.select(models.Queue)
                 .where(
-                    models.Queue.status == models.JobStatus.NEW.value,
+                    models.Queue.status == models.JobStatus.NEW.name,
                     models.Queue.priority <= max_priority,
                 )
                 .order_by(
@@ -816,24 +816,24 @@ async def _get_process_one_job(
             await session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(
-                    models.Queue.status == models.JobStatus.PENDING.value,
+                    models.Queue.status == models.JobStatus.PENDING.name,
                     models.Queue.created_at
                     < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", "86400"))),
                 )
-                .values(status=models.JobStatus.ERROR.value),
+                .values(status=models.JobStatus.ERROR.name),
             )
 
             # Get too old pending jobs
             await session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(
-                    models.Queue.status == models.JobStatus.PENDING.value,
+                    models.Queue.status == models.JobStatus.PENDING.name,
                     models.Queue.started_at
                     < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60),
                 )
-                .values(status=models.JobStatus.NEW.value),
+                .values(status=models.JobStatus.NEW.name),
             )
 
             _LOGGER.debug("Process one job (max priority: %i): Steal long pending job", max_priority)
@@ -892,7 +892,7 @@ async def _process_one_job(
         pending_count = await session.scalar(
             sqlalchemy.select(sqlalchemy.func.count())  # pylint: disable=not-callable
             .select_from(models.Queue)
-            .where(models.Queue.status == models.JobStatus.PENDING.value),
+            .where(models.Queue.status == models.JobStatus.PENDING.name),
         )
         assert pending_count is not None
         _NB_JOBS.labels(models.JobStatus.PENDING.name).set(pending_count)
@@ -1109,7 +1109,7 @@ class _PrometheusWatch:
                 with self.Session() as session:
                     for status in models.JobStatus:
                         _NB_JOBS.labels(status.name).set(
-                            session.query(models.Queue).filter(models.Queue.status == status.value).count(),
+                            session.query(models.Queue).filter(models.Queue.status == status.name).count(),
                         )
                 text = []
                 for id_, job in _RUNNING_JOBS.items():
@@ -1174,7 +1174,7 @@ class HandleSigint:
             for job in session.query(models.Queue).filter(
                 sqlalchemy.and_(
                     models.Queue.id.in_(jobs_ids),
-                    models.Queue.status == models.JobStatus.PENDING.value,
+                    models.Queue.status == models.JobStatus.PENDING.name,
                 ),
             ):
                 job.status_enum = models.JobStatus.NEW
