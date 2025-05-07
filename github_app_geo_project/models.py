@@ -7,10 +7,8 @@ from datetime import datetime
 from typing import Any, TypedDict, Union
 
 import sqlalchemy
-import sqlalchemy.ext.declarative
-import sqlalchemy.orm
 import sqlalchemy.sql.functions
-from sqlalchemy import JSON, DateTime, Enum, Integer, Unicode
+from sqlalchemy import JSON, BigInteger, DateTime, Enum, Integer, Unicode
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,7 +60,7 @@ class Queue(Base):
     module: Mapped[str] = mapped_column(Unicode, nullable=True)
     module_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)
     log: Mapped[str] = mapped_column(Unicode, nullable=True)
-    check_run_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    check_run_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
 
     def __repr__(self) -> str:
         """Return the representation of the job."""
