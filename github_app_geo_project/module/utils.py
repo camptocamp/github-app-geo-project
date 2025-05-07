@@ -751,7 +751,7 @@ async def auto_merge_pull_request(
                     }
                 }
                 """,
-                variables={"pullRequestId": pull_request.id},
+                variables={"pullRequestId": pull_request.node_id},
             )
         except githubkit.exception.RequestFailed as exception:
             if exception.response.status_code == 400:
