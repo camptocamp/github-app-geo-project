@@ -152,8 +152,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     return module.ProcessOutput(
                         success=False,
                         output={
-                            "title": "BACKPORT_TODO file found",
-                            "summary": "There is a BACKPORT_TODO file in the branch, he should be threaded and removed\n\n"
+                            "summary": "BACKPORT_TODO file found",
+                            "text": "There is a BACKPORT_TODO file in the branch, he should be threaded and removed\n\n"
                             + base64.b64decode(backport_todo.content).decode("utf-8"),
                         },
                     )
@@ -165,8 +165,8 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     return module.ProcessOutput(
                         success=False,
                         output={
-                            "title": "BACKPORT_TODO error",
-                            "summary": "Error while getting BACKPORT_TODO file",
+                            "summary": "BACKPORT_TODO error",
+                            "text": "Error while getting BACKPORT_TODO file",
                         },
                     )
         elif context.module_event_data.type == "SECURITY.md":

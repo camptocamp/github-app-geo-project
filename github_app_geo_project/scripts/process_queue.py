@@ -360,7 +360,6 @@ async def _process_job(
 
             if github_project is not None and github_project.aio_github is not None:
                 check_output = {
-                    "title": current_module.title(),
                     "summary": (
                         "Module executed successfully"
                         if result is None or result.success
@@ -387,7 +386,6 @@ async def _process_job(
                                 status="completed",
                                 conclusion="success" if result is None or result.success else "failure",
                                 output={
-                                    "title": check_output["title"],
                                     "summary": check_output["summary"],
                                     "text": check_output.get("text", ""),
                                 },
@@ -479,7 +477,6 @@ async def _process_job(
                         status="completed",
                         conclusion="failure",
                         output={
-                            "title": current_module.title(),
                             "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url})",
                         },
                     )
@@ -527,7 +524,6 @@ async def _process_job(
                         status="completed",
                         conclusion="failure",
                         output={
-                            "title": current_module.title(),
                             "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url})",
                         },
                     )
@@ -563,7 +559,6 @@ async def _process_job(
                         status="completed",
                         conclusion="failure",
                         output={
-                            "title": current_module.title(),
                             "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
                         },
                     )
