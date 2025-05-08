@@ -1054,10 +1054,7 @@ async def create_checks(
     session: sqlalchemy.ext.asyncio.AsyncSession,
     current_module: module.Module[Any, Any, Any, Any],
     github_project: configuration.GithubProject,
-    event_name: str,
-    event_data: dict[str, Any],
     service_url: str,
-    sub_name: str | None = None,
 ) -> githubkit.versions.latest.models.CheckRun:
     """Create the GitHub check run."""
     # Get the job id from the database
@@ -1068,20 +1065,20 @@ async def create_checks(
     service_url = urllib.parse.urljoin(service_url, str(job.id))
 
     sha = None
-    if event_name == "pull_request":
-        event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", event_data)
+    if job.event_name == "pull_request":
+        event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", job.event_data)
         sha = event_data_pull_request.pull_request.head.sha
-    if event_name == "push":
-        event_data_push = githubkit.webhooks.parse_obj("push", event_data)
+    if job.event_name == "push":
+        event_data_push = githubkit.webhooks.parse_obj("push", job.event_data)
         sha = event_data_push.before if event_data_push.deleted else event_data_push.after
-    if event_name == "workflow_run":
-        event_data_workflow_run = githubkit.webhooks.parse_obj("workflow_run", event_data)
+    if job.event_name == "workflow_run":
+        event_data_workflow_run = githubkit.webhooks.parse_obj("workflow_run", job.event_data)
         sha = event_data_workflow_run.workflow_run.head_sha
-    if event_name == "check_suite":
-        event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", event_data)
+    if job.event_name == "check_suite":
+        event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", job.event_data)
         sha = event_data_check_suite.check_suite.head_sha
-    if event_name == "check_run":
-        event_data_check_run = githubkit.webhooks.parse_obj("check_run", event_data)
+    if job.event_name == "check_run":
+        event_data_check_run = githubkit.webhooks.parse_obj("check_run", job.event_data)
         sha = event_data_check_run.check_run.head_sha
     if sha is None and github_project.aio_repo is not None:
         branch = (
@@ -1093,10 +1090,10 @@ async def create_checks(
         ).parsed_data
         sha = branch.commit.sha
     if sha is None:
-        message = f"No sha found for the job {job.id} in {event_name}"
+        message = f"No sha found for the job {job.id} in {job.event_name}"
         raise ValueError(message)
 
-    name = f"{current_module.title()}: {sub_name}" if sub_name else current_module.title()
+    name = f"{current_module.title()}: {job.event_name}"
     check_run = (
         await github_project.aio_github.rest.checks.async_create(
             owner=github_project.owner,

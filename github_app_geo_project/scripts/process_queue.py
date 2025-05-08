@@ -207,27 +207,13 @@ async def _process_job(
         try:
             if "TEST_APPLICATION" not in os.environ:
                 if job.check_run_id is None and job.owner is not None and job.repository is not None:
-                    if job.module == "webhook":
-                        check_run = await module_utils.create_checks(
-                            job,
-                            session,
-                            current_module,
-                            github_project,
-                            job.event_name,
-                            job.event_data,
-                            config["service-url"],
-                            job.event_name,
-                        )
-                    else:
-                        check_run = await module_utils.create_checks(
-                            job,
-                            session,
-                            current_module,
-                            github_project,
-                            job.event_name,
-                            job.event_data,
-                            config["service-url"],
-                        )
+                    check_run = await module_utils.create_checks(
+                        job,
+                        session,
+                        current_module,
+                        github_project,
+                        config["service-url"],
+                    )
 
                 if github_project is not None and github_project.aio_github is not None:
                     assert check_run is not None
@@ -436,10 +422,7 @@ async def _process_job(
                         session,
                         current_module,
                         github_project,
-                        job.event_name,
-                        job.event_data,
                         config["service-url"],
-                        action.title,
                     )
 
                     session.add(new_job)
@@ -760,10 +743,7 @@ async def _process_dashboard_issue(
                                     session,
                                     current_module,
                                     github_project,
-                                    "",
-                                    {},
                                     config["service-url"],
-                                    action.title,
                                 )
                             await session.commit()
                             await session.refresh(job)
