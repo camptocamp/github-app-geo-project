@@ -124,6 +124,21 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     ),
                 )
             return actions
+        if context.event_name == "push":
+            event_data_push = githubkit.webhooks.parse_obj("push", context.event_data)
+            for commit in event_data_push.commits:
+                if "SECURITY.md" in [
+                    *(commit.modified or []),
+                    *(commit.added or []),
+                    *(commit.removed or []),
+                ]:
+                    return [
+                        module.Action(
+                            _ActionData(type="SECURITY.md"),
+                            priority=module.PRIORITY_CRON,
+                            title="SECURITY.md",
+                        ),
+                    ]
         return []
 
     async def process(
