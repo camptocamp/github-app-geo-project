@@ -317,7 +317,7 @@ async def _process_job(
                     non_none = [
                         *(["dashboard"] if result.dashboard is not None else []),
                         *(["transversal_status"] if transversal_status is not None else []),
-                        *(["actions"] if result.actions else []),
+                        *([f"{len(result.actions)} action(s)"] if result.actions else []),
                         *(["output"] if result.output is not None else []),
                     ]
                     if non_none:
@@ -326,6 +326,9 @@ async def _process_job(
                             job.module,
                             ", ".join(non_none),
                         )
+
+                        if result.actions:
+                            _LOGGER.debug("Actions: %s", [a.title or "Untitled" for a in result.actions])
                     else:
                         _LOGGER.info("Module %s finished", job.module)
 
