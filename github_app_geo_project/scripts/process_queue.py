@@ -429,6 +429,8 @@ async def _process_job(
                         github_project,
                         config["service-url"],
                     )
+                await session.commit()
+                await session.refresh(job)
 
             new_issue_data = result.dashboard if result is not None else None
             _LOGGER.debug("Job queue updated")
