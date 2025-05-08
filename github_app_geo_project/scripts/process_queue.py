@@ -372,6 +372,7 @@ async def _process_job(
                                 status="completed",
                                 conclusion="success" if result is None or result.success else "failure",
                                 output={
+                                    "title": check_output.get("title", current_module.title()),
                                     "summary": check_output["summary"],
                                     "text": check_output.get("text", ""),
                                 },
