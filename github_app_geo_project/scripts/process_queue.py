@@ -207,27 +207,13 @@ async def _process_job(
         try:
             if "TEST_APPLICATION" not in os.environ:
                 if job.check_run_id is None and job.owner is not None and job.repository is not None:
-                    if job.module == "webhook":
-                        check_run = await module_utils.create_checks(
-                            job,
-                            session,
-                            current_module,
-                            github_project,
-                            job.event_name,
-                            job.event_data,
-                            config["service-url"],
-                            job.event_name,
-                        )
-                    else:
-                        check_run = await module_utils.create_checks(
-                            job,
-                            session,
-                            current_module,
-                            github_project,
-                            job.event_name,
-                            job.event_data,
-                            config["service-url"],
-                        )
+                    check_run = await module_utils.create_checks(
+                        job,
+                        session,
+                        current_module,
+                        github_project,
+                        config["service-url"],
+                    )
 
                 if github_project is not None and github_project.aio_github is not None:
                     assert check_run is not None
@@ -386,6 +372,7 @@ async def _process_job(
                                 status="completed",
                                 conclusion="success" if result is None or result.success else "failure",
                                 output={
+                                    "title": check_output.get("title", current_module.title()),
                                     "summary": check_output["summary"],
                                     "text": check_output.get("text", ""),
                                 },
@@ -431,20 +418,15 @@ async def _process_job(
                     new_job.event_data = job.event_data
                     new_job.module = job.module
                     new_job.module_data = current_module.event_data_to_json(action.data)
+                    session.add(new_job)
                     await module_utils.create_checks(
                         new_job,
                         session,
                         current_module,
                         github_project,
-                        job.event_name,
-                        job.event_data,
                         config["service-url"],
-                        action.title,
                     )
 
-                    session.add(new_job)
-                await session.commit()
-                await session.refresh(job)
             new_issue_data = result.dashboard if result is not None else None
             _LOGGER.debug("Job queue updated")
         except githubkit.exception.RequestFailed as exception:
@@ -760,10 +742,7 @@ async def _process_dashboard_issue(
                                     session,
                                     current_module,
                                     github_project,
-                                    "",
-                                    {},
                                     config["service-url"],
-                                    action.title,
                                 )
                             await session.commit()
                             await session.refresh(job)

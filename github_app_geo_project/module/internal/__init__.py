@@ -215,10 +215,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
                         context.session,
                         current_module,
                         github_project,
-                        context.event_name,
-                        context.event_data,
                         context.service_url,
-                        action.title,
                     )
         except Exception:  # pylint: disable=broad-except
             _LOGGER.exception("Error while getting actions for %s", name)
