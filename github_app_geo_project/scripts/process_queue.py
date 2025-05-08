@@ -418,6 +418,7 @@ async def _process_job(
                     new_job.event_data = job.event_data
                     new_job.module = job.module
                     new_job.module_data = current_module.event_data_to_json(action.data)
+                    session.add(new_job)
                     await module_utils.create_checks(
                         new_job,
                         session,
@@ -426,9 +427,6 @@ async def _process_job(
                         config["service-url"],
                     )
 
-                    session.add(new_job)
-                await session.commit()
-                await session.refresh(job)
             new_issue_data = result.dashboard if result is not None else None
             _LOGGER.debug("Job queue updated")
         except githubkit.exception.RequestFailed as exception:
