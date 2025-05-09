@@ -139,16 +139,32 @@
           <!---->
           %endif
           <!---->
-          <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Status"
+          <a
+            href="${request.current_route_url(_query={**request.params, 'status':job.status_enum.name})}"
+            data-bs-toggle="tooltip"
+            data-bs-placement="top"
+            data-bs-title="Status"
             >[${job.status_enum.value}]</a
           >
-          <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Event name"
+          <a
+            href="${request.current_route_url(_query={**request.params, 'event_name':job.event_name})}"
+            data-bs-toggle="tooltip"
+            data-bs-placement="top"
+            data-bs-title="Event name"
             >${job.event_name}</a
           >
-          <a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Application"
+          <a
+            href="${request.current_route_url(_query={**request.params, 'application':job.application})}"
+            data-bs-toggle="tooltip"
+            data-bs-placement="top"
+            data-bs-title="Application"
             >${job.application}</a
           >:<b
-            ><a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Module"
+            ><a
+              href="${request.current_route_url(_query={**request.params, 'module':job.module})}"
+              data-bs-toggle="tooltip"
+              data-bs-placement="top"
+              data-bs-title="Module"
               >${job.module or '-'}</a
             ></b
           >

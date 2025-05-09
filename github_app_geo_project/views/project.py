@@ -135,31 +135,46 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
     engine = session_factory.ro_engine
     SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
     with SessionMaker() as session:
-        select_output = (
-            session.query(models.Output.id, models.Output.title)
-            .where(
-                models.Output.owner == owner,
-                models.Output.repository == repository,
-            )
-            .order_by(models.Output.created_at.desc())
-        )
+        select_output = session.query(models.Output.id, models.Output.title)
+        select_job = session.query(models.Queue)
+
+        if owner == "none":
+            select_job = select_job.where(models.Queue.owner.is_(None))
+            select_output = select_output.where(models.Output.owner.is_(None))
+        elif owner != "all":
+            select_job = select_job.where(models.Queue.owner == owner)
+            select_output = select_output.where(models.Output.owner == owner)
+
+        if repository == "none":
+            select_job = select_job.where(models.Queue.repository.is_(None))
+            select_output = select_output.where(models.Output.repository.is_(None))
+        elif repository != "all":
+            select_job = select_job.where(models.Queue.repository == repository)
+            select_output = select_output.where(models.Output.repository == repository)
+
         if "only_error" in request.params:
             select_output = select_output.where(models.Output.status == models.OutputStatus.ERROR)
 
-        select_job = (
-            session.query(models.Queue)
-            .where(
-                models.Queue.owner == owner,
-                models.Queue.repository == repository,
-            )
-            .order_by(models.Queue.created_at.desc())
-        )
+        if "status" in request.params:
+            select_job = select_job.where(models.Queue.status == request.params["status"])
+        if "event_name" in request.params:
+            select_job = select_job.where(models.Queue.event_name == request.params["event_name"])
+        if "application" in request.params:
+            select_job = select_job.where(models.Queue.application == request.params["application"])
+        if "module" in request.params:
+            select_job = select_job.where(models.Queue.module == request.params["module"])
+
+        select_output = select_output.order_by(models.Output.created_at.desc())
+        select_output = select_output.limit(request.params.get("limit", 10))
+
+        select_job = select_job.order_by(models.Queue.created_at.desc())
+        select_job = select_job.limit(request.params.get("limit", 20))
 
         return {
             "styles": "",
             "repository": f"{owner}/{repository}",
-            "output": select_output.limit(10).all(),
-            "jobs": select_job.limit(20).all(),
+            "output": select_output.all(),
+            "jobs": select_job.all(),
             "error": None,
             "applications": applications,
             "module_configuration": module_config,
