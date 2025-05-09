@@ -192,11 +192,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             branch = context.module_event_data.branch
             if branch is None:
                 event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+                has_security_md = False
                 if isinstance(
                     event_data_pull_request,
                     githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestClosed,  # type: ignore[attr-defined]
                 ):
-                    has_security_md = False
                     commits = (
                         await context.github_project.aio_github.rest.pulls.async_list_commits(
                             context.github_project.owner,
@@ -210,49 +210,49 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             break
                     branch = event_data_pull_request.pull_request.base.ref
 
-                if has_security_md:
-                    repo = context.github_project.repo
-                    if branch == repo.default_branch:
-                        try:
-                            security_file = (
-                                await context.github_project.aio_github.rest.repos.async_get_content(
-                                    owner=context.github_project.owner,
-                                    repo=context.github_project.repository,
-                                    path="SECURITY.md",
-                                )
-                            ).parsed_data
-                            assert isinstance(security_file, githubkit.versions.latest.models.ContentFile)
-                            assert security_file.content is not None
-                            security = security_md.Security(
-                                base64.b64decode(security_file.content).decode("utf-8"),
+            if has_security_md:
+                repo = context.github_project.repo
+                if branch == repo.default_branch:
+                    try:
+                        security_file = (
+                            await context.github_project.aio_github.rest.repos.async_get_content(
+                                owner=context.github_project.owner,
+                                repo=context.github_project.repository,
+                                path="SECURITY.md",
                             )
-                            branches = {*security.branches()}
-                        except githubkit.exception.RequestFailed as exception:
-                            if exception.response.status_code == 404:
-                                _LOGGER.debug("No SECURITY.md file in the repository")
-                                branches = set()
-                            else:
-                                _LOGGER.exception("Error while getting SECURITY.md")
-                                raise
+                        ).parsed_data
+                        assert isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+                        assert security_file.content is not None
+                        security = security_md.Security(
+                            base64.b64decode(security_file.content).decode("utf-8"),
+                        )
+                        branches = {*security.branches()}
+                    except githubkit.exception.RequestFailed as exception:
+                        if exception.response.status_code == 404:
+                            _LOGGER.debug("No SECURITY.md file in the repository")
+                            branches = set()
+                        else:
+                            _LOGGER.exception("Error while getting SECURITY.md")
+                            raise
 
-                        if branches:
-                            branches.add(repo.default_branch)
+                    if branches:
+                        branches.add(repo.default_branch)
 
-                        labels_config = context.module_config.get("labels", {})
-                        if labels_config.get("auto-delete", configuration.AUTO_DELETE_DEFAULT):
-                            for label in repo.get_labels():
-                                if label.name.startswith("backport "):
-                                    branch = label.name[len("backport ") :]
-                                    if branch not in branches:
-                                        label.delete()
+                    labels_config = context.module_config.get("labels", {})
+                    if labels_config.get("auto-delete", configuration.AUTO_DELETE_DEFAULT):
+                        for label in repo.get_labels():
+                            if label.name.startswith("backport "):
+                                branch = label.name[len("backport ") :]
+                                if branch not in branches:
+                                    label.delete()
 
-                        if labels_config.get("auto-create", configuration.AUTO_CREATE_DEFAULT):
-                            for branch in branches:
-                                if not repo.get_label(f"backport {branch}"):
-                                    repo.create_label(
-                                        f"backport {branch}",
-                                        labels_config.get("color", configuration.COLOR_DEFAULT),
-                                    )
+                    if labels_config.get("auto-create", configuration.AUTO_CREATE_DEFAULT):
+                        for branch in branches:
+                            if not repo.get_label(f"backport {branch}"):
+                                repo.create_label(
+                                    f"backport {branch}",
+                                    labels_config.get("color", configuration.COLOR_DEFAULT),
+                                )
 
             return module.ProcessOutput()
         elif context.module_event_data.type == "backport":
