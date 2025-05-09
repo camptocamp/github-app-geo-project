@@ -6,6 +6,7 @@ from typing import Any
 
 import githubkit.webhooks
 import sqlalchemy
+import sqlalchemy.dialects.postgresql
 from pydantic import BaseModel
 
 from github_app_geo_project import models, module
@@ -166,9 +167,18 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
                         elif key == "event_name":
                             update = update.where(models.Queue.event_name == event_name)
                         elif key == "event_data":
-                            update = update.where(models.Queue.event_data == context.event_data)
+                            update = update.where(
+                                sqlalchemy.cast(models.Queue.event_data, sqlalchemy.dialects.postgresql.JSONB)
+                                == context.event_data,
+                            )
                         elif key == "module_data":
-                            update = update.where(models.Queue.module_data == module_data)
+                            update = update.where(
+                                sqlalchemy.cast(
+                                    models.Queue.module_data,
+                                    sqlalchemy.dialects.postgresql.JSONB,
+                                )
+                                == module_data,
+                            )
                         else:
                             _LOGGER.error("Unknown jobs_unique_on key: %s", key)
 
