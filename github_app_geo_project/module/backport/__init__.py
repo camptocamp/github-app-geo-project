@@ -248,11 +248,29 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
                     if labels_config.get("auto-create", configuration.AUTO_CREATE_DEFAULT):
                         for branch in branches:
-                            if not repo.get_label(f"backport {branch}"):
-                                repo.create_label(
-                                    f"backport {branch}",
-                                    labels_config.get("color", configuration.COLOR_DEFAULT),
+                            try:
+                                await context.github_project.aio_github.rest.issues.async_get_label(
+                                    owner=context.github_project.owner,
+                                    repo=context.github_project.repository,
+                                    name=f"backport {branch}",
                                 )
+                            except githubkit.exception.RequestFailed as e:
+                                if e.response.status_code == 404:
+                                    # Create the label if it doesn't exist
+                                    await context.github_project.aio_github.rest.issues.async_create_label(
+                                        owner=context.github_project.owner,
+                                        repo=context.github_project.repository,
+                                        name=f"backport {branch}",
+                                        color=labels_config.get("color", configuration.COLOR_DEFAULT),
+                                    )
+                                else:
+                                    _LOGGER.exception(
+                                        "Failed to process label for branch '%s' in repository '%s/%s'.",
+                                        branch,
+                                        context.github_project.owner,
+                                        context.github_project.repository,
+                                    )
+                                    raise
 
             return module.ProcessOutput()
         elif context.module_event_data.type == "backport":
