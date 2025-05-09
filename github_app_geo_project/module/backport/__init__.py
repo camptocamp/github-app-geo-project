@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 import aiofiles
 import github
+import githubkit.exception
 import githubkit.versions.latest.models
 import githubkit.versions.v2022_11_28.webhooks
 import githubkit.versions.v2022_11_28.webhooks.pull_request
@@ -257,11 +258,14 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             except githubkit.exception.RequestFailed as e:
                                 if e.response.status_code == 404:
                                     # Create the label if it doesn't exist
+                                    color = labels_config.get("color", configuration.COLOR_DEFAULT)
+                                    color = color.removeprefix("#")
                                     await context.github_project.aio_github.rest.issues.async_create_label(
                                         owner=context.github_project.owner,
                                         repo=context.github_project.repository,
                                         name=f"backport {branch}",
-                                        color=labels_config.get("color", configuration.COLOR_DEFAULT),
+                                        color=color,
+                                        description="Add this label to backport the pull request to this branch",
                                     )
                                 else:
                                     _LOGGER.exception(
