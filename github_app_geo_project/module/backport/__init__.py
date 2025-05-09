@@ -134,7 +134,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 ]:
                     return [
                         module.Action(
-                            _ActionData(type="SECURITY.md"),
+                            _ActionData(
+                                type="SECURITY.md",
+                                branch="/".join(event_data_push.ref.split("/")[2:]),
+                            ),
                             priority=module.PRIORITY_CRON,
                             title="SECURITY.md",
                         ),
@@ -185,27 +188,31 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         },
                     )
         elif context.module_event_data.type == "SECURITY.md":
-            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
-            if isinstance(
-                event_data_pull_request,
-                githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestClosed,  # type: ignore[attr-defined]
-            ):
-                has_security_md = False
-                commits = (
-                    await context.github_project.aio_github.rest.pulls.async_list_commits(
-                        context.github_project.owner,
-                        context.github_project.repository,
-                        event_data_pull_request.number,
-                    )
-                ).parsed_data
-                for commit in commits:  # type: ignore[attr-defined]
-                    if "SECURITY.md" in [file.filename for file in commit.files or []]:
-                        has_security_md = True
-                        break
+            has_security_md = True
+            branch = context.module_event_data.branch
+            if branch is None:
+                event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+                if isinstance(
+                    event_data_pull_request,
+                    githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestClosed,  # type: ignore[attr-defined]
+                ):
+                    has_security_md = False
+                    commits = (
+                        await context.github_project.aio_github.rest.pulls.async_list_commits(
+                            context.github_project.owner,
+                            context.github_project.repository,
+                            event_data_pull_request.number,
+                        )
+                    ).parsed_data
+                    for commit in commits:  # type: ignore[attr-defined]
+                        if "SECURITY.md" in [file.filename for file in commit.files or []]:
+                            has_security_md = True
+                            break
+                    branch = event_data_pull_request.pull_request.base.ref
 
-                if not has_security_md:
+                if has_security_md:
                     repo = context.github_project.repo
-                    if event_data_pull_request.pull_request.base.ref == repo.default_branch:
+                    if branch == repo.default_branch:
                         try:
                             security_file = (
                                 await context.github_project.aio_github.rest.repos.async_get_content(
