@@ -328,7 +328,10 @@ async def _process_job(
                         )
 
                         if result.actions:
-                            _LOGGER.debug("Actions: %s", [a.title or "Untitled" for a in result.actions])
+                            _LOGGER.debug(
+                                "Actions: %s",
+                                ", ".join([a.title or "Untitled" for a in result.actions]),
+                            )
                     else:
                         _LOGGER.info("Module %s finished", job.module)
 
