@@ -406,6 +406,8 @@ async def _process_job(
                         "Failed to update check run %s",
                         job.check_run_id,
                     )
+
+            await session.refresh(job)
             job.status_enum = (
                 models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
             )
