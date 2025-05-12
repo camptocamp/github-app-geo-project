@@ -776,6 +776,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                     module.Action(
                         priority=module.PRIORITY_CRON,
                         data={"version": tag_str},
+                        title=tag_str,
                     ),
                 ],
             )
@@ -819,18 +820,20 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 ],
             )
 
-        tags = [
-            tag
-            for tag in (
-                await context.github_project.aio_github.rest.repos.async_list_tags(
-                    context.github_project.owner,
-                    context.github_project.repository,
-                )
-            ).parsed_data
-            if tag.name == tag_str
-        ]
+        github_tags = (
+            await context.github_project.aio_github.rest.repos.async_list_tags(
+                context.github_project.owner,
+                context.github_project.repository,
+            )
+        ).parsed_data
+        tags = [tag for tag in github_tags if tag.name == tag_str]
         if not tags:
-            _LOGGER.info("No tag found '%s' on repository '%s'.", tag_str, repository)
+            _LOGGER.info(
+                "No tag found '%s' on repository '%s', existing tags '%s'.",
+                tag_str,
+                repository,
+                "', '".join([tag.name for tag in github_tags]),
+            )
             return module.ProcessOutput()
 
         release = (
