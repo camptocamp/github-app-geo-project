@@ -279,14 +279,17 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             return module.ProcessOutput()
         elif context.module_event_data.type == "backport":
             event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
-            pull_request = context.github_project.repo.get_pull(
-                event_data_pull_request.pull_request.number,
-            )
-            if pull_request.state == "closed" and pull_request.merged:
+            pull_request = event_data_pull_request.pull_request
+            if event_data_pull_request.action == "closed" and pull_request.state == "closed":
                 branches = set()
-                for label in pull_request.labels:
-                    if label.name.startswith("backport "):
-                        branches.add(label.name[len("backport ") :])
+                for current_label in pull_request.labels:
+                    if current_label.name.startswith("backport "):
+                        branches.add(current_label.name[len("backport ") :])
+
+                if branches:
+                    _LOGGER.debug("Branches: %s", branches)
+                else:
+                    _LOGGER.debug("No branches to backport")
 
                 return module.ProcessOutput(
                     actions=[
@@ -307,12 +310,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         if context.module_event_data.type == "version":
             event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
             assert context.module_event_data.pull_request_number is not None
-            pull_request = context.github_project.repo.get_pull(context.module_event_data.pull_request_number)
+            pull_request = event_data_pull_request.pull_request
             assert context.module_event_data.branch is not None
             if await self._backport(
                 context,
                 event_data_pull_request,
-                pull_request,
                 context.module_event_data.branch,
             ):
                 return module.ProcessOutput(
@@ -333,10 +335,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         self,
         context: module.ProcessContext[configuration.BackportConfiguration, _ActionData],
         event_data_pull_request: githubkit.versions.v2022_11_28.webhooks.PullRequestEvent,
-        pull_request: github.PullRequest.PullRequest,
         target_branch: str,
     ) -> bool:
         """Backport the pull request to the target branch."""
+        pull_request = event_data_pull_request.pull_request
         backport_branch = f"{_BRANCH_PREFIX}{pull_request.number}-to-{target_branch}"
         try:
             if context.github_project.repo.get_branch(backport_branch):
@@ -404,7 +406,9 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 raise module.GHCIError(ansi_message.title)
 
             failed_commits: list[str] = []
-            pull_request_commits = pull_request.get_commits()
+            github_pull_request = context.github_project.repo.get_pull(pull_request.number)
+            pull_request_commits = github_pull_request.get_commits()
+
             commits: Iterable[pygithub.Commit] = pull_request_commits
             if pull_request_commits.totalCount != 1:
                 merge_commit_sha = event_data_pull_request.pull_request.merge_commit_sha
@@ -633,7 +637,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             )
             # Remove backport label
             try:
-                pull_request.remove_from_labels(f"backport {target_branch}")
+                github_pull_request.remove_from_labels(f"backport {target_branch}")
             except github.GithubException as exception:
                 if exception.status != 404:
                     _LOGGER.exception("Error while removing label backport %s", target_branch)
