@@ -352,6 +352,7 @@ async def generate_changelog(
     github_project: GithubProject,
     configuration: changelog_configuration.Changelog,
     tag_str: str,
+    tags: dict[Tag, Tag],
 ) -> str:
     """Generate the changelog for a tag."""
     milestones = [
@@ -382,27 +383,6 @@ async def generate_changelog(
     discussion_url = _get_discussion_url(github_project, tag_str)
 
     repository = f"{github_project.owner}/{github_project.repository}"
-
-    tags: dict[Tag, Tag] = {}
-    for github_tag in (
-        await github_project.aio_github.rest.repos.async_list_tags(
-            github_project.owner,
-            github_project.repository,
-        )
-    ).parsed_data:
-        try:
-            commit = (
-                await github_project.aio_github.rest.repos.async_get_commit(
-                    github_project.owner,
-                    github_project.repository,
-                    github_tag.commit.sha,
-                )
-            ).parsed_data
-            tag = Tag(tag=github_tag, commit=commit)
-            tags[tag] = tag
-        except ValueError:
-            _LOGGER.warning("Invalid tag: %s on repository %s", github_tag.name, repository)
-            continue
 
     tag = Tag(tag_str)
     if tag not in tags:
@@ -842,6 +822,23 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
 
             if len(tags_page) < page_size:
                 break
+
+        tags_map: dict[Tag, Tag] = {}
+        for github_tag in github_tags:
+            try:
+                commit = (
+                    await context.github_project.aio_github.rest.repos.async_get_commit(
+                        context.github_project.owner,
+                        context.github_project.repository,
+                        github_tag.commit.sha,
+                    )
+                ).parsed_data
+                tag = Tag(tag=github_tag, commit=commit)
+                tags_map[tag] = tag
+            except ValueError:
+                _LOGGER.warning("Invalid tag: %s on repository %s", github_tag.name, repository)
+                continue
+
         tags = [tag for tag in github_tags if tag.name == tag_str]
         print_tags = [tag.name for tag in tags]
         if len(print_tags) > 20:
@@ -874,6 +871,7 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                     context.github_project,
                     context.module_config,
                     tag_str,
+                    tags_map,
                 ),
             },
         )
