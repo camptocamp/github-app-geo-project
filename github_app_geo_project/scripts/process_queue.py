@@ -407,7 +407,6 @@ async def _process_job(
                         job.check_run_id,
                     )
 
-            await session.refresh(job)
             job.status_enum = (
                 models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
             )
@@ -416,15 +415,24 @@ async def _process_job(
             job.log = "\n".join([handler.format(msg) for msg in handler.results])
             if result is not None and github_project is not None and github_project.aio_github is not None:
                 _LOGGER.debug("Process actions")
+                # Store needed values locally to avoid accessing the job object during transaction
+                job_priority = job.priority
+                job_application = job.application
+                job_owner = job.owner
+                job_repository = job.repository
+                job_event_name = job.event_name
+                job_event_data = job.event_data
+                job_module = job.module
+
                 for action in result.actions:
                     new_job = models.Queue()
-                    new_job.priority = action.priority if action.priority >= 0 else job.priority
-                    new_job.application = job.application
-                    new_job.owner = job.owner
-                    new_job.repository = job.repository
-                    new_job.event_name = action.title or job.event_name
-                    new_job.event_data = job.event_data
-                    new_job.module = job.module
+                    new_job.priority = action.priority if action.priority >= 0 else job_priority
+                    new_job.application = job_application
+                    new_job.owner = job_owner
+                    new_job.repository = job_repository
+                    new_job.event_name = action.title or job_event_name
+                    new_job.event_data = job_event_data
+                    new_job.module = job_module
                     new_job.module_data = current_module.event_data_to_json(action.data)
                     session.add(new_job)
                     await module_utils.create_checks(
@@ -434,8 +442,6 @@ async def _process_job(
                         github_project,
                         config["service-url"],
                     )
-                await session.commit()
-                await session.refresh(job)
 
             new_issue_data = result.dashboard if result is not None else None
             _LOGGER.debug("Job queue updated")
