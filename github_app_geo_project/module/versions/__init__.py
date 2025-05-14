@@ -751,15 +751,15 @@ async def _get_dependencies(
 
     index = -1
     for i, line in enumerate(lines):
-        if '"packageFiles": {' in line and line.startswith("  "):
-            index = i
+        if line == "DEBUG: packageFiles with updates":
+            index = i + 1
             break
     if index != -1:
         lines = lines[index:]
 
     index = -1
     for i, line in enumerate(lines):
-        if not line.startswith("  "):
+        if not line.startswith("       "):
             index = i
             break
     if index != -1:
@@ -779,7 +779,7 @@ def _read_dependencies(
     data: dict[str, Any],
     result: dict[str, _TransversalStatusNameInDatasource],
 ) -> None:
-    for values in data.get("packageFiles", {}).values():
+    for values in data.get("config", {}).values():
         for value in values:
             for dep in value.get("deps", []):
                 if "currentValue" not in dep:
