@@ -46,18 +46,13 @@ async def test_process_step_2() -> None:
     context.github_project.repository = "test"
     context.module_config = {}
     os.environ["TEST"] = "TRUE"
-    os.environ["RENOVATE_GRAPH"] = """WARN: GitHub token is required for some dependencies
-       "githubDeps": [
-         "camptocamp/backport-action",
-         "actions/checkout",
-         "github/codeql-action",
-         "actions/cache",
-         "actions/upload-artifact",
-         "actions/github-script",
-         "python"
-       ]
- INFO: Extracted dependencies
-       "packageFiles": {
+    os.environ["RENOVATE_GRAPH"] = """
+DEBUG: Found sourceUrl with multiple branches that should probably be combined into a group
+       "sourceUrl": "https://github.com/eslint/eslint",
+       "newVersion": "9.26.0",
+       "branches": {"renovate/eslint-js-9.x": "@eslint/js", "renovate/eslint-9.x": "eslint"}
+DEBUG: packageFiles with updates
+       "config": {
          "docker-compose": [
            {
              "deps": [
@@ -77,11 +72,16 @@ async def test_process_step_2() -> None:
            }
          ]
         }
-DEBUG: yarn.lock package-lock.json is has no __metadata so is yarn 1
-DEBUG: writePackageDataToFile called for github//local
-       "key": {"platform": "github", "organisation": "", "repo": "local"},
+ WARN: The repository name for {"mode":"full","allowedHeaders":["X-*"],"autodiscoverRepoOrder":null, ...,"regex":{"pinDigests":false},"jsonata":{"pinDigests":false}} was not defined, skipping
+DEBUG: defaultWritePackageDataCallback called for local/camptocamp/c2cgeoportal
+       "key": {"platform": "local", "organisation": "camptocamp", "repo": "c2cgeoportal"}
+DEBUG: writePackageDataToFile called for local/camptocamp/c2cgeoportal
+       "key": {"platform": "local", "organisation": "camptocamp", "repo": "c2cgeoportal"},
        "outDir": "out"
- INFO: Successfully retrieved dependency data for camptocamp/github-app-geo-project
+ WARN: writePackageDataToFile called for local/camptocamp/c2cgeoportal, but there was no `packageDataDump` provided, likely because the repository failed to scan. Check the logs
+       "key": {"platform": "local", "organisation": "camptocamp", "repo": "c2cgeoportal"},
+       "outDir": "out"
+DEBUG: Determining if we should process repository camptocamp/tilecloud, using GitHub App authentication (repository=camptocamp/tilecloud)
 """
     output = await versions.process(context)
     assert output.updated_transversal_status is True
@@ -913,7 +913,7 @@ async def test_update_upstream_versions() -> None:
 
 def test_read_dependency() -> None:
     json = {
-        "packageFiles": {
+        "config": {
             "docker-compose": [
                 {"deps": [], "packageFile": "docker-compose.override.sample.yaml"},
                 {

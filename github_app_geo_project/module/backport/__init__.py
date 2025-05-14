@@ -287,7 +287,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         branches.add(current_label.name[len("backport ") :])
 
                 if branches:
-                    _LOGGER.debug("Branches: %s", branches)
+                    _LOGGER.debug("Branches: %s", ", ".join(branches))
                 else:
                     _LOGGER.debug("No branches to backport")
 
@@ -382,7 +382,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             ansi_message.title = "List of the branches"
             _LOGGER.debug(ansi_message)
             branches = stdout.decode().splitlines()
-            _LOGGER.debug("Branches: %s", branches)
+            _LOGGER.debug("Branches: %s", ", ".join(branches))
 
             # Checkout the branch
             command = ["git", "checkout", "-b", backport_branch, f"origin/{target_branch}"]
