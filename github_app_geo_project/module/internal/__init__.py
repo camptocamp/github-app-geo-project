@@ -349,6 +349,11 @@ async def _process_event(context: module.ProcessContext[None, _EventData]) -> No
                 aoi_installation_auth_strategy,
             )
             repos = (await aio_github.rest.apps.async_list_repos_accessible_to_installation()).parsed_data
+            _LOGGER.info(
+                "Processing event for installation %s with repositories:\n%s",
+                installation.id,
+                "\n".join([f"{repo.owner.login}/{repo.name}" for repo in repos.repositories]),
+            )
             for repo in repos.repositories:
                 job = models.Queue()
                 job.priority = 0
