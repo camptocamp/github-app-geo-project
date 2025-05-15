@@ -286,6 +286,27 @@ class Versions(
                 else:
                     cwd = Path.cwd()
 
+                # Get Renovate configuration from master branch
+                try:
+                    renovate_file_content = (
+                        await context.github_project.aio_github.rest.repos.async_get_content(
+                            owner=context.github_project.owner,
+                            repo=context.github_project.repository,
+                            path=".github/renovate.json5",
+                        )
+                    ).parsed_data
+                    assert isinstance(renovate_file_content, githubkit.versions.latest.models.ContentFile)
+
+                    github_path = cwd / ".github"
+                    github_path.mkdir(parents=True, exist_ok=True)
+                    async with aiofiles.open(github_path / "renovate.json5", "w") as renovate_file:
+                        await renovate_file.write(
+                            base64.b64decode(renovate_file_content.content).decode("utf-8"),
+                        )
+                except githubkit.exception.RequestFailed as exception:
+                    if exception.response.status_code != 404:
+                        raise
+
                 await _get_names(
                     context,
                     intermediate_status.version_names_by_datasource,
