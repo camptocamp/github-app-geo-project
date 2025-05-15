@@ -1,7 +1,8 @@
 import json
 import os
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
+import githubkit.exception
 import pytest
 from aioresponses import aioresponses
 
@@ -45,6 +46,17 @@ async def test_process_step_2() -> None:
     context.github_project.owner = "camptocamp"
     context.github_project.repository = "test"
     context.module_config = {}
+
+    github = MagicMock()
+    context.github_project.aio_github = github
+    rest = MagicMock()
+    github.rest = rest
+    repos = AsyncMock()
+    rest.repos = repos
+    response = MagicMock()
+    response.status_code = 404
+    repos.async_get_content.side_effect = githubkit.exception.RequestFailed(response)
+
     os.environ["TEST"] = "TRUE"
     os.environ["RENOVATE_GRAPH"] = """WARN: GitHub token is required for some dependencies
        "githubDeps": [
