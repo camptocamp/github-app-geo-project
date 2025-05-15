@@ -124,12 +124,13 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                             ", ".join(github_events - events),
                         )
 
-                    github_permissions = cast("module.Permissions", github_authenticated.permissions)
+                    github_permissions = github_authenticated.permissions
+                    github_permissions_dict = cast("module.Permissions", github_permissions.model_dump())
                     # Test that all permissions are in github_permissions
                     for permission, access in permissions.items():
-                        if permission not in github_permissions or _gt_access(
+                        if permission not in github_permissions_dict or _gt_access(
                             access,  # type: ignore[arg-type]
-                            github_permissions[permission],  # type: ignore[literal-required]
+                            github_permissions_dict[permission],  # type: ignore[literal-required]
                         ):
                             application["errors"].append(
                                 f"Missing permission ({permission}={access}) in the GitHub application, "
@@ -144,10 +145,10 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                             )
                             _LOGGER.info(
                                 "Current permissions:\n%s",
-                                "\n".join([f"{k}={v}" for k, v in github_permissions.items()]),
+                                "\n".join([f"{k}={v}" for k, v in github_permissions_dict.items()]),
                             )
                         elif _gt_access(
-                            github_permissions[permission],  # type: ignore[literal-required]
+                            github_permissions_dict[permission],  # type: ignore[literal-required]
                             access,  # type: ignore[arg-type]
                         ):
                             _LOGGER.error(
@@ -155,9 +156,9 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                                 "please remove it in the GitHub configuration interface.",
                                 app,
                                 permission,
-                                github_permissions[permission],  # type: ignore[literal-required]
+                                github_permissions_dict[permission],  # type: ignore[literal-required]
                             )
-                    for permission in github_permissions:
+                    for permission in github_permissions_dict:
                         if permission not in permissions:
                             _LOGGER.error(
                                 "Unnecessary permission (%s) in the GitHub application '%s', please remove it in the "
