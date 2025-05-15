@@ -800,31 +800,15 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 ],
             )
 
-        # Use paging to get all tags
-        github_tags = []
-        page = 1
-        page_size = 100
-        while True:
-            tags_page = (
-                await context.github_project.aio_github.rest.repos.async_list_tags(
-                    context.github_project.owner,
-                    context.github_project.repository,
-                    per_page=page_size,
-                    page=page,
-                )
-            ).parsed_data
-
-            if not tags_page:
-                break
-
-            github_tags.extend(tags_page)
-            page += 1
-
-            if len(tags_page) < page_size:
-                break
-
         tags_map: dict[Tag, Tag] = {}
-        for github_tag in github_tags:
+        current_tag = None
+        print_tags = []
+        # Use paging to get all tags
+        async for github_tag in context.github_project.aio_github.rest.paginate(
+            context.github_project.aio_github.rest.repos.async_list_tags,
+            owner=context.github_project.owner,
+            repo=context.github_project.repository,
+        ):
             try:
                 commit = (
                     await context.github_project.aio_github.rest.repos.async_get_commit(
@@ -839,11 +823,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 _LOGGER.warning("Invalid tag: %s on repository %s", github_tag.name, repository)
                 continue
 
-        tags = [tag for tag in github_tags if tag.name == tag_str]
-        print_tags = [tag.name for tag in tags]
-        if len(print_tags) > 20:
-            print_tags = [*print_tags[:20], "..."]
-        if not tags:
+            print_tags.append(github_tag.name)
+            if github_tag.name == tag_str:
+                current_tag = github_tag
+
+        if not current_tag:
             _LOGGER.info(
                 "No tag found '%s' on repository '%s', existing tags '%s'.",
                 tag_str,

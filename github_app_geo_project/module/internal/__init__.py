@@ -348,13 +348,12 @@ async def _process_event(context: module.ProcessContext[None, _EventData]) -> No
             aio_github = context.github_project.application.aio_github.with_auth(
                 aoi_installation_auth_strategy,
             )
-            repos = (await aio_github.rest.apps.async_list_repos_accessible_to_installation()).parsed_data
-            _LOGGER.info(
-                "Processing event for installation %s with repositories:\n%s",
-                installation.id,
-                "\n".join([f"{repo.owner.login}/{repo.name}" for repo in repos.repositories]),
-            )
-            for repo in repos.repositories:
+            full_repos = []
+            async for repo in aio_github.rest.paginate(
+                aio_github.rest.apps.async_list_repos_accessible_to_installation,
+                lambda response: response.parsed_data.repositories,
+            ):
+                full_repos.append(f"{repo.owner.login}/{repo.name}")
                 job = models.Queue()
                 job.priority = 0
                 job.application = context.github_project.application.name
@@ -365,6 +364,12 @@ async def _process_event(context: module.ProcessContext[None, _EventData]) -> No
                 job.module = "dispatcher"
                 job.module_data = context.module_event_data.model_dump()
                 context.session.add(job)
+            _LOGGER.info(
+                "Processing event for installation %s with repositories:\n%s",
+                installation.id,
+                "\n".join(full_repos),
+            )
+
     await context.session.flush()
 
 
