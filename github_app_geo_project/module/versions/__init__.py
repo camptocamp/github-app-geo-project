@@ -30,6 +30,11 @@ from github_app_geo_project.module.versions import configuration
 
 _LOGGER = logging.getLogger(__name__)
 
+_NO_SUPPORT_DEFINED = "No support defined"
+_UNSUPPORTED = "Unsupported"
+_UNSUPPORTED_COLOR = "--bs-danger"
+_SUPPORTED_COLOR = "--bs-body-bg"
+
 
 class _TransversalStatusNameByDatasource(BaseModel):
     names: list[str] = []
@@ -102,8 +107,8 @@ class _Dependency(BaseModel):
 
 
 class _Dependencies(BaseModel):
-    support: str = "Unsupported"
-    color: str = "--bs-danger"
+    support: str = _UNSUPPORTED
+    color: str = _UNSUPPORTED_COLOR
     forward: list[_Dependency] = []
     reverse: list[_Dependency] = []
 
@@ -952,7 +957,7 @@ def _build_internal_dependencies(
 ) -> None:
     dependencies_branch = dependencies_branches.by_branch.setdefault(
         version,
-        _Dependencies(support=version_data.support, color="--bs-body-bg"),
+        _Dependencies(support=version_data.support, color=_SUPPORTED_COLOR),
     )
     for datasource_name, dependencies_data in version_data.dependencies_by_datasource.items():
         for dependency_name, dependency_versions in dependencies_data.versions_by_names.items():
@@ -965,6 +970,16 @@ def _build_internal_dependencies(
                 else:
                     full_dependency_name = dependency_name
                 if full_dependency_name not in dependency_data.by_package:
+                    dependencies_branch.forward.append(
+                        _Dependency(
+                            name=dependency_name,
+                            datasource=datasource_name,
+                            version=_clean_version(dependency_version),
+                            support=_NO_SUPPORT_DEFINED,
+                            color=_UNSUPPORTED_COLOR,
+                            repo="-",
+                        ),
+                    )
                     continue
                 dependency_package_data = dependency_data.by_package[full_dependency_name]
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
@@ -974,12 +989,12 @@ def _build_internal_dependencies(
                 elif not dependency_package_data.has_security_policy:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
-                        "No support defined",
+                        _NO_SUPPORT_DEFINED,
                     )
                 else:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
-                        "Unsupported",
+                        _UNSUPPORTED,
                     )
                 clean_dependency_version = _clean_version(dependency_version)
                 dependencies_branch.forward.append(
@@ -993,9 +1008,9 @@ def _build_internal_dependencies(
                         ),
                         support=support,
                         color=(
-                            "--bs-body-bg"
-                            if support == "No support defined" or _is_supported(version_data.support, support)
-                            else "--bs-danger"
+                            _SUPPORTED_COLOR
+                            if support == _NO_SUPPORT_DEFINED or _is_supported(version_data.support, support)
+                            else _UNSUPPORTED_COLOR
                         ),
                         repo=dependency_package_data.repo or "-",
                     ),
@@ -1041,7 +1056,7 @@ def _build_reverse_dependency(
                         if version_data is not None and match:
                             dependencies_branches.by_branch.setdefault(
                                 minor_version,
-                                _Dependencies(color="--bs-danger"),
+                                _Dependencies(color=_UNSUPPORTED_COLOR),
                             ).reverse.append(
                                 _Dependency(
                                     name=other_repo,
@@ -1049,9 +1064,9 @@ def _build_reverse_dependency(
                                     version=_clean_version(other_version),
                                     support=other_version_data.support,
                                     color=(
-                                        "--bs-body-bg"
+                                        _SUPPORTED_COLOR
                                         if _is_supported(other_version_data.support, version_data.support)
-                                        else "--bs-danger"
+                                        else _UNSUPPORTED_COLOR
                                     ),
                                     repo=other_repo,
                                 ),
@@ -1066,7 +1081,7 @@ def _build_reverse_dependency(
                                     datasource="-",
                                     version=_clean_version(other_version),
                                     support=other_version_data.support,
-                                    color="--bs-danger",
+                                    color=_UNSUPPORTED_COLOR,
                                     repo=other_repo,
                                 ),
                             )
