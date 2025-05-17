@@ -528,12 +528,40 @@ _MINOR_VERSION_RE = re.compile(r"^(\d+\.\d+)(\..+)?$")
 
 
 class _Version:
+    """
+    Helper class for comparing version strings.
+
+    Provides custom comparisons for version strings, correctly handling
+    semantic versioning with major and minor components.
+    """
+
     _VERSION_RE = re.compile(r"^(\d+)\.(\d+)$")
 
     def __init__(self, version: str) -> None:
+        """
+        Initialize a version object.
+
+        Arguments:
+        ---------
+            version: The version string to wrap
+        """
         self.version = version
 
     def __cmp__(self, other: "_Version") -> int:
+        """
+        Compare this version with another.
+
+        Implements a custom comparison that handles versions in the format "X.Y"
+        specially, comparing components numerically rather than lexicographically.
+
+        Arguments:
+        ---------
+            other: The other version to compare with
+
+        Returns
+        -------
+            0 if equal, positive if self > other, negative if self < other
+        """
         if self.version == other.version:
             return 0
         match1 = self._VERSION_RE.match(self.version)
@@ -551,18 +579,68 @@ class _Version:
         return 1 if match1.group(1) > match2.group(1) else -1
 
     def __lt__(self, other: "_Version") -> bool:
+        """
+        Less than comparison operator.
+
+        Arguments:
+        ---------
+            other: The other version to compare with
+
+        Returns
+        -------
+            True if self < other, False otherwise
+        """
         return self.__cmp__(other) < 0
 
 
 def _order_versions(versions: Iterable[str]) -> list[str]:
+    """
+    Sort a list of version strings in descending order.
+
+    Uses the custom _Version class to handle semantic versioning comparisons correctly.
+
+    Arguments:
+    ---------
+        versions: Iterable of version strings to sort
+
+    Returns
+    -------
+        List of version strings sorted in descending order
+    """
     return sorted(versions, reverse=True, key=_Version)
 
 
 def _clean_version(version: str) -> str:
+    """
+    Clean a version string by removing common version prefixes.
+
+    Arguments:
+    ---------
+        version: The version string to clean
+
+    Returns
+    -------
+        The cleaned version string without prefixes like 'v' or '='
+    """
     return version.lstrip("v=")
 
 
 def _canonical_minor_version(datasource: str, version: str) -> str:
+    """
+    Convert a version string to its canonical minor version representation.
+
+    For non-docker datasources, this extracts the major.minor part of the version,
+    handling various version prefixes and formats.
+
+    Arguments:
+    ---------
+        datasource: The type of datasource (e.g., 'docker', 'pypi', etc.)
+        version: The version string to canonicalize
+
+    Returns
+    -------
+        The canonical minor version representation
+    """
     if datasource == "docker":
         return version
 
@@ -588,6 +666,23 @@ async def _get_names(
     cwd: Path,
     alternate_versions: list[str] | None = None,
 ) -> None:
+    """
+    Extract package names from various project files.
+
+    This function scans the repository for package definitions in different formats:
+    - Python packages from pyproject.toml and setup.py
+    - Docker images from GitHub publish configuration
+    - NPM packages from package.json
+    - GitHub releases
+
+    Arguments:
+    ---------
+        context: The process context
+        names_by_datasource: Output dictionary to store names by datasource
+        version: The version (branch) being analyzed
+        cwd: The current working directory (repository root)
+        alternate_versions: Optional list of alternate versions to consider for Docker images
+    """
     command = ["git", "ls-files", "pyproject.toml", "*/pyproject.toml"]
     proc = await asyncio.create_subprocess_exec(
         *command,
@@ -721,6 +816,22 @@ async def _get_dependencies(
     result: dict[str, _TransversalStatusNameInDatasource],
     cwd: Path,
 ) -> bool:
+    """
+    Extract dependencies using renovate-graph.
+
+    This function runs renovate-graph to analyze the repository dependencies,
+    parsing its output to build a dependency graph.
+
+    Arguments:
+    ---------
+        context: The process context
+        result: Output dictionary to store dependency information
+        cwd: The current working directory (repository root)
+
+    Returns
+    -------
+        True if the operation should be retried, False otherwise
+    """
     if os.environ.get("TEST") != "TRUE":
         github_project = context.github_project
         application = github_project.application
@@ -805,6 +916,18 @@ def _read_dependencies(
     data: dict[str, Any],
     result: dict[str, _TransversalStatusNameInDatasource],
 ) -> None:
+    """
+    Parse the dependency data from renovate-graph output.
+
+    This function processes the raw dependency data, extracting and organizing
+    dependencies according to their datasource and version.
+
+    Arguments:
+    ---------
+        context: The process context
+        data: The raw dependency data from renovate-graph
+        result: Output dictionary to store processed dependency information
+    """
     for values in data.get("config", {}).values():
         for value in values:
             for dep in value.get("deps", []):
@@ -837,6 +960,23 @@ def _dependency_extractor(
     datasource: str,
     version: str,
 ) -> list[tuple[str, str, str]]:
+    """
+    Extract additional dependencies using configured extractors.
+
+    This function applies configured package extractors to derive additional
+    dependencies from existing ones, based on patterns in the version strings.
+
+    Arguments:
+    ---------
+        context: The process context containing extractor configuration
+        dependency: The original dependency name
+        datasource: The datasource of the original dependency
+        version: The version string of the original dependency
+
+    Returns
+    -------
+        List of tuples (dependency, datasource, version) for all extracted dependencies
+    """
     result = [(dependency, datasource, version)]
 
     for extractor_config in (
@@ -864,6 +1004,18 @@ async def _update_upstream_versions(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     intermediate_status: _IntermediateStatus,
 ) -> None:
+    """
+    Fetch version information from endoflife.date API.
+
+    This function queries the endoflife.date API for version support information
+    for packages configured as "external-packages", and updates the intermediate
+    status with this information.
+
+    Arguments:
+    ---------
+        context: The process context containing external packages configuration
+        intermediate_status: The intermediate status to update with external package information
+    """
     for external_config in context.module_config.get("external-packages", []):
         package = external_config["package"]
         name = f"endoflife.date/{package}"
@@ -916,6 +1068,19 @@ async def _update_upstream_versions(
 
 
 def _parse_support_date(text: str) -> datetime.datetime:
+    """
+    Parse a date string into a datetime object with timezone.
+
+    Handles both ISO format and DD/MM/YYYY format.
+
+    Arguments:
+    ---------
+        text: The date string to parse
+
+    Returns
+    -------
+        A datetime object with UTC timezone
+    """
     try:
         return utils.datetime_with_timezone(datetime.datetime.fromisoformat(text))
     except ValueError:
@@ -926,6 +1091,21 @@ def _parse_support_date(text: str) -> datetime.datetime:
 
 
 def _is_supported(base: str, other: str) -> bool:
+    """
+    Determine if a version is supported based on two support status strings.
+
+    Compares the support status of the base with another support status.
+    Returns True if the base support level is compatible with the other.
+
+    Arguments:
+    ---------
+        base: The base support status string (e.g., "Best effort", a date string, etc.)
+        other: The other support status string to compare with
+
+    Returns
+    -------
+        True if the other status is supported relative to the base, False otherwise
+    """
     base = base.lower()
     other = other.lower()
     if base == other:
@@ -955,6 +1135,19 @@ def _build_internal_dependencies(
     names: _Names,
     dependencies_branches: _DependenciesBranches,
 ) -> None:
+    """
+    Build the forward dependencies for a specific version of a repository.
+
+    This function analyzes the dependencies of a specific version and builds
+    a structured representation of them, including their support status.
+
+    Arguments:
+    ---------
+        version: The version (branch) being analyzed
+        version_data: The data for the version being analyzed
+        names: Mapping of names across different datasources
+        dependencies_branches: Output object to store the dependency information
+    """
     dependencies_branch = dependencies_branches.by_branch.setdefault(
         version,
         _Dependencies(support=version_data.support, color=_SUPPORTED_COLOR),
@@ -1023,6 +1216,21 @@ def _build_reverse_dependency(
     transversal_status: _TransversalStatus,
     dependencies_branches: _DependenciesBranches,
 ) -> None:
+    """
+    Build the reverse dependencies for a repository.
+
+    This function identifies other repositories that depend on the current repository
+    and builds a structured representation of these reverse dependencies,
+    including their support status.
+
+    Arguments:
+    ---------
+        repository: The name of the repository being analyzed
+        repo_data: The data for the repository being analyzed
+        transversal_status: The global status data containing all repositories
+        dependencies_branches: Output object to store the dependency information
+    """
+    # Map of datasource names to packages to branches
     all_datasource_names: dict[str, dict[str, str]] = {}
     for branch, version_name_data in repo_data.versions.items():
         for datasource_name, datasource_name_data in version_name_data.names_by_datasource.items():
@@ -1091,6 +1299,18 @@ def _apply_additional_packages(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     transversal_status: _TransversalStatus,
 ) -> None:
+    """
+    Add additional packages specified in the module configuration to the transversal status.
+
+    This function reads the 'additional-packages' section from the module configuration
+    and adds these packages to the transversal status, allowing for manually specified
+    packages to be included in the dashboard.
+
+    Arguments:
+    ---------
+        context: The process context containing the module configuration
+        transversal_status: The global status to update with additional packages
+    """
     for repo, data in context.module_config.get("additional-packages", {}).items():
         module_utils.manage_updated_separated(
             transversal_status.updated,
