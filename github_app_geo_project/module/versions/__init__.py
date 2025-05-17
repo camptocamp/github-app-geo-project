@@ -1021,7 +1021,9 @@ async def _update_upstream_versions(
         name = f"endoflife.date/{package}"
         datasource = external_config["datasource"]
 
-        package_status = _TransversalStatusRepo()
+        package_status = _TransversalStatusRepo(
+            has_security_policy=True,
+        )
         intermediate_status.external_repositories[name] = package_status
         package_status.url = f"https://endoflife.date/{package}"
 
@@ -1202,7 +1204,8 @@ def _build_internal_dependencies(
                         support=support,
                         color=(
                             _SUPPORTED_COLOR
-                            if support == _NO_SUPPORT_DEFINED or _is_supported(version_data.support, support)
+                            if dependency_package_data.has_security_policy is False
+                            or _is_supported(version_data.support, support)
                             else _UNSUPPORTED_COLOR
                         ),
                         repo=dependency_package_data.repo or "-",
