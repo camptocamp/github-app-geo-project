@@ -1164,18 +1164,6 @@ def _build_internal_dependencies(
                     full_dependency_name = f"{dependency_name}:{dependency_version}"
                 else:
                     full_dependency_name = dependency_name
-                if full_dependency_name not in dependency_data.by_package:
-                    dependencies_branch.forward.append(
-                        _Dependency(
-                            name=dependency_name,
-                            datasource=datasource_name,
-                            version=_clean_version(dependency_version),
-                            support=_NO_SUPPORT_DEFINED,
-                            color=_UNSUPPORTED_COLOR,
-                            repo="-",
-                        ),
-                    )
-                    continue
                 dependency_package_data = dependency_data.by_package[full_dependency_name]
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 if datasource_name == "docker":
