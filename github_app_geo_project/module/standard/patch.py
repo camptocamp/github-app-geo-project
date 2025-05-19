@@ -87,9 +87,18 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         """
         assert context.event_name == "workflow_run"
         event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
-        repo = context.github_project.repo
-        workflow_run = repo.get_workflow_run(event_data.workflow_run.id)
-        if not workflow_run.get_artifacts():
+
+        # Get workflow artifacts using GitHubKit async API
+        artifacts_response = (
+            await context.github_project.aio_github.rest.actions.async_list_workflow_run_artifacts(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                run_id=event_data.workflow_run.id,
+            )
+        )
+        artifacts = artifacts_response.parsed_data.artifacts
+
+        if not artifacts:
             _LOGGER.debug("No artifacts found")
             return module.ProcessOutput()
 
@@ -103,10 +112,13 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         result_message = []
         error_messages = []
 
+        # Get workflow run details to access head_branch
+        head_branch = event_data.workflow_run.head_branch
+
         with tempfile.TemporaryDirectory() as tmpdirname:
             cwd = Path(tmpdirname)
             if not is_clone:
-                new_cwd = await module_utils.git_clone(context.github_project, workflow_run.head_branch, cwd)
+                new_cwd = await module_utils.git_clone(context.github_project, head_branch, cwd)
                 if new_cwd is None:
                     return module.ProcessOutput(
                         success=False,
@@ -116,7 +128,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     )
                 cwd = new_cwd
 
-            for artifact in workflow_run.get_artifacts():
+            for artifact in artifacts:
                 if not artifact.name.endswith(".patch"):
                     continue
 
@@ -124,20 +136,24 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     _LOGGER.info("Artifact %s is expired", artifact.name)
                     continue
 
-                (
-                    status,
-                    headers,
-                    response_redirect,
-                ) = workflow_run._requester.requestJson(  # pylint: disable=protected-access
-                    "GET",
-                    artifact.archive_download_url,
+                # Get a download URL for the artifact using GitHubKit async API
+                download_response = (
+                    await context.github_project.aio_github.rest.actions.async_download_artifact(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                        artifact_id=artifact.id,
+                        archive_format="zip",
+                    )
                 )
+
+                # GitHubKit's response includes Location header if redirected
+                headers = download_response.headers
+                status = download_response.status_code
                 if status != 302:
                     _LOGGER.error(
-                        "Failed to download artifact %s, status: %s, data:\n%s",
+                        "Failed to download artifact %s, status: %s",
                         artifact.name,
                         status,
-                        response_redirect,
                     )
                     continue
 
@@ -145,7 +161,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                 async with (
                     aiohttp.ClientSession() as session,
                     asyncio.timeout(180),
-                    session.get(headers["location"]) as response,
+                    session.get(headers.get("Location")) as response,
                 ):
                     if not response.ok:
                         _LOGGER.error("Failed to download artifact %s", artifact.name)
@@ -205,7 +221,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                                         raise PatchError(exception_message)
                                     should_push = True
             if should_push:
-                command = ["git", "push", "origin", f"HEAD:{workflow_run.head_branch}"]
+                command = ["git", "push", "origin", f"HEAD:{head_branch}"]
                 proc = await asyncio.create_subprocess_exec(
                     *command,
                     stdin=asyncio.subprocess.PIPE,
