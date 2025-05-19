@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-import github
+import githubkit.versions.latest.models
 
 from github_app_geo_project import module
 from github_app_geo_project.module.standard import auto, auto_configuration
@@ -34,15 +34,27 @@ class AutoMerge(auto.Auto):
             },
         )
 
-    def do_action(
+    async def do_action(
         self,
-        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any]],
-        pull_request: github.PullRequest.PullRequest,
+        context: module.ProcessContext[
+            auto_configuration.AutoPullRequest,
+            dict[str, Any],
+        ],
+        pull_request: githubkit.versions.latest.models.PullRequest,
     ) -> None:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
         """
-        del context  # Unused
-        pull_request.enable_automerge(merge_method="SQUASH")
+        # Enable auto-merge
+        await context.github_project.aio_github.graphql.arequest(
+            """
+            mutation EnableAutoMerge($pullRequestId: ID!) {
+                enablePullRequestAutoMerge(input: {pullRequestId: $pullRequestId, mergeMethod: MERGE}) {
+                    clientMutationId
+                }
+            }
+            """,
+            variables={"pullRequestId": pull_request.node_id},
+        )
