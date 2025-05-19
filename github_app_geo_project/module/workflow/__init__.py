@@ -144,11 +144,20 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             workflow_name,
         )
 
-        workflow_run = context.github_project.repo.get_workflow_run(event_data.workflow_run.id)
-        jobs = workflow_run.jobs()
-        workflow_data_jobs.extend(
-            {"name": job.name, "run_url": job.html_url} for job in jobs if job.conclusion != "success"
+        # Get workflow jobs using GitHubKit async API
+        workflow_jobs = context.github_project.aio_github.rest.paginate(
+            context.github_project.aio_github.rest.actions.async_list_jobs_for_workflow_run,
+            owner=context.github_project.owner,
+            repo=context.github_project.repository,
+            run_id=event_data.workflow_run.id,
+            map_func=lambda response: response.parsed_data.jobs,
         )
+        jobs_to_add = [
+            {"name": job.name, "run_url": job.html_url}
+            async for job in workflow_jobs
+            if job.conclusion != "success"
+        ]
+        workflow_data_jobs.extend(jobs_to_add)
 
         if repo_data.keys() == ["updated"]:
             del transversal_status[full_repo]
