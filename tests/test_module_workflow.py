@@ -218,9 +218,51 @@ async def test_process_failure() -> None:
     github.rest = rest
     repos = AsyncMock()
     rest.repos = repos
-    response = MagicMock()
-    response.status_code = 404
-    repos.async_get_content.side_effect = githubkit.exception.RequestFailed(response)
+    repo_response = MagicMock()
+    repo_response.status_code = 404
+    repos.async_get_content.side_effect = githubkit.exception.RequestFailed(repo_response)
+    actions = AsyncMock()
+    rest.actions = actions
+    actions_response = MagicMock()
+    actions_response.status_code = 200
+    actions_response.parsed_data = {
+        "total_count": 1,
+        "jobs": [
+            {
+                "id": 123456789,
+                "run_id": 29679449,
+                "run_url": "https://api.github.com/repos/octo-org/octo-repo/actions/runs/29679449",
+                "node_id": "MDEyOldvcmtmbG93IEpvYjM5OTQ0NDQ5Ng==",
+                "head_sha": "f83a356604ae3c5d03e1b46ef4d1ca77d64a90b0",
+                "url": "https://api.github.com/repos/octo-org/octo-repo/actions/jobs/399444496",
+                "html_url": "https://github.com/octo-org/octo-repo/runs/29679449/jobs/399444496",
+                "status": "completed",
+                "conclusion": "success",
+                "started_at": "2020-01-20T17:42:40Z",
+                "completed_at": "2020-01-20T17:44:39Z",
+                "name": "build",
+                "steps": [
+                    {
+                        "name": "Set up job",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "number": 1,
+                        "started_at": "2020-01-20T09:42:40.000-08:00",
+                        "completed_at": "2020-01-20T09:42:41.000-08:00",
+                    },
+                ],
+                "check_run_url": "https://api.github.com/repos/octo-org/octo-repo/check-runs/399444496",
+                "labels": ["self-hosted", "foo", "bar"],
+                "runner_id": 1,
+                "runner_name": "my runner",
+                "runner_group_id": 2,
+                "runner_group_name": "my runner group",
+                "workflow_name": "CI",
+                "head_branch": "main",
+            }
+        ],
+    }
+    actions.async_list_jobs_for_workflow_run.return_value = actions_response
 
     # Create an instance of the Workflow class
     workflow = Workflow()
