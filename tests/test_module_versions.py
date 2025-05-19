@@ -658,6 +658,42 @@ def test_get_transversal_dashboard_repo_forward_no_support_version() -> None:
     )
 
 
+def test_get_transversal_dashboard_repo_forward_no_package() -> None:
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="01/01/2045",
+                        dependencies_by_datasource={
+                            "pypi": _TransversalStatusNameInDatasource(
+                                versions_by_names={
+                                    "other_package": _TransversalStatusVersions(versions=["2.0.1"]),
+                                },
+                            ),
+                        },
+                    ),
+                },
+            ),
+        },
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={
+            "1.0": _Dependencies(
+                support="01/01/2045",
+                color="--bs-body-bg",
+                forward=[],
+                reverse=[],
+            ),
+        },
+    )
+
+
 @pytest.mark.parametrize(
     ("other_support", "expected_color"),
     [("01/01/2044", "--bs-body-bg"), ("01/01/2046", "--bs-danger")],
