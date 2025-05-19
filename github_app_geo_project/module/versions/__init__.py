@@ -1164,6 +1164,9 @@ def _build_internal_dependencies(
                     full_dependency_name = f"{dependency_name}:{dependency_version}"
                 else:
                     full_dependency_name = dependency_name
+                # Ignore not owned dependencies
+                if full_dependency_name not in dependency_data.by_package:
+                    continue
                 dependency_package_data = dependency_data.by_package[full_dependency_name]
                 dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
                 if datasource_name == "docker":
