@@ -108,7 +108,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 else []
             )
 
-            if event_data_pull_request.action == "closed":
+            if event_data_pull_request.action == "closed" and event_data_pull_request.pull_request.merged:
                 actions.append(
                     module.Action(
                         _ActionData(type="backport"),
@@ -116,7 +116,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         title="Main",
                     ),
                 )
-            if event_data_pull_request.action == "labeled":
+            if event_data_pull_request.action == "labeled" and event_data_pull_request.pull_request.merged:
                 actions.append(
                     module.Action(
                         _ActionData(type="backport"),
