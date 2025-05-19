@@ -202,10 +202,19 @@ class Versions(
             ):
                 await _update_upstream_versions(context, intermediate_status)
 
-            repo = context.github_project.repo
             stabilization_versions = []
             security_file_content = None
             security = None
+
+            # Get default branch using GitHubKit async API
+            repo_info = (
+                await context.github_project.aio_github.rest.repos.async_get(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                )
+            ).parsed_data
+            default_branch = repo_info.default_branch
+
             try:
                 security_file_content = (
                     await context.github_project.aio_github.rest.repos.async_get_content(
@@ -228,7 +237,7 @@ class Versions(
             else:
                 _LOGGER.debug("No SECURITY.md file in the repository, apply only on default branch")
 
-            stabilization_versions.append(repo.default_branch)
+            stabilization_versions.append(default_branch)
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_versions))
             for version in stabilization_versions:
                 intermediate_status.version_support[version] = "Best effort"
