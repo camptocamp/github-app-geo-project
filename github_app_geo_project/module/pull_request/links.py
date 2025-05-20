@@ -5,24 +5,35 @@ import re
 from pathlib import Path
 from typing import Any
 
-import github
-import github.PullRequest
+import githubkit.versions.latest.models
 import githubkit.webhooks
 
 from github_app_geo_project import module
 from github_app_geo_project.module.pull_request import links_configuration
 
 
-def _add_issue_link(
-    config: links_configuration.PullRequestAddLinksConfiguration,
-    pull_request: github.PullRequest.PullRequest,
+async def _add_issue_link(
+    context: module.ProcessContext[
+        links_configuration.PullRequestAddLinksConfiguration,
+        dict[str, Any],
+    ],
 ) -> str:
     """Add a comment with the link to Jira if needed."""
+
+    # Get pull request using GitHubKit async API
+    pull_request = (
+        await context.github_project.aio_github.rest.pulls.async_get(
+            owner=context.github_project.owner,
+            repo=context.github_project.repository,
+            pull_number=context.module_event_data["pull-request-number"],
+        )
+    ).parsed_data
+
     body = pull_request.body or ""
     if "<!-- pull request links -->" in body:
         return "Pull request links already added."
 
-    content = config.get("content", [])
+    content = context.module_config.get("content", [])
     if not content:
         return "Empty configuration."
 
@@ -31,20 +42,20 @@ def _add_issue_link(
         "head_branch": pull_request.head.ref,
     }
 
-    for pattern in config.get("branch-patterns", []):
+    for pattern in context.module_config.get("branch-patterns", []):
         re_ = re.compile(pattern)
         match = re_.match(pull_request.head.ref)
         if match and match.groupdict():
             values.update(match.groupdict())
 
-    for uppercase_key in config.get("uppercase", []):
+    for uppercase_key in context.module_config.get("uppercase", []):
         if uppercase_key in values:
             values[uppercase_key] = values[uppercase_key].upper()
-    for lowercase_key in config.get("lowercase", []):
+    for lowercase_key in context.module_config.get("lowercase", []):
         if lowercase_key in values:
             values[lowercase_key] = values[lowercase_key].lower()
 
-    blacklist = config.get("blacklist", {})
+    blacklist = context.module_config.get("blacklist", {})
     for key, value in list(values.items()):
         if key in blacklist and value in blacklist[key]:
             del values[key]
@@ -69,8 +80,12 @@ def _add_issue_link(
     if len(result) == 2:
         return "Nothing to add."
 
-    pull_request.edit(
-        body=(pull_request.body + "\n".join(result)) if pull_request.body is not None else "\n".join(result),
+    # Update the pull request using GitHubKit async API
+    await context.github_project.aio_github.rest.pulls.async_update(
+        owner=context.github_project.owner,
+        repo=context.github_project.repository,
+        pull_number=pull_request.number,
+        body="\n".join(result),
     )
     return "Pull request descriptions updated."
 
@@ -133,7 +148,8 @@ class Links(
         ],
     ) -> module.ProcessOutput[dict[str, Any], None]:
         """Process the module."""
-        repo = context.github_project.repo
-        pull_request = repo.get_pull(number=context.module_event_data["pull-request-number"])
-        message = _add_issue_link(context.module_config, pull_request)
+
+        # Get the new body with added links
+        message = await _add_issue_link(context)
+
         return module.ProcessOutput(output={"summary": message})
