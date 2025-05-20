@@ -67,7 +67,7 @@ asyncpg = "0.30.0"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }
-prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.16.1" }
+prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.17.1" }
 prospector-profile-duplicated = "1.10.5"
 prospector-profile-utils = "1.22.3"
 pytest = "8.3.5"
