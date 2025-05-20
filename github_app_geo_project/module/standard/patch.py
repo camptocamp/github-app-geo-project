@@ -9,7 +9,6 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-import aiohttp
 import githubkit.webhooks
 
 from github_app_geo_project import module
@@ -147,9 +146,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                 )
 
                 # GitHubKit's response includes Location header if redirected
-                headers = download_response.headers
                 status = download_response.status_code
-                if status != 302:
+                if status != 200:
                     _LOGGER.error(
                         "Failed to download artifact %s, status: %s",
                         artifact.name,
@@ -157,69 +155,57 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     )
                     continue
 
-                # Follow redirect.
-                async with (
-                    aiohttp.ClientSession() as session,
-                    asyncio.timeout(180),
-                    session.get(headers.get("Location")) as response,
-                ):
-                    if not response.ok:
-                        _LOGGER.error("Failed to download artifact %s", artifact.name)
+                # unzip
+                with zipfile.ZipFile(io.BytesIO(download_response.content)) as diff:
+                    if len(diff.namelist()) != 1:
+                        _LOGGER.info("Invalid artifact %s", artifact.name)
                         continue
 
-                    # unzip
-                    with zipfile.ZipFile(io.BytesIO(await response.read())) as diff:
-                        if len(diff.namelist()) != 1:
-                            _LOGGER.info("Invalid artifact %s", artifact.name)
-                            continue
-
-                        with diff.open(diff.namelist()[0]) as file:
-                            patch_input = file.read().decode("utf-8")
-                            message: module_utils.Message = module_utils.HtmlMessage(
-                                patch_input,
-                                "Applied the patch input",
+                    with diff.open(diff.namelist()[0]) as file:
+                        patch_input = file.read().decode("utf-8")
+                        message: module_utils.Message = module_utils.HtmlMessage(
+                            patch_input,
+                            "Applied the patch input",
+                        )
+                        _LOGGER.debug(message)
+                        if is_clone:
+                            result_message.extend(["```diff", patch_input, "```"])
+                        else:
+                            command = ["git", "apply", "--allow-empty", "--verbose"]
+                            proc = await asyncio.create_subprocess_exec(
+                                *command,
+                                stdin=asyncio.subprocess.PIPE,
+                                stdout=asyncio.subprocess.PIPE,
+                                cwd=cwd,
                             )
-                            _LOGGER.debug(message)
-                            if is_clone:
-                                result_message.extend(["```diff", patch_input, "```"])
-                            else:
-                                command = ["git", "apply", "--allow-empty", "--verbose"]
-                                proc = await asyncio.create_subprocess_exec(
-                                    *command,
-                                    stdin=asyncio.subprocess.PIPE,
-                                    stdout=asyncio.subprocess.PIPE,
-                                    cwd=cwd,
+                            async with asyncio.timeout(60):
+                                stdout, stderr = await proc.communicate(patch_input.encode())
+                            message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                                command,
+                                proc,
+                                stdout,
+                                stderr,
+                            )
+                            if proc.returncode != 0:
+                                message.title = f"Failed to apply the diff {artifact.name}"
+                                _LOGGER.warning(message)
+                                error_messages.append(
+                                    f"Failed to apply the diff '{artifact.name}', you should probably rebase your branch",
                                 )
-                                async with asyncio.timeout(60):
-                                    stdout, stderr = await proc.communicate(patch_input.encode())
-                                message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                                    command,
-                                    proc,
-                                    stdout,
-                                    stderr,
+                                continue
+
+                            message.title = f"Applied the diff {artifact.name}"
+                            _LOGGER.info(message)
+
+                            if await module_utils.has_changes(cwd):
+                                success = await module_utils.create_commit(
+                                    f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run",
+                                    cwd,
                                 )
-                                if proc.returncode != 0:
-                                    message.title = f"Failed to apply the diff {artifact.name}"
-                                    _LOGGER.warning(message)
-                                    error_messages.append(
-                                        f"Failed to apply the diff '{artifact.name}', you should probably rebase your branch",
-                                    )
-                                    continue
-
-                                message.title = f"Applied the diff {artifact.name}"
-                                _LOGGER.info(message)
-
-                                if await module_utils.has_changes(cwd):
-                                    success = await module_utils.create_commit(
-                                        f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run",
-                                        cwd,
-                                    )
-                                    if not success:
-                                        exception_message = (
-                                            "Failed to commit the changes, see logs for details"
-                                        )
-                                        raise PatchError(exception_message)
-                                    should_push = True
+                                if not success:
+                                    exception_message = "Failed to commit the changes, see logs for details"
+                                    raise PatchError(exception_message)
+                                should_push = True
             if should_push:
                 command = ["git", "push", "origin", f"HEAD:{head_branch}"]
                 proc = await asyncio.create_subprocess_exec(
