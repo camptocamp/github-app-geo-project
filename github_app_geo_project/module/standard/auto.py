@@ -7,8 +7,8 @@ from abc import abstractmethod
 from pathlib import Path
 from typing import Any
 
-import github
 import githubkit
+import githubkit.versions.latest.models
 import githubkit.webhooks
 
 from github_app_geo_project import module
@@ -59,10 +59,10 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
         return []
 
     @abstractmethod
-    def do_action(
+    async def do_action(
         self,
         context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any]],
-        pull_request: github.PullRequest.PullRequest,
+        pull_request: githubkit.versions.latest.models.PullRequest,
     ) -> None:
         """Process the action, called it the conditions match."""
 
@@ -86,9 +86,15 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
                 and get_re(condition.get("title")).match(event_data.pull_request.title)
                 and get_re(condition.get("branch")).match(event_data.pull_request.head.ref)
             ):
-                repository = context.github_project.repo
-                pull_request = repository.get_pull(event_data.pull_request.number)
-                self.do_action(context, pull_request)
+                # Get pull request
+                pull_request = (
+                    await context.github_project.aio_github.rest.pulls.async_get(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                        pull_number=event_data.pull_request.number,
+                    )
+                ).parsed_data
+                await self.do_action(context, pull_request)
                 return module.ProcessOutput()
         return module.ProcessOutput()
 
