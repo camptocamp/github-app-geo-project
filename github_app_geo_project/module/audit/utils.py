@@ -108,6 +108,20 @@ async def snyk(
         True if len(fixable_vulnerabilities_summary) == 0 else (snyk_fix_success and npm_audit_fix_success)
     )
 
+    if Path(".pre-commit-config.yaml").exists():
+        command = ["pre-commit", "run", "--all-files"]
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            cwd=cwd,
+        )
+        async with asyncio.timeout(300):
+            stdout, stderr = await proc.communicate()
+        message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
+        message.title = "Pre-commit"
+        _LOGGER.debug(message)
+
     command = ["git", "diff", "--quiet"]
     diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
     async with asyncio.timeout(60):
