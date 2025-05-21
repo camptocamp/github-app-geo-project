@@ -482,7 +482,6 @@ class Audit(
         Note that this method is called in the queue consuming Pod
         """
         issue_check = module_utils.DashboardIssue(context.issue_data)
-        repo = context.github_project.repo
         short_message: list[str] = []
         success = True
         intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
@@ -552,6 +551,13 @@ class Audit(
                 versions = module_utils.get_stabilization_versions(security)
             else:
                 _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
+                # Get default branch
+                repo = (
+                    await context.github_project.aio_github.rest.repos.async_get(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                    )
+                ).parsed_data
                 versions = [repo.default_branch]
             _LOGGER.debug("Versions: %s", ", ".join(versions))
 
