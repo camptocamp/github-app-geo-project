@@ -10,9 +10,6 @@ import typing
 from pathlib import Path
 from typing import Any
 
-import github
-import github.Commit
-import github.PullRequest
 import githubkit
 import githubkit.exception
 import githubkit.versions.latest.models
@@ -80,7 +77,7 @@ async def _get_code_spell_command(
 
 def _commits_messages(
     config: checks_configuration.PullRequestChecksConfiguration,
-    commits: list[github.Commit.Commit],
+    commits: list[githubkit.versions.latest.models.Commit],
 ) -> tuple[bool, list[str]]:
     """
     Check the commits messages.
@@ -186,7 +183,7 @@ def _commits_messages(
 
 async def _commits_spell(
     config: checks_configuration.PullRequestChecksConfiguration,
-    commits: list[github.Commit.Commit],
+    commits: list[githubkit.versions.latest.models.Commit],
     spellcheck_cmd: list[str],
 ) -> tuple[bool, list[str]]:
     """Check the spelling of the commits body."""
@@ -226,7 +223,7 @@ async def _commits_spell(
 
 async def _pull_request_spell(
     config: checks_configuration.PullRequestChecksConfiguration,
-    pull_request: github.PullRequest.PullRequest,
+    pull_request: githubkit.versions.latest.models.PullRequest,
     spellcheck_cmd: list[str],
 ) -> tuple[bool, list[str]]:
     """Check the spelling of the pull request title and message."""
@@ -329,10 +326,22 @@ class Checks(
 
         assert context.event_name == "pull_request"
         event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
-        repo = context.github_project.repo
 
-        pull_request = repo.get_pull(number=context.module_event_data["pull-request-number"])
-        commits = list(pull_request.get_commits())
+        # Get the pull request and commits concurrently
+        pull_request_response, commits_response = await asyncio.gather(
+            context.github_project.aio_github.rest.pulls.async_get(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                pull_number=context.module_event_data["pull-request-number"],
+            ),
+            context.github_project.aio_github.rest.pulls.async_list_commits(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                pull_number=context.module_event_data["pull-request-number"],
+            ),
+        )
+        pull_request = pull_request_response.parsed_data
+        commits = commits_response.parsed_data
 
         with tempfile.NamedTemporaryFile("w+t", encoding="utf-8") as ignore_file:
             spellcheck_cmd = await _get_code_spell_command(context, event_data, ignore_file)
