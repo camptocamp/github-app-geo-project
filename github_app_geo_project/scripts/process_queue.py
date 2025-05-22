@@ -812,8 +812,8 @@ async def _get_process_one_job(
                 .values(status=models.JobStatus.ERROR.name),
             )
 
-            # Get too old pending jobs
-            await session.execute(
+            # Steal long pending jobs
+            statement = (
                 sqlalchemy.update(models.Queue)
                 .where(
                     models.Queue.status == models.JobStatus.PENDING.name,
@@ -821,10 +821,16 @@ async def _get_process_one_job(
                     < datetime.datetime.now(tz=datetime.UTC)
                     - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60),
                 )
-                .values(status=models.JobStatus.NEW.name),
+                .values(status=models.JobStatus.NEW.name)
             )
-
-            _LOGGER.debug("Process one job (max priority: %i): Steal long pending job", max_priority)
+            _LOGGER.debug("Execute steal long pending job statement: %s", statement)
+            result = await session.execute(statement)
+            affected_rows = result.rowcount
+            _LOGGER.debug(
+                "Process one job (max priority: %i): Steal %i long pending jobs",
+                max_priority,
+                affected_rows or 0,
+            )
             return True
 
         await _process_one_job(job, session, config, make_pending, max_priority)
