@@ -20,7 +20,7 @@ async def _add_issue_link(
 ) -> str:
     """Add a comment with the link to Jira if needed."""
 
-    # Get pull request using GitHubKit async API
+    # Get pull request
     pull_request = (
         await context.github_project.aio_github.rest.pulls.async_get(
             owner=context.github_project.owner,
@@ -80,7 +80,7 @@ async def _add_issue_link(
     if len(result) == 2:
         return "Nothing to add."
 
-    # Update the pull request using GitHubKit async API
+    # Update the pull request
     await context.github_project.aio_github.rest.pulls.async_update(
         owner=context.github_project.owner,
         repo=context.github_project.repository,

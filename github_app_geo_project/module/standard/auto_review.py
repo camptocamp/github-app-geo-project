@@ -39,7 +39,7 @@ class AutoReview(auto.Auto):
 
         Note that this method is called in the queue consuming Pod
         """
-        # Create review using GitHubKit async API
+        # Create review
         await context.github_project.aio_github.rest.pulls.async_create_review(
             owner=context.github_project.owner,
             repo=context.github_project.repository,

@@ -87,7 +87,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         assert context.event_name == "workflow_run"
         event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
 
-        # Get workflow artifacts using GitHubKit async API
+        # Get workflow artifacts
         artifacts_response = (
             await context.github_project.aio_github.rest.actions.async_list_workflow_run_artifacts(
                 owner=context.github_project.owner,
@@ -135,7 +135,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     _LOGGER.info("Artifact %s is expired", artifact.name)
                     continue
 
-                # Get a download URL for the artifact using GitHubKit async API
+                # Get a download URL for the artifact
                 download_response = (
                     await context.github_project.aio_github.rest.actions.async_download_artifact(
                         owner=context.github_project.owner,
@@ -145,7 +145,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     )
                 )
 
-                # GitHubKit's response includes Location header if redirected
+                # Response includes Location header if redirected
                 status = download_response.status_code
                 if status != 200:
                     _LOGGER.error(

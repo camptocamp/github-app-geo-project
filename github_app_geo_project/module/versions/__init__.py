@@ -206,7 +206,7 @@ class Versions(
             security_file_content = None
             security = None
 
-            # Get default branch using GitHubKit async API
+            # Get default branch
             repo_info = (
                 await context.github_project.aio_github.rest.repos.async_get(
                     owner=context.github_project.owner,
