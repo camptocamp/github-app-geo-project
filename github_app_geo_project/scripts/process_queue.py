@@ -197,10 +197,8 @@ async def _process_job(
                 token=None,
                 owner=None,
                 repository=None,
-                deprecated_repo=None,
                 aio_installation=None,
                 aio_github=None,
-                aio_repo=None,
             )
 
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):

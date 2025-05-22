@@ -205,14 +205,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     branch = event_data_pull_request.pull_request.base.ref
 
             if has_security_md:
-                # Get default branch
-                repo = (
-                    await context.github_project.aio_github.rest.repos.async_get(
-                        owner=context.github_project.owner,
-                        repo=context.github_project.repository,
-                    )
-                ).parsed_data
-                default_branch = repo.default_branch
+                default_branch = await context.github_project.default_branch()
 
                 if branch == default_branch:
                     try:

@@ -551,14 +551,7 @@ class Audit(
                 versions = module_utils.get_stabilization_versions(security)
             else:
                 _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
-                # Get default branch
-                repo = (
-                    await context.github_project.aio_github.rest.repos.async_get(
-                        owner=context.github_project.owner,
-                        repo=context.github_project.repository,
-                    )
-                ).parsed_data
-                versions = [repo.default_branch]
+                versions = [await context.github_project.default_branch()]
             _LOGGER.debug("Versions: %s", ", ".join(versions))
 
             all_key_starts = []

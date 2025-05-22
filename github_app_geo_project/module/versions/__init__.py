@@ -206,14 +206,7 @@ class Versions(
             security_file_content = None
             security = None
 
-            # Get default branch
-            repo_info = (
-                await context.github_project.aio_github.rest.repos.async_get(
-                    owner=context.github_project.owner,
-                    repo=context.github_project.repository,
-                )
-            ).parsed_data
-            default_branch = repo_info.default_branch
+            default_branch = await context.github_project.default_branch()
 
             try:
                 security_file_content = (

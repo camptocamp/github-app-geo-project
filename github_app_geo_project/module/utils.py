@@ -1080,12 +1080,12 @@ async def create_checks(
     if job.event_name == "check_run":
         event_data_check_run = githubkit.webhooks.parse_obj("check_run", job.event_data)
         sha = event_data_check_run.check_run.head_sha
-    if sha is None and github_project.aio_repo is not None:
+    if sha is None:
         branch = (
             await github_project.aio_github.rest.repos.async_get_branch(
                 owner=github_project.owner,
                 repo=github_project.repository,
-                branch=github_project.aio_repo.default_branch,
+                branch=await github_project.default_branch(),
             )
         ).parsed_data
         sha = branch.commit.sha

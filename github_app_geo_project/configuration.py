@@ -6,15 +6,12 @@ import os
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
-import github
-import github as github_lib
 import githubkit.cache
 import githubkit.exception
 import githubkit.versions.latest.models
 import jsonmerge
 import redis.asyncio.client
 import yaml
-from deprecated import deprecated
 
 from github_app_geo_project import application_configuration, project_configuration
 
@@ -56,17 +53,6 @@ _LOGGER.debug("Configuration loaded: %s", APPLICATION_CONFIGURATION)
 class GithubApplication(NamedTuple):
     """The Github authentication objects."""
 
-    deprecated_integration: github.GithubIntegration
-    """The Github integration (Deprecated)"""
-
-    @property
-    @deprecated(
-        "This property is deprecated and will be removed in a future release, use aio_github instead.",
-    )
-    def integration(self) -> github.GithubIntegration:
-        """The Github integration (Deprecated)."""
-        return self.deprecated_integration
-
     name: str
     """The application name"""
     id: int
@@ -85,6 +71,9 @@ class GithubApplication(NamedTuple):
     """The githubkit cache strategy for the application"""
 
 
+_DEFAULT_BRANCH_CACHE: dict[str, str] = {}
+
+
 class GithubProject(NamedTuple):
     """The Github Application objects."""
 
@@ -96,21 +85,31 @@ class GithubProject(NamedTuple):
     """The owner of the repository"""
     repository: str
     """The repository name"""
-    deprecated_repo: github_lib.Repository.Repository
-    """The repository object (Deprecated)"""
-
-    @property
-    @deprecated("This property is deprecated and will be removed in a future release, use aio_repo instead.")
-    def repo(self) -> github_lib.Repository.Repository:
-        """The repository object (Deprecated)."""
-        return self.deprecated_repo
-
     aio_installation: githubkit.versions.latest.models.Installation
     """The installation object for the repository"""
     aio_github: githubkit.GitHub[githubkit.AppInstallationAuthStrategy]
     """The githubkit object for the repository"""
-    aio_repo: githubkit.versions.latest.models.FullRepository | None
-    """The githubkit repository object"""
+
+    async def default_branch(self) -> str:
+        """Get the default branch of the repository."""
+        full_repo = f"{self.owner}/{self.repository}"
+        if full_repo in _DEFAULT_BRANCH_CACHE:
+            return _DEFAULT_BRANCH_CACHE[full_repo]
+        aio_repo = (
+            await self.aio_github.rest.repos.async_get(
+                owner=self.owner,
+                repo=self.repository,
+            )
+        ).parsed_data
+        default_branch = aio_repo.default_branch
+        if default_branch is None:
+            message = (
+                f"Default branch not found for {self.owner}/{self.repository}, "
+                f"check if the repository is empty or if the default branch is set"
+            )
+            raise ValueError(message)
+        _DEFAULT_BRANCH_CACHE[full_repo] = default_branch
+        return default_branch
 
 
 async def get_github_application(config: dict[str, Any], application_name: str) -> GithubApplication:
@@ -128,7 +127,6 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
         ],
     )
     application_id = config[f"application.{application_name}.github_app_id"]
-    auth = github.Auth.AppAuth(application_id, private_key)
 
     aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
     aio_cache_strategy = (
@@ -154,7 +152,6 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
     assert isinstance(slug, str)
 
     return GithubApplication(
-        github.GithubIntegration(auth=auth, retry=3),
         application_name,
         application_id,
         private_key,
@@ -180,13 +177,6 @@ async def get_github_project(
     )
     assert isinstance(github_application, GithubApplication)
 
-    token = github_application.integration.get_access_token(
-        github_application.integration.get_installation(owner, repository).id,
-    )
-    _LOGGER.debug("Generate token for %s/%s that expire at: %s", owner, repository, token.expires_at)
-    github_obj = github.Github(login_or_token=token.token)
-    repo = github_obj.get_repo(f"{owner}/{repository}")
-
     aio_installation = (
         await github_application.aio_github.rest.apps.async_get_repo_installation(
             owner,
@@ -197,27 +187,25 @@ async def get_github_project(
         aio_installation.id,
     )
     aio_github = github_application.aio_github.with_auth(aoi_installation_auth_strategy)
-    aio_repo = None
-    try:
-        aio_repo = (await aio_github.rest.repos.async_get(owner, repository)).parsed_data
-    except githubkit.exception.RequestFailed as exception:
-        if exception.response.status_code != 404:
-            raise
     aio_app_auth = aio_github.auth.get_auth_flow(aio_github)
     assert isinstance(aio_app_auth, githubkit.auth.app.AppAuth)
     aio_access_token = (
         await aio_github.rest.apps.async_create_installation_access_token(aio_installation.id)
     ).parsed_data
+    _LOGGER.debug(
+        "Generate token for %s/%s that expire at: %s",
+        owner,
+        repository,
+        aio_access_token.expires_at,
+    )
 
     return GithubProject(
         github_application,
         aio_access_token.token,
         owner,
         repository,
-        repo,
         aio_installation,
         aio_github,
-        aio_repo,
     )
 
 
