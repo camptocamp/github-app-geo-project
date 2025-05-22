@@ -165,6 +165,10 @@ async def test_process_success() -> None:
     context.event_data = dict(_EVENT)
     context.event_data["workflow_run"]["conclusion"] = "success"
 
+    default_branch = AsyncMock()
+    default_branch.return_value = "master"
+    context.github_project.default_branch = default_branch
+
     repo = MagicMock()
     context.github_project.aio_repo = repo
     repo.default_branch = "master"
@@ -208,6 +212,10 @@ async def test_process_failure() -> None:
     context.event_name = "workflow_run"
     context.event_data = dict(_EVENT)
     context.event_data["workflow_run"]["conclusion"] = "failure"
+
+    default_branch = AsyncMock()
+    default_branch.return_value = "master"
+    context.github_project.default_branch = default_branch
 
     repo = MagicMock()
     context.github_project.aio_repo = repo

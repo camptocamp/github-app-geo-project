@@ -77,8 +77,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
 
         repo_data = transversal_status[full_repo]
 
-        assert context.github_project.aio_repo is not None
-        stabilization_branches = [context.github_project.aio_repo.default_branch]
+        stabilization_branches = [await context.github_project.default_branch()]
         security_file = None
         try:
             security_file = (
