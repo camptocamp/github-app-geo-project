@@ -144,7 +144,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             workflow_name,
         )
 
-        # Get workflow jobs using GitHubKit async API
+        # Get workflow jobs
         workflow_jobs = context.github_project.aio_github.rest.paginate(
             context.github_project.aio_github.rest.actions.async_list_jobs_for_workflow_run,
             owner=context.github_project.owner,

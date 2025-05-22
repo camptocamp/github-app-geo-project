@@ -6,10 +6,9 @@ import json
 import logging
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import aiofiles
-import github
 import githubkit.exception
 import githubkit.versions.latest.models
 import githubkit.versions.v2022_11_28.webhooks
@@ -22,11 +21,6 @@ from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
 
 from . import configuration
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
-
-    import pygithub
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -154,7 +148,6 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
             # get the BACKPORT_TODO file
             if event_data_pull_request.action in ("opened", "reopened", "synchronize"):
-                repo = context.github_project.repo
                 try:
                     branch = context.module_event_data.branch
                     assert branch is not None
@@ -212,8 +205,16 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     branch = event_data_pull_request.pull_request.base.ref
 
             if has_security_md:
-                repo = context.github_project.repo
-                if branch == repo.default_branch:
+                # Get default branch
+                repo = (
+                    await context.github_project.aio_github.rest.repos.async_get(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                    )
+                ).parsed_data
+                default_branch = repo.default_branch
+
+                if branch == default_branch:
                     try:
                         security_file = (
                             await context.github_project.aio_github.rest.repos.async_get_content(
@@ -237,15 +238,30 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             raise
 
                     if branches:
-                        branches.add(repo.default_branch)
+                        branches.add(default_branch)
 
                     labels_config = context.module_config.get("labels", {})
                     if labels_config.get("auto-delete", configuration.AUTO_DELETE_DEFAULT):
-                        for label in repo.get_labels():
+                        # Get labels
+                        labels = (
+                            await context.github_project.aio_github.rest.issues.async_list_labels_for_repo(
+                                owner=context.github_project.owner,
+                                repo=context.github_project.repository,
+                            )
+                        ).parsed_data
+                        assert isinstance(labels, list)
+                        labels_list: list[githubkit.versions.latest.models.Label] = list(labels)
+
+                        for label in labels_list:
                             if label.name.startswith("backport "):
                                 branch = label.name[len("backport ") :]
                                 if branch not in branches:
-                                    label.delete()
+                                    # Delete label
+                                    await context.github_project.aio_github.rest.issues.async_delete_label(
+                                        owner=context.github_project.owner,
+                                        repo=context.github_project.repository,
+                                        name=label.name,
+                                    )
 
                     if labels_config.get("auto-create", configuration.AUTO_CREATE_DEFAULT):
                         for branch in branches:
@@ -341,13 +357,19 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         pull_request = event_data_pull_request.pull_request
         backport_branch = f"{_BRANCH_PREFIX}{pull_request.number}-to-{target_branch}"
         try:
-            if context.github_project.repo.get_branch(backport_branch):
-                _LOGGER.error("Branch %s already exists", backport_branch)
-                return False
-        except github.GithubException as exception:
-            if exception.status != 404:
+            # Check if branch exists
+            await context.github_project.aio_github.rest.repos.async_get_branch(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                branch=backport_branch,
+            )
+            _LOGGER.error("Branch %s already exists", backport_branch)
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code != 404:
                 _LOGGER.exception("Error while getting branch %s", backport_branch)
                 raise
+        else:
+            return False
 
         # Checkout the right branch on a temporary directory
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -406,18 +428,35 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 raise module.GHCIError(ansi_message.title)
 
             failed_commits: list[str] = []
-            github_pull_request = context.github_project.repo.get_pull(pull_request.number)
-            pull_request_commits = github_pull_request.get_commits()
 
-            commits: Iterable[pygithub.Commit] = pull_request_commits
-            if pull_request_commits.totalCount != 1:
-                merge_commit_sha = event_data_pull_request.pull_request.merge_commit_sha
-                merge_commit = (
-                    context.github_project.repo.get_commit(merge_commit_sha) if merge_commit_sha else None
+            # Get pull request commits
+            pull_request_commits = (
+                await context.github_project.aio_github.rest.pulls.async_list_commits(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    pull_number=pull_request.number,
                 )
-                # Check if the pull request is a squash merge commit
-                if merge_commit and len(merge_commit.parents) == 1:
-                    commits = [merge_commit]
+            ).parsed_data
+            commits: list[
+                githubkit.versions.latest.models.Commit | githubkit.versions.latest.models.GitCommit
+            ] = list(pull_request_commits)
+
+            if len(commits) != 1:
+                merge_commit_sha = event_data_pull_request.pull_request.merge_commit_sha
+                if merge_commit_sha:
+                    # Get merge commit
+                    merge_commit = (
+                        await context.github_project.aio_github.rest.git.async_get_commit(
+                            owner=context.github_project.owner,
+                            repo=context.github_project.repository,
+                            commit_sha=merge_commit_sha,
+                        )
+                    ).parsed_data
+
+                    # Check if the pull request is a squash merge commit
+                    if len(merge_commit.parents) == 1:
+                        commits = [merge_commit]
+
             # For all commits in the pull request
             for commit in commits:
                 # Cherry-pick the commit
@@ -637,9 +676,14 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             )
             # Remove backport label
             try:
-                github_pull_request.remove_from_labels(f"backport {target_branch}")
-            except github.GithubException as exception:
-                if exception.status != 404:
+                await context.github_project.aio_github.rest.issues.async_remove_label(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    issue_number=pull_request.number,
+                    name=f"backport {target_branch}",
+                )
+            except githubkit.exception.RequestFailed as exception:
+                if exception.response.status_code != 404:
                     _LOGGER.exception("Error while removing label backport %s", target_branch)
                     raise
         return True
