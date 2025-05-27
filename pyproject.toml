@@ -29,6 +29,7 @@ delete-old-workflow-runs = "github_app_geo_project.module.delete_old_workflow_ru
 dispatch-publishing = "github_app_geo_project.module.dispatch_publishing:DispatchPublishing"
 clean = "github_app_geo_project.module.clean:Clean"
 backport = "github_app_geo_project.module.backport:Backport"
+outdated-comments = "github_app_geo_project.module.outdated_comments:OutdatedComments"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
@@ -58,7 +59,7 @@ lxml-html-clean = "0.4.2"
 tag-publish = "1.0.1"
 aiohttp = "3.11.18"
 aiofiles = "24.1.0"
-githubkit = { version = "0.12.12", extras = ["auth"] }
+githubkit = { version = "0.12.12", extras = ["auth-app"] }
 deprecated = "1.2.18"
 aiomonitor = "0.7.1"
 sqlalchemy = {extras = ["asyncio"], version = "2.0.40"}
