@@ -823,7 +823,11 @@ async def _get_process_one_job(
                 )
                 .values(status=models.JobStatus.NEW.name)
             )
-            _LOGGER.debug("Execute steal long pending job statement: %s", statement)
+            _LOGGER.debug(
+                "Execute steal long pending job statement: %s\nWith arguments:\n%s",
+                statement,
+                statement.compile().params,
+            )
             result = await session.execute(statement)
             affected_rows = result.rowcount
             _LOGGER.debug(
