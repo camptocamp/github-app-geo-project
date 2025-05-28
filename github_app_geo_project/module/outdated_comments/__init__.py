@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 import githubkit.versions.latest.models
+import githubkit.versions.v2022_11_28.webhooks.pull_request_review
 import githubkit.webhooks
 from pydantic import BaseModel
 
@@ -68,7 +69,7 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
         """Get the GitHub application permissions needed by the module."""
         return module.GitHubApplicationPermissions(
             permissions={"pull_requests": "write"},
-            events={"pull_request_review_comment"},
+            events={"pull_request_review"},
         )
 
     def get_actions(self, context: module.GetActionContext) -> list[module.Action[_EventData]]:
@@ -78,15 +79,18 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_name == "pull_request_review_comment":
-            event_data = githubkit.webhooks.parse_obj("pull_request_review_comment", context.event_data)
-            if event_data.action == "created" and event_data.comment.user is not None:
+        if context.event_name == "pull_request_review":
+            event_data = githubkit.webhooks.parse_obj("pull_request_review", context.event_data)
+            if event_data.action == "submitted" and isinstance(
+                event_data,
+                githubkit.versions.v2022_11_28.webhooks.pull_request_review.WebhookPullRequestReviewSubmitted,  # type: ignore[attr-defined]
+            ):
                 return [
                     module.Action(
                         _EventData(
-                            author=event_data.comment.user.login,
+                            author=event_data.sender.login,
                             pull_request_number=event_data.pull_request.number,
-                            comment_number=event_data.comment.id,
+                            comment_number=event_data.review.id,
                         ),
                     ),
                 ]
