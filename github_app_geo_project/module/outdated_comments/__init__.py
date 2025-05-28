@@ -144,9 +144,13 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
 
                     await context.github_project.aio_github.graphql.arequest(
                         """
-                        mutation minimizeComment(input: {classifier: OUTDATED, $subjectId: ID!}) {
+                        mutation minimizeComment($subjectId: ID!) {
+                            minimizeComment(input: {
+                                classifier: OUTDATED,
+                                subjectId: $subjectId
+                            }) {
                                 minimizedComment {
-                                    isMinimized
+                                isMinimized
                                 }
                             }
                         }
