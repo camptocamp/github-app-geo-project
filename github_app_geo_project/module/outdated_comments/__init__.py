@@ -16,15 +16,15 @@ _LOGGER = logging.getLogger(__name__)
 class _Config(BaseModel):
     """The configuration of the module."""
 
-    authors: list[str] = []
-    """The concerned authors to outdated comments."""
+    authors: list[list[str]] = []
+    """The concerned groups of equivalent authors to outdate comments."""
 
 
 class _EventData(BaseModel):
     """Module payload data related to the event."""
 
     author: str
-    """The concerned author to outdated comments."""
+    """The concerned author to outdate comments."""
 
     pull_request_number: int
     """The pull request number where the comments should be outdated."""
@@ -59,8 +59,14 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
             "properties": {
                 "authors": {
                     "type": "array",
-                    "items": {"type": "string"},
-                    "description": "List of authors whose comments should be outdated.",
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "description": "The author to outdate comments from.",
+                        },
+                    },
+                    "description": "List of equivalent groups of authors to outdate comments from.",
                 },
             },
         }
@@ -106,48 +112,60 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
         Note that this method is called in the queue consuming Pod
         """
 
-        if context.module_event_data.author not in context.module_config.authors:
-            return module.ProcessOutput(
-                output={
-                    "summary": f"Author {context.module_event_data.author} is not in the list of authors to outdate comments.",
-                },
-            )
-
         output_messages: list[str] = []
-        comment: githubkit.versions.latest.models.PullRequestReview
-        async for comment in context.github_project.aio_github.paginate(
-            context.github_project.aio_github.rest.pulls.async_list_reviews,
-            owner=context.github_project.owner,
-            repo=context.github_project.repository,
-            pull_number=context.module_event_data.pull_request_number,
-        ):
-            if (
-                comment
-                and comment.user.login == context.module_event_data.author
-                and comment.id != context.module_event_data.comment_number
-            ):
-                _LOGGER.info(
-                    "Outdating comment %s from %s on pull request #%s",
-                    comment.id,
-                    comment.user.login,
-                    context.module_event_data.pull_request_number,
-                )
-                output_messages.append(
-                    f"Outdating comment: {comment.body[:50]}",
-                )
+        author_found = False
+        for authors in context.module_config.authors:
+            if context.module_event_data.author not in authors:
+                continue
 
-                await context.github_project.aio_github.graphql.arequest(
-                    """
-                    mutation minimizeComment(input: {classifier: OUTDATED, $subjectId: ID!}) {
-                            minimizedComment {
-                                isMinimized
+            author_found = True
+
+            comment: githubkit.versions.latest.models.PullRequestReview
+            async for comment in context.github_project.aio_github.paginate(
+                context.github_project.aio_github.rest.pulls.async_list_reviews,
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                pull_number=context.module_event_data.pull_request_number,
+            ):
+                if (
+                    comment
+                    and comment.user.login in authors
+                    and comment.id != context.module_event_data.comment_number
+                ):
+                    _LOGGER.info(
+                        "Outdating comment %s from %s on pull request #%s",
+                        comment.id,
+                        comment.user.login,
+                        context.module_event_data.pull_request_number,
+                    )
+                    output_messages.append(
+                        f"Outdating comment: {comment.body[:50]}",
+                    )
+
+                    await context.github_project.aio_github.graphql.arequest(
+                        """
+                        mutation minimizeComment(input: {classifier: OUTDATED, $subjectId: ID!}) {
+                                minimizedComment {
+                                    isMinimized
+                                }
                             }
                         }
-                    }
-                    """,
-                    variables={"subjectId": comment.node_id},
-                )
+                        """,
+                        variables={"subjectId": comment.node_id},
+                    )
 
+        if not author_found:
+            return module.ProcessOutput(
+                output={
+                    "summary": f"Author {context.module_event_data.author} is not configured in the list of authors to outdate comments.",
+                },
+            )
+        if not output_messages:
+            return module.ProcessOutput(
+                output={
+                    "summary": f"No comments to outdate for author {context.module_event_data.author} on pull request #{context.module_event_data.pull_request_number}.",
+                },
+            )
         return module.ProcessOutput(
             output={
                 "summary": f"Outdated {len(output_messages)} comments from {context.module_event_data.author} on pull request #{context.module_event_data.pull_request_number}.",
