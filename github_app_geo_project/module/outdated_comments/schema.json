@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/master/outdated_comments/schema.json",
+  "type": "object",
+  "title": "Outdated comments configuration",
+  "additionalProperties": false,
+  "properties": {
+    "authors": {
+      "type": "array",
+      "description": "List of equivalent groups of authors to outdate comments from.",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "description": "The author to outdate comments from."
+        },
+        "description": "Group of equivalent author logins."
+      }
+    }
+  },
+  "examples": [
+    {
+      "authors": [["Copilot", "copilot-pull-request-reviewer[bot]"]]
+    }
+  ]
+}

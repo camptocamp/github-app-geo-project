@@ -1,6 +1,8 @@
 """Module to outdated old comments from a bot like copilot."""
 
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 import githubkit.versions.latest.models
@@ -36,6 +38,14 @@ class _EventData(BaseModel):
 class OutdatedComments(module.Module[_Config, _EventData, None, None]):
     """
     Module that outdate previous comments from a bot like copilot.
+
+    Configure this module with GitHub Copilot like this:
+
+    ```yaml
+    authors:
+      - - Copilot
+        - copilot-pull-request-reviewer[bot]
+    ```
     """
 
     def title(self) -> str:
@@ -52,24 +62,12 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
-        return {
-            "$schema": "http://json-schema.org/draft-07/schema#",
-            "title": self.title(),
-            "type": "object",
-            "properties": {
-                "authors": {
-                    "type": "array",
-                    "items": {
-                        "type": "array",
-                        "items": {
-                            "type": "string",
-                            "description": "The author to outdate comments from.",
-                        },
-                    },
-                    "description": "List of equivalent groups of authors to outdate comments from.",
-                },
-            },
-        }
+        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
+            schema = json.load(schema_file)
+            for key in ("$schema", "$id"):
+                if key in schema:
+                    del schema[key]
+            return schema  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the GitHub application permissions needed by the module."""
