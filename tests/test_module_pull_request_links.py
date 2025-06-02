@@ -145,7 +145,7 @@ async def test_add_issue_link() -> None:
         owner=context.github_project.owner,
         repo=context.github_project.repository,
         pull_number=pull_request.number,
-        body="\n<!-- pull request links -->\nPR: 1",
+        body="Description of the pull request.\n\n<!-- pull request links -->\nPR: 1",
     )
 
 
@@ -166,6 +166,7 @@ async def test_add_issue_link_2() -> None:
         pull_number=pull_request.number,
         body="\n".join(
             [
+                "Description of the pull request.",
                 "",
                 "<!-- pull request links -->",
                 "[Link to Jira: DEF](https://jira.example.com/browse/123)",
@@ -190,7 +191,7 @@ async def test_add_issue_link_with_blacklist() -> None:
         owner=context.github_project.owner,
         repo=context.github_project.repository,
         pull_number=pull_request.number,
-        body="\n<!-- pull request links -->\nPR: 1",
+        body="Description of the pull request.\n\n<!-- pull request links -->\nPR: 1",
     )
 
 
