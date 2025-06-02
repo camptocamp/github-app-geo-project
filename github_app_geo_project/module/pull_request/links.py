@@ -60,7 +60,7 @@ async def _add_issue_link(
         if key in blacklist and value in blacklist[key]:
             del values[key]
 
-    result = ["", "<!-- pull request links -->"]
+    result = ["<!-- pull request links -->"]
     for link in content:
         add = True
         for require in link.get("requires", []):
@@ -77,7 +77,7 @@ async def _add_issue_link(
         else:
             result.append(title)
 
-    if len(result) == 2:
+    if len(result) == 1:
         return "Nothing to add."
 
     # Update the pull request
@@ -85,7 +85,7 @@ async def _add_issue_link(
         owner=context.github_project.owner,
         repo=context.github_project.repository,
         pull_number=pull_request.number,
-        body="\n".join(result),
+        body="\n".join([body, "", *result]),
     )
     return "Pull request descriptions updated."
 
