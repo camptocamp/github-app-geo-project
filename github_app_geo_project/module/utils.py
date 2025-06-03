@@ -809,12 +809,20 @@ async def close_pull_request_issues(
             repo=github_project.repository,
             state="open",
             head=f"{github_project.owner}:{new_branch}",
+            per_page=1,
         )
     ).parsed_data
-    assert pulls is not None
-    if pulls.totalCount > 0:
-        pull_request = next(pulls)
-        pull_request.edit(state="closed")
+    try:
+        pull_request: githubkit.versions.latest.models.PullRequestSimple = next(pulls)
+    except StopIteration:
+        pass
+    else:
+        await github_project.aio_github.rest.pulls.async_update(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            pull_number=pull_request.number,
+            state="closed",
+        )
 
         await github_project.aio_github.rest.git.async_delete_ref(
             owner=github_project.owner,
