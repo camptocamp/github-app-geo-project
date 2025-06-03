@@ -274,7 +274,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                                         repo=context.github_project.repository,
                                         name=f"backport {branch}",
                                         color=color,
-                                        description="Add this label to backport the pull request to this branch",
+                                        description=f"Add this label to backport the pull request to the '{branch}' branch",
                                     )
                                 else:
                                     _LOGGER.exception(
