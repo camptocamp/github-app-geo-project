@@ -21,4 +21,26 @@ This module will be triggered by the `daily` event.
 - `.tools-version` on the stabilization branch to get the used minor Python version.
 - `.github/ghci.yaml` on the stabilization branch to get some branch-specific configuration.
 
+### Functionality Details
+
+#### Vulnerability Scanning
+
+The module uses Snyk to scan for vulnerabilities in project dependencies. It focuses on identifying critical security issues that need immediate attention. The scan results are aggregated and reported in the dashboard issue.
+
+#### Automatic Fix Pull Requests
+
+When Snyk identifies vulnerabilities that can be automatically fixed, the module creates a pull request with the necessary changes. This helps maintain project security by streamlining the remediation process.
+
+#### Version Update Pull Requests
+
+For projects using the `ci/dpkg.yaml` file format, the module checks for outdated dependencies and creates pull requests with updated versions. This keeps dependencies up-to-date and reduces technical debt.
+
+#### Issue Management
+
+If errors occur during the scanning or PR creation process, or if pull requests remain open for too long (> 5 days), the module creates issues to alert the project maintainers.
+
+### Configuration Options
+
+You can configure the audit module behavior through the `.github/ghci.yaml` file.
+
 [Configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/AUDIT-CONFIG.md).
