@@ -239,7 +239,10 @@ async def get_configuration(
 
     return jsonmerge.merge(  # type: ignore[no-any-return]
         APPLICATION_CONFIGURATION.get("profiles", {}).get(
-            project_custom_configuration.get("profile", APPLICATION_CONFIGURATION.get("default-profile")),
+            cast(
+                "str",
+                project_custom_configuration.get("profile", APPLICATION_CONFIGURATION.get("default-profile")),
+            ),
             {},
         ),
         project_custom_configuration,
