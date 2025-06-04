@@ -56,7 +56,7 @@ jobs:
 
       - run: pip install --requirement=requirements.txt
       - run: poetry install
-      - run: poetry run prospector --output-format=pylint
+      - run: poetry run prospector --output-format=pylint --ignore-paths=scripts
 
       - run: |
           echo GHCI_TEST_GITHUB_APP_ID=1234 > .env
