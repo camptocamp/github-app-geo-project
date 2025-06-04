@@ -37,7 +37,9 @@ class _ActionData(BaseModel):
     branch: str | None = None
 
 
-class Backport(module.Module[configuration.BackportConfiguration, _ActionData, None, None]):
+class Backport(
+    module.Module[configuration.BackportConfiguration, _ActionData, None, None],
+):
     """Module used to backport a pull request to an other branch."""
 
     def title(self) -> str:
@@ -63,19 +65,27 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module."""
-        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("backport")  # type: ignore[no-any-return]
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[_ActionData]]:
         """Get the action related to the module and the event."""
 
-        if context.event_name == "pull_request":
-            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+        if context.module_event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
 
             # SECURITY.md update
             if (
                 event_data_pull_request.action in ("opened", "reopened", "synchronize")
-                and "pull_request" in context.event_data
+                and "pull_request" in context.github_event_data
             ):
                 for prefix in _BRANCH_PREFIXES:
                     if event_data_pull_request.pull_request.head.ref.startswith(prefix):
@@ -119,8 +129,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     ),
                 )
             return actions
-        if context.event_name == "push":
-            event_data_push = githubkit.webhooks.parse_obj("push", context.event_data)
+        if context.module_event_name == "push":
+            event_data_push = githubkit.webhooks.parse_obj(
+                "push",
+                context.github_event_data,
+            )
             for commit in event_data_push.commits:
                 if "SECURITY.md" in [
                     *(commit.modified or []),
@@ -141,11 +154,17 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
     async def process(
         self,
-        context: module.ProcessContext[configuration.BackportConfiguration, _ActionData],
+        context: module.ProcessContext[
+            configuration.BackportConfiguration,
+            _ActionData,
+        ],
     ) -> module.ProcessOutput[_ActionData, None]:
         """Process the action."""
         if context.module_event_data.type == "check":
-            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            event_data_pull_request = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
             # get the BACKPORT_TODO file
             if event_data_pull_request.action in ("opened", "reopened", "synchronize"):
                 try:
@@ -159,7 +178,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             path="BACKPORT_TODO",
                         )
                     ).parsed_data
-                    assert isinstance(backport_todo, githubkit.versions.latest.models.ContentFile)
+                    assert isinstance(
+                        backport_todo,
+                        githubkit.versions.latest.models.ContentFile,
+                    )
                     assert backport_todo.content is not None
                     return module.ProcessOutput(
                         success=False,
@@ -185,7 +207,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             has_security_md = True
             branch = context.module_event_data.branch
             if branch is None:
-                event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+                event_data_pull_request = githubkit.webhooks.parse_obj(
+                    "pull_request",
+                    context.github_event_data,
+                )
                 has_security_md = False
                 if isinstance(
                     event_data_pull_request,
@@ -216,7 +241,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                                 path="SECURITY.md",
                             )
                         ).parsed_data
-                        assert isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+                        assert isinstance(
+                            security_file,
+                            githubkit.versions.latest.models.ContentFile,
+                        )
                         assert security_file.content is not None
                         security = security_md.Security(
                             base64.b64decode(security_file.content).decode("utf-8"),
@@ -234,7 +262,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         branches.add(default_branch)
 
                     labels_config = context.module_config.get("labels", {})
-                    if labels_config.get("auto-delete", configuration.AUTO_DELETE_DEFAULT):
+                    if labels_config.get(
+                        "auto-delete",
+                        configuration.AUTO_DELETE_DEFAULT,
+                    ):
                         # Get labels
                         labels = (
                             await context.github_project.aio_github.rest.issues.async_list_labels_for_repo(
@@ -256,7 +287,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                                         name=label.name,
                                     )
 
-                    if labels_config.get("auto-create", configuration.AUTO_CREATE_DEFAULT):
+                    if labels_config.get(
+                        "auto-create",
+                        configuration.AUTO_CREATE_DEFAULT,
+                    ):
                         for branch in branches:
                             try:
                                 await context.github_project.aio_github.rest.issues.async_get_label(
@@ -267,7 +301,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             except githubkit.exception.RequestFailed as e:
                                 if e.response.status_code == 404:
                                     # Create the label if it doesn't exist
-                                    color = labels_config.get("color", configuration.COLOR_DEFAULT)
+                                    color = labels_config.get(
+                                        "color",
+                                        configuration.COLOR_DEFAULT,
+                                    )
                                     color = color.removeprefix("#")
                                     await context.github_project.aio_github.rest.issues.async_create_label(
                                         owner=context.github_project.owner,
@@ -287,7 +324,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
             return module.ProcessOutput()
         elif context.module_event_data.type == "backport":
-            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            event_data_pull_request = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
             pull_request = event_data_pull_request.pull_request
             if event_data_pull_request.action in ("closed", "labeled") and pull_request.state == "closed":
                 branches = set()
@@ -317,7 +357,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             return module.ProcessOutput()
 
         if context.module_event_data.type == "version":
-            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+            event_data_pull_request = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
             assert context.module_event_data.pull_request_number is not None
             pull_request = event_data_pull_request.pull_request
             assert context.module_event_data.branch is not None
@@ -342,7 +385,10 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
 
     async def _backport(
         self,
-        context: module.ProcessContext[configuration.BackportConfiguration, _ActionData],
+        context: module.ProcessContext[
+            configuration.BackportConfiguration,
+            _ActionData,
+        ],
         event_data_pull_request: githubkit.versions.v2022_11_28.webhooks.PullRequestEvent,
         target_branch: str,
     ) -> bool:
@@ -367,8 +413,15 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         # Checkout the right branch on a temporary directory
         with tempfile.TemporaryDirectory() as tmpdirname:
             cwd = Path(tmpdirname)
-            _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-            new_cwd = await module_utils.git_clone(context.github_project, target_branch, cwd)
+            _LOGGER.debug(
+                "Clone the repository in the temporary directory: %s",
+                tmpdirname,
+            )
+            new_cwd = await module_utils.git_clone(
+                context.github_project,
+                target_branch,
+                cwd,
+            )
             if new_cwd is None:
                 _LOGGER.error(
                     "Error on cloning the repository %s/%s",
@@ -400,7 +453,13 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
             _LOGGER.debug("Branches: %s", ", ".join(branches))
 
             # Checkout the branch
-            command = ["git", "checkout", "-b", backport_branch, f"origin/{target_branch}"]
+            command = [
+                "git",
+                "checkout",
+                "-b",
+                backport_branch,
+                f"origin/{target_branch}",
+            ]
             proc = await asyncio.create_subprocess_exec(
                 *command,
                 stdout=asyncio.subprocess.PIPE,
@@ -479,7 +538,15 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                             continue
 
                         # Get user email
-                        command = ["git", "--no-pager", "log", "--format=format:%ae", "-n", "1", commit.sha]
+                        command = [
+                            "git",
+                            "--no-pager",
+                            "log",
+                            "--format=format:%ae",
+                            "-n",
+                            "1",
+                            commit.sha,
+                        ]
                         proc = await asyncio.create_subprocess_exec(
                             *command,
                             stdout=asyncio.subprocess.PIPE,
@@ -500,7 +567,13 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         else:
                             user_email = stdout.decode().strip()
                             # Set the user email
-                            command = ["git", "config", "--global", "user.email", user_email]
+                            command = [
+                                "git",
+                                "config",
+                                "--global",
+                                "user.email",
+                                user_email,
+                            ]
                             proc = await asyncio.create_subprocess_exec(
                                 *command,
                                 stdout=asyncio.subprocess.PIPE,
@@ -520,7 +593,15 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                                 _LOGGER.error(ansi_message)
 
                         # Get user name
-                        command = ["git", "--no-pager", "log", "--format=format:%an", "-n", "1", commit.sha]
+                        command = [
+                            "git",
+                            "--no-pager",
+                            "log",
+                            "--format=format:%an",
+                            "-n",
+                            "1",
+                            commit.sha,
+                        ]
                         proc = await asyncio.create_subprocess_exec(
                             *command,
                             stdout=asyncio.subprocess.PIPE,
@@ -541,7 +622,13 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         else:
                             user_name = stdout.decode().strip()
                             # Set the user name
-                            command = ["git", "config", "--global", "user.name", user_name]
+                            command = [
+                                "git",
+                                "config",
+                                "--global",
+                                "user.name",
+                                user_name,
+                            ]
                             proc = await asyncio.create_subprocess_exec(
                                 *command,
                                 stdout=asyncio.subprocess.PIPE,
@@ -618,7 +705,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                         "```",
                     ],
                 )
-                async with aiofiles.open(cwd / "BACKPORT_TODO", "w", encoding="utf-8") as f:
+                async with aiofiles.open(
+                    cwd / "BACKPORT_TODO",
+                    "w",
+                    encoding="utf-8",
+                ) as f:
                     await f.write("\n".join(message))
                 command = ["git", "add", "BACKPORT_TODO"]
                 proc = await asyncio.create_subprocess_exec(
@@ -639,7 +730,11 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                     ansi_message.title = "Error while adding the BACKPORT_TODO file"
                     _LOGGER.error(ansi_message)
                     raise module.GHCIError(ansi_message.title)
-                command = ["git", "commit", "--message=[skip ci] Add instructions to finish the backport"]
+                command = [
+                    "git",
+                    "commit",
+                    "--message=[skip ci] Add instructions to finish the backport",
+                ]
                 proc = await asyncio.create_subprocess_exec(
                     *command,
                     stdout=asyncio.subprocess.PIPE,
@@ -677,6 +772,9 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
                 )
             except githubkit.exception.RequestFailed as exception:
                 if exception.response.status_code != 404:
-                    _LOGGER.exception("Error while removing label backport %s", target_branch)
+                    _LOGGER.exception(
+                        "Error while removing label backport %s",
+                        target_branch,
+                    )
                     raise
         return True

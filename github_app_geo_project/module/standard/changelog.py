@@ -103,51 +103,78 @@ def match(item: ChangelogItem, condition: Condition) -> bool:
     return match_functions[condition["type"]](item, condition)
 
 
-def match_and(item: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
+def match_and(
+    item: ChangelogItem,
+    condition: changelog_configuration.ConditionAndSolidusOr,
+) -> bool:
     """Match all the conditions."""
     return all(match(item, cond) for cond in condition["conditions"])
 
 
-def match_or(item: ChangelogItem, condition: changelog_configuration.ConditionAndSolidusOr) -> bool:
+def match_or(
+    item: ChangelogItem,
+    condition: changelog_configuration.ConditionAndSolidusOr,
+) -> bool:
     """Match any of the conditions."""
     return any(match(item, cond) for cond in condition["conditions"])
 
 
-def match_not(item: ChangelogItem, condition: changelog_configuration.ConditionNot) -> bool:
+def match_not(
+    item: ChangelogItem,
+    condition: changelog_configuration.ConditionNot,
+) -> bool:
     """Get the opposite of the condition."""
     return not match(item, condition["condition"])
 
 
-def match_const(item: ChangelogItem, condition: changelog_configuration.ConditionConst) -> bool:
+def match_const(
+    item: ChangelogItem,
+    condition: changelog_configuration.ConditionConst,
+) -> bool:
     """Get a constant value."""
     del item
     return condition["value"]
 
 
-def match_title(item: ChangelogItem, condition: changelog_configuration.ConditionTitle) -> bool:
+def match_title(
+    item: ChangelogItem,
+    condition: changelog_configuration.ConditionTitle,
+) -> bool:
     """Match the title of the pull request."""
     return re.match(condition["regex"], item.title) is not None
 
 
-def match_files(item: ChangelogItem, condition: changelog_configuration.ConditionFiles) -> bool:
+def match_files(
+    item: ChangelogItem,
+    condition: changelog_configuration.ConditionFiles,
+) -> bool:
     """Match all the files of the pull request."""
     file_re = re.compile("|".join(condition["regex"]))
     return all(file_re.match(file_name) is not None for file_name in item.files)
 
 
-def match_label(item: ChangelogItem, condition: changelog_configuration.ConditionLabel) -> bool:
+def match_label(
+    item: ChangelogItem,
+    condition: changelog_configuration.ConditionLabel,
+) -> bool:
     """Match a label of the pull request."""
     return condition["value"] in item.labels
 
 
-def match_branch(item: ChangelogItem, condition: changelog_configuration.ConditionBranch) -> bool:
+def match_branch(
+    item: ChangelogItem,
+    condition: changelog_configuration.ConditionBranch,
+) -> bool:
     """Match the branch of the pull request."""
     if not item.branch:
         return False
     return re.match(condition["regex"], item.branch) is not None
 
 
-def match_author(item: ChangelogItem, condition: changelog_configuration.ConditionAuthor) -> bool:
+def match_author(
+    item: ChangelogItem,
+    condition: changelog_configuration.ConditionAuthor,
+) -> bool:
     """Match the author of the pull request."""
     if item.author is None:
         return False
@@ -161,7 +188,10 @@ class MatchedItem(NamedTuple):
     condition: str
 
 
-def get_section(item: ChangelogItem, config: changelog_configuration.Changelog) -> tuple[str, MatchedItem]:
+def get_section(
+    item: ChangelogItem,
+    config: changelog_configuration.Changelog,
+) -> tuple[str, MatchedItem]:
     """Get the section of the changelog item."""
     group = config["default-section"]
     for index, group_condition in enumerate(config["routing"]):
@@ -391,7 +421,11 @@ async def generate_changelog(
     tag = tags[tag]
     old_tag = _previous_tag(tag, tags)
     if old_tag is None:
-        _LOGGER.warning("No previous tag found for tag %s on repository %s", tag_str, repository)
+        _LOGGER.warning(
+            "No previous tag found for tag %s on repository %s",
+            tag_str,
+            repository,
+        )
         return ""
 
     changelog_items = set()
@@ -429,7 +463,9 @@ async def generate_changelog(
                 assert commits is not None
                 for commit_ in commits:
                     if commit_.author:
-                        authors.add(Author(commit_.author.login, commit_.author.html_url))
+                        authors.add(
+                            Author(commit_.author.login, commit_.author.html_url),
+                        )
                 await github_project.aio_github.rest.issues.async_update(
                     github_project.owner,
                     github_project.repository,
@@ -450,7 +486,10 @@ async def generate_changelog(
                         github=pull_request,
                         ref=f"#{pull_request.number}",
                         title=pull_request.title,
-                        author=Author(pull_request.user.login, pull_request.user.html_url),
+                        author=Author(
+                            pull_request.user.login,
+                            pull_request.user.html_url,
+                        ),
                         authors=authors,
                         branch=pull_request.head.ref,
                         files={file.filename for file in files},
@@ -511,7 +550,12 @@ async def generate_changelog(
         if section_config["name"] not in sections:
             continue
         if section_config.get("closed", False):
-            result += ["<details><summary>", "", f"## {section_config['title']}", "</summary>"]
+            result += [
+                "<details><summary>",
+                "",
+                f"## {section_config['title']}",
+                "</summary>",
+            ]
         else:
             result.append(f"## {section_config['title']}")
         result.append("")
@@ -530,7 +574,14 @@ async def generate_changelog(
     return "\n".join(result)
 
 
-class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any], dict[str, Any], None]):
+class Changelog(
+    module.Module[
+        changelog_configuration.Changelog,
+        dict[str, Any],
+        dict[str, Any],
+        None,
+    ],
+):
     """The changelog module."""
 
     def title(self) -> str:
@@ -549,15 +600,21 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         """Indicate fields used to ship other jobs."""
         return ["repository", "owner", "module_data"]
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_name == "release":
-            event_data_release = githubkit.webhooks.parse_obj("release", context.event_data)
+        if context.module_event_name == "release":
+            event_data_release = githubkit.webhooks.parse_obj(
+                "release",
+                context.github_event_data,
+            )
             if event_data_release.action == "created":
                 return [
                     module.Action(
@@ -565,8 +622,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                         data={"version": event_data_release.release.tag_name},
                     ),
                 ]
-        if context.event_name == "create":
-            event_data_create = githubkit.webhooks.parse_obj("create", context.event_data)
+        if context.module_event_name == "create":
+            event_data_create = githubkit.webhooks.parse_obj(
+                "create",
+                context.github_event_data,
+            )
             if event_data_create.ref_type == "tag":
                 return [
                     module.Action(
@@ -574,8 +634,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                         data={"type": "tag", "version": event_data_create.ref},
                     ),
                 ]
-        if context.event_name == "delete":
-            event_data_delete = githubkit.webhooks.parse_obj("delete", context.event_data)
+        if context.module_event_name == "delete":
+            event_data_delete = githubkit.webhooks.parse_obj(
+                "delete",
+                context.github_event_data,
+            )
             if event_data_delete.ref_type == "tag":
                 return [
                     module.Action(
@@ -583,8 +646,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                         data={"type": "tag", "version": event_data_delete.ref},
                     ),
                 ]
-        if context.event_name == "pull_request":
-            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+        if context.module_event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
             if (
                 event_data_pull_request.action
                 in ("edited", "labeled", "unlabeled", "milestoned", "demilestoned")
@@ -595,7 +661,10 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 )
             ):
                 versions = set()
-                if event_data_pull_request.action in ("milestoned", "demilestoned") and (
+                if event_data_pull_request.action in (
+                    "milestoned",
+                    "demilestoned",
+                ) and (
                     isinstance(
                         event_data_pull_request,
                         githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestMilestoned  # type: ignore[attr-defined]
@@ -622,8 +691,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                     for version in versions
                 ]
 
-        if context.event_name == "milestone":
-            event_data_milestone = githubkit.webhooks.parse_obj("milestone", context.event_data)
+        if context.module_event_name == "milestone":
+            event_data_milestone = githubkit.webhooks.parse_obj(
+                "milestone",
+                context.github_event_data,
+            )
             if (
                 event_data_milestone.action == "edited"
                 and event_data_milestone.milestone
@@ -640,8 +712,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                     )
                     for version in versions
                 ]
-        if context.event_name == "discussion":
-            event_data_discussion = githubkit.webhooks.parse_obj("discussion", context.event_data)
+        if context.module_event_name == "discussion":
+            event_data_discussion = githubkit.webhooks.parse_obj(
+                "discussion",
+                context.github_event_data,
+            )
             if event_data_discussion.action in ("created", "closed"):
                 return [
                     module.Action(
@@ -665,7 +740,10 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
 
     async def process(
         self,
-        context: module.ProcessContext[changelog_configuration.Changelog, dict[str, Any]],
+        context: module.ProcessContext[
+            changelog_configuration.Changelog,
+            dict[str, Any],
+        ],
     ) -> module.ProcessOutput[dict[str, Any], None]:
         """
         Process the action.
@@ -674,7 +752,10 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
         """
         repository = f"{context.github_project.owner}/{context.github_project.repository}"
 
-        if context.module_config.get("create-labels", changelog_configuration.CREATE_LABELS_DEFAULT):
+        if context.module_config.get(
+            "create-labels",
+            changelog_configuration.CREATE_LABELS_DEFAULT,
+        ):
             labels = (
                 await context.github_project.aio_github.rest.issues.async_list_labels_for_repo(
                     context.github_project.owner,
@@ -710,7 +791,9 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                     context.github_project.repository,
                 )
                 if latest_release is not None:
-                    prerelease = packaging.version.Version(tag_str) < packaging.version.Version(
+                    prerelease = packaging.version.Version(
+                        tag_str,
+                    ) < packaging.version.Version(
                         latest_release.parsed_data.tag_name,
                     )
             except githubkit.exception.RequestFailed as exception:
@@ -761,8 +844,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 ],
             )
         if context.module_event_data.get("type") == "discussion":
-            assert context.event_name == "discussion"
-            event_data = githubkit.webhooks.parse_obj("discussion", context.event_data)
+            assert context.module_event_name == "discussion"
+            event_data = githubkit.webhooks.parse_obj(
+                "discussion",
+                context.github_event_data,
+            )
             title = set()
             title.update(event_data.discussion.title.split())
             if (
@@ -820,7 +906,11 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
                 tag = Tag(tag=github_tag, commit=commit)
                 tags_map[tag] = tag
             except ValueError:
-                _LOGGER.warning("Invalid tag: %s on repository %s", github_tag.name, repository)
+                _LOGGER.warning(
+                    "Invalid tag: %s on repository %s",
+                    github_tag.name,
+                    repository,
+                )
                 continue
 
             print_tags.append(github_tag.name)
@@ -864,7 +954,9 @@ class Changelog(module.Module[changelog_configuration.Changelog, dict[str, Any],
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
         # Get changelog-schema.json related to this file
-        with (Path(__file__).parent / "changelog-schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "changelog-schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("changelog")  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:

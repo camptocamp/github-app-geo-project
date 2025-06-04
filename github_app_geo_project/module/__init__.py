@@ -73,10 +73,12 @@ class Action(Generic[_EVENT_DATA]):
 class GetActionContext(NamedTuple):
     """The context of the get_actions method."""
 
-    event_name: str
-    """The event name present in the X-GitHub-Event header."""
-    event_data: Mapping[str, Any]
-    """The event data."""
+    github_event_name: str
+    """The GitHub event name present in the X-GitHub-Event header."""
+    github_event_data: Mapping[str, Any]
+    """The GitHub event data."""
+    module_event_name: str
+    """The module event name."""
     owner: str
     """The owner of the event."""
     repository: str
@@ -90,11 +92,13 @@ class CleanupContext(NamedTuple, Generic[_EVENT_DATA]):
 
     github_project: configuration.GithubProject
     """The github application."""
-    event_name: str
+    github_event_name: str
     """The event name present in the X-GitHub-Event header."""
-    event_data: dict[str, Any]
+    github_event_data: dict[str, Any]
     """The event data."""
-    module_data: _EVENT_DATA
+    module_event_name: str
+    """The module event name."""
+    module_event_data: _EVENT_DATA
     """The data given by the get_actions method."""
 
 
@@ -105,12 +109,14 @@ class ProcessContext(NamedTuple, Generic[_CONFIGURATION, _EVENT_DATA]):
     """The session to be used."""
     github_project: configuration.GithubProject
     """The github application."""
-    event_name: str
+    github_event_name: str
     """The event name present in the X-GitHub-Event header."""
-    event_data: dict[str, Any]
+    github_event_data: dict[str, Any]
     """The event data."""
     module_config: _CONFIGURATION
     """The module configuration."""
+    module_event_name: str
+    """The module event name."""
     module_event_data: _EVENT_DATA
     """The data given by the get_actions method."""
     issue_data: str
@@ -318,7 +324,9 @@ class TransversalDashboardOutput(NamedTuple):
     data: dict[str, Any]
 
 
-class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS, _INTERMEDIATE_STATUS]):
+class Module(
+    Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS, _INTERMEDIATE_STATUS],
+):
     """The base class of the modules."""
 
     @abstractmethod
@@ -394,7 +402,10 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS, _INTERMED
         super_ = next(c for c in self.__class__.__orig_bases__ if c.__origin__ == Module)  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[0]
         # Is Pydantic BaseModel
-        if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
+        if not isinstance(generic_element, GenericAlias) and issubclass(
+            generic_element,
+            BaseModel,
+        ):
             return generic_element.model_json_schema()  # type: ignore[no-any-return]
         raise NotImplementedError("The method get_json_schema should be implemented")
 
@@ -403,11 +414,17 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS, _INTERMED
         super_ = next(c for c in self.__class__.__orig_bases__ if c.__origin__ == Module)  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[0]
         # Is Pydantic BaseModel
-        if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
+        if not isinstance(generic_element, GenericAlias) and issubclass(
+            generic_element,
+            BaseModel,
+        ):
             try:
                 return generic_element(**data)  # type: ignore[no-any-return]
             except ValidationError:
-                _LOGGER.error("Invalid configuration, try with empty configuration: %s", data)  # noqa: TRY400
+                _LOGGER.error(  # noqa: TRY400
+                    "Invalid configuration, try with empty configuration: %s",
+                    data,
+                )
                 return generic_element()  # type: ignore[no-any-return]
 
         return data  # type: ignore[return-value]
@@ -417,11 +434,17 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS, _INTERMED
         super_ = next(c for c in self.__class__.__orig_bases__ if c.__origin__ == Module)  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[1]
         # Is Pydantic BaseModel
-        if (not isinstance(generic_element, GenericAlias)) and issubclass(generic_element, BaseModel):
+        if (not isinstance(generic_element, GenericAlias)) and issubclass(
+            generic_element,
+            BaseModel,
+        ):
             try:
                 return generic_element(**data)  # type: ignore[no-any-return]
             except ValidationError:
-                _LOGGER.error("Invalid event data, try with empty event data: %s", data)  # noqa: TRY400
+                _LOGGER.error(  # noqa: TRY400
+                    "Invalid event data, try with empty event data: %s",
+                    data,
+                )
                 return generic_element()  # type: ignore[no-any-return]
         return data  # type: ignore[return-value]
 
@@ -433,24 +456,39 @@ class Module(Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS, _INTERMED
         _LOGGER.debug("%s: Thread event_data as JSON", self.title())
         return data  # type: ignore[return-value]
 
-    def transversal_status_from_json(self, data: dict[str, Any] | None) -> _TRANSVERSAL_STATUS:
+    def transversal_status_from_json(
+        self,
+        data: dict[str, Any] | None,
+    ) -> _TRANSVERSAL_STATUS:
         """Create the transversal status from the JSON data."""
         data = data or {}
         super_ = next(c for c in self.__class__.__orig_bases__ if c.__origin__ == Module)  # type: ignore[attr-defined] # pylint: disable=no-member
         generic_element = super_.__args__[2]
         # Is Pydantic BaseModel
-        if not isinstance(generic_element, GenericAlias) and issubclass(generic_element, BaseModel):
+        if not isinstance(generic_element, GenericAlias) and issubclass(
+            generic_element,
+            BaseModel,
+        ):
             try:
                 return generic_element(**data)  # type: ignore[no-any-return]
             except ValidationError:
-                _LOGGER.exception("Invalid transversal status, try with empty transversal status: %s", data)
+                _LOGGER.exception(
+                    "Invalid transversal status, try with empty transversal status: %s",
+                    data,
+                )
                 return generic_element()  # type: ignore[no-any-return]
         return data  # type: ignore[return-value]
 
-    def transversal_status_to_json(self, transversal_status: _TRANSVERSAL_STATUS) -> dict[str, Any]:
+    def transversal_status_to_json(
+        self,
+        transversal_status: _TRANSVERSAL_STATUS,
+    ) -> dict[str, Any]:
         """Create the JSON data from the transversal status."""
         if isinstance(transversal_status, BaseModel):
-            _LOGGER.debug("%s: Thread transversal_status ay Pydantic model", self.title())
+            _LOGGER.debug(
+                "%s: Thread transversal_status ay Pydantic model",
+                self.title(),
+            )
             return json.loads(transversal_status.model_dump_json(exclude_none=True))  # type: ignore[no-any-return]
         _LOGGER.debug("%s: Thread transversal_status as JSON", self.title())
         return transversal_status  # type: ignore[return-value]

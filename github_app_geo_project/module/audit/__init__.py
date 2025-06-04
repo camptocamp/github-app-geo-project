@@ -102,7 +102,7 @@ async def _process_error(
         output_url = urllib.parse.urljoin(context.service_url, f"output/{output_id}")
         issue_check.set_title(
             key,
-            f"{key}: {message} ([Error]({output_url}))" if message else f"{key} ([Error]({output_url}))",
+            (f"{key}: {message} ([Error]({output_url}))" if message else f"{key} ([Error]({output_url}))"),
         )
     elif message:
         issue_check.set_title(key, f"{key}: {message}")
@@ -126,7 +126,9 @@ async def _process_outdated(
         ).parsed_data
         assert isinstance(security_file, githubkit.versions.latest.models.ContentFile)
         assert security_file.content is not None
-        security = security_md.Security(base64.b64decode(security_file.content).decode("utf-8"))
+        security = security_md.Security(
+            base64.b64decode(security_file.content).decode("utf-8"),
+        )
 
         error_message = audit_utils.outdated_versions(security)
         await _process_error(context, _OUTDATED, issue_check, error_message)
@@ -141,7 +143,12 @@ async def _process_outdated(
             )
         else:
             _LOGGER.exception("Error while getting SECURITY.md")
-            await _process_error(context, _OUTDATED, issue_check, message="Error while getting SECURITY.md")
+            await _process_error(
+                context,
+                _OUTDATED,
+                issue_check,
+                message="Error while getting SECURITY.md",
+            )
             raise
 
 
@@ -164,7 +171,10 @@ async def _process_snyk_dpkg(
 
         # Checkout the right branch on a temporary directory
         with tempfile.TemporaryDirectory() as tmpdirname:
-            _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
+            _LOGGER.debug(
+                "Clone the repository in the temporary directory: %s",
+                tmpdirname,
+            )
             cwd = Path(tmpdirname)
             new_cwd = await module_utils.git_clone(context.github_project, branch, cwd)
             if new_cwd is None:
@@ -176,9 +186,15 @@ async def _process_snyk_dpkg(
             ghci_config_path = cwd / ".github" / "ghci.yaml"
             if context.module_event_data.type in ("snyk", "dpkg") and ghci_config_path.exists():
                 async with aiofiles.open(ghci_config_path, encoding="utf-8") as file:
-                    local_config = yaml.load(await file.read(), Loader=yaml.SafeLoader).get("audit", {})
+                    local_config = yaml.load(
+                        await file.read(),
+                        Loader=yaml.SafeLoader,
+                    ).get("audit", {})
 
-            logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
+            logs_url = urllib.parse.urljoin(
+                context.service_url,
+                f"logs/{context.job_id}",
+            )
             if context.module_event_data.type == "snyk":
                 python_version = ""
                 tool_versions = cwd / ".tool-versions"
@@ -186,7 +202,9 @@ async def _process_snyk_dpkg(
                     async with aiofiles.open(tool_versions, encoding="utf-8") as file:
                         async for line in file:
                             if line.startswith("python "):
-                                python_version = ".".join(line.split(" ")[1].split(".")[0:2]).strip()
+                                python_version = ".".join(
+                                    line.split(" ")[1].split(".")[0:2],
+                                ).strip()
                                 break
 
                 env = await _use_python_version(python_version, cwd) if python_version else os.environ.copy()
@@ -295,13 +313,17 @@ async def _process_snyk_dpkg(
                             )
                             success &= new_success
                             if not new_success:
-                                _LOGGER.error("Error while create commit or pull request")
+                                _LOGGER.error(
+                                    "Error while create commit or pull request",
+                                )
                             elif pull_request is not None:
                                 issue_check.set_title(
                                     key,
                                     f"{key} ([Pull request]({pull_request.html_url}))",
                                 )
-                                short_message.append(f"[Pull request]({pull_request.html_url})")
+                                short_message.append(
+                                    f"[Pull request]({pull_request.html_url})",
+                                )
                     except TimeoutError:
                         proc.kill()
                         raise
@@ -328,7 +350,7 @@ async def _process_snyk_dpkg(
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
         message = module_utils.AnsiProcessMessage(
             cast("list[str]", proc_error.args),
-            None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode,
+            (None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode),
             proc_error.output,
             cast("str", proc_error.stderr),
         )
@@ -351,7 +373,12 @@ async def _use_python_version(python_version: str, cwd: Path) -> dict[str, str]:
     )
     async with asyncio.timeout(300):
         stdout, stderr = await proc.communicate()
-    message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
+    message = module_utils.AnsiProcessMessage.from_async_artifacts(
+        command,
+        proc,
+        stdout,
+        stderr,
+    )
     if proc.returncode != 0:
         message.title = f"Error while setting the Python version to {python_version}"
         _LOGGER.error(message)
@@ -374,7 +401,12 @@ async def _use_python_version(python_version: str, cwd: Path) -> dict[str, str]:
     if bin_paths:
         env["PATH"] = f"{bin_paths[0]}:{env['PATH']}"
 
-    message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
+    message = module_utils.AnsiProcessMessage.from_async_artifacts(
+        command,
+        proc,
+        stdout,
+        stderr,
+    )
     message.title = "Python version"
     _LOGGER.debug(message)
 
@@ -385,7 +417,12 @@ async def _use_python_version(python_version: str, cwd: Path) -> dict[str, str]:
 
 
 class Audit(
-    module.Module[configuration.AuditConfiguration, _EventData, _TransversalStatus, _IntermediateStatus],
+    module.Module[
+        configuration.AuditConfiguration,
+        _EventData,
+        _TransversalStatus,
+        _IntermediateStatus,
+    ],
 ):
     """The audit module."""
 
@@ -405,15 +442,21 @@ class Audit(
         """Check if the module requires an issue dashboard."""
         return True
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_EventData]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[_EventData]]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_name == "push":
-            event_data_push = githubkit.webhooks.parse_obj("push", context.event_data)
+        if context.module_event_name == "push":
+            event_data_push = githubkit.webhooks.parse_obj(
+                "push",
+                context.github_event_data,
+            )
             for commit in event_data_push.commits:
                 if "SECURITY.md" in [
                     *(commit.modified or []),
@@ -430,16 +473,18 @@ class Audit(
         results: list[module.Action[_EventData]] = []
         snyk = False
         dpkg = False
-        is_dashboard = context.event_name == "dashboard"
+        is_dashboard = context.module_event_name == "dashboard"
         if is_dashboard:
             old_check = module_utils.DashboardIssue(
-                context.event_data.get("old_data", "").split("<!---->")[0],
+                context.github_event_data.get("old_data", "").split("<!---->")[0],
             )
             new_check = module_utils.DashboardIssue(
-                context.event_data.get("new_data", "").split("<!---->")[0],
+                context.github_event_data.get("new_data", "").split("<!---->")[0],
             )
 
-            if not old_check.is_checked("outdated") and new_check.is_checked("outdated"):
+            if not old_check.is_checked("outdated") and new_check.is_checked(
+                "outdated",
+            ):
                 results.append(
                     module.Action(
                         priority=module.PRIORITY_STANDARD,
@@ -452,7 +497,10 @@ class Audit(
             if not old_check.is_checked("dpkg") and new_check.is_checked("dpkg"):
                 dpkg = True
 
-        if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
+        if (
+            context.github_event_data.get("type") == "event"
+            and context.github_event_data.get("name") == "daily"
+        ):
             results.append(
                 module.Action(
                     priority=module.PRIORITY_CRON,
@@ -508,8 +556,15 @@ class Audit(
         else:
             issue_check.remove_check("outdated")
 
-        if context.module_config.get("snyk", {}).get("enabled", configuration.ENABLE_SNYK_DEFAULT):
-            issue_check.add_check("snyk", "Check security vulnerabilities with Snyk", checked=False)
+        if context.module_config.get("snyk", {}).get(
+            "enabled",
+            configuration.ENABLE_SNYK_DEFAULT,
+        ):
+            issue_check.add_check(
+                "snyk",
+                "Check security vulnerabilities with Snyk",
+                checked=False,
+            )
             key_starts.append("Snyk check/fix ")
         else:
             issue_check.remove_check("snyk")
@@ -529,7 +584,10 @@ class Audit(
             else:
                 raise
         if (
-            context.module_config.get("dpkg", {}).get("enabled", configuration.ENABLE_DPKG_DEFAULT)
+            context.module_config.get("dpkg", {}).get(
+                "enabled",
+                configuration.ENABLE_DPKG_DEFAULT,
+            )
             and dpkg_version is not None
         ):
             issue_check.add_check("dpkg", "Update dpkg packages", checked=False)
@@ -546,11 +604,15 @@ class Audit(
                 isinstance(security_file, githubkit.versions.latest.models.ContentFile)
                 and security_file.content is not None
             ):
-                security = security_md.Security(base64.b64decode(security_file.content).decode("utf-8"))
+                security = security_md.Security(
+                    base64.b64decode(security_file.content).decode("utf-8"),
+                )
 
                 versions = module_utils.get_stabilization_versions(security)
             else:
-                _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
+                _LOGGER.debug(
+                    "No SECURITY.md file in the repository, apply on default branch",
+                )
                 versions = [await context.github_project.default_branch()]
             _LOGGER.debug("Versions: %s", ", ".join(versions))
 
@@ -571,8 +633,14 @@ class Audit(
             )
             actions = []
             for version in versions:
-                version = context.module_config.get("version-mapping", {}).get(version, version)  # noqa: PLW2901
-                if context.module_event_data.snyk and context.module_config.get("snyk", {}).get(
+                version = context.module_config.get("version-mapping", {}).get(  # noqa: PLW2901
+                    version,
+                    version,
+                )
+                if context.module_event_data.snyk and context.module_config.get(
+                    "snyk",
+                    {},
+                ).get(
                     "enabled",
                     configuration.ENABLE_SNYK_DEFAULT,
                 ):
@@ -583,7 +651,10 @@ class Audit(
                             title=f"snyk ({version})",
                         ),
                     )
-                if context.module_event_data.dpkg and context.module_config.get("dpkg", {}).get(
+                if context.module_event_data.dpkg and context.module_config.get(
+                    "dpkg",
+                    {},
+                ).get(
                     "enabled",
                     configuration.ENABLE_DPKG_DEFAULT,
                 ):
@@ -600,9 +671,19 @@ class Audit(
                 updated_transversal_status=True,
             )
         else:
-            short_message, success = await _process_snyk_dpkg(context, issue_check, intermediate_status)
+            short_message, success = await _process_snyk_dpkg(
+                context,
+                issue_check,
+                intermediate_status,
+            )
 
-        return _get_process_output(context, issue_check, short_message, success, intermediate_status)
+        return _get_process_output(
+            context,
+            issue_check,
+            short_message,
+            success,
+            intermediate_status,
+        )
 
     async def update_transversal_status(
         self,
@@ -622,7 +703,9 @@ class Audit(
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
-        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("audit")  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:

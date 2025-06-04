@@ -78,7 +78,10 @@ class _IntermediateStatus(BaseModel):
     has_security_policy: bool = False
     version_support: dict[str, str] = {}
     version_names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
-    version_dependencies_by_datasource: dict[str, _TransversalStatusNameInDatasource] = {}
+    version_dependencies_by_datasource: dict[
+        str,
+        _TransversalStatusNameInDatasource,
+    ] = {}
     stabilization_versions: list[str] = []
     external_repositories: dict[str, _TransversalStatusRepo] = {}
 
@@ -130,7 +133,12 @@ class VersionError(Exception):
 
 
 class Versions(
-    module.Module[configuration.VersionsConfiguration, _EventData, _TransversalStatus, _IntermediateStatus],
+    module.Module[
+        configuration.VersionsConfiguration,
+        _EventData,
+        _TransversalStatus,
+        _IntermediateStatus,
+    ],
 ):
     """
     The version module.
@@ -150,20 +158,30 @@ class Versions(
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Versions"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_EventData]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[_EventData]]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_data.get("type") == "event" and context.event_data.get("name") == "versions-cron":
-            return [module.Action(data=_EventData(step=1), priority=module.PRIORITY_CRON)]
+        if (
+            context.github_event_data.get("type") == "event"
+            and context.github_event_data.get("name") == "versions-cron"
+        ):
+            return [
+                module.Action(data=_EventData(step=1), priority=module.PRIORITY_CRON),
+            ]
         return []
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module configuration."""
-        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
                 if key in schema:
@@ -197,7 +215,10 @@ class Versions(
             )
 
             if (
-                context.module_config.get("repository-external", "github-app-geo-project")
+                context.module_config.get(
+                    "repository-external",
+                    "github-app-geo-project",
+                )
                 == context.github_project.repository
             ):
                 await _update_upstream_versions(context, intermediate_status)
@@ -220,15 +241,22 @@ class Versions(
                 if exception.response.status_code != 404:
                     raise
             if security_file_content is not None:
-                assert isinstance(security_file_content, githubkit.versions.latest.models.ContentFile)
+                assert isinstance(
+                    security_file_content,
+                    githubkit.versions.latest.models.ContentFile,
+                )
                 security = security_md.Security(
                     base64.b64decode(security_file_content.content).decode("utf-8"),
                 )
 
-                stabilization_versions = module_utils.get_stabilization_versions(security)
+                stabilization_versions = module_utils.get_stabilization_versions(
+                    security,
+                )
                 intermediate_status.has_security_policy = True
             else:
-                _LOGGER.debug("No SECURITY.md file in the repository, apply only on default branch")
+                _LOGGER.debug(
+                    "No SECURITY.md file in the repository, apply only on default branch",
+                )
 
             stabilization_versions.append(default_branch)
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_versions))
@@ -257,7 +285,9 @@ class Versions(
                             if security is not None
                             else []
                         ),
-                        retry=int(os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_NUMBER", "10")),
+                        retry=int(
+                            os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_NUMBER", "10"),
+                        ),
                         previous_jobs=[
                             *(
                                 context.module_event_data.previous_jobs
@@ -281,11 +311,18 @@ class Versions(
             assert context.module_event_data.version is not None
             version = context.module_event_data.version
             intermediate_status.version = version
-            branch = context.module_config.get("version-mapping", {}).get(version, version)
+            branch = context.module_config.get("version-mapping", {}).get(
+                version,
+                version,
+            )
             with tempfile.TemporaryDirectory() as tmpdirname:
                 if os.environ.get("TEST") != "TRUE":
                     cwd = Path(tmpdirname)
-                    new_cwd = await module_utils.git_clone(context.github_project, branch, cwd)
+                    new_cwd = await module_utils.git_clone(
+                        context.github_project,
+                        branch,
+                        cwd,
+                    )
                     if new_cwd is None:
                         exception_message = "Failed to clone the repository"
                         raise VersionError(exception_message)
@@ -302,13 +339,21 @@ class Versions(
                             path=".github/renovate.json5",
                         )
                     ).parsed_data
-                    assert isinstance(renovate_file_content, githubkit.versions.latest.models.ContentFile)
+                    assert isinstance(
+                        renovate_file_content,
+                        githubkit.versions.latest.models.ContentFile,
+                    )
 
                     github_path = cwd / ".github"
                     github_path.mkdir(parents=True, exist_ok=True)
-                    async with aiofiles.open(github_path / "renovate.json5", "w") as renovate_file:
+                    async with aiofiles.open(
+                        github_path / "renovate.json5",
+                        "w",
+                    ) as renovate_file:
                         await renovate_file.write(
-                            base64.b64decode(renovate_file_content.content).decode("utf-8"),
+                            base64.b64decode(renovate_file_content.content).decode(
+                                "utf-8",
+                            ),
                         )
                 except githubkit.exception.RequestFailed as exception:
                     if exception.response.status_code != 404:
@@ -365,7 +410,10 @@ class Versions(
                 message.title = "Dependencies:"
                 _LOGGER.debug(message)
 
-            return ProcessOutput(intermediate_status=intermediate_status, updated_transversal_status=True)
+            return ProcessOutput(
+                intermediate_status=intermediate_status,
+                updated_transversal_status=True,
+            )
         exception_message = "Invalid step"
         raise VersionError(exception_message)
 
@@ -399,7 +447,10 @@ class Versions(
                     del repo.versions[version_name]
 
             for version_name, support in intermediate_status.version_support.items():
-                version = repo.versions.setdefault(version_name, _TransversalStatusVersion(support=support))
+                version = repo.versions.setdefault(
+                    version_name,
+                    _TransversalStatusVersion(support=support),
+                )
                 version.support = support
 
             if intermediate_status.stabilization_versions:
@@ -407,7 +458,10 @@ class Versions(
                     if version_name not in intermediate_status.stabilization_versions:
                         del versions[version_name]
 
-            for external_name, external_repo in intermediate_status.external_repositories.items():
+            for (
+                external_name,
+                external_repo,
+            ) in intermediate_status.external_repositories.items():
                 module_utils.manage_updated_separated(
                     transversal_status.updated,
                     transversal_status.repositories,
@@ -463,20 +517,28 @@ class Versions(
             names = _Names()
             for repo, repo_data in transversal_status.repositories.items():
                 for branch, branch_data in repo_data.versions.items():
-                    for datasource, datasource_data in branch_data.names_by_datasource.items():
+                    for (
+                        datasource,
+                        datasource_data,
+                    ) in branch_data.names_by_datasource.items():
                         for name in datasource_data.names:
                             current_status = names.by_datasources.setdefault(
                                 datasource,
                                 _NamesByDataSources(),
                             ).by_package.setdefault(
                                 name,
-                                _NamesStatus(repo=repo, has_security_policy=repo_data.has_security_policy),
+                                _NamesStatus(
+                                    repo=repo,
+                                    has_security_policy=repo_data.has_security_policy,
+                                ),
                             )
                             current_status.status_by_version[_canonical_minor_version(datasource, branch)] = (
                                 branch_data.support
                             )
 
-            message = module_utils.HtmlMessage(utils.format_json_str(names.model_dump_json()))
+            message = module_utils.HtmlMessage(
+                utils.format_json_str(names.model_dump_json()),
+            )
             message.title = "Names:"
             _LOGGER.debug(message)
 
@@ -486,15 +548,25 @@ class Versions(
                 context.params["repository"],
                 _TransversalStatusRepo(),
             ).versions.items():
-                _build_internal_dependencies(version, version_data, names, dependencies_branches)
+                _build_internal_dependencies(
+                    version,
+                    version_data,
+                    names,
+                    dependencies_branches,
+                )
             _build_reverse_dependency(
                 context.params["repository"],
-                transversal_status.repositories.get(context.params["repository"], _TransversalStatusRepo()),
+                transversal_status.repositories.get(
+                    context.params["repository"],
+                    _TransversalStatusRepo(),
+                ),
                 transversal_status,
                 dependencies_branches,
             )
 
-            message = module_utils.HtmlMessage(utils.format_json_str(dependencies_branches.model_dump_json()))
+            message = module_utils.HtmlMessage(
+                utils.format_json_str(dependencies_branches.model_dump_json()),
+            )
             message.title = "Dependencies branches:"
             _LOGGER.debug(message)
 
@@ -708,7 +780,10 @@ async def _get_names(
             async with aiofiles.open(cwd / filename, encoding="utf-8") as file:
                 data = tomllib.loads(await file.read())
                 name = data.get("project", {}).get("name")
-                names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
+                names = names_by_datasource.setdefault(
+                    "pypi",
+                    _TransversalStatusNameByDatasource(),
+                ).names
                 if name and name not in names:
                     names.append(name)
                 else:
@@ -736,7 +811,10 @@ async def _get_names(
     else:
         for filename in stdout.decode().splitlines():
             async with aiofiles.open(cwd / filename, encoding="utf-8") as file:
-                names = names_by_datasource.setdefault("pypi", _TransversalStatusNameByDatasource()).names
+                names = names_by_datasource.setdefault(
+                    "pypi",
+                    _TransversalStatusNameByDatasource(),
+                ).names
                 async for line in file:
                     match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
                     if match and match.group(1) not in names:
@@ -744,8 +822,14 @@ async def _get_names(
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     docker_config = {}
     if (cwd / ".github" / "publish.yaml").exists():
-        async with aiofiles.open(cwd / ".github" / "publish.yaml", encoding="utf-8") as file:
-            docker_config = yaml.load(await file.read(), Loader=yaml.SafeLoader).get("docker", {})
+        async with aiofiles.open(
+            cwd / ".github" / "publish.yaml",
+            encoding="utf-8",
+        ) as file:
+            docker_config = yaml.load(await file.read(), Loader=yaml.SafeLoader).get(
+                "docker",
+                {},
+            )
     else:
         async with module_utils.WORKING_DIRECTORY_LOCK:
             os.chdir(cwd)
@@ -753,7 +837,10 @@ async def _get_names(
             os.chdir("/")
         docker_config = data.get("publish", {}).get("docker", {})
     if docker_config:
-        names = names_by_datasource.setdefault("docker", _TransversalStatusNameByDatasource()).names
+        names = names_by_datasource.setdefault(
+            "docker",
+            _TransversalStatusNameByDatasource(),
+        ).names
         all_versions = [version]
         if alternate_versions:
             all_versions.extend(alternate_versions)
@@ -764,7 +851,10 @@ async def _get_names(
                     c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT,
                 ).values():
                     for ver in all_versions:
-                        repository_host = repository_conf.get("host", repository_conf.get("server", False))
+                        repository_host = repository_conf.get(
+                            "host",
+                            repository_conf.get("server", False),
+                        )
                         add_names = []
                         if repository_host:
                             add_names.append(
@@ -803,11 +893,17 @@ async def _get_names(
             async with aiofiles.open(cwd / filename, encoding="utf-8") as file:
                 data = json.load(io.StringIO(await file.read()))
                 name = data.get("name")
-                names = names_by_datasource.setdefault("npm", _TransversalStatusNameByDatasource()).names
+                names = names_by_datasource.setdefault(
+                    "npm",
+                    _TransversalStatusNameByDatasource(),
+                ).names
                 if name and name not in names:
                     names.append(name)
 
-    names = names_by_datasource.setdefault("github-release", _TransversalStatusNameByDatasource()).names
+    names = names_by_datasource.setdefault(
+        "github-release",
+        _TransversalStatusNameByDatasource(),
+    ).names
     add_name = f"{context.github_project.owner}/{context.github_project.repository}"
     if add_name not in names:
         names.append(add_name)
@@ -874,7 +970,9 @@ async def _get_dependencies(
         ):
             message.title = "Failed to get the dependencies (will retry)"
             _LOGGER.info(message)
-            await asyncio.sleep(int(os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_DELAY", "600")))
+            await asyncio.sleep(
+                int(os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_DELAY", "600")),
+            )
             return True
 
         if proc.returncode != 0:
@@ -947,7 +1045,10 @@ def _read_dependencies(
                         datasource,
                         _TransversalStatusNameInDatasource(),
                     ).versions_by_names
-                    versions = versions_by_names.setdefault(dependency, _TransversalStatusVersions()).versions
+                    versions = versions_by_names.setdefault(
+                        dependency,
+                        _TransversalStatusVersions(),
+                    ).versions
                     if version not in versions:
                         versions.append(version)
 
@@ -1032,7 +1133,9 @@ async def _update_upstream_versions(
         if package_status.upstream_updated and (
             package_status.upstream_updated
             > datetime.datetime.now(datetime.UTC)
-            - utils.parse_duration(os.environ.get("GHCI_EXTERNAL_PACKAGES_UPDATE_PERIOD", "30d"))
+            - utils.parse_duration(
+                os.environ.get("GHCI_EXTERNAL_PACKAGES_UPDATE_PERIOD", "30d"),
+            )
         ):
             return
         package_status.upstream_updated = datetime.datetime.now(datetime.UTC)
@@ -1057,7 +1160,9 @@ async def _update_upstream_versions(
             else:
                 if not isinstance(eol, str):
                     continue
-                if utils.datetime_with_timezone(datetime.datetime.fromisoformat(eol)) < datetime.datetime.now(
+                if utils.datetime_with_timezone(
+                    datetime.datetime.fromisoformat(eol),
+                ) < datetime.datetime.now(
                     datetime.UTC,
                 ):
                     continue
@@ -1156,8 +1261,14 @@ def _build_internal_dependencies(
         version,
         _Dependencies(support=version_data.support, color=_SUPPORTED_COLOR),
     )
-    for datasource_name, dependencies_data in version_data.dependencies_by_datasource.items():
-        for dependency_name, dependency_versions in dependencies_data.versions_by_names.items():
+    for (
+        datasource_name,
+        dependencies_data,
+    ) in version_data.dependencies_by_datasource.items():
+        for (
+            dependency_name,
+            dependency_versions,
+        ) in dependencies_data.versions_by_names.items():
             if datasource_name not in names.by_datasources:
                 continue
             for dependency_version in dependency_versions.versions:
@@ -1170,10 +1281,15 @@ def _build_internal_dependencies(
                 if full_dependency_name not in dependency_data.by_package:
                     continue
                 dependency_package_data = dependency_data.by_package[full_dependency_name]
-                dependency_minor = _canonical_minor_version(datasource_name, dependency_version)
+                dependency_minor = _canonical_minor_version(
+                    datasource_name,
+                    dependency_version,
+                )
                 if datasource_name == "docker":
                     assert len(dependency_package_data.status_by_version) == 1
-                    support = next(iter(dependency_package_data.status_by_version.values()))
+                    support = next(
+                        iter(dependency_package_data.status_by_version.values()),
+                    )
                 elif not dependency_package_data.has_security_policy:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
@@ -1229,7 +1345,10 @@ def _build_reverse_dependency(
     # Map of datasource names to packages to branches
     all_datasource_names: dict[str, dict[str, str]] = {}
     for branch, version_name_data in repo_data.versions.items():
-        for datasource_name, datasource_name_data in version_name_data.names_by_datasource.items():
+        for (
+            datasource_name,
+            datasource_name_data,
+        ) in version_name_data.names_by_datasource.items():
             for package_name in datasource_name_data.names:
                 all_datasource_names.setdefault(datasource_name, {})[package_name] = branch
     for other_repo, other_repo_data in transversal_status.repositories.items():
@@ -1239,10 +1358,16 @@ def _build_reverse_dependency(
             other_version,
             other_version_data,
         ) in other_repo_data.versions.items():
-            for datasource_name, datasource_data in other_version_data.dependencies_by_datasource.items():
+            for (
+                datasource_name,
+                datasource_data,
+            ) in other_version_data.dependencies_by_datasource.items():
                 if datasource_name not in all_datasource_names:
                     continue
-                for package_name, package_data in datasource_data.versions_by_names.items():
+                for (
+                    package_name,
+                    package_data,
+                ) in datasource_data.versions_by_names.items():
                     for version in package_data.versions:
                         if datasource_name == "docker":
                             package_name = f"{package_name}:{version}"  # noqa: PLW2901
@@ -1269,7 +1394,10 @@ def _build_reverse_dependency(
                                     support=other_version_data.support,
                                     color=(
                                         _SUPPORTED_COLOR
-                                        if _is_supported(other_version_data.support, version_data.support)
+                                        if _is_supported(
+                                            other_version_data.support,
+                                            version_data.support,
+                                        )
                                         else _UNSUPPORTED_COLOR
                                     ),
                                     repo=other_repo,

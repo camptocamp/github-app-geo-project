@@ -91,7 +91,12 @@ async def _add_issue_link(
 
 
 class Links(
-    module.Module[links_configuration.PullRequestAddLinksConfiguration, dict[str, Any], dict[str, Any], None],
+    module.Module[
+        links_configuration.PullRequestAddLinksConfiguration,
+        dict[str, Any],
+        dict[str, Any],
+        None,
+    ],
 ):
     """Module to add some links to the pull request message and commits."""
 
@@ -118,17 +123,25 @@ class Links(
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
-        with (Path(__file__).parent / "links-schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "links-schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
                 if key in schema:
                     del schema[key]
             return schema  # type: ignore[no-any-return]
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[dict[str, Any]]]:
         """Get the actions to execute."""
-        if context.event_name == "pull_request":
-            event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+        if context.module_event_name == "pull_request":
+            event_data = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
             if event_data.action in ("opened", "reopened", "synchronize"):
                 return [
                     module.Action(

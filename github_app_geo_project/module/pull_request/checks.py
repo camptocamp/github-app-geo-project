@@ -71,7 +71,10 @@ async def _get_code_spell_command(
     )
     if dictionaries:
         command.append("--builtin=" + ",".join(dictionaries))
-    command += code_spell_config.get("arguments", checks_configuration.CODESPELL_ARGUMENTS_DEFAULT)
+    command += code_spell_config.get(
+        "arguments",
+        checks_configuration.CODESPELL_ARGUMENTS_DEFAULT,
+    )
     return command
 
 
@@ -109,7 +112,9 @@ def _commits_messages(
             messages.append(f":x: Fixup message not allowed in commit {commit.sha}")
             success = False
         else:
-            messages.append(f":heavy_check_mark: The commit {commit.sha} is not a fixup commit")
+            messages.append(
+                f":heavy_check_mark: The commit {commit.sha} is not a fixup commit",
+            )
         if commit_message_config.get(
             "check-squash",
             checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_SQUASH_DEFAULT,
@@ -118,7 +123,9 @@ def _commits_messages(
             messages.append(f":x: Squash message not allowed in commit {commit.sha}")
             success = False
         else:
-            messages.append(f":heavy_check_mark: The commit {commit.sha} is not a squash commit")
+            messages.append(
+                f":heavy_check_mark: The commit {commit.sha} is not a squash commit",
+            )
         if (
             commit_message_config.get(
                 "check-first-capital",
@@ -140,7 +147,10 @@ def _commits_messages(
             checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_MIN_HEAD_LENGTH_DEFAULT,
         )
         if min_length > 0 and len(head) < min_length:
-            _LOGGER.warning("The message head should be at least %i characters long", min_length)
+            _LOGGER.warning(
+                "The message head should be at least %i characters long",
+                min_length,
+            )
             messages.append(
                 f":x: The message head should be at least {min_length} characters long in commit {commit.sha}",
             )
@@ -157,10 +167,14 @@ def _commits_messages(
             and len(commit.parents) != 1
         ):
             _LOGGER.warning("The merge commit are not allowed")
-            messages.append(f":x: The merge commit are not allowed in commit {commit.sha}")
+            messages.append(
+                f":x: The merge commit are not allowed in commit {commit.sha}",
+            )
             success = False
         else:
-            messages.append(f":heavy_check_mark: The commit {commit.sha} is not a merge commit")
+            messages.append(
+                f":heavy_check_mark: The commit {commit.sha} is not a merge commit",
+            )
         if commit_message_config.get(
             "check-no-own-revert",
             checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_NO_OWN_REVERT_DEFAULT,
@@ -171,13 +185,18 @@ def _commits_messages(
         ):
             revert_commit_hash = message_lines[2][len("This reverts commit ") : -1]
             if revert_commit_hash in commit_hash:
-                _LOGGER.warning("Revert own commits is not allowed (%s)", revert_commit_hash)
+                _LOGGER.warning(
+                    "Revert own commits is not allowed (%s)",
+                    revert_commit_hash,
+                )
                 messages.append(
                     f":heavy_check_mark: Revert own commits is not allowed in commit {commit.sha}",
                 )
                 success = False
                 continue
-            messages.append(f":heavy_check_mark: The commit {commit.sha} is not an own revert commit")
+            messages.append(
+                f":heavy_check_mark: The commit {commit.sha} is not an own revert commit",
+            )
     return success, messages
 
 
@@ -190,7 +209,11 @@ async def _commits_spell(
     messages = []
     success = True
     for commit in commits:
-        with tempfile.NamedTemporaryFile("w+t", encoding="utf-8", suffix=".yaml") as temp_file:
+        with tempfile.NamedTemporaryFile(
+            "w+t",
+            encoding="utf-8",
+            suffix=".yaml",
+        ) as temp_file:
             if config.get(
                 "only-head",
                 checks_configuration.PULL_REQUEST_CHECKS_COMMITS_MESSAGES_ONLY_HEAD_DEFAULT,
@@ -208,14 +231,23 @@ async def _commits_spell(
             )
             async with asyncio.timeout(120):
                 stdout, stderr = await spell.communicate()
-            message = module_utils.AnsiProcessMessage.from_async_artifacts(command, spell, stdout, stderr)
+            message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                command,
+                spell,
+                stdout,
+                stderr,
+            )
             if spell.returncode != 0:
                 message.title = f"Code spell error in commit {commit.sha}"
                 _LOGGER.warning(message)
                 success = False
-                messages.append(":x: " + message.title + "\n" + module_utils.html_to_markdown(message.stdout))
+                messages.append(
+                    ":x: " + message.title + "\n" + module_utils.html_to_markdown(message.stdout),
+                )
             else:
-                messages.append(f":heavy_check_mark: Code spell on commit {commit.sha} are correct")
+                messages.append(
+                    f":heavy_check_mark: Code spell on commit {commit.sha} are correct",
+                )
             message.title = f"Code spell in commit {commit.sha}"
             _LOGGER.debug(message)
     return success, messages
@@ -232,7 +264,10 @@ async def _pull_request_spell(
         temp_file.write(pull_request.title)
         temp_file.write("\n")
         if (
-            not config.get("only_head", checks_configuration.PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT)
+            not config.get(
+                "only_head",
+                checks_configuration.PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT,
+            )
             and pull_request.body
         ):
             temp_file.write("\n")
@@ -247,16 +282,28 @@ async def _pull_request_spell(
         )
         async with asyncio.timeout(60):
             stdout, stderr = await spell.communicate()
-        message = module_utils.AnsiProcessMessage.from_async_artifacts(command, spell, stdout, stderr)
+        message = module_utils.AnsiProcessMessage.from_async_artifacts(
+            command,
+            spell,
+            stdout,
+            stderr,
+        )
         if spell.returncode != 0:
             message.title = "Code spell error in pull request"
             _LOGGER.warning(message)
-            messages.append(":x: " + message.title + "\n" + module_utils.html_to_markdown(message.stdout))
+            messages.append(
+                ":x: " + message.title + "\n" + module_utils.html_to_markdown(message.stdout),
+            )
             return False, messages
         messages.append(
-            ":heavy_check_mark: Pull request title is correct"
-            if config.get("only_head", checks_configuration.PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT)
-            else ":heavy_check_mark: Pull request title and body are correct",
+            (
+                ":heavy_check_mark: Pull request title is correct"
+                if config.get(
+                    "only_head",
+                    checks_configuration.PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT,
+                )
+                else ":heavy_check_mark: Pull request title and body are correct"
+            ),
         )
 
         message.title = "Code spell in pull request"
@@ -265,7 +312,12 @@ async def _pull_request_spell(
 
 
 class Checks(
-    module.Module[checks_configuration.PullRequestChecksConfiguration, dict[str, Any], dict[str, Any], None],
+    module.Module[
+        checks_configuration.PullRequestChecksConfiguration,
+        dict[str, Any],
+        dict[str, Any],
+        None,
+    ],
 ):
     """Module to check the pull request message and commits."""
 
@@ -292,17 +344,25 @@ class Checks(
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
-        with (Path(__file__).parent / "checks-schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "checks-schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
                 if key in schema:
                     del schema[key]
             return schema  # type: ignore[no-any-return]
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[dict[str, Any]]]:
         """Get the actions to execute."""
-        if context.event_name == "pull_request":
-            event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+        if context.module_event_name == "pull_request":
+            event_data = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
             if event_data.action in ("opened", "reopened", "edited", "synchronize"):
                 return [
                     module.Action(
@@ -324,8 +384,11 @@ class Checks(
     ) -> module.ProcessOutput[dict[str, Any], None]:
         """Process the module."""
 
-        assert context.event_name == "pull_request"
-        event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+        assert context.module_event_name == "pull_request"
+        event_data = githubkit.webhooks.parse_obj(
+            "pull_request",
+            context.github_event_data,
+        )
 
         # Get the pull request and commits concurrently
         pull_request_response, commits_response = await asyncio.gather(
@@ -344,9 +407,17 @@ class Checks(
         commits = commits_response.parsed_data
 
         with tempfile.NamedTemporaryFile("w+t", encoding="utf-8") as ignore_file:
-            spellcheck_cmd = await _get_code_spell_command(context, event_data, ignore_file)
+            spellcheck_cmd = await _get_code_spell_command(
+                context,
+                event_data,
+                ignore_file,
+            )
             success_1, messages_1 = _commits_messages(context.module_config, commits)
-            success_2, messages_2 = await _commits_spell(context.module_config, commits, spellcheck_cmd)
+            success_2, messages_2 = await _commits_spell(
+                context.module_config,
+                commits,
+                spellcheck_cmd,
+            )
             success_3, messages_3 = await _pull_request_spell(
                 context.module_config,
                 pull_request,

@@ -62,7 +62,9 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""
-        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             schema = json.load(schema_file)
             for key in ("$schema", "$id"):
                 if key in schema:
@@ -76,15 +78,21 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
             events={"pull_request_review"},
         )
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_EventData]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[_EventData]]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_name == "pull_request_review":
-            event_data = githubkit.webhooks.parse_obj("pull_request_review", context.event_data)
+        if context.module_event_name == "pull_request_review":
+            event_data = githubkit.webhooks.parse_obj(
+                "pull_request_review",
+                context.github_event_data,
+            )
             if event_data.action == "submitted" and isinstance(
                 event_data,
                 githubkit.versions.v2022_11_28.webhooks.pull_request_review.WebhookPullRequestReviewSubmitted,  # type: ignore[attr-defined]

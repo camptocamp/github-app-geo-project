@@ -75,15 +75,21 @@ class DispatchPublishing(module.Module[None, None, None, None]):
             events={"repository_dispatch"},
         )
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[None]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[None]]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_name == "repository_dispatch":
-            event_data = githubkit.webhooks.parse_obj("repository_dispatch", context.event_data)
+        if context.module_event_name == "repository_dispatch":
+            event_data = githubkit.webhooks.parse_obj(
+                "repository_dispatch",
+                context.github_event_data,
+            )
             if event_data.action == "published" and isinstance(
                 event_data,
                 githubkit.versions.v2022_11_28.webhooks.RepositoryDispatchEvent,
@@ -101,11 +107,13 @@ class DispatchPublishing(module.Module[None, None, None, None]):
         Note that this method is called in the queue consuming Pod
         """
 
-        assert context.event_name == "repository_dispatch"
-        content = context.event_data.get("client_payload", {}).get("content", {})
+        assert context.module_event_name == "repository_dispatch"
+        content = context.github_event_data.get("client_payload", {}).get("content", {})
 
         for destination in CONFIG.destinations:
-            if destination.version_type and destination.package_type != content.get("version_type"):
+            if destination.version_type and destination.package_type != content.get(
+                "version_type",
+            ):
                 continue
 
             image_re = re.compile(destination.image_re)
@@ -113,7 +121,9 @@ class DispatchPublishing(module.Module[None, None, None, None]):
             names = []
 
             for item in content.get("items", []):
-                if destination.package_type and destination.package_type != item.get("package_type"):
+                if destination.package_type and destination.package_type != item.get(
+                    "package_type",
+                ):
                     continue
 
                 if not image_re.match(item.get("image", "")):
@@ -126,7 +136,9 @@ class DispatchPublishing(module.Module[None, None, None, None]):
                         else:
                             names.append(f"{item['repository']}/{item['image']}")
                 else:
-                    payload.setdefault("content", {}).setdefault("items", []).append(item)
+                    payload.setdefault("content", {}).setdefault("items", []).append(
+                        item,
+                    )
 
             if destination.legacy and names:
                 payload["name"] = " ".join(names)
