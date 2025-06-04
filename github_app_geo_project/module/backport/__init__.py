@@ -289,7 +289,7 @@ class Backport(module.Module[configuration.BackportConfiguration, _ActionData, N
         elif context.module_event_data.type == "backport":
             event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
             pull_request = event_data_pull_request.pull_request
-            if event_data_pull_request.action == "closed" and pull_request.state == "closed":
+            if event_data_pull_request.action in ("closed", "labeled") and pull_request.state == "closed":
                 branches = set()
                 for current_label in pull_request.labels:
                     if current_label.name.startswith("backport "):
