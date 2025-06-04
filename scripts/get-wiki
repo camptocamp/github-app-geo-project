@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+
+import argparse
+from pathlib import Path
+
+import requests
+
+
+def _main() -> None:
+    """Get the modules wiki page."""
+    parser = argparse.ArgumentParser(description="Get the modules wiki page.")
+    parser.parse_args()
+
+    for module, page in (
+        ("audit", "Module ‐ Audit"),  # noqa: RUF001
+        ("backport", "Module ‐ Backport"),  # noqa: RUF001
+        ("clean", "Module ‐ Clean"),  # noqa: RUF001
+        ("delete_old_workflow_runs", "Module ‐ Delete Old Workflow Job"),  # noqa: RUF001
+        ("dispatch_publishing", "Module ‐ Dispatch Publish"),  # noqa: RUF001
+        ("internal", "Module ‐ Webhook"),  # noqa: RUF001
+        ("outdated_comments", "Module ‐ Outdated comments"),  # noqa: RUF001
+        ("pull_request", "Module ‐ Pull request checks"),  # noqa: RUF001
+        ("pull_request", "Module ‐ Pull request links"),  # noqa: RUF001
+        ("standard", "Module ‐ Auto-review merge close"),  # noqa: RUF001
+        ("standard", "Module ‐ Changelog"),  # noqa: RUF001
+        ("standard", "Module ‐ Patch"),  # noqa: RUF001
+        ("versions", "Module ‐ Versions"),  # noqa: RUF001
+        ("workflow", "Module ‐ Workflow"),  # noqa: RUF001
+    ):
+        shirt_page = page.removeprefix("Module ‐ ").replace(" ", "_")  # noqa: RUF001
+        module_path = Path("github_app_geo_project/module") / module
+        with (module_path / f"{shirt_page}.md").open("wt", encoding="utf-8") as doc_file:
+            doc_file.write(
+                requests.get(
+                    f"https://raw.githubusercontent.com/wiki/camptocamp/github-app-geo-project/{page.replace(' ', '-')}.md",
+                ).text,
+            )
+
+
+if __name__ == "__main__":
+    _main()
