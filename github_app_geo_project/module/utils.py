@@ -37,7 +37,7 @@ async def add_output(
         title=title,
         status=status,
         owner=context.github_project.owner if context.github_project else "camptocamp",
-        repository=context.github_project.repository if context.github_project else "test",
+        repository=(context.github_project.repository if context.github_project else "test"),
         access_type=access_type,
         data=data,
     )
@@ -54,7 +54,12 @@ class DashboardIssueItem:
     comment: str = ""
     checked: bool | None = None
 
-    def __init__(self, title: str, comment: str = "", checked: bool | None = None) -> None:
+    def __init__(
+        self,
+        title: str,
+        comment: str = "",
+        checked: bool | None = None,
+    ) -> None:
         """Initialize the dashboard issue item."""
         self.title = title
         self.comment = comment
@@ -228,7 +233,10 @@ class HtmlMessage(Message):
         global _suffix  # pylint: disable=global-statement
 
         # interpret template parameters
-        html = self.html.replace("{pre}", "<pre>" if style != "collapse" else "").replace(
+        html = self.html.replace(
+            "{pre}",
+            "<pre>" if style != "collapse" else "",
+        ).replace(
             "{post}",
             "</pre>" if style != "collapse" else "",
         )
@@ -262,7 +270,13 @@ class HtmlMessage(Message):
 
         sanitizer = html_sanitizer.Sanitizer(
             {
-                "tags": {*html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"], "span", "div", "pre", "code"},
+                "tags": {
+                    *html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"],
+                    "span",
+                    "div",
+                    "pre",
+                    "code",
+                },
                 "attributes": {
                     "a": (
                         "href",
@@ -348,7 +362,12 @@ class AnsiMessage(HtmlMessage):
 
     _ansi_converter = Ansi2HTMLConverter(inline=True)
 
-    def __init__(self, ansi_message_str: str, title: str = "", _is_html: bool = False) -> None:
+    def __init__(
+        self,
+        ansi_message_str: str,
+        title: str = "",
+        _is_html: bool = False,
+    ) -> None:
         """Initialize the ANSI message."""
         html = ansi_message_str
         if not _is_html:
@@ -386,7 +405,9 @@ class AnsiProcessMessage(AnsiMessage):
 
         for arg in args:
             if "x-access-token" in arg:
-                self.args.append(re.sub(r"x-access-token:[0-9a-zA-Z_]*", "x-access-token:***", arg))
+                self.args.append(
+                    re.sub(r"x-access-token:[0-9a-zA-Z_]*", "x-access-token:***", arg),
+                )
             else:
                 self.args.append(arg)
 
@@ -421,39 +442,65 @@ class AnsiProcessMessage(AnsiMessage):
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the process message to markdown."""
         return "\n".join(
-            [
-                "<details>",
-                f"<summary>{self.title}</summary>",
-                f"Command: {shlex.join(self.args)}",
-                f"Return code: {self.returncode}",
-                *(
-                    ["", "Output:", "```", html_to_markdown(self.stdout.strip()), "```"]
-                    if self.stdout.strip()
-                    else []
-                ),
-                *(
-                    ["", "Error:", "```", html_to_markdown(self.stderr.strip()), "```"]
-                    if self.stderr.strip()
-                    else []
-                ),
-                "</details>",
-            ]
-            if summary and self.title
-            else [
-                *([f"#### {self.title}"] if self.title else []),
-                f"Command: {shlex.join(self.args)}",
-                f"Return code: {self.returncode}",
-                *(
-                    ["", "Output:", "```", html_to_markdown(self.stdout.strip()), "```"]
-                    if self.stdout.strip()
-                    else []
-                ),
-                *(
-                    ["", "Error:", "```", html_to_markdown(self.stderr.strip()), "```"]
-                    if self.stderr.strip()
-                    else []
-                ),
-            ],
+            (
+                [
+                    "<details>",
+                    f"<summary>{self.title}</summary>",
+                    f"Command: {shlex.join(self.args)}",
+                    f"Return code: {self.returncode}",
+                    *(
+                        [
+                            "",
+                            "Output:",
+                            "```",
+                            html_to_markdown(self.stdout.strip()),
+                            "```",
+                        ]
+                        if self.stdout.strip()
+                        else []
+                    ),
+                    *(
+                        [
+                            "",
+                            "Error:",
+                            "```",
+                            html_to_markdown(self.stderr.strip()),
+                            "```",
+                        ]
+                        if self.stderr.strip()
+                        else []
+                    ),
+                    "</details>",
+                ]
+                if summary and self.title
+                else [
+                    *([f"#### {self.title}"] if self.title else []),
+                    f"Command: {shlex.join(self.args)}",
+                    f"Return code: {self.returncode}",
+                    *(
+                        [
+                            "",
+                            "Output:",
+                            "```",
+                            html_to_markdown(self.stdout.strip()),
+                            "```",
+                        ]
+                        if self.stdout.strip()
+                        else []
+                    ),
+                    *(
+                        [
+                            "",
+                            "Error:",
+                            "```",
+                            html_to_markdown(self.stderr.strip()),
+                            "```",
+                        ]
+                        if self.stderr.strip()
+                        else []
+                    ),
+                ]
+            ),
         )
 
     @staticmethod
@@ -537,7 +584,12 @@ async def run_timeout(
             finally:
                 _LOGGER.debug("Command %s finished", shlex.join(command))
             assert async_proc.returncode is not None
-            message: Message = AnsiProcessMessage.from_async_artifacts(command, async_proc, stdout, stderr)
+            message: Message = AnsiProcessMessage.from_async_artifacts(
+                command,
+                async_proc,
+                stdout,
+                stderr,
+            )
             success = async_proc.returncode == 0
             if success:
                 message.title = f"{success_message}, in {datetime.datetime.now(datetime.UTC) - start}s."
@@ -573,15 +625,19 @@ async def run_timeout(
             message = AnsiProcessMessage(
                 command,
                 None,
-                "" if async_proc.stdout is None else (await async_proc.stdout.read()).decode(),
-                "" if async_proc.stderr is None else (await async_proc.stderr.read()).decode(),
+                ("" if async_proc.stdout is None else (await async_proc.stdout.read()).decode()),
+                ("" if async_proc.stderr is None else (await async_proc.stderr.read()).decode()),
                 error=str(exception),
             )
             message.title = timeout_message
             _LOGGER.warning(message)
             return None, False, message
         if error:
-            _LOGGER.exception("TimeoutError for %s: %s", command[0], exception)  # noqa: TRY401
+            _LOGGER.exception(
+                "TimeoutError for %s: %s",
+                command[0],
+                exception,  # noqa: TRY401
+            )
         else:
             _LOGGER.warning("TimeoutError for %s", command[0])
         return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
@@ -626,12 +682,22 @@ async def create_commit(message: str, cwd: Path, pre_commit_check: bool = True) 
     async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
-        proc_message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
+        proc_message = AnsiProcessMessage.from_async_artifacts(
+            command,
+            proc,
+            stdout,
+            stderr,
+        )
         proc_message.title = "Error adding files to commit"
         _LOGGER.warning(proc_message)
         return False
     _, success, _ = await run_timeout(
-        ["git", "commit", f"--message={message}", *([] if pre_commit_check else ["--no-verify"])],
+        [
+            "git",
+            "commit",
+            f"--message={message}",
+            *([] if pre_commit_check else ["--no-verify"]),
+        ],
         None,
         600,
         "Commit",
@@ -665,7 +731,12 @@ async def create_pull_request(
     async with asyncio.timeout(60):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
-        proc_message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
+        proc_message = AnsiProcessMessage.from_async_artifacts(
+            command,
+            proc,
+            stdout,
+            stderr,
+        )
         proc_message.title = "Error pushing branch"
         _LOGGER.warning(proc_message)
         return False, None
@@ -688,7 +759,9 @@ async def create_pull_request(
             pull_request.head.ref,
         )
         # Create an issue if the pull request is open for 5 days
-        if pull_request.created_at < datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(days=5):
+        if pull_request.created_at < datetime.datetime.now(
+            tz=datetime.UTC,
+        ) - datetime.timedelta(days=5):
             _LOGGER.warning("Pull request #%s is open for 5 days", pull_request.number)
             title = f"Pull request {message} is open for 5 days"
             body = f"See: #{pull_request.number}"
@@ -783,7 +856,12 @@ async def create_commit_pull_request(
             )
             async with asyncio.timeout(10):
                 stdout, stderr = await proc.communicate()
-            proc_message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
+            proc_message = AnsiProcessMessage.from_async_artifacts(
+                command,
+                proc,
+                stdout,
+                stderr,
+            )
             proc_message.title = "Install pre-commit"
             _LOGGER.debug(proc_message)
         except FileNotFoundError:
@@ -970,7 +1048,9 @@ def get_stabilization_versions(security: security_md.Security) -> list[str]:
         if row[supported_until_index] != "Unsupported":
             versions.append(row[version_index])
         if alternates_tag_index >= 0:
-            alternate_tags.extend([v.strip() for v in row[alternates_tag_index].split(",") if v.strip()])
+            alternate_tags.extend(
+                [v.strip() for v in row[alternates_tag_index].split(",") if v.strip()],
+            )
     return [v for v in versions if v not in alternate_tags]
 
 
@@ -1009,12 +1089,16 @@ def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
 
     Add an updated field to the status and remove the old status.
     """
-    status.setdefault(key, {})["updated"] = datetime.datetime.now(datetime.UTC).isoformat()
+    status.setdefault(key, {})["updated"] = datetime.datetime.now(
+        datetime.UTC,
+    ).isoformat()
     for other_key, other_object in list(status.items()):
         if (
             not isinstance(other_object, dict)
             or "updated" not in other_object
-            or utils.datetime_with_timezone(datetime.datetime.fromisoformat(other_object["updated"]))
+            or utils.datetime_with_timezone(
+                datetime.datetime.fromisoformat(other_object["updated"]),
+            )
             < datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
         ):
             _LOGGER.debug(
@@ -1073,20 +1157,32 @@ async def create_checks(
     service_url = urllib.parse.urljoin(service_url, str(job.id))
 
     sha = None
-    if job.event_name == "pull_request":
-        event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", job.event_data)
+    if job.github_event_name == "pull_request":
+        event_data_pull_request = githubkit.webhooks.parse_obj(
+            "pull_request",
+            job.github_event_data,
+        )
         sha = event_data_pull_request.pull_request.head.sha
-    if job.event_name == "push":
-        event_data_push = githubkit.webhooks.parse_obj("push", job.event_data)
+    if job.github_event_name == "push":
+        event_data_push = githubkit.webhooks.parse_obj("push", job.github_event_data)
         sha = event_data_push.before if event_data_push.deleted else event_data_push.after
-    if job.event_name == "workflow_run":
-        event_data_workflow_run = githubkit.webhooks.parse_obj("workflow_run", job.event_data)
+    if job.github_event_name == "workflow_run":
+        event_data_workflow_run = githubkit.webhooks.parse_obj(
+            "workflow_run",
+            job.github_event_data,
+        )
         sha = event_data_workflow_run.workflow_run.head_sha
-    if job.event_name == "check_suite":
-        event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", job.event_data)
+    if job.github_event_name == "check_suite":
+        event_data_check_suite = githubkit.webhooks.parse_obj(
+            "check_suite",
+            job.github_event_data,
+        )
         sha = event_data_check_suite.check_suite.head_sha
-    if job.event_name == "check_run":
-        event_data_check_run = githubkit.webhooks.parse_obj("check_run", job.event_data)
+    if job.github_event_name == "check_run":
+        event_data_check_run = githubkit.webhooks.parse_obj(
+            "check_run",
+            job.github_event_data,
+        )
         sha = event_data_check_run.check_run.head_sha
     if sha is None:
         branch = (
@@ -1098,10 +1194,10 @@ async def create_checks(
         ).parsed_data
         sha = branch.commit.sha
     if sha is None:
-        message = f"No sha found for the job {job.id} in {job.event_name}"
+        message = f"No sha found for the job {job.id} in {job.github_event_name}"
         raise ValueError(message)
 
-    name = f"{current_module.title()}: {job.event_name}"
+    name = f"{current_module.title()}: {job.github_event_name}"
     check_run = (
         await github_project.aio_github.rest.checks.async_create(
             owner=github_project.owner,

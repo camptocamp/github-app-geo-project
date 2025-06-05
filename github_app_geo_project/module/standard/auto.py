@@ -37,54 +37,84 @@ def equals_if_defined(reference: str | None, value: str) -> bool:
     return reference == value
 
 
-class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dict[str, Any], None]):
+class Auto(
+    module.Module[
+        auto_configuration.AutoPullRequest,
+        dict[str, Any],
+        dict[str, Any],
+        None,
+    ],
+):
     """The auto module."""
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Auto-review-merge-close"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_name == "pull_request":
-            event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+        if context.module_event_name == "pull_request":
+            event_data = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
             if event_data.action in ("opened", "reopened") and event_data.pull_request.state == "open":
-                return [module.Action(priority=module.PRIORITY_STANDARD, data={}, checks=False)]
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STANDARD,
+                        data={},
+                        checks=False,
+                    ),
+                ]
 
         return []
 
     @abstractmethod
     async def do_action(
         self,
-        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any]],
+        context: module.ProcessContext[
+            auto_configuration.AutoPullRequest,
+            dict[str, Any],
+        ],
         pull_request: githubkit.versions.latest.models.PullRequest,
     ) -> None:
         """Process the action, called it the conditions match."""
 
     async def process(
         self,
-        context: module.ProcessContext[auto_configuration.AutoPullRequest, dict[str, Any]],
+        context: module.ProcessContext[
+            auto_configuration.AutoPullRequest,
+            dict[str, Any],
+        ],
     ) -> module.ProcessOutput[dict[str, Any], None]:
         """
         Process the action.
 
         Note that this method is called in the queue consuming Pod
         """
-        assert context.event_name == "pull_request"
-        event_data = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+        assert context.module_event_name == "pull_request"
+        event_data = githubkit.webhooks.parse_obj(
+            "pull_request",
+            context.github_event_data,
+        )
         for condition in context.module_config.get("conditions", []):
             if (
                 equals_if_defined(
                     condition.get("author"),
-                    event_data.pull_request.user.login if event_data.pull_request.user else "",
+                    (event_data.pull_request.user.login if event_data.pull_request.user else ""),
                 )
                 and get_re(condition.get("title")).match(event_data.pull_request.title)
-                and get_re(condition.get("branch")).match(event_data.pull_request.head.ref)
+                and get_re(condition.get("branch")).match(
+                    event_data.pull_request.head.ref,
+                )
             ):
                 # Get pull request
                 pull_request = (
@@ -100,7 +130,9 @@ class Auto(module.Module[auto_configuration.AutoPullRequest, dict[str, Any], dic
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
-        with (Path(__file__).parent / "auto-schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "auto-schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             return json.loads(schema_file.read()).get("definitions", {}).get("auto")  # type: ignore[no-any-return]
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:

@@ -12,7 +12,11 @@ from pyramid.view import view_config
 
 from github_app_geo_project import configuration, models, project_configuration, utils
 from github_app_geo_project.module import modules
-from github_app_geo_project.templates import pprint_duration, pprint_full_date, pprint_short_date
+from github_app_geo_project.templates import (
+    pprint_duration,
+    pprint_full_date,
+    pprint_short_date,
+)
 from github_app_geo_project.views import get_event_loop
 
 if TYPE_CHECKING:
@@ -103,7 +107,9 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
                     if "dashboard" in issue.title.lower().split() and issue.state == "open":
                         applications[app]["issue_url"] = issue.html_url
 
-            module_names.update(request.registry.settings[f"application.{app}.modules"].split())
+            module_names.update(
+                request.registry.settings[f"application.{app}.modules"].split(),
+            )
             for module_name in request.registry.settings[f"application.{app}.modules"].split():
                 module = modules.MODULES[module_name]
                 if module.required_issue_dashboard():
@@ -153,16 +159,30 @@ def project(request: pyramid.request.Request) -> dict[str, Any]:
             select_output = select_output.where(models.Output.repository == repository)
 
         if "only_error" in request.params:
-            select_output = select_output.where(models.Output.status == models.OutputStatus.ERROR)
+            select_output = select_output.where(
+                models.Output.status == models.OutputStatus.ERROR,
+            )
 
         if "status" in request.params:
-            select_job = select_job.where(models.Queue.status == request.params["status"])
-        if "event_name" in request.params:
-            select_job = select_job.where(models.Queue.event_name == request.params["event_name"])
+            select_job = select_job.where(
+                models.Queue.status == request.params["status"],
+            )
+        if "github_event_name" in request.params:
+            select_job = select_job.where(
+                models.Queue.github_event_name == request.params["github_event_name"],
+            )
+        if "module_event_name" in request.params:
+            select_job = select_job.where(
+                models.Queue.module_event_name == request.params["module_event_name"],
+            )
         if "application" in request.params:
-            select_job = select_job.where(models.Queue.application == request.params["application"])
+            select_job = select_job.where(
+                models.Queue.application == request.params["application"],
+            )
         if "module" in request.params:
-            select_job = select_job.where(models.Queue.module == request.params["module"])
+            select_job = select_job.where(
+                models.Queue.module == request.params["module"],
+            )
 
         select_output = select_output.order_by(models.Output.created_at.desc())
         select_output = select_output.limit(request.params.get("limit", 10))

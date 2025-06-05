@@ -34,7 +34,13 @@ import sqlalchemy.ext.asyncio
 import sqlalchemy.orm
 from prometheus_client import Gauge
 
-from github_app_geo_project import configuration, models, module, project_configuration, utils
+from github_app_geo_project import (
+    configuration,
+    models,
+    module,
+    project_configuration,
+    utils,
+)
 from github_app_geo_project.module import GHCIError, modules
 from github_app_geo_project.module import utils as module_utils
 
@@ -50,7 +56,7 @@ _MODULE_STATUS_LOCK: dict[str, asyncio.Lock] = {}
 
 class _JobInfo(NamedTuple):
     module: str
-    event_name: str
+    module_event_name: str
     repository: str
     priority: int
     worker_max_priority: int
@@ -110,13 +116,21 @@ class _Formatter(logging.Formatter):
         return f"<pre>{str_msg}</pre>"
 
 
-async def _validate_job(config: dict[str, Any], application: str, event_data: dict[str, Any]) -> bool:
+async def _validate_job(
+    config: dict[str, Any],
+    application: str,
+    event_data: dict[str, Any],
+) -> bool:
     if "TEST_APPLICATION" in os.environ:
         return True
     github_application = await configuration.get_github_application(config, application)
     installation_id = event_data.get("installation", {}).get("id", 0)
     if github_application.id == installation_id:
-        _LOGGER.error("Invalid installation id %i != %i", github_application.id, installation_id)
+        _LOGGER.error(
+            "Invalid installation id %i != %i",
+            github_application.id,
+            installation_id,
+        )
         return False
     return True
 
@@ -145,7 +159,10 @@ async def _process_job(
     check_run: githubkit.versions.latest.models.CheckRun | None = None
     tasks: list[asyncio.Task[Any]] = []
     if "TEST_APPLICATION" not in os.environ:
-        github_application = await configuration.get_github_application(config, job.application)
+        github_application = await configuration.get_github_application(
+            config,
+            job.application,
+        )
         if job.owner is not None and job.repository is not None:
             github_project = await configuration.get_github_project(
                 config,
@@ -174,7 +191,10 @@ async def _process_job(
                 if dashboard_issue:
                     issue_full_data = dashboard_issue.body
                     assert isinstance(issue_full_data, str)
-                    issue_data = utils.get_dashboard_issue_module(issue_full_data, job.module)
+                    issue_data = utils.get_dashboard_issue_module(
+                        issue_full_data,
+                        job.module,
+                    )
 
             module_config = cast(
                 "project_configuration.ModuleConfiguration",
@@ -230,10 +250,15 @@ async def _process_job(
             context = module.ProcessContext(
                 session=session,
                 github_project=github_project,  # type: ignore[arg-type]
-                event_name=job.event_name,
-                event_data=job.event_data,
-                module_config=current_module.configuration_from_json(cast("dict[str, Any]", module_config)),
-                module_event_data=current_module.event_data_from_json(job.module_data),
+                github_event_name=job.github_event_name,
+                github_event_data=job.github_event_data,
+                module_config=current_module.configuration_from_json(
+                    cast("dict[str, Any]", module_config),
+                ),
+                module_event_name=job.module_event_name,
+                module_event_data=current_module.event_data_from_json(
+                    job.module_event_data,
+                ),
                 issue_data=issue_data,
                 job_id=job.id,
                 service_url=config["service-url"],
@@ -247,7 +272,7 @@ async def _process_job(
                 async with asyncio.timeout(job_timeout):
                     task = asyncio.create_task(
                         current_module.process(context),
-                        name=f"Process Job {job.id} - {job.event_name} - {job.module or '-'}",
+                        name=f"Process Job {job.id} - {job.module_event_name} - {job.module or '-'}",
                     )
                     result = await task
                     if result.updated_transversal_status:
@@ -269,7 +294,7 @@ async def _process_job(
                             )
                             root_logger.addHandler(handler)
                             transversal_status = current_module.transversal_status_from_json(
-                                module_status.data if module_status is not None else None,
+                                (module_status.data if module_status is not None else None),
                             )
                             transversal_status = await current_module.update_transversal_status(
                                 context,
@@ -285,12 +310,16 @@ async def _process_job(
                                     job.id,
                                     type(transversal_status),
                                     transversal_status,
-                                    current_module.transversal_status_to_json(transversal_status),
+                                    current_module.transversal_status_to_json(
+                                        transversal_status,
+                                    ),
                                 )
                                 if module_status is None:
                                     module_status = models.ModuleStatus(
                                         module=job.module,
-                                        data=current_module.transversal_status_to_json(transversal_status),
+                                        data=current_module.transversal_status_to_json(
+                                            transversal_status,
+                                        ),
                                     )
                                     session.add(module_status)
                                 else:
@@ -309,7 +338,11 @@ async def _process_job(
                 root_logger.removeHandler(handler)
                 await session.refresh(job)
                 root_logger.addHandler(handler)
-                _LOGGER.debug("Module %s took %s", job.module, datetime.datetime.now(tz=datetime.UTC) - start)
+                _LOGGER.debug(
+                    "Module %s took %s",
+                    job.module,
+                    datetime.datetime.now(tz=datetime.UTC) - start,
+                )
 
                 if result is not None:
                     non_none = [
@@ -328,7 +361,9 @@ async def _process_job(
                         if result.actions:
                             _LOGGER.debug(
                                 "Actions: %s",
-                                ", ".join([a.title or "Untitled" for a in result.actions]),
+                                ", ".join(
+                                    [a.title or "Untitled" for a in result.actions],
+                                ),
                             )
                     else:
                         _LOGGER.info("Module %s finished", job.module)
@@ -343,7 +378,11 @@ async def _process_job(
                 root_logger.removeHandler(handler)
                 await session.refresh(job)
                 root_logger.addHandler(handler)
-                _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
+                _LOGGER.exception(
+                    "Failed to process job id: %s on module: %s",
+                    job.id,
+                    job.module,
+                )
                 raise GHCIError(str(exception)) from exception
             finally:
                 root_logger.removeHandler(handler)
@@ -374,9 +413,12 @@ async def _process_job(
                                 repo=job.repository,
                                 check_run_id=check_run.id,
                                 status="completed",
-                                conclusion="success" if result is None or result.success else "failure",
+                                conclusion=("success" if result is None or result.success else "failure"),
                                 output={
-                                    "title": check_output.get("title", current_module.title()),
+                                    "title": check_output.get(
+                                        "title",
+                                        current_module.title(),
+                                    ),
                                     "summary": check_output["summary"],
                                     "text": check_output.get("text", ""),
                                 },
@@ -398,7 +440,10 @@ async def _process_job(
                         exception.response.status_code,
                     )
                 except TimeoutError:
-                    _LOGGER.exception("Timeout while updating check run %s", job.check_run_id)
+                    _LOGGER.exception(
+                        "Timeout while updating check run %s",
+                        job.check_run_id,
+                    )
                 except Exception:  # pylint: disable=broad-exception-caught
                     _LOGGER.exception(
                         "Failed to update check run %s",
@@ -418,9 +463,10 @@ async def _process_job(
                 job_application = job.application
                 job_owner = job.owner
                 job_repository = job.repository
-                job_event_name = job.event_name
-                job_event_data = job.event_data
+                job_github_event_name = job.github_event_name
+                job_github_event_data = job.github_event_data
                 job_module = job.module
+                job_module_event_name = job.module_event_name
 
                 for action in result.actions:
                     new_job = models.Queue()
@@ -428,10 +474,13 @@ async def _process_job(
                     new_job.application = job_application
                     new_job.owner = job_owner
                     new_job.repository = job_repository
-                    new_job.event_name = action.title or job_event_name
-                    new_job.event_data = job_event_data
+                    new_job.github_event_name = job_github_event_name
+                    new_job.github_event_data = job_github_event_data
                     new_job.module = job_module
-                    new_job.module_data = current_module.event_data_to_json(action.data)
+                    new_job.module_event_name = action.title or job_module_event_name
+                    new_job.module_event_data = current_module.event_data_to_json(
+                        action.data,
+                    )
                     session.add(new_job)
                     await module_utils.create_checks(
                         new_job,
@@ -500,7 +549,7 @@ async def _process_job(
 
             message = module_utils.AnsiProcessMessage(
                 cast("list[str]", proc_error.cmd),
-                None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode,
+                (None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode),
                 proc_error.output,
                 cast("str", proc_error.stderr),
             )
@@ -543,7 +592,11 @@ async def _process_job(
             if not isinstance(exception, GHCIError):
                 root_logger.addHandler(handler)
                 try:
-                    _LOGGER.exception("Failed to process job id: %s on module: %s", job.id, job.module)
+                    _LOGGER.exception(
+                        "Failed to process job id: %s on module: %s",
+                        job.id,
+                        job.module,
+                    )
                 finally:
                     root_logger.removeHandler(handler)
             if check_run is not None and github_project is not None and github_project.aio_github is not None:
@@ -588,9 +641,10 @@ async def _process_job(
             current_module.cleanup(
                 module.CleanupContext(
                     github_project=github_project,  # type: ignore[arg-type]
-                    event_name="event",
-                    event_data=job.event_data,
-                    module_data=job.module_data,
+                    github_event_name="event",
+                    github_event_data=job.github_event_data,
+                    module_event_name="event",
+                    module_event_data=job.module_event_data,
                 ),
             )
         except Exception:
@@ -598,8 +652,8 @@ async def _process_job(
                 "Failed to cleanup job id: %s on module: %s, module data:\n%s\nevent data:\n%s",
                 job.id,
                 job.module,
-                job.module_data,
-                job.event_data,
+                job.module_event_data,
+                job.github_event_data,
             )
             raise
 
@@ -621,7 +675,11 @@ async def _process_job(
                 current_module,
                 new_issue_data,
             )
-            _LOGGER.debug("Update issue %s, with:\n%s", dashboard_issue.number, issue_full_data)
+            _LOGGER.debug(
+                "Update issue %s, with:\n%s",
+                dashboard_issue.number,
+                issue_full_data,
+            )
             if github_project is not None:
                 await github_project.aio_github.rest.issues.async_update(
                     owner=job.owner,
@@ -629,7 +687,10 @@ async def _process_job(
                     issue_number=dashboard_issue.number,
                     body=issue_full_data,
                 )
-        elif new_issue_data and os.environ.get("GHCI_CREATE_DASHBOARD_ISSUE", "1").lower() in (
+        elif new_issue_data and os.environ.get(
+            "GHCI_CREATE_DASHBOARD_ISSUE",
+            "1",
+        ).lower() in (
             "1",
             "true",
             "on",
@@ -683,7 +744,12 @@ async def _process_dashboard_issue(
 ) -> None:
     """Process changes on the dashboard issue."""
     github_application = await configuration.get_github_application(config, application)
-    github_project = await configuration.get_github_project(config, github_application, owner, repository)
+    github_project = await configuration.get_github_project(
+        config,
+        github_application,
+        owner,
+        repository,
+    )
     event_data_issue = githubkit.webhooks.parse_obj("issues", event_data)
 
     if not isinstance(event_data_issue, githubkit.versions.v2022_11_28.webhooks.issues.WebhookIssuesEdited):  # type: ignore[attr-defined]
@@ -706,7 +772,10 @@ async def _process_dashboard_issue(
             )
             new_data = event_data_issue.issue.body or ""
 
-            for name in config.get(f"application.{github_project.application.name}.modules", "").split():
+            for name in config.get(
+                f"application.{github_project.application.name}.modules",
+                "",
+            ).split():
                 current_module = modules.MODULES.get(name)
                 if current_module is None:
                     _LOGGER.error("Unknown module %s", name)
@@ -722,8 +791,8 @@ async def _process_dashboard_issue(
                     if current_module.required_issue_dashboard():
                         for action in current_module.get_actions(
                             module.GetActionContext(
-                                event_name="dashboard",
-                                event_data={
+                                github_event_name="dashboard",
+                                github_event_data={
                                     "type": "dashboard",
                                     "old_data": module_old,
                                     "new_data": module_new,
@@ -731,6 +800,7 @@ async def _process_dashboard_issue(
                                 owner=github_project.owner,
                                 repository=github_project.repository,
                                 github_application=github_project.application,
+                                module_event_name="dashboard",
                             ),
                         ):
                             job = models.Queue()
@@ -740,14 +810,17 @@ async def _process_dashboard_issue(
                             job.application = github_project.application.name
                             job.owner = github_project.owner
                             job.repository = github_project.repository
-                            job.event_name = action.title or "dashboard"
-                            job.event_data = {
+                            job.github_event_name = "dashboard"
+                            job.github_event_data = {
                                 "type": "dashboard",
                                 "old_data": module_old,
                                 "new_data": module_new,
                             }
                             job.module = name
-                            job.module_data = current_module.event_data_to_json(action.data)
+                            job.module_event_name = action.title or "dashboard"
+                            job.module_event_data = current_module.event_data_to_json(
+                                action.data,
+                            )
                             session.add(job)
                             await session.flush()
                             if action.checks:
@@ -797,7 +870,10 @@ async def _get_process_one_job(
 
         if job is None:
             if no_steal_long_pending:
-                _LOGGER.debug("Process one job (max priority: %i): No job to process", max_priority)
+                _LOGGER.debug(
+                    "Process one job (max priority: %i): No job to process",
+                    max_priority,
+                )
                 return True
 
             # Very long pending job => error
@@ -807,7 +883,9 @@ async def _get_process_one_job(
                     models.Queue.status == models.JobStatus.PENDING.name,
                     models.Queue.created_at
                     < datetime.datetime.now(tz=datetime.UTC)
-                    - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", "86400"))),
+                    - datetime.timedelta(
+                        seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", "86400")),
+                    ),
                 )
                 .values(status=models.JobStatus.ERROR.name),
             )
@@ -819,7 +897,9 @@ async def _get_process_one_job(
                     models.Queue.status == models.JobStatus.PENDING.name,
                     models.Queue.started_at
                     < datetime.datetime.now(tz=datetime.UTC)
-                    - datetime.timedelta(seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60),
+                    - datetime.timedelta(
+                        seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60,
+                    ),
                 )
                 .values(status=models.JobStatus.NEW.name)
             )
@@ -849,24 +929,29 @@ async def _process_one_job(
     make_pending: bool,
     max_priority: int,
 ) -> None:
-    sentry_sdk.set_context("job", {"id": job.id, "event": job.event_name, "module": job.module or "-"})
+    sentry_sdk.set_context(
+        "job",
+        {"id": job.id, "event": job.module_event_name, "module": job.module or "-"},
+    )
 
     # Capture_logs
     root_logger = logging.getLogger()
     handler = _Handler(job.id)
-    handler.setFormatter(_Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"))
+    handler.setFormatter(
+        _Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"),
+    )
 
-    module_data_formatted = utils.format_json(job.module_data)
-    event_data_formatted = utils.format_json(job.event_data)
+    module_data_formatted = utils.format_json(job.module_event_data)
+    event_data_formatted = utils.format_json(job.github_event_data)
     message = module_utils.HtmlMessage(
         f"<p>module data:</p>{module_data_formatted}<p>event data:</p>{event_data_formatted}",
     )
-    message.title = f"Start process job {job.module}: {job.event_name} - id: {job.id}, on {job.owner}/{job.repository}, with priority: {job.priority}, on application: {job.application}"
+    message.title = f"Start process job {job.module}: {job.module_event_name} - id: {job.id}, on {job.owner}/{job.repository}, with priority: {job.priority}, on application: {job.application}"
     root_logger.addHandler(handler)
     _LOGGER.info(message)
     _RUNNING_JOBS[job.id] = _JobInfo(
         job.module or "-",
-        job.event_name,
+        job.module_event_name,
         job.repository,
         job.priority,
         max_priority,
@@ -897,14 +982,18 @@ async def _process_one_job(
 
         success = True
         if not job.module:
-            if job.event_name == "dashboard":
-                success = await _validate_job(config, job.application, job.event_data)
+            if job.module_event_name == "dashboard":
+                success = await _validate_job(
+                    config,
+                    job.application,
+                    job.github_event_data,
+                )
                 if success:
                     _LOGGER.info("Process dashboard issue %i", job.id)
                     await _process_dashboard_issue(
                         config,
                         session,
-                        job.event_data,
+                        job.github_event_data,
                         job.application,
                         job.owner,
                         job.repository,
@@ -914,12 +1003,16 @@ async def _process_one_job(
                     job.status_enum = models.JobStatus.ERROR
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             else:
-                _LOGGER.error("Unknown event name: %s", job.event_name)
+                _LOGGER.error("Unknown event name: %s", job.module_event_name)
                 job.status_enum = models.JobStatus.ERROR
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
                 success = False
         else:
-            success = await _validate_job(config, job.application, job.event_data)
+            success = await _validate_job(
+                config,
+                job.application,
+                job.github_event_data,
+            )
             if success:
                 success = await _process_job(
                     config,
@@ -930,7 +1023,11 @@ async def _process_one_job(
                 )
 
     except Exception:  # pylint: disable=broad-exception-caught
-        _LOGGER.exception("Failed to process job id: %s on module: %s.", job.id, job.module or "-")
+        _LOGGER.exception(
+            "Failed to process job id: %s on module: %s.",
+            job.id,
+            job.module or "-",
+        )
         job.log = "\n".join([handler.format(msg) for msg in handler.results])
     finally:
         sentry_sdk.set_context("job", {})
@@ -1043,7 +1140,9 @@ class _PrometheusWatch:
                                     f'  File "{filename}", line {frame_info.lineno}, in {frame_info.function}',
                                 )
                                 if frame_info.code_context:
-                                    running_task_thread.append(f"    {frame_info.code_context[0].strip()}")
+                                    running_task_thread.append(
+                                        f"    {frame_info.code_context[0].strip()}",
+                                    )
 
                 running_task_thread = (
                     ["== Running tasks trace ==", *running_task_thread] if running_task_thread else []
@@ -1052,9 +1151,14 @@ class _PrometheusWatch:
                 event_loop_stack = []
                 for thread in threading.enumerate():
                     if thread.name == "MainThread":
-                        for thread_id, frame in sys._current_frames().items():  # pylint: disable=protected-access
+                        for (
+                            thread_id,
+                            frame,
+                        ) in sys._current_frames().items():  # pylint: disable=protected-access
                             if thread_id == thread.ident:
-                                event_loop_stack = [f"== Event loop thread stack trace '{thread.name}' =="]
+                                event_loop_stack = [
+                                    f"== Event loop thread stack trace '{thread.name}' ==",
+                                ]
 
                                 frames = []
 
@@ -1116,7 +1220,7 @@ class _PrometheusWatch:
             text = []
             for id_, job in _RUNNING_JOBS.items():
                 text.append(
-                    f"{id_}: {job.module} {job.event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})",
+                    f"{id_}: {job.module} {job.module_event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})",
                 )
             try:
                 for task in asyncio.all_tasks():
@@ -1153,7 +1257,11 @@ class _WatchDog:
             current_task.set_name("WatchDog")
         while True:
             _LOGGER.debug("Watch dog: alive")
-            async with aiofiles.open("/var/ghci/watch_dog", "w", encoding="utf-8") as file_:
+            async with aiofiles.open(
+                "/var/ghci/watch_dog",
+                "w",
+                encoding="utf-8",
+            ) as file_:
                 await file_.write(datetime.datetime.now(datetime.UTC).isoformat())
                 await file_.write("\n")
                 await file_.write(datetime.datetime.now(datetime.UTC).isoformat())
@@ -1164,7 +1272,10 @@ class _WatchDog:
 class HandleSigint:
     """Handle SIGINT."""
 
-    def __init__(self, Session: sqlalchemy.orm.sessionmaker[sqlalchemy.orm.Session]) -> None:  # pylint: disable=invalid-name,unsubscriptable-object
+    def __init__(
+        self,
+        Session: sqlalchemy.orm.sessionmaker[sqlalchemy.orm.Session],  # noqa: N803 # # pylint: disable=unsubscriptable-object
+    ) -> None:  # pylint: disable=invalid-name
         self.Session = Session  # pylint: disable=invalid-name
 
     def __call__(self) -> None:
@@ -1185,9 +1296,21 @@ class HandleSigint:
 async def _async_main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--exit-when-empty", action="store_true", help="Exit when the queue is empty")
-    parser.add_argument("--only-one", action="store_true", help="Exit after processing one job")
-    parser.add_argument("--make-pending", action="store_true", help="Make one job in pending")
+    parser.add_argument(
+        "--exit-when-empty",
+        action="store_true",
+        help="Exit when the queue is empty",
+    )
+    parser.add_argument(
+        "--only-one",
+        action="store_true",
+        help="Exit after processing one job",
+    )
+    parser.add_argument(
+        "--make-pending",
+        action="store_true",
+        help="Make one job in pending",
+    )
     c2cwsgiutils.setup_process.fill_arguments(parser)
 
     args = parser.parse_args()
@@ -1197,7 +1320,9 @@ async def _async_main() -> None:
     loop = asyncio.get_running_loop()
     with aiomonitor.start_monitor(loop):
         loop.set_default_executor(
-            concurrent.futures.ThreadPoolExecutor(max_workers=int(os.environ.get("GHCI_MAX_WORKERS", "2"))),
+            concurrent.futures.ThreadPoolExecutor(
+                max_workers=int(os.environ.get("GHCI_MAX_WORKERS", "2")),
+            ),
         )
         loop.slow_callback_duration = float(
             os.environ.get("GHCI_SLOW_CALLBACK_DURATION", "60"),
@@ -1223,8 +1348,12 @@ async def _async_main() -> None:
                 options[key] = int(options[key])
         async_engine = sqlalchemy.ext.asyncio.create_async_engine(url, **options)
         engine = sqlalchemy.engine_from_config(config, "sqlalchemy.")
-        Session = sqlalchemy.orm.sessionmaker(bind=engine)  # pylint: disable=invalid-name
-        AsyncSession = sqlalchemy.ext.asyncio.async_sessionmaker(bind=async_engine)  # pylint: disable=invalid-name
+        Session = sqlalchemy.orm.sessionmaker(  # noqa: N806
+            bind=engine,
+        )  # pylint: disable=invalid-name
+        AsyncSession = sqlalchemy.ext.asyncio.async_sessionmaker(  # noqa: N806
+            bind=async_engine,
+        )  # pylint: disable=invalid-name
 
         # Create tables if they do not exist
         async with async_engine.begin() as connection:
@@ -1253,7 +1382,9 @@ async def _async_main() -> None:
 
         if not args.exit_when_empty and "C2C_PROMETHEUS_PORT" in os.environ:
 
-            class LogHandler(prometheus_client.exposition._SilentHandler):  # pylint: disable=protected-access
+            class LogHandler(
+                prometheus_client.exposition._SilentHandler,  # noqa: SLF001
+            ):  # pylint: disable=protected-access
                 """WSGI handler that does not log requests."""
 
                 def log_message(self, *args: Any) -> None:
@@ -1268,7 +1399,12 @@ async def _async_main() -> None:
         tasks = []
         if not args.exit_when_empty:
             tasks.append(asyncio.create_task(_WatchDog()(), name="Watch Dog"))
-            tasks.append(asyncio.create_task(_PrometheusWatch(Session, loop)(), name="Prometheus Watch"))
+            tasks.append(
+                asyncio.create_task(
+                    _PrometheusWatch(Session, loop)(),
+                    name="Prometheus Watch",
+                ),
+            )
 
         tasks.extend(
             [

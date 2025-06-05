@@ -228,7 +228,8 @@ async def test_links_get_actions() -> None:
     """Test that the Links module get_actions method works correctly for pull request events."""
     # Create a mock context
     context = MagicMock()
-    context.event_name = "pull_request"
+    context.github_event_name = "pull_request"
+    context.module_event_name = "pull_request"
 
     # Create a mock pull request event
     pull_request = MagicMock()

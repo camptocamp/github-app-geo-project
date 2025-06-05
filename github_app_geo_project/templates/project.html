@@ -147,11 +147,11 @@
             >[${job.status_enum.value}]</a
           >
           <a
-            href="${request.current_route_url(_query={**request.params, 'event_name':job.event_name})}"
+            href="${request.current_route_url(_query={**request.params, 'module_event_name':job.module_event_name})}"
             data-bs-toggle="tooltip"
             data-bs-placement="top"
             data-bs-title="Event name"
-            >${job.event_name}</a
+            >${job.module_event_name}</a
           >
           <a
             href="${request.current_route_url(_query={**request.params, 'application':job.application})}"

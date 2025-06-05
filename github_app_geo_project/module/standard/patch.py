@@ -28,7 +28,10 @@ def format_process_output(output: subprocess.CompletedProcess[str]) -> str:
 
 def format_process_bytes(stdout: bytes | None, stderr: bytes | None) -> str:
     """Format the output of the process."""
-    return format_process_out(stdout.decode() if stdout else None, stderr.decode() if stderr else None)
+    return format_process_out(
+        stdout.decode() if stdout else None,
+        stderr.decode() if stderr else None,
+    )
 
 
 def format_process_out(stdout: str | None, stderr: str | None) -> str:
@@ -57,15 +60,21 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Patch"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_name == "workflow_run":
-            event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
+        if context.module_event_name == "workflow_run":
+            event_data = githubkit.webhooks.parse_obj(
+                "workflow_run",
+                context.github_event_data,
+            )
             if (
                 event_data.action == "completed"
                 and event_data.workflow_run.conclusion == "failure"
@@ -84,8 +93,11 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
 
         Note that this method is called in the queue consuming Pod
         """
-        assert context.event_name == "workflow_run"
-        event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
+        assert context.module_event_name == "workflow_run"
+        event_data = githubkit.webhooks.parse_obj(
+            "workflow_run",
+            context.github_event_data,
+        )
 
         # Get workflow artifacts
         artifacts_response = (
@@ -117,7 +129,11 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         with tempfile.TemporaryDirectory() as tmpdirname:
             cwd = Path(tmpdirname)
             if not is_clone:
-                new_cwd = await module_utils.git_clone(context.github_project, head_branch, cwd)
+                new_cwd = await module_utils.git_clone(
+                    context.github_project,
+                    head_branch,
+                    cwd,
+                )
                 if new_cwd is None:
                     return module.ProcessOutput(
                         success=False,
@@ -179,7 +195,9 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                                 cwd=cwd,
                             )
                             async with asyncio.timeout(60):
-                                stdout, stderr = await proc.communicate(patch_input.encode())
+                                stdout, stderr = await proc.communicate(
+                                    patch_input.encode(),
+                                )
                             message = module_utils.AnsiProcessMessage.from_async_artifacts(
                                 command,
                                 proc,
@@ -236,10 +254,17 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         if is_clone and result_message:
             return module.ProcessOutput(
                 success=False,
-                output={"summary": "\n".join([*error_messages, "", "Patch to be applied", *result_message])},
+                output={
+                    "summary": "\n".join(
+                        [*error_messages, "", "Patch to be applied", *result_message],
+                    ),
+                },
             )
         if error_messages:
-            return module.ProcessOutput(success=False, output={"summary": "\n".join(error_messages)})
+            return module.ProcessOutput(
+                success=False,
+                output={"summary": "\n".join(error_messages)},
+            )
         return module.ProcessOutput()
 
     async def get_json_schema(self) -> dict[str, Any]:

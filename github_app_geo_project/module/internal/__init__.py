@@ -51,7 +51,10 @@ class Dispatcher(module.Module[None, _EventData, None, None]):
             events=set(),
         )
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_EventData]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[_EventData]]:
         """
         Get the actions of the module.
 
@@ -68,17 +71,19 @@ class Dispatcher(module.Module[None, _EventData, None, None]):
         Process the action.
         """
 
-        if context.event_name == "event":
+        if context.module_event_name == "event":
             await _process_event(context)
             return module.ProcessOutput(output={"summary": "Event processed"})
 
-        if context.event_name == "repo_event":
+        if context.module_event_name == "repo_event":
             await _process_repo_event(context)
-            return module.ProcessOutput(output={"summary": "Event processed on repository"})
+            return module.ProcessOutput(
+                output={"summary": "Event processed on repository"},
+            )
 
         re_requested_check_ids = _get_re_requested_check_suite_id(
-            context.event_name,
-            context.event_data,
+            context.github_event_name,
+            context.github_event_data,
         )
         outputs, nb_re_run = (
             await _re_requested_check_suite(context, *re_requested_check_ids)
@@ -93,7 +98,7 @@ class Dispatcher(module.Module[None, _EventData, None, None]):
             process_event_outputs.append("No action to process from other modules")
         return module.ProcessOutput(
             output={
-                "title": f"Dispatch {context.event_name} events to modules and do check re-runs",
+                "title": f"Dispatch {context.module_event_name} events to modules and do check re-runs",
                 "summary": f"Create {nb_modules_action} actions and performed {nb_re_run} check re-runs",
                 "text": "\n".join([*outputs, "", *process_event_outputs]),
             },
@@ -104,7 +109,9 @@ class Dispatcher(module.Module[None, _EventData, None, None]):
         return False
 
 
-async def process_event(context: module.ProcessContext[None, _EventData]) -> tuple[list[str], int]:
+async def process_event(
+    context: module.ProcessContext[None, _EventData],
+) -> tuple[list[str], int]:
     """Process the event."""
     owner = "camptocamp" if "TEST_APPLICATION" in os.environ else context.github_project.owner
     repository = "test" if "TEST_APPLICATION" in os.environ else context.github_project.repository
@@ -130,21 +137,27 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
         try:
             for action in current_module.get_actions(
                 module.GetActionContext(
-                    event_name=context.event_name,
-                    event_data=context.event_data,
+                    github_event_name=context.github_event_name,
+                    github_event_data=context.github_event_data,
+                    module_event_name=context.module_event_name,
                     owner=owner,
                     repository=repository,
-                    github_application=context.github_project.application if context.github_project else None,
+                    github_application=(
+                        context.github_project.application if context.github_project else None
+                    ),
                 ),
             ):
                 _LOGGER.info(
                     "Got action %s",
                     action.title or "Untitled",
                 )
-                outputs.append(f"Create job for module {name} with action {action.title or 'Untitled'}")
+                outputs.append(
+                    f"Create job for module {name} with action {action.title or 'Untitled'}",
+                )
                 number += 1
                 priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
-                event_name = action.title or context.event_name
+                github_event_name = context.github_event_name
+                module_event_name = action.title or context.module_event_name
                 module_data = current_module.event_data_to_json(action.data)
 
                 jobs_unique_on = current_module.jobs_unique_on()
@@ -164,17 +177,26 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
                             update = update.where(
                                 models.Queue.repository == repository,
                             )
-                        elif key == "event_name":
-                            update = update.where(models.Queue.event_name == event_name)
-                        elif key == "event_data":
+                        elif key == "github_event_name":
                             update = update.where(
-                                sqlalchemy.cast(models.Queue.event_data, sqlalchemy.dialects.postgresql.JSONB)
-                                == context.event_data,
+                                models.Queue.github_event_name == github_event_name,
                             )
-                        elif key == "module_data":
+                        elif key == "module_event_name":
+                            update = update.where(
+                                models.Queue.module_event_name == module_event_name,
+                            )
+                        elif key == "github_event_data":
                             update = update.where(
                                 sqlalchemy.cast(
-                                    models.Queue.module_data,
+                                    models.Queue.github_event_data,
+                                    sqlalchemy.dialects.postgresql.JSONB,
+                                )
+                                == context.github_event_data,
+                            )
+                        elif key == "module_event_data":
+                            update = update.where(
+                                sqlalchemy.cast(
+                                    models.Queue.module_event_data,
                                     sqlalchemy.dialects.postgresql.JSONB,
                                 )
                                 == module_data,
@@ -195,10 +217,11 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
                 job.application = application
                 job.owner = owner
                 job.repository = repository
-                job.event_name = event_name
-                job.event_data = context.event_data
+                job.github_event_name = github_event_name
+                job.github_event_data = context.github_event_data
                 job.module = name
-                job.module_data = module_data
+                job.module_event_name = module_event_name
+                job.module_event_data = module_data
                 context.session.add(job)
                 await context.session.flush()
                 github_project = None
@@ -206,7 +229,7 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
                 should_create_checks = action.checks
                 if should_create_checks is None:
                     # Auto (major of event that comes from GitHub)
-                    should_create_checks = context.event_name in [
+                    should_create_checks = context.github_event_name in [
                         "pull_request",
                         "pusher",
                         "check_run",
@@ -228,16 +251,16 @@ async def process_event(context: module.ProcessContext[None, _EventData]) -> tup
 
 
 def _get_re_requested_check_suite_id(
-    event_name: str,
-    event_data: dict[str, Any],
+    github_event_name: str,
+    github_event_data: dict[str, Any],
 ) -> tuple[int, int | None] | None:
     """
     Check if the event is a rerequested event and return relevant IDs.
 
     Arguments
     ---------
-        event_name: The name of the event.
-        event_data: The data associated with the event.
+        github_event_name: The name of the event.
+        github_event_data: The data associated with the event.
 
     Returns
     -------
@@ -246,12 +269,15 @@ def _get_re_requested_check_suite_id(
             - check_run_id (int): The ID of the check run.
         Returns None if the event is not a rerequested check_run event or if the required data is missing.
     """
-    if event_name == "check_run":
-        event_data_check_run = githubkit.webhooks.parse_obj("check_run", event_data)
+    if github_event_name == "check_run":
+        event_data_check_run = githubkit.webhooks.parse_obj("check_run", github_event_data)
         if event_data_check_run.action == "rerequested" and event_data_check_run.check_run.check_suite.id:
-            return event_data_check_run.check_run.check_suite.id, event_data_check_run.check_run.id
-    elif event_name == "check_suite":
-        event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", event_data)
+            return (
+                event_data_check_run.check_run.check_suite.id,
+                event_data_check_run.check_run.id,
+            )
+    elif github_event_name == "check_suite":
+        event_data_check_suite = githubkit.webhooks.parse_obj("check_suite", github_event_data)
         if event_data_check_suite.action == "rerequested":
             return event_data_check_suite.check_suite.id, None
     return None
@@ -287,7 +313,9 @@ async def _re_requested_check_suite(
                     check_run.id,
                     check_suite.id,
                 )
-                outputs.append(f"Re request the check run {check_run.id} from check suite {check_suite.id}")
+                outputs.append(
+                    f"Re request the check run {check_run.id} from check suite {check_suite.id}",
+                )
                 number += 1
                 await context.session.execute(
                     sqlalchemy.update(models.Queue)
@@ -332,10 +360,11 @@ async def _process_event(context: module.ProcessContext[None, _EventData]) -> No
         job.application = os.environ["TEST_APPLICATION"]
         job.owner = "camptocamp"
         job.repository = "test"
-        job.event_name = "repo_event"
-        job.event_data = context.event_data
+        job.github_event_name = "repo_event"
+        job.github_event_data = context.github_event_data
         job.module = "dispatcher"
-        job.module_data = context.module_event_data.model_dump()
+        job.module_event_name = "repo_event"
+        job.module_event_data = context.module_event_data.model_dump()
         context.session.add(job)
     else:
         installations = (
@@ -359,10 +388,11 @@ async def _process_event(context: module.ProcessContext[None, _EventData]) -> No
                 job.application = context.github_project.application.name
                 job.owner = repo.owner.login
                 job.repository = repo.name
-                job.event_name = "repo_event"
-                job.event_data = context.event_data
+                job.github_event_name = "repo_event"
+                job.github_event_data = context.github_event_data
                 job.module = "dispatcher"
-                job.module_data = context.module_event_data.model_dump()
+                job.module_event_name = "repo_event"
+                job.module_event_data = context.module_event_data.model_dump()
                 context.session.add(job)
             _LOGGER.info(
                 "Processing event for installation %s with repositories:\n%s",
@@ -376,9 +406,11 @@ async def _process_event(context: module.ProcessContext[None, _EventData]) -> No
 async def _process_repo_event(context: module.ProcessContext[None, _EventData]) -> None:
     _LOGGER.info(
         "Process the event: %s, application: %s",
-        context.event_data.get("name"),
-        os.environ["TEST_APPLICATION"]  # noqa: SIM401
-        if "TEST_APPLICATION" in os.environ
-        else context.github_project.application.name,
+        context.github_event_data.get("name"),
+        (
+            os.environ["TEST_APPLICATION"]  # noqa: SIM401
+            if "TEST_APPLICATION" in os.environ
+            else context.github_project.application.name
+        ),
     )
     await process_event(context)

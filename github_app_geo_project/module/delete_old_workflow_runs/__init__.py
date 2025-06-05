@@ -42,7 +42,12 @@ class _ListWorkflowRunsForRepoArguments(TypedDict, total=False):
 
 
 class DeleteOldWorkflowRuns(
-    module.Module[configuration.DeleteOldWorkflowRunsConfiguration, dict[str, Any], dict[str, Any], None],
+    module.Module[
+        configuration.DeleteOldWorkflowRunsConfiguration,
+        dict[str, Any],
+        dict[str, Any],
+        None,
+    ],
 ):
     """Delete old workflow jobs."""
 
@@ -58,20 +63,28 @@ class DeleteOldWorkflowRuns(
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Delete-Old-Workflow-Job"
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[dict[str, Any]]]:
         """
         Get the action related to the module and the event.
 
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
-        if context.event_data.get("type") == "event" and context.event_data.get("name") == "daily":
+        if (
+            context.github_event_data.get("type") == "event"
+            and context.github_event_data.get("name") == "daily"
+        ):
             return [module.Action(data={})]
         return []
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module configuration."""
-        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             schema = json.loads(schema_file.read())
             for key in ("$schema", "$id"):
                 if key in schema:
@@ -80,7 +93,10 @@ class DeleteOldWorkflowRuns(
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the GitHub application permissions needed by the module."""
-        return module.GitHubApplicationPermissions(permissions={"actions": "write"}, events=set())
+        return module.GitHubApplicationPermissions(
+            permissions={"actions": "write"},
+            events=set(),
+        )
 
     async def process(
         self,
@@ -130,7 +146,9 @@ class DeleteOldWorkflowRuns(
             ).parsed_data
             for workflow_run in workflow_runs.workflow_runs:
                 if not workflow or workflow_run.name == workflow:
-                    deleted_workflows.append(f"{workflow_run.name} ({workflow_run.created_at})")
+                    deleted_workflows.append(
+                        f"{workflow_run.name} ({workflow_run.created_at})",
+                    )
                     await context.github_project.aio_github.rest.actions.async_delete_workflow_run(
                         owner=context.github_project.owner,
                         repo=context.github_project.repository,

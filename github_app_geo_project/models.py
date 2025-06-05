@@ -36,7 +36,12 @@ class Queue(Base):
     __tablename__ = "queue"
     __table_args__ = {"schema": _SCHEMA}  # noqa: RUF012
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+    )
     status: Mapped[str] = mapped_column(
         Unicode,
         nullable=False,
@@ -50,15 +55,19 @@ class Queue(Base):
         index=True,
     )
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
     priority: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     application: Mapped[str] = mapped_column(Unicode, nullable=False)
     owner: Mapped[str] = mapped_column(Unicode, nullable=True)
     repository: Mapped[str] = mapped_column(Unicode, nullable=True)
-    event_name: Mapped[str] = mapped_column(Unicode, nullable=False)
-    event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    github_event_name: Mapped[str] = mapped_column(Unicode, nullable=False)
+    github_event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     module: Mapped[str] = mapped_column(Unicode, nullable=True)
-    module_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)
+    module_event_name: Mapped[str] = mapped_column(Unicode, nullable=False)
+    module_event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)
     log: Mapped[str] = mapped_column(Unicode, nullable=True)
     check_run_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
 
@@ -107,7 +116,12 @@ class Output(Base):
     __tablename__ = "output"
     __table_args__ = {"schema": _SCHEMA}  # noqa: RUF012
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -135,6 +149,16 @@ class ModuleStatus(Base):
     __tablename__ = "module_status"
     __table_args__ = {"schema": _SCHEMA}  # noqa: RUF012
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, nullable=False, autoincrement=True)
-    module: Mapped[str] = mapped_column(Unicode, nullable=False, unique=True, index=True)
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+    )
+    module: Mapped[str] = mapped_column(
+        Unicode,
+        nullable=False,
+        unique=True,
+        index=True,
+    )
     data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

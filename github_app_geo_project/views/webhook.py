@@ -25,7 +25,12 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
         f"application.{application}.github_app_webhook_secret",
     )
     if github_secret:
-        dry_run = os.environ.get("GHCI_WEBHOOK_SECRET_DRY_RUN", "false").lower() in ("true", "1", "yes", "on")
+        dry_run = os.environ.get("GHCI_WEBHOOK_SECRET_DRY_RUN", "false").lower() in (
+            "true",
+            "1",
+            "yes",
+            "on",
+        )
         if "X-Hub-Signature-256" not in request.headers:
             _LOGGER.error("No signature in the request")
             if not dry_run:
@@ -69,11 +74,15 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
             if isinstance(aio_application.slug, str):
                 _APPLICATIONS_SLUG[application] = aio_application.slug
         except Exception:  # pylint: disable=broad-exception-caught
-            _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
+            _LOGGER.warning(
+                "Event from the application itself, this can be source of infinite event loop",
+            )
 
     if application in _APPLICATIONS_SLUG:  # noqa: SIM102
         if data.get("sender", {}).get("login") == _APPLICATIONS_SLUG[application] + "[bot]":
-            _LOGGER.warning("Event from the application itself, this can be source of infinite event loop")
+            _LOGGER.warning(
+                "Event from the application itself, this can be source of infinite event loop",
+            )
 
     if "account" in data.get("installation", {}):
         if "repositories" in data:
@@ -111,9 +120,10 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
                             "application": application,
                             "owner": owner,
                             "repository": repository,
-                            "event_name": "dashboard",
-                            "event_data": data,
-                            "module_data": {
+                            "github_event_name": "dashboard",
+                            "github_event_data": data,
+                            "module_event_name": "dashboard",
+                            "module_event_data": {
                                 "type": "dashboard",
                             },
                         },
@@ -126,11 +136,15 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
         job.application = application
         job.owner = owner
         job.repository = repository
-        job.event_name = event_name
-        job.event_data = data
+        job.github_event_name = event_name
+        job.github_event_data = data
         job.module = "dispatcher"
-        job.module_data = {
-            "modules": request.registry.settings.get(f"application.{application}.modules", "").split(),
+        job.module_event_name = event_name
+        job.module_event_data = {
+            "modules": request.registry.settings.get(
+                f"application.{application}.modules",
+                "",
+            ).split(),
         }
         session.add(job)
         session.commit()

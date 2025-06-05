@@ -47,10 +47,16 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             "additionalProperties": False,
         }
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[dict[str, Any]]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[dict[str, Any]]]:
         """Get the action related to the module and the event."""
-        if context.event_name == "workflow_run":
-            event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
+        if context.module_event_name == "workflow_run":
+            event_data = githubkit.webhooks.parse_obj(
+                "workflow_run",
+                context.github_event_data,
+            )
             if event_data.action == "completed" and event_data.workflow_run.event != "pull_request":
                 return [module.Action({}, priority=module.PRIORITY_STATUS + 2)]
         return []
@@ -94,19 +100,26 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             isinstance(security_file, githubkit.versions.latest.models.ContentFile)
             and security_file.content is not None
         ):
-            security = security_md.Security(base64.b64decode(security_file.content).decode("utf-8"))
+            security = security_md.Security(
+                base64.b64decode(security_file.content).decode("utf-8"),
+            )
 
             stabilization_branches += module_utils.get_stabilization_versions(security)
 
         else:
-            _LOGGER.debug("No SECURITY.md file in the repository, apply on default branch")
+            _LOGGER.debug(
+                "No SECURITY.md file in the repository, apply on default branch",
+            )
 
         for key in list(repo_data.keys()):
             if key not in stabilization_branches and key != "updated":
                 del repo_data[key]
 
-        assert context.event_name == "workflow_run"
-        event_data = githubkit.webhooks.parse_obj("workflow_run", context.event_data)
+        assert context.module_event_name == "workflow_run"
+        event_data = githubkit.webhooks.parse_obj(
+            "workflow_run",
+            context.github_event_data,
+        )
         head_branch = event_data.workflow_run.head_branch
         if head_branch not in stabilization_branches:
             _LOGGER.info(
@@ -175,7 +188,9 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
     ) -> module.TransversalDashboardOutput:
         """Return the transversal dashboard output."""
         if "repository" in context.params:
-            data = utils.format_json(context.status.get(context.params["repository"], {}))
+            data = utils.format_json(
+                context.status.get(context.params["repository"], {}),
+            )
 
             return module.TransversalDashboardOutput(
                 renderer="github_app_geo_project:module/workflow/repository.html",

@@ -64,13 +64,21 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module."""
-        with (Path(__file__).parent / "schema.json").open(encoding="utf-8") as schema_file:
+        with (Path(__file__).parent / "schema.json").open(
+            encoding="utf-8",
+        ) as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("clean")  # type: ignore[no-any-return]
 
-    def get_actions(self, context: module.GetActionContext) -> list[module.Action[_ActionData]]:
+    def get_actions(
+        self,
+        context: module.GetActionContext,
+    ) -> list[module.Action[_ActionData]]:
         """Get the action related to the module and the event."""
-        if context.event_name == "pull_request":
-            event_data_pull_request = githubkit.webhooks.parse_obj("pull_request", context.event_data)
+        if context.module_event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
             if event_data_pull_request.action == "closed":
                 return [
                     module.Action(
@@ -84,8 +92,11 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                         priority=module.PRIORITY_CRON,
                     ),
                 ]
-        if context.event_name == "delete":
-            event_data_delete = githubkit.webhooks.parse_obj("delete", context.event_data)
+        if context.module_event_name == "delete":
+            event_data_delete = githubkit.webhooks.parse_obj(
+                "delete",
+                context.github_event_data,
+            )
             if event_data_delete.ref_type == "branch":
                 return [
                     module.Action(
@@ -127,7 +138,9 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 publish_config = cast(
                     "tag_publish.configuration.Configuration",
                     yaml.load(
-                        base64.b64decode(publish_configuration_content.content).decode("utf-8"),
+                        base64.b64decode(publish_configuration_content.content).decode(
+                            "utf-8",
+                        ),
                         Loader=yaml.SafeLoader,
                     ),
                 )
@@ -189,7 +202,11 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                         if host == "docker.io":
                             await self._clean_docker_hub_image(image["name"], tag)
                         else:
-                            await self._clean_ghcr_image(image["name"], tag, context.github_project)
+                            await self._clean_ghcr_image(
+                                image["name"],
+                                tag,
+                                context.github_project,
+                            )
 
     async def _clean_docker_hub_image(self, image: str, tag: str) -> None:
         async with aiohttp.ClientSession() as session:
@@ -230,9 +247,18 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 ) as response,
             ):
                 if not response.ok:
-                    _LOGGER.error("Error on deleting image: docker.io/%s:%s", image, tag)
+                    _LOGGER.error(
+                        "Error on deleting image: docker.io/%s:%s",
+                        image,
+                        tag,
+                    )
 
-    async def _clean_ghcr_image(self, image: str, tag: str, github_project: GithubProject) -> None:
+    async def _clean_ghcr_image(
+        self,
+        image: str,
+        tag: str,
+        github_project: GithubProject,
+    ) -> None:
         image_split = image.split("/", 1)
         async with (
             aiohttp.ClientSession() as session,
@@ -254,7 +280,10 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
         git: configuration.Git,
     ) -> None:
         """Clean the Git repository for the branch we delete."""
-        if git.get("on-type", configuration.ON_TYPE_DEFAULT) not in (context.module_event_data.type, "all"):
+        if git.get("on-type", configuration.ON_TYPE_DEFAULT) not in (
+            context.module_event_data.type,
+            "all",
+        ):
             return
 
         branch = git.get("branch", configuration.BRANCH_DEFAULT)
@@ -264,8 +293,15 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
             # Checkout the right branch on a temporary directory
             with tempfile.TemporaryDirectory() as tmpdirname:
                 cwd = Path(tmpdirname)
-                _LOGGER.debug("Clone the repository in the temporary directory: %s", tmpdirname)
-                new_cwd = await module_utils.git_clone(context.github_project, branch, cwd)
+                _LOGGER.debug(
+                    "Clone the repository in the temporary directory: %s",
+                    tmpdirname,
+                )
+                new_cwd = await module_utils.git_clone(
+                    context.github_project,
+                    branch,
+                    cwd,
+                )
                 if new_cwd is None:
                     _LOGGER.error(
                         "Error on cloning the repository %s/%s",
