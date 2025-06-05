@@ -877,44 +877,50 @@ async def _get_process_one_job(
                 return True
 
             # Very long pending job => error
-            await session.execute(
+            # Calculate the timestamp threshold for marking jobs as error
+            error_threshold = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(
+                seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", "86400")),
+            )
+            result = await session.execute(
                 sqlalchemy.update(models.Queue)
                 .where(
                     models.Queue.status == models.JobStatus.PENDING.name,
-                    models.Queue.created_at
-                    < datetime.datetime.now(tz=datetime.UTC)
-                    - datetime.timedelta(
-                        seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", "86400")),
-                    ),
+                    models.Queue.created_at < error_threshold,
                 )
                 .values(status=models.JobStatus.ERROR.name),
             )
+            affected_rows = result.rowcount
+            if affected_rows:
+                _LOGGER.error(
+                    "Error: %i long started jobs marked as error",
+                    affected_rows,
+                )
 
             # Steal long pending jobs
+            # Calculate the timestamp threshold for stealing long pending jobs
+            steal_threshold = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(
+                seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60,
+            )
             statement = (
                 sqlalchemy.update(models.Queue)
                 .where(
                     models.Queue.status == models.JobStatus.PENDING.name,
-                    models.Queue.started_at
-                    < datetime.datetime.now(tz=datetime.UTC)
-                    - datetime.timedelta(
-                        seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60,
-                    ),
+                    models.Queue.started_at < steal_threshold,
                 )
                 .values(status=models.JobStatus.NEW.name)
             )
-            _LOGGER.debug(
-                "Execute steal long pending job statement: %s\nWith arguments:\n%s",
-                statement,
-                statement.compile().params,
-            )
             result = await session.execute(statement)
             affected_rows = result.rowcount
+            if affected_rows:
+                _LOGGER.warning(
+                    "Steal %i long pending jobs",
+                    affected_rows,
+                )
             _LOGGER.debug(
-                "Process one job (max priority: %i): Steal %i long pending jobs",
+                "Process one job (max priority: %i)",
                 max_priority,
-                affected_rows or 0,
             )
+            await session.commit()
             return True
 
         await _process_one_job(job, session, config, make_pending, max_priority)
