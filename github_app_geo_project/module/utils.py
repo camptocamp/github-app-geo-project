@@ -741,7 +741,7 @@ async def create_pull_request(
         _LOGGER.warning(proc_message)
         return False, None
 
-    pulls = (
+    pull_requests = (
         await github_project.aio_github.rest.pulls.async_list(
             owner=github_project.owner,
             repo=github_project.repository,
@@ -749,9 +749,9 @@ async def create_pull_request(
             head=f"{github_project.owner}:{new_branch}",
         )
     ).parsed_data
-    assert pulls is not None
-    if len(pulls) > 0:
-        pull_request = pulls[0]
+    if pull_requests:
+        assert pull_requests is not None
+        pull_request = pull_requests[0]
         _LOGGER.debug(
             "Found pull request #%s (%s - %s)",
             pull_request.number,
@@ -774,7 +774,8 @@ async def create_pull_request(
                     state="open",
                 )
             ).parsed_data
-            if issues.totalCount > 0:
+            if issues:
+                assert issues is not None
                 for candidate in issues:
                     if title == candidate.title:
                         candidate.create_comment("The pull request is still open.")
@@ -881,20 +882,15 @@ async def close_pull_request_issues(
 
     The 'Pull request is open for 5 days' issue.
     """
-    pulls = (
+    pull_requests = (
         await github_project.aio_github.rest.pulls.async_list(
             owner=github_project.owner,
             repo=github_project.repository,
             state="open",
             head=f"{github_project.owner}:{new_branch}",
-            per_page=1,
         )
     ).parsed_data
-    try:
-        pull_request: githubkit.versions.latest.models.PullRequestSimple = next(pulls)
-    except StopIteration:
-        pass
-    else:
+    for pull_request in pull_requests:  # type: ignore[attr-defined]
         await github_project.aio_github.rest.pulls.async_update(
             owner=github_project.owner,
             repo=github_project.repository,
@@ -902,6 +898,7 @@ async def close_pull_request_issues(
             state="closed",
         )
 
+    if pull_requests:
         await github_project.aio_github.rest.git.async_delete_ref(
             owner=github_project.owner,
             repo=github_project.repository,
