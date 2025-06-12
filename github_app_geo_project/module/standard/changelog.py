@@ -466,7 +466,7 @@ async def generate_changelog(
                         authors.add(
                             Author(commit_.author.login, commit_.author.html_url),
                         )
-                await github_project.aio_github.rest.issues.async_update(
+                await github_project.aio_github.rest.pulls.async_update(
                     github_project.owner,
                     github_project.repository,
                     pull_request.number,
