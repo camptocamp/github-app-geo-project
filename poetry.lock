@@ -4373,14 +4373,14 @@ pbr = ">=2.0.0"
 
 [[package]]
 name = "tag-publish"
-version = "1.1.0"
+version = "1.1.1"
 description = "Tools used to publish Python packages, Docker images and Helm charts for GitHub tag and branch"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "tag_publish-1.1.0-py3-none-any.whl", hash = "sha256:ab1f620d7983e91cc57c89a46ea11cde0fc66b7068444aecca03b8a448354058"},
-    {file = "tag_publish-1.1.0.tar.gz", hash = "sha256:0bc4d4ee64987e39df71bc483283be4001e5aed8cc1a71f43be831c6a68054b2"},
+    {file = "tag_publish-1.1.1-py3-none-any.whl", hash = "sha256:c68a1417b306275265a4d0ec7d33e4956e313ab4a5907971603cf26002a6e4f2"},
+    {file = "tag_publish-1.1.1.tar.gz", hash = "sha256:7dde9b93778471c8554f487c1c0468c235b3375c7e35d721960986acefba661b"},
 ]
 
 [package.dependencies]
@@ -5171,4 +5171,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "313c6823b2ed6e76776b76d17a7e1750750c9a8f64f2f5395dbbc9fe5180a8fe"
+content-hash = "36e5d2ae3612829388a6f822c9ccb6ad4d7abccff74e7237d6c114bcc22c74f6"
