@@ -243,10 +243,10 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libpthread-stubs0-dev: 0.4-1build3
   ubuntu_24_04/libpython3-dev: 3.12.3-0ubuntu2
   ubuntu_24_04/libpython3-stdlib: 3.12.3-0ubuntu2
-  ubuntu_24_04/libpython3.12-dev: 3.12.3-1ubuntu0.5
-  ubuntu_24_04/libpython3.12-minimal: 3.12.3-1ubuntu0.5
-  ubuntu_24_04/libpython3.12-stdlib: 3.12.3-1ubuntu0.5
-  ubuntu_24_04/libpython3.12t64: 3.12.3-1ubuntu0.5
+  ubuntu_24_04/libpython3.12-dev: 3.12.3-1ubuntu0.6
+  ubuntu_24_04/libpython3.12-minimal: 3.12.3-1ubuntu0.6
+  ubuntu_24_04/libpython3.12-stdlib: 3.12.3-1ubuntu0.6
+  ubuntu_24_04/libpython3.12t64: 3.12.3-1ubuntu0.6
   ubuntu_24_04/libquadmath0: 14.2.0-4ubuntu2~24.04
   ubuntu_24_04/libreadline8t64: 8.2-4build1
   ubuntu_24_04/librsvg2-2: 2.58.0+dfsg-1build1
@@ -363,10 +363,10 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/python3-setuptools-whl: 68.1.2-2ubuntu1.2
   ubuntu_24_04/python3-venv: 3.12.3-0ubuntu2
   ubuntu_24_04/python3-wheel: 0.42.0-2
-  ubuntu_24_04/python3.12: 3.12.3-1ubuntu0.5
-  ubuntu_24_04/python3.12-dev: 3.12.3-1ubuntu0.5
-  ubuntu_24_04/python3.12-minimal: 3.12.3-1ubuntu0.5
-  ubuntu_24_04/python3.12-venv: 3.12.3-1ubuntu0.5
+  ubuntu_24_04/python3.12: 3.12.3-1ubuntu0.6
+  ubuntu_24_04/python3.12-dev: 3.12.3-1ubuntu0.6
+  ubuntu_24_04/python3.12-minimal: 3.12.3-1ubuntu0.6
+  ubuntu_24_04/python3.12-venv: 3.12.3-1ubuntu0.6
   ubuntu_24_04/readline-common: 8.2-4build1
   ubuntu_24_04/rpcsvc-proto: 1.4.2-0ubuntu7
   ubuntu_24_04/runc: 1.2.5-0ubuntu1~24.04.1
