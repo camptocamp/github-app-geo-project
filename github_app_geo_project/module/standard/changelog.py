@@ -198,6 +198,13 @@ def get_section(
         if match(item, group_condition["condition"]):
             group = group_condition["section"]
             if not group_condition.get("continue", False):
+                _LOGGER.debug(
+                    "Matched item %s (%s) in the section %s with the condition %s",
+                    item.ref,
+                    item.title,
+                    group_condition["section"],
+                    group_condition["name"],
+                )
                 return group, MatchedItem(item, group_condition.get("name", str(index)))
     return group, MatchedItem(item, "default")
 
@@ -466,12 +473,19 @@ async def generate_changelog(
                         authors.add(
                             Author(commit_.author.login, commit_.author.html_url),
                         )
-                await github_project.aio_github.rest.pulls.async_update(
-                    github_project.owner,
-                    github_project.repository,
-                    pull_request.number,
-                    data={"milestone": milestone.number},
-                )
+                if pull_request.milestone is None:
+                    _LOGGER.debug(
+                        "Adding milestone %s to pull request #%s on repository %s",
+                        milestone.title,
+                        pull_request.number,
+                        repository,
+                    )
+                    await github_project.aio_github.rest.pulls.async_update(
+                        github_project.owner,
+                        github_project.repository,
+                        pull_request.number,
+                        data={"milestone": milestone.number},
+                    )
 
                 files = (
                     await github_project.aio_github.rest.pulls.async_list_files(
