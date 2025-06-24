@@ -121,7 +121,7 @@ authors = [{name = "Stéphane Brunner",email = "stephane.brunner@camptocamp.com"
 packages = [{ include = "github_app_geo_project" }]
 include = ["github_app_geo_project/py.typed"]
 requires-python = ">=3.11"
-dependencies = ["c2cwsgiutils[debug,dev,standard]", "c2cciutils", "security-md", "pyramid-mako", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aioresponses", "pytest-asyncio", "cryptography", "urllib3 (==2.5.0)", "certifi", "sentry-sdk", "webob", "waitress", "lxml-html-clean", "tag-publish", "aiohttp", "aiofiles", "githubkit[auth-app]", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "requests==2.32.4"]
+dependencies = ["c2cwsgiutils[debug,dev,standard]", "c2cciutils", "security-md", "pyramid-mako", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aioresponses", "pytest-asyncio", "cryptography", "urllib3", "certifi", "sentry-sdk", "webob", "waitress", "lxml-html-clean", "tag-publish", "aiohttp", "aiofiles", "githubkit[auth-app]", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "requests==2.32.4"]
 
 [project.urls]
 repository = "https://github.com/camptocamp/github-app-geo-project"
