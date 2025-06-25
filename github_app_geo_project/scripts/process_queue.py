@@ -681,12 +681,21 @@ async def _process_job(
                 issue_full_data,
             )
             if github_project is not None:
-                await github_project.aio_github.rest.issues.async_update(
-                    owner=job.owner,
-                    repo=job.repository,
-                    issue_number=dashboard_issue.number,
-                    body=issue_full_data,
-                )
+                try:
+                    await github_project.aio_github.rest.issues.async_update(
+                        owner=job.owner,
+                        repo=job.repository,
+                        issue_number=dashboard_issue.number,
+                        body=issue_full_data,
+                    )
+                except githubkit.exception.RequestFailed as error:
+                    _LOGGER.warning(
+                        "Failed to update issue %s on repository %s/%s: %s",
+                        dashboard_issue.number,
+                        job.owner,
+                        job.repository,
+                        error,
+                    )
         elif new_issue_data and os.environ.get(
             "GHCI_CREATE_DASHBOARD_ISSUE",
             "1",

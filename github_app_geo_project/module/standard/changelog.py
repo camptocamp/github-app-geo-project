@@ -480,12 +480,21 @@ async def generate_changelog(
                         pull_request.number,
                         repository,
                     )
-                    await github_project.aio_github.rest.issues.async_update(
-                        github_project.owner,
-                        github_project.repository,
-                        pull_request.number,
-                        data={"milestone": milestone.number},
-                    )
+                    try:
+                        await github_project.aio_github.rest.issues.async_update(
+                            github_project.owner,
+                            github_project.repository,
+                            pull_request.number,
+                            data={"milestone": milestone.number},
+                        )
+                    except githubkit.exception.RequestFailed as error:
+                        _LOGGER.warning(
+                            "Failed to add milestone %s to pull request #%s on repository %s: %s",
+                            milestone.title,
+                            pull_request.number,
+                            repository,
+                            error,
+                        )
 
                 files = (
                     await github_project.aio_github.rest.pulls.async_list_files(
