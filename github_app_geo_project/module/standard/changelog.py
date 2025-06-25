@@ -199,7 +199,7 @@ def get_section(
             group = group_condition["section"]
             if not group_condition.get("continue", False):
                 _LOGGER.debug(
-                    "Matched item %s (%s) in the section %s with the condition %s",
+                    "Matched item %s (%s) in the section <script>%s</script> with the condition '%s'",
                     item.ref,
                     item.title,
                     group_condition["section"],
@@ -480,7 +480,7 @@ async def generate_changelog(
                         pull_request.number,
                         repository,
                     )
-                    await github_project.aio_github.rest.pulls.async_update(
+                    await github_project.aio_github.rest.issues.async_update(
                         github_project.owner,
                         github_project.repository,
                         pull_request.number,
