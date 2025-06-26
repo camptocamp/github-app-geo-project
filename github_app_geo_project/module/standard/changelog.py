@@ -807,18 +807,20 @@ class Changelog(
             ):
                 return module.ProcessOutput()
 
-            prerelease = False
+            latest = False
             try:
                 latest_release = await context.github_project.aio_github.rest.repos.async_get_latest_release(
                     context.github_project.owner,
                     context.github_project.repository,
                 )
                 if latest_release is not None:
-                    prerelease = packaging.version.Version(
+                    latest = packaging.version.Version(
                         tag_str,
-                    ) < packaging.version.Version(
+                    ) > packaging.version.Version(
                         latest_release.parsed_data.tag_name,
                     )
+                else:
+                    latest = True
             except githubkit.exception.RequestFailed as exception:
                 if exception.response.status_code != 404:
                     raise
@@ -842,7 +844,7 @@ class Changelog(
                         "tag_name": tag_str,
                         "name": tag_str,
                         "body": "",
-                        "prerelease": prerelease,
+                        "make_latest": "true" if latest else "false",
                     },
                 )
             else:
@@ -854,7 +856,7 @@ class Changelog(
                         "tag_name": tag_str,
                         "name": tag_str,
                         "body": "",
-                        "prerelease": prerelease,
+                        "make_latest": "true" if latest else "false",
                     },
                 )
             return module.ProcessOutput(
