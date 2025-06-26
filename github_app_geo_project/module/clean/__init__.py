@@ -310,9 +310,24 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     )
                     exception_message = "Failed to clone the repository"
                     raise CleanError(exception_message)
+
                 cwd = new_cwd
 
-                command = ["git", "rm", folder]
+                if not (cwd / folder).exists():
+                    _LOGGER.info(
+                        "The folder '%s' does not exist in the branch '%s', nothing to do",
+                        folder,
+                        branch,
+                    )
+                    continue
+
+                _LOGGER.info(
+                    "Cleaning the folder '%s' in the branch '%s'",
+                    folder,
+                    branch,
+                )
+
+                command = ["git", "rm", "-r", folder]
                 proc = await asyncio.create_subprocess_exec(
                     *command,
                     stdout=asyncio.subprocess.PIPE,
@@ -349,25 +364,25 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                         stdout,
                         stderr,
                     )
-            command = [
-                "git",
-                "push",
-                *(["--force"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
-                "origin",
-                branch,
-            ]
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
-            )
-            async with asyncio.timeout(60):
-                stdout, stderr = await proc.communicate()
-            if proc.returncode != 0:
-                raise subprocess.CalledProcessError(
-                    proc.returncode if proc.returncode is not None else -999,
-                    command,
-                    stdout,
-                    stderr,
+                command = [
+                    "git",
+                    "push",
+                    *(["--force"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
+                    "origin",
+                    branch,
+                ]
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd,
                 )
+                async with asyncio.timeout(60):
+                    stdout, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        proc.returncode if proc.returncode is not None else -999,
+                        command,
+                        stdout,
+                        stderr,
+                    )
