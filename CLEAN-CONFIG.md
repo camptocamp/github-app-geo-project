@@ -9,3 +9,4 @@
       - <a id="properties/clean/properties/git/items/properties/on-type"></a>**`on-type`** _(string)_: feature_branch, pull_request or all. Must be one of: `["feature_branch", "pull_request", "all"]`. Default: `"all"`.
       - <a id="properties/clean/properties/git/items/properties/branch"></a>**`branch`** _(string)_: The branch on witch one the folder will be cleaned. Default: `"gh-pages"`.
       - <a id="properties/clean/properties/git/items/properties/folder"></a>**`folder`** _(string)_: The folder to be cleaned, can contains {name}, that will be replaced with the branch name or pull request number. Default: `"{name}"`.
+      - <a id="properties/clean/properties/git/items/properties/amend"></a>**`amend`** _(boolean)_: If true, the commit will be amended instead of creating a new one. Default: `false`.

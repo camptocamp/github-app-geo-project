@@ -328,12 +328,12 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                         stdout,
                         stderr,
                     )
-                command = [
-                    "git",
-                    "commit",
-                    "-m",
-                    f"Delete {folder} to clean {context.module_event_data.type} {name}",
-                ]
+                commit_args = (
+                    ["--amend", "--no-edit"]
+                    if git.get("amend", configuration.AMEND_DEFAULT)
+                    else ["-m", f"Delete {folder} to clean {context.module_event_data.type} {name}"]
+                )
+                command = ["git", "commit", *commit_args]
                 proc = await asyncio.create_subprocess_exec(
                     *command,
                     stdout=asyncio.subprocess.PIPE,
@@ -349,7 +349,13 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                         stdout,
                         stderr,
                     )
-            command = ["git", "push", "origin", branch]
+            command = [
+                "git",
+                "push",
+                *(["--force"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
+                "origin",
+                branch,
+            ]
             proc = await asyncio.create_subprocess_exec(
                 *command,
                 stdout=asyncio.subprocess.PIPE,

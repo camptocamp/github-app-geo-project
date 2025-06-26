@@ -42,6 +42,12 @@
                 "type": "string",
                 "description": "The folder to be cleaned, can contains {name}, that will be replaced with the branch name or pull request number",
                 "default": "{name}"
+              },
+              "amend": {
+                "title": "amend",
+                "type": "boolean",
+                "description": "If true, the commit will be amended instead of creating a new one",
+                "default": false
               }
             }
           }
