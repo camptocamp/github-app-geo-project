@@ -6,6 +6,11 @@ Automatically generated file from a JSON schema.
 from typing import Literal, TypedDict
 
 
+AMEND_DEFAULT = False
+""" Default value of the field path 'git amend' """
+
+
+
 BRANCH_DEFAULT = 'gh-pages'
 """ Default value of the field path 'git branch' """
 
@@ -66,6 +71,12 @@ Git = TypedDict('Git', {
     # | 
     # | default: {name}
     'folder': str,
+    # | amend.
+    # | 
+    # | If true, the commit will be amended instead of creating a new one
+    # | 
+    # | default: False
+    'amend': bool,
 }, total=False)
 
 
