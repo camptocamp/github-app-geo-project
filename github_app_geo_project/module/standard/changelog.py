@@ -789,6 +789,12 @@ class Changelog(
             existing_labels = {label.name for label in labels}
             for label, config in context.module_config.get("labels", {}).items():
                 if label not in existing_labels:
+                    _LOGGER.info(
+                        "Creating label '%s' on repository %s (not in existing labels %s)",
+                        label,
+                        repository,
+                        "', '".join(sorted(existing_labels)),
+                    )
                     await context.github_project.aio_github.rest.issues.async_create_label(
                         context.github_project.owner,
                         context.github_project.repository,
