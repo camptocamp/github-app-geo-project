@@ -4,7 +4,6 @@
 
 - <a id="properties/additional-packages"></a>**`additional-packages`** _(object)_: The additional packages to be added to the versions.
 - <a id="properties/external-packages"></a>**`external-packages`** _(array)_
-
   - <a id="properties/external-packages/items"></a>**Items** _(object)_: Cannot contain additional properties.
     - <a id="properties/external-packages/items/properties/package"></a>**`package`** _(string, required)_: The name of the package from https://endoflife.date.
     - <a id="properties/external-packages/items/properties/datasource"></a>**`datasource`** _(string, required)_: The datasource of the dependencies.
