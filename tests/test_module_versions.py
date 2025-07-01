@@ -1036,31 +1036,33 @@ async def test_update_upstream_versions() -> None:
             status=200,
         )
 
-        await _update_upstream_versions(context, _IntermediateStatus(step=1))
+        module = Versions()
+        intermediate_status = _IntermediateStatus(step=1)
+        await _update_upstream_versions(context, intermediate_status)
+        transversal_status = _TransversalStatus()
+        await module.update_transversal_status(context, intermediate_status, transversal_status)
 
-        assert list(context.transversal_status.updated.keys()) == [
+        for package in (
             "endoflife.date/package1",
             "endoflife.date/package2",
-        ]
-        assert list(context.transversal_status.repositories.keys()) == [
-            "endoflife.date/package1",
-            "endoflife.date/package2",
-        ]
+        ):
+            assert package in transversal_status.updated
+            assert package in transversal_status.repositories
         assert (
-            context.transversal_status.repositories["endoflife.date/package1"].url
+            transversal_status.repositories["endoflife.date/package1"].url
             == "https://endoflife.date/package1"
         )
         assert (
-            context.transversal_status.repositories["endoflife.date/package2"].url
+            transversal_status.repositories["endoflife.date/package2"].url
             == "https://endoflife.date/package2"
         )
-        assert context.transversal_status.repositories["endoflife.date/package1"].versions == {
+        assert transversal_status.repositories["endoflife.date/package1"].versions == {
             "1.0": _TransversalStatusVersion(
                 support="2038-12-31",
                 names_by_datasource={"datasource1": _TransversalStatusNameByDatasource(names=["package1"])},
             ),
         }
-        assert context.transversal_status.repositories["endoflife.date/package2"].versions == {
+        assert transversal_status.repositories["endoflife.date/package2"].versions == {
             "v1.0": _TransversalStatusVersion(
                 support="2038-12-31",
                 names_by_datasource={"datasource2": _TransversalStatusNameByDatasource(names=["package2"])},
