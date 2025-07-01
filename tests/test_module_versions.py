@@ -1008,6 +1008,7 @@ def test_canonical_minor_version(datasource, version, expected) -> None:
     assert result == expected
 
 
+@pytest.mark.asyncio
 async def test_update_upstream_versions() -> None:
     with aioresponses() as responses:
         context = Mock()
