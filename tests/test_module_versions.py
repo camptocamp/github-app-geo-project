@@ -1036,7 +1036,7 @@ async def test_update_upstream_versions() -> None:
             status=200,
         )
 
-        await _update_upstream_versions(context)
+        await _update_upstream_versions(context, _IntermediateStatus(step=1))
 
         assert list(context.transversal_status.updated.keys()) == [
             "endoflife.date/package1",
