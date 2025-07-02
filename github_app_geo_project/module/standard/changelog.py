@@ -779,14 +779,14 @@ class Changelog(
             "create-labels",
             changelog_configuration.CREATE_LABELS_DEFAULT,
         ):
-            labels = (
-                await context.github_project.aio_github.rest.issues.async_list_labels_for_repo(
-                    context.github_project.owner,
-                    context.github_project.repository,
+            existing_labels = {  # type: ignore[var-annotated]
+                github_label.name
+                async for github_label in context.github_project.aio_github.rest.paginate(
+                    context.github_project.aio_github.rest.issues.async_list_labels_for_repo,
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
                 )
-            ).parsed_data
-            assert labels is not None
-            existing_labels = {label.name for label in labels}
+            }
             for label, config in context.module_config.get("labels", {}).items():
                 if label not in existing_labels:
                     _LOGGER.info(
