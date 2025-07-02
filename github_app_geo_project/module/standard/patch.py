@@ -179,6 +179,9 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
 
                     with diff.open(diff.namelist()[0]) as file:
                         patch_input = file.read().decode("utf-8")
+                        if not patch_input.strip():
+                            _LOGGER.info("Empty patch input in artifact %s", artifact.name)
+                            continue
                         message: module_utils.Message = module_utils.HtmlMessage(
                             patch_input,
                             "Applied the patch input",
