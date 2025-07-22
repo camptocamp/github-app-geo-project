@@ -133,8 +133,8 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libgd3: 2.3.3-9ubuntu5
   ubuntu_24_04/libgdbm-compat4t64: 1.23-5.1build1
   ubuntu_24_04/libgdbm6t64: 1.23-5.1build1
-  ubuntu_24_04/libgdk-pixbuf-2.0-0: 2.42.10+dfsg-3ubuntu3.1
-  ubuntu_24_04/libgdk-pixbuf2.0-common: 2.42.10+dfsg-3ubuntu3.1
+  ubuntu_24_04/libgdk-pixbuf-2.0-0: 2.42.10+dfsg-3ubuntu3.2
+  ubuntu_24_04/libgdk-pixbuf2.0-common: 2.42.10+dfsg-3ubuntu3.2
   ubuntu_24_04/libgirepository-2.0-0: 2.80.0-6ubuntu3.4
   ubuntu_24_04/libglib2.0-0t64: 2.80.0-6ubuntu3.4
   ubuntu_24_04/libglib2.0-bin: 2.80.0-6ubuntu3.4
