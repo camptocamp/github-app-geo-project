@@ -169,23 +169,23 @@ async def process_event(
                         .where(models.Queue.module == name)
                     )
                     for key in jobs_unique_on:
-                        if key == "priority":
+                        if key == module.Fields.PRIORITY:
                             update = update.where(models.Queue.priority == priority)
-                        elif key == "owner":
+                        elif key == module.Fields.OWNER:
                             update = update.where(models.Queue.owner == owner)
-                        elif key == "repository":
+                        elif key == module.Fields.REPOSITORY:
                             update = update.where(
                                 models.Queue.repository == repository,
                             )
-                        elif key == "github_event_name":
+                        elif key == module.Fields.GITHUB_EVENT_NAME:
                             update = update.where(
                                 models.Queue.github_event_name == github_event_name,
                             )
-                        elif key == "module_event_name":
+                        elif key == module.Fields.MODULE_EVENT_NAME:
                             update = update.where(
                                 models.Queue.module_event_name == module_event_name,
                             )
-                        elif key == "github_event_data":
+                        elif key == module.Fields.GITHUB_EVENT_DATA:
                             update = update.where(
                                 sqlalchemy.cast(
                                     models.Queue.github_event_data,
@@ -193,7 +193,7 @@ async def process_event(
                                 )
                                 == context.github_event_data,
                             )
-                        elif key == "module_event_data":
+                        elif key == module.Fields.MODULE_EVENT_DATA:
                             update = update.where(
                                 sqlalchemy.cast(
                                     models.Queue.module_event_data,

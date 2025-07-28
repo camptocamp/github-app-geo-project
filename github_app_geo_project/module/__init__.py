@@ -4,6 +4,7 @@ import json
 import logging
 from abc import abstractmethod
 from collections.abc import Mapping
+from enum import Enum
 from types import GenericAlias
 from typing import Any, Generic, Literal, NamedTuple, NotRequired, TypedDict, TypeVar
 
@@ -324,6 +325,18 @@ class TransversalDashboardOutput(NamedTuple):
     data: dict[str, Any]
 
 
+class Fields(Enum):
+    """Fields enum."""
+
+    PRIORITY = "priority"
+    OWNER = "owner"
+    REPOSITORY = "repository"
+    GITHUB_EVENT_NAME = "github_event_name"
+    MODULE_EVENT_NAME = "module_event_name"
+    GITHUB_EVENT_DATA = "github_event_data"
+    MODULE_EVENT_DATA = "module_event_data"
+
+
 class Module(
     Generic[_CONFIGURATION, _EVENT_DATA, _TRANSVERSAL_STATUS, _INTERMEDIATE_STATUS],
 ):
@@ -341,7 +354,7 @@ class Module(
         """Get the URL to the documentation page of the module."""
         return ""
 
-    def jobs_unique_on(self) -> list[str] | None:
+    def jobs_unique_on(self) -> list[Fields] | None:
         """
         Return the list of fields that should be unique for the jobs.
 

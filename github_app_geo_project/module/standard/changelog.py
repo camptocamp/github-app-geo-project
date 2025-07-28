@@ -619,9 +619,9 @@ class Changelog(
         """Get the URL to the documentation page of the module."""
         return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Changelog"
 
-    def jobs_unique_on(self) -> list[str] | None:
+    def jobs_unique_on(self) -> list[module.Fields] | None:
         """Indicate fields used to ship other jobs."""
-        return ["repository", "owner", "module_data"]
+        return [module.Fields.REPOSITORY, module.Fields.OWNER, module.Fields.MODULE_EVENT_NAME]
 
     def get_actions(
         self,
