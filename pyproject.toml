@@ -50,17 +50,17 @@ markdownify = "1.1.0"
 cryptography = "45.0.5"
 urllib3 = "2.5.0"
 certifi = "2025.7.14"
-sentry-sdk = "2.32.0"
+sentry-sdk = "2.34.1"
 webob = "1.8.9"
 waitress = "3.0.2"
 lxml-html-clean = "0.4.2"
 tag-publish = "1.1.1"
-aiohttp = "3.12.13"
+aiohttp = "3.12.15"
 aiofiles = "24.1.0"
-githubkit = { version = "0.12.15", extras = ["auth-app"] }
+githubkit = { version = "0.13.0", extras = ["auth-app"] }
 deprecated = "1.2.18"
 aiomonitor = "0.7.1"
-sqlalchemy = {extras = ["asyncio"], version = "2.0.41"}
+sqlalchemy = {extras = ["asyncio"], version = "2.0.42"}
 asyncpg = "0.30.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -69,14 +69,14 @@ prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"]
 prospector-profile-duplicated = "1.10.5"
 prospector-profile-utils = "1.25.0"
 pytest = "8.4.1"
-pytest-asyncio = "1.0.0"
+pytest-asyncio = "1.1.0"
 aioresponses = "0.7.8"
 WebTest = "3.0.6"
 types-pyyaml = "6.0.12.20250516"
 types-setuptools = "80.9.0.20250529"
-types-markdown = "3.8.0.20250415"
+types-markdown = "3.8.0.20250708"
 types-requests = "2.32.4.20250611"
-types-aiofiles = "24.1.0.20250606"
+types-aiofiles = "24.1.0.20250708"
 types-deprecated = "1.2.15.20250304"
 
 [tool.poetry-dynamic-versioning]
