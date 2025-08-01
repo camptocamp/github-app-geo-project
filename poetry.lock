@@ -4612,14 +4612,14 @@ keyring = ["keyring (>=15.1)"]
 
 [[package]]
 name = "types-aiofiles"
-version = "24.1.0.20250708"
+version = "24.1.0.20250801"
 description = "Typing stubs for aiofiles"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "types_aiofiles-24.1.0.20250708-py3-none-any.whl", hash = "sha256:07f8f06465fd415d9293467d1c66cd074b2c3b62b679e26e353e560a8cf63720"},
-    {file = "types_aiofiles-24.1.0.20250708.tar.gz", hash = "sha256:c8207ed7385491ce5ba94da02658164ebd66b69a44e892288c9f20cbbf5284ff"},
+    {file = "types_aiofiles-24.1.0.20250801-py3-none-any.whl", hash = "sha256:0f3bdb3384ae5b3425644a2e56e414b7c2791b23079e639a2c2914b0b85c3ecf"},
+    {file = "types_aiofiles-24.1.0.20250801.tar.gz", hash = "sha256:050d85e662eba7be4dd2a66a7d6ccd4ff779a3a89361603393ed16ba30d12457"},
 ]
 
 [[package]]
@@ -4675,14 +4675,14 @@ urllib3 = ">=2"
 
 [[package]]
 name = "types-setuptools"
-version = "80.9.0.20250529"
+version = "80.9.0.20250801"
 description = "Typing stubs for setuptools"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "types_setuptools-80.9.0.20250529-py3-none-any.whl", hash = "sha256:00dfcedd73e333a430e10db096e4d46af93faf9314f832f13b6bbe3d6757e95f"},
-    {file = "types_setuptools-80.9.0.20250529.tar.gz", hash = "sha256:79e088ba0cba2186c8d6499cbd3e143abb142d28a44b042c28d3148b1e353c91"},
+    {file = "types_setuptools-80.9.0.20250801-py3-none-any.whl", hash = "sha256:ec908f825134af3964932e6b011dce90f54c291015139cd9cdf79741b7d31b3c"},
+    {file = "types_setuptools-80.9.0.20250801.tar.gz", hash = "sha256:e1e92682fa07226415396bb4e2d31f116a16ffbe583b05b01f9910fcdea3b7e8"},
 ]
 
 [[package]]
@@ -5227,4 +5227,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "de8e72f55ca7f12a2c0e9c55d9afac1737dae097b88a2457b80599adb5712e54"
+content-hash = "69bc1ba4858d5fefc039537c61caf78e53b59e3fa1f97b30d4a2c2a6ea8efbb5"
