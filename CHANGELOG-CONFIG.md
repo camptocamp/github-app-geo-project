@@ -26,12 +26,10 @@
             - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/0/properties/type"></a>**`type`** _(string)_: The type of the condition. Must be: `"const"`.
             - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/0/properties/value"></a>**`value`** _(boolean)_: The value of the condition.
           - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/1"></a>_object_: Cannot contain additional properties.
-            - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/1/properties/type"></a>**`type`** _(string)_: The type of the condition. Must be one of: `["and", "or"]`.
+            - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/1/properties/type"></a>**`type`** _(string)_: The type of the condition. Must be one of: "and" or "or".
             - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/1/properties/conditions"></a>**`conditions`** _(array)_: The value of the conditions.
-              - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/1/properties/conditions/items"></a>**Items**
           - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/2"></a>_object_: Cannot contain additional properties.
-            - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/2/properties/type"></a>**`type`** _(string)_: The type of the condition. Must be one of: `["not"]`.
-            - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/2/properties/condition"></a>**`condition`**
+            - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/2/properties/type"></a>**`type`** _(string)_: The type of the condition. Must be one of: "not".
           - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/3"></a>_object_: Cannot contain additional properties.
             - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/3/properties/type"></a>**`type`** _(string)_: The type of the condition. Must be: `"label"`.
             - <a id="properties/changelog/properties/routing/items/properties/condition/oneOf/3/properties/value"></a>**`value`** _(string)_: The value of the label.

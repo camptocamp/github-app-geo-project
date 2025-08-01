@@ -9,4 +9,4 @@
     - <a id="properties/rules/items/properties/actor"></a>**`actor`** _(string)_
     - <a id="properties/rules/items/properties/branch"></a>**`branch`** _(string)_
     - <a id="properties/rules/items/properties/event"></a>**`event`** _(string)_
-    - <a id="properties/rules/items/properties/status"></a>**`status`** _(string)_: Must be one of: `["completed", "action_required", "cancelled", "failure", "neutral", "skipped", "stale", "success", "timed_out", "in_progress", "queued", "requested", "waiting", "pending"]`.
+    - <a id="properties/rules/items/properties/status"></a>**`status`** _(string)_: Must be one of: "completed", "action_required", "cancelled", "failure", "neutral", "skipped", "stale", "success", "timed_out", "in_progress", "queued", "requested", "waiting", or "pending".
