@@ -313,6 +313,27 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
 
                 cwd = new_cwd
 
+                try:
+                    command = ["tree"]
+                    tree_proc = await asyncio.create_subprocess_exec(
+                        *command,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        cwd=cwd,
+                    )
+                    async with asyncio.timeout(10):
+                        stdout, stderr = await tree_proc.communicate()
+                        message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                            command,
+                            tree_proc,
+                            stdout,
+                            stderr,
+                        )
+                        message.title = "Repository tree"
+                        _LOGGER.debug(message)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    _LOGGER.exception("Error while running 'tree' command")
+
                 if not (cwd / folder).exists():
                     _LOGGER.info(
                         "The folder '%s' does not exist in the branch '%s', nothing to do",
