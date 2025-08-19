@@ -950,7 +950,7 @@ async def git_clone(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(300):
+    async with asyncio.timeout(600):
         stdout, stderr = await proc.communicate()
     message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     if proc.returncode != 0:
