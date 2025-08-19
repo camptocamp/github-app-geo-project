@@ -67,7 +67,7 @@ asyncpg = "0.30.0"
 c2cwsgiutils = { version = "6.1.7",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.17.3" }
 prospector-profile-duplicated = "1.10.5"
-prospector-profile-utils = "1.25.0"
+prospector-profile-utils = "1.26.0"
 pytest = "8.4.1"
 pytest-asyncio = "1.1.0"
 aioresponses = "0.7.8"
