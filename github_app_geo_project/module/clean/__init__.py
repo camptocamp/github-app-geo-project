@@ -377,7 +377,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     stderr=asyncio.subprocess.PIPE,
                     cwd=cwd,
                 )
-                async with asyncio.timeout(10):
+                async with asyncio.timeout(60):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(
