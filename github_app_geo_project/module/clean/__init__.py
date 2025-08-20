@@ -287,31 +287,32 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
             return
 
         branch = git.get("branch", configuration.BRANCH_DEFAULT)
-        for name in context.module_event_data.names:
-            folder = git.get("folder", configuration.FOLDER_DEFAULT).format(name=name)
 
-            # Checkout the right branch on a temporary directory
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                cwd = Path(tmpdirname)
-                _LOGGER.debug(
-                    "Clone the repository in the temporary directory: %s",
-                    tmpdirname,
+        # Checkout the right branch on a temporary directory
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            cwd = Path(tmpdirname)
+            _LOGGER.debug(
+                "Clone the repository in the temporary directory: %s",
+                tmpdirname,
+            )
+            new_cwd = await module_utils.git_clone(
+                context.github_project,
+                branch,
+                cwd,
+            )
+            if new_cwd is None:
+                _LOGGER.error(
+                    "Error on cloning the repository %s/%s",
+                    context.github_project.owner,
+                    context.github_project.repository,
                 )
-                new_cwd = await module_utils.git_clone(
-                    context.github_project,
-                    branch,
-                    cwd,
-                )
-                if new_cwd is None:
-                    _LOGGER.error(
-                        "Error on cloning the repository %s/%s",
-                        context.github_project.owner,
-                        context.github_project.repository,
-                    )
-                    exception_message = "Failed to clone the repository"
-                    raise CleanError(exception_message)
+                exception_message = "Failed to clone the repository"
+                raise CleanError(exception_message)
 
-                cwd = new_cwd
+            cwd = new_cwd
+
+            for name in context.module_event_data.names:
+                folder = git.get("folder", configuration.FOLDER_DEFAULT).format(name=name)
 
                 try:
                     command = ["tree"]
@@ -385,25 +386,25 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                         stdout,
                         stderr,
                     )
-                command = [
-                    "git",
-                    "push",
-                    *(["--force"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
-                    "origin",
-                    branch,
-                ]
-                proc = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=cwd,
+            command = [
+                "git",
+                "push",
+                *(["--force"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
+                "origin",
+                branch,
+            ]
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+            async with asyncio.timeout(60):
+                stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    proc.returncode if proc.returncode is not None else -999,
+                    command,
+                    stdout,
+                    stderr,
                 )
-                async with asyncio.timeout(60):
-                    stdout, stderr = await proc.communicate()
-                if proc.returncode != 0:
-                    raise subprocess.CalledProcessError(
-                        proc.returncode if proc.returncode is not None else -999,
-                        command,
-                        stdout,
-                        stderr,
-                    )
