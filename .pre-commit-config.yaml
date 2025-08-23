@@ -39,7 +39,7 @@ repos:
         args:
           - --pytest-test-first
   - repo: https://github.com/sbrunner/hooks
-    rev: 1.6.0
+    rev: 1.6.1
     hooks:
       - id: poetry2-lock
         additional_dependencies:
