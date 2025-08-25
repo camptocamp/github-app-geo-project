@@ -755,7 +755,7 @@ async def _get_packages_version(
     local_config: configuration.DpkgConfiguration,
 ) -> str | None:
     """Get the version of the package."""
-    global _GENERATION_TIME  # pylint: disable=global-statement
+    global _GENERATION_TIME  # noqa: PLW0603
     if (
         _GENERATION_TIME is None
         or datetime.datetime.now(datetime.UTC)

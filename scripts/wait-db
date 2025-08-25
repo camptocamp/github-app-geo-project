@@ -16,7 +16,7 @@ def _main() -> None:
         while sleep_time < max_sleep:
             print(f"Waiting for the DataBase server '{db}' to be reachable")
             try:
-                connection = psycopg2.connect(  # nosec
+                connection = psycopg2.connect(
                     host=db,
                     password="postgresql",  # noqa: S106
                     user="postgresql",
@@ -25,7 +25,7 @@ def _main() -> None:
                 cursor = connection.cursor()
                 cursor.execute("SELECT 1")
                 break
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as e:  # noqa: BLE001
                 print(str(e))
                 time.sleep(sleep_time)
                 sleep_time *= 2

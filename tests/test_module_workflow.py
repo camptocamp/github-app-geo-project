@@ -269,7 +269,7 @@ async def test_process_failure() -> None:
                 "runner_group_name": "my runner group",
                 "workflow_name": "CI",
                 "head_branch": "main",
-            }
+            },
         ],
     }
     actions.async_list_jobs_for_workflow_run.return_value = actions_response

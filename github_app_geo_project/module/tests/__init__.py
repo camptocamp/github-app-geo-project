@@ -1,7 +1,7 @@
 import asyncio
 import logging
-import os
 import subprocess
+from pathlib import Path
 from typing import Any
 
 import yaml
@@ -71,8 +71,9 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
         """
         result = {}
         try:
-            if os.path.exists("/tmp/test-result.yaml"):
-                with open("/tmp/test-result.yaml", encoding="utf-8") as file:
+            test_result_path = Path("/tmp/test-result.yaml")
+            if test_result_path.exists():
+                with test_result_path.open(encoding="utf-8") as file:
                     result = yaml.load(file, Loader=yaml.SafeLoader)
 
             type_ = context.module_event_data.type
@@ -85,9 +86,9 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                 _LOGGER.warning("Warning")
                 _LOGGER.error("Error")
                 _LOGGER.critical("Critical")
-                with open("/tmp/test-result.yaml", "w", encoding="utf-8") as file:
+                with test_result_path.open("w", encoding="utf-8") as file:
                     yaml.dump(result, file)
-                raise Exception("Exception")  # pylint: disable=broad-exception-raised
+                raise Exception  # noqa: TRY002
 
             if type_ == "success":
                 result["output-multi-line-id"] = await module_utils.add_output(
@@ -135,13 +136,13 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
             if type_ == "log-json":
                 _LOGGER.info("JSON output:\n%s", utils.format_json({"test1": "value", "test2": "value"}))
 
-            with open("/tmp/test-result.yaml", "w", encoding="utf-8") as file:
+            with test_result_path.open("w", encoding="utf-8") as file:
                 yaml.dump(result, file)
 
             return module.ProcessOutput(updated_transversal_status=True)
 
         finally:
-            with open("/results/test-result.yaml", "w", encoding="utf-8") as file:
+            with Path("/results/test-result.yaml").open("w", encoding="utf-8") as file:
                 file.write(yaml.dump(result))
 
     async def update_transversal_status(

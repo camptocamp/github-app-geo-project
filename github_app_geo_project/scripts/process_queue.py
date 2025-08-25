@@ -1076,7 +1076,7 @@ class _Run:
         empty_thread_sleep = int(os.environ.get("GHCI_EMPTY_THREAD_SLEEP", "10"))
 
         while True:
-            global _LAST_RUN_TIME  # pylint: disable=global-statement
+            global _LAST_RUN_TIME  # noqa: PLW0603
             _LAST_RUN_TIME = time.time()
             empty = True
             try:

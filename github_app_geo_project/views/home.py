@@ -169,7 +169,7 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                 else:
                     application["errors"].append("TEST_APPLICATION is set, no GitHub API call is made.")
                     _LOGGER.error(application["errors"][-1])
-            except Exception as exception:  # pylint: disable=broad-exception-caught
+            except Exception as exception:  # noqa: BLE001
                 application["errors"].append(str(exception))
                 _LOGGER.error(application["errors"][-1], exception)  # noqa: TRY400
 

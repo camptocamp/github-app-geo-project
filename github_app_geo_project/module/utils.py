@@ -230,7 +230,7 @@ class HtmlMessage(Message):
 
     def to_html(self, style: str = "h3") -> str:
         """Convert the ANSI message to HTML."""
-        global _suffix  # pylint: disable=global-statement
+        global _suffix  # noqa: PLW0603
 
         # interpret template parameters
         html = self.html.replace(
