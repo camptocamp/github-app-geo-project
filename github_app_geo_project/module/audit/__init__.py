@@ -338,7 +338,7 @@ async def _process_snyk_dpkg(
             except TimeoutError:
                 try:
                     diff_proc.kill()
-                except:  # pylint: disable=bare-except
+                except:  # noqa: S110
                     pass
                 raise
 

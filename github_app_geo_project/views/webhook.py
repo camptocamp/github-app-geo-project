@@ -73,7 +73,7 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
             assert aio_application is not None
             if isinstance(aio_application.slug, str):
                 _APPLICATIONS_SLUG[application] = aio_application.slug
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:  # noqa: BLE001
             _LOGGER.warning(
                 "Event from the application itself, this can be source of infinite event loop",
             )

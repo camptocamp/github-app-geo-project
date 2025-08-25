@@ -164,7 +164,7 @@ async def test_add_issue_link_2() -> None:
         owner=context.github_project.owner,
         repo=context.github_project.repository,
         pull_number=pull_request.number,
-        body="\n".join(
+        body="\n".join(  # noqa: FLY002
             [
                 "Description of the pull request.",
                 "",
