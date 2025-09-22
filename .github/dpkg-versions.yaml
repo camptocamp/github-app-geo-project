@@ -85,10 +85,10 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libbsd0: 0.12.1-1build1.1
   ubuntu_24_04/libbz2-1.0: 1.0.8-5.1build0.1
   ubuntu_24_04/libbz2-dev: 1.0.8-5.1build0.1
-  ubuntu_24_04/libc-bin: 2.39-0ubuntu8.5
-  ubuntu_24_04/libc-dev-bin: 2.39-0ubuntu8.5
-  ubuntu_24_04/libc6: 2.39-0ubuntu8.5
-  ubuntu_24_04/libc6-dev: 2.39-0ubuntu8.5
+  ubuntu_24_04/libc-bin: 2.39-0ubuntu8.6
+  ubuntu_24_04/libc-dev-bin: 2.39-0ubuntu8.6
+  ubuntu_24_04/libc6: 2.39-0ubuntu8.6
+  ubuntu_24_04/libc6-dev: 2.39-0ubuntu8.6
   ubuntu_24_04/libcairo-gobject2: 1.18.0-3build1
   ubuntu_24_04/libcairo-script-interpreter2: 1.18.0-3build1
   ubuntu_24_04/libcairo2: 1.18.0-3build1
@@ -214,10 +214,10 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libnspr4: 2:4.35-1.1build1
   ubuntu_24_04/libnss3: 2:3.98-1build1
   ubuntu_24_04/libp11-kit0: 0.25.3-4ubuntu2.1
-  ubuntu_24_04/libpam-modules: 1.5.3-5ubuntu5.4
-  ubuntu_24_04/libpam-modules-bin: 1.5.3-5ubuntu5.4
-  ubuntu_24_04/libpam-runtime: 1.5.3-5ubuntu5.4
-  ubuntu_24_04/libpam0g: 1.5.3-5ubuntu5.4
+  ubuntu_24_04/libpam-modules: 1.5.3-5ubuntu5.5
+  ubuntu_24_04/libpam-modules-bin: 1.5.3-5ubuntu5.5
+  ubuntu_24_04/libpam-runtime: 1.5.3-5ubuntu5.5
+  ubuntu_24_04/libpam0g: 1.5.3-5ubuntu5.5
   ubuntu_24_04/libpango-1.0-0: 1.52.1+ds-1build1
   ubuntu_24_04/libpangocairo-1.0-0: 1.52.1+ds-1build1
   ubuntu_24_04/libpangoft2-1.0-0: 1.52.1+ds-1build1
