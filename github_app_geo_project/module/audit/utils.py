@@ -5,7 +5,7 @@ import datetime
 import io
 import json
 import logging
-import os.path
+import os
 import subprocess
 from pathlib import Path
 from typing import NamedTuple
@@ -108,7 +108,7 @@ async def snyk(
         True if len(fixable_vulnerabilities_summary) == 0 else (snyk_fix_success and npm_audit_fix_success)
     )
 
-    if Path(".pre-commit-config.yaml").exists():
+    if (cwd / ".pre-commit-config.yaml").exists():
         command = ["pre-commit", "run", "--all-files"]
         proc = await asyncio.create_subprocess_exec(
             *command,
