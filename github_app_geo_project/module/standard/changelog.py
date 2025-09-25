@@ -405,17 +405,42 @@ async def generate_changelog(
         )
         if milestone.title == tag_str
     ]
-    milestone = (
-        milestones[0]
-        if milestones
-        else (
-            await github_project.aio_github.rest.issues.async_create_milestone(
-                github_project.owner,
-                github_project.repository,
-                data={"title": tag_str},
+    try:
+        milestone = (
+            milestones[0]
+            if milestones
+            else (
+                await github_project.aio_github.rest.issues.async_create_milestone(
+                    github_project.owner,
+                    github_project.repository,
+                    data={"title": tag_str},
+                )
+            ).parsed_data
+        )
+    except githubkit.exception.RequestFailed as error:
+        _LOGGER.warning(
+            "Failed to create milestone %s on repository %s/%s: %s",
+            tag_str,
+            github_project.owner,
+            github_project.repository,
+            error,
+        )
+        milestones = [
+            milestone
+            for milestone in cast(
+                "list[githubkit.versions.latest.models.Milestone]",
+                (
+                    await github_project.aio_github.rest.issues.async_list_milestones(
+                        github_project.owner,
+                        github_project.repository,
+                    )
+                ).parsed_data,
             )
-        ).parsed_data
-    )
+            if milestone.title == tag_str
+        ]
+        if not milestones:
+            raise
+        milestone = milestones[0]
 
     discussion_url = _get_discussion_url(github_project, tag_str)
 
