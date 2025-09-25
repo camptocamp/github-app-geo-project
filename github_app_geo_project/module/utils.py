@@ -670,7 +670,7 @@ async def has_changes(cwd: Path, include_un_followed: bool = False) -> bool:
     return proc.returncode != 0
 
 
-async def create_commit(message: str, cwd: Path, pre_commit_check: bool = True) -> bool:
+async def create_commit(message: str, cwd: Path) -> bool:
     """Do a commit."""
     command = ["git", "add", "--all"]
     proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
@@ -679,7 +679,7 @@ async def create_commit(message: str, cwd: Path, pre_commit_check: bool = True) 
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(60):
+    async with asyncio.timeout(30):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         proc_message = AnsiProcessMessage.from_async_artifacts(
@@ -696,7 +696,6 @@ async def create_commit(message: str, cwd: Path, pre_commit_check: bool = True) 
             "git",
             "commit",
             f"--message={message}",
-            *([] if pre_commit_check else ["--no-verify"]),
         ],
         None,
         600,
@@ -705,9 +704,6 @@ async def create_commit(message: str, cwd: Path, pre_commit_check: bool = True) 
         "Timeout committing files",
         cwd,
     )
-    if not success and pre_commit_check:
-        # On pre-commit issues, add them to the commit, and try again without the pre-commit
-        success = await create_commit(message, cwd, pre_commit_check=False)
     return success
 
 
@@ -848,14 +844,14 @@ async def create_commit_pull_request(
     """Do a commit, then create a pull request."""
     if (cwd / ".pre-commit-config.yaml").exists():
         try:
-            command = ["pre-commit", "install"]
+            command = ["pre-commit", "run", "--all-files", "--show-diff-on-failure"]
             proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
                 *command,
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 cwd=cwd,
             )
-            async with asyncio.timeout(10):
+            async with asyncio.timeout(300):
                 stdout, stderr = await proc.communicate()
             proc_message = AnsiProcessMessage.from_async_artifacts(
                 command,
@@ -863,7 +859,7 @@ async def create_commit_pull_request(
                 stdout,
                 stderr,
             )
-            proc_message.title = "Install pre-commit"
+            proc_message.title = "Run pre-commit"
             _LOGGER.debug(proc_message)
         except FileNotFoundError:
             _LOGGER.debug("pre-commit not installed")
