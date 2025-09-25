@@ -109,7 +109,7 @@ async def snyk(
     )
 
     if (cwd / ".pre-commit-config.yaml").exists():
-        command = ["pre-commit", "run", "--all-files"]
+        command = ["pre-commit", "run", "--all-files", "--show-diff-on-failure"]
         proc = await asyncio.create_subprocess_exec(
             *command,
             stdin=asyncio.subprocess.PIPE,
@@ -119,7 +119,7 @@ async def snyk(
         async with asyncio.timeout(300):
             stdout, stderr = await proc.communicate()
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
-        message.title = "Pre-commit"
+        message.title = "Run pre-commit"
         _LOGGER.debug(message)
 
     command = ["git", "diff", "--quiet"]
