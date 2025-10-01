@@ -49,29 +49,29 @@ c2cciutils = "1.7.3"
 security-md = "1.0.0"
 pyramid-mako = "1.1.0"
 jsonmerge = "1.9.2"
-markdown = "3.8.2"
+markdown = "3.9"
 pygments = "2.19.2"
 html-sanitizer = "2.6.0"
 ansi2html = "1.9.2"
 apt-repo = "0.5"
 debian-inspector = "31.1.0"
 codespell = "2.4.1"
-pydantic = "2.11.7"
-markdownify = "1.1.0"
+pydantic = "2.11.9"
+markdownify = "1.2.0"
 cryptography = "46.0.1"
 urllib3 = "2.5.0"
 certifi = "2025.8.3"
-sentry-sdk = "2.34.1"
+sentry-sdk = "2.39.0"
 webob = "1.8.9"
 waitress = "3.0.2"
 lxml-html-clean = "0.4.2"
 tag-publish = "1.1.1"
 aiohttp = "3.12.15"
 aiofiles = "24.1.0"
-githubkit = { version = "0.13.0", extras = ["auth-app"] }
+githubkit = { version = "0.13.3", extras = ["auth-app"] }
 deprecated = "1.2.18"
 aiomonitor = "0.7.1"
-sqlalchemy = {extras = ["asyncio"], version = "2.0.42"}
+sqlalchemy = {extras = ["asyncio"], version = "2.0.43"}
 asyncpg = "0.30.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -79,15 +79,15 @@ c2cwsgiutils = { version = "6.1.8",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.17.3" }
 prospector-profile-duplicated = "1.10.5"
 prospector-profile-utils = "1.26.5"
-pytest = "8.4.1"
-pytest-asyncio = "1.1.0"
+pytest = "8.4.2"
+pytest-asyncio = "1.2.0"
 aioresponses = "0.7.8"
 WebTest = "3.0.6"
-types-pyyaml = "6.0.12.20250516"
-types-setuptools = "80.9.0.20250801"
-types-markdown = "3.8.0.20250708"
-types-requests = "2.32.4.20250611"
-types-aiofiles = "24.1.0.20250801"
+types-pyyaml = "6.0.12.20250915"
+types-setuptools = "80.9.0.20250822"
+types-markdown = "3.9.0.20250906"
+types-requests = "2.32.4.20250913"
+types-aiofiles = "24.1.0.20250822"
 types-deprecated = "1.2.15.20250304"
 
 [tool.poetry-dynamic-versioning]
@@ -132,7 +132,7 @@ authors = [{name = "Stéphane Brunner",email = "stephane.brunner@camptocamp.com"
 packages = [{ include = "github_app_geo_project" }]
 include = ["github_app_geo_project/py.typed"]
 requires-python = ">=3.11"
-dependencies = ["c2cwsgiutils[debug,dev,standard]", "c2cciutils", "security-md", "pyramid-mako", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aioresponses", "pytest-asyncio", "cryptography", "urllib3", "certifi", "sentry-sdk", "webob", "waitress", "lxml-html-clean", "tag-publish", "aiohttp", "aiofiles", "githubkit[auth-app]", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "requests==2.32.4"]
+dependencies = ["c2cwsgiutils[debug,dev,standard]", "c2cciutils", "security-md", "pyramid-mako", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aioresponses", "pytest-asyncio", "cryptography", "urllib3", "certifi", "sentry-sdk", "webob", "waitress", "lxml-html-clean", "tag-publish", "aiohttp", "aiofiles", "githubkit[auth-app]", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "requests==2.32.5"]
 
 [project.urls]
 repository = "https://github.com/camptocamp/github-app-geo-project"
