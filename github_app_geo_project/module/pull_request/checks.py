@@ -8,7 +8,7 @@ import re
 import tempfile
 import typing
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import githubkit
 import githubkit.exception
@@ -92,7 +92,10 @@ def _commits_messages(
     - They should not be a revert commit.
     """
     messages = []
-    commit_message_config = config.get("commits-messages", {})
+    commit_message_config = config.get(
+        "commits-messages",
+        cast("checks_configuration.PullRequestChecksCommitsMessagesConfiguration", {}),
+    )
     if commit_message_config is False:
         return True, []
     if commit_message_config is True:
