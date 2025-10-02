@@ -498,14 +498,14 @@ virtualenv = ["virtualenv (>=20.11) ; python_version < \"3.10\"", "virtualenv (>
 
 [[package]]
 name = "c2cciutils"
-version = "1.7.3"
+version = "1.7.4"
 description = "Common utilities for Camptocamp CI"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "c2cciutils-1.7.3-py3-none-any.whl", hash = "sha256:77e232111babdaceaa4a03380fb0d53ac33c324a1cc272f52e91180388f0418e"},
-    {file = "c2cciutils-1.7.3.tar.gz", hash = "sha256:c80aa7e56f403381e1bac57733b4d9b47aca4eace1a7d12cf81cb509e1ec20da"},
+    {file = "c2cciutils-1.7.4-py3-none-any.whl", hash = "sha256:69fffda874ec1faf2d436d4fbbffd64d7927553c1807a618b0cefd58ed8830b1"},
+    {file = "c2cciutils-1.7.4.tar.gz", hash = "sha256:de48ef017eaaae364c12c48788e98bf3334aab645cb9370701fa1a5120a8e616"},
 ]
 
 [package.dependencies]
@@ -5300,4 +5300,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "0a9c671744f65d29ab5fb11763d395691423a7c6169132b512d4839c7a5d6a55"
+content-hash = "6fde2e93520a039ac7bd3b8987f63a6814dc9cf69eea5c7ec354b2abca46bfa1"
