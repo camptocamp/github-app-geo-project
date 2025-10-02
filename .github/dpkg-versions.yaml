@@ -270,17 +270,17 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libsqlite3-dev: 3.45.1-1ubuntu2.5
   ubuntu_24_04/libss2: 1.47.0-2.4~exp1ubuntu4.1
   ubuntu_24_04/libssh-4: 0.10.6-2ubuntu0.1
-  ubuntu_24_04/libssl-dev: 3.0.13-0ubuntu3.5
-  ubuntu_24_04/libssl3t64: 3.0.13-0ubuntu3.5
+  ubuntu_24_04/libssl-dev: 3.0.13-0ubuntu3.6
+  ubuntu_24_04/libssl3t64: 3.0.13-0ubuntu3.6
   ubuntu_24_04/libstdc++-13-dev: 13.3.0-6ubuntu2~24.04
   ubuntu_24_04/libstdc++6: 14.2.0-4ubuntu2~24.04
   ubuntu_24_04/libsystemd0: 255.4-1ubuntu8.10
   ubuntu_24_04/libtasn1-6: 4.19.0-3ubuntu0.24.04.1
   ubuntu_24_04/libthai-data: 0.1.29-2build1
   ubuntu_24_04/libthai0: 0.1.29-2build1
-  ubuntu_24_04/libtiff-dev: 4.5.1+git230720-4ubuntu2.3
-  ubuntu_24_04/libtiff6: 4.5.1+git230720-4ubuntu2.3
-  ubuntu_24_04/libtiffxx6: 4.5.1+git230720-4ubuntu2.3
+  ubuntu_24_04/libtiff-dev: 4.5.1+git230720-4ubuntu2.4
+  ubuntu_24_04/libtiff6: 4.5.1+git230720-4ubuntu2.4
+  ubuntu_24_04/libtiffxx6: 4.5.1+git230720-4ubuntu2.4
   ubuntu_24_04/libtinfo6: 6.4+20240113-1ubuntu2
   ubuntu_24_04/libtsan2: 14.2.0-4ubuntu2~24.04
   ubuntu_24_04/libubsan1: 14.2.0-4ubuntu2~24.04
@@ -323,7 +323,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libxxhash0: 0.8.2-2build1
   ubuntu_24_04/libzstd-dev: 1.5.5+dfsg2-2build1.1
   ubuntu_24_04/libzstd1: 1.5.5+dfsg2-2build1.1
-  ubuntu_24_04/linux-libc-dev: 6.8.0-84.84
+  ubuntu_24_04/linux-libc-dev: 6.8.0-85.85
   ubuntu_24_04/login: 1:4.13+dfsg1-4ubuntu3.2
   ubuntu_24_04/logsave: 1.47.0-2.4~exp1ubuntu4.1
   ubuntu_24_04/lto-disabled-list: '47'
@@ -338,7 +338,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/openjdk-11-jre-headless: 11.0.28+6-1ubuntu1~24.04.1
   ubuntu_24_04/openjdk-17-jre-headless: 17.0.16+8~us1-0ubuntu1~24.04.1
   ubuntu_24_04/openjdk-21-jre-headless: 21.0.8+9~us1-0ubuntu1~24.04.1
-  ubuntu_24_04/openssl: 3.0.13-0ubuntu3.5
+  ubuntu_24_04/openssl: 3.0.13-0ubuntu3.6
   ubuntu_24_04/passwd: 1:4.13+dfsg1-4ubuntu3.2
   ubuntu_24_04/patch: 2.7.6-7build3
   ubuntu_24_04/perl: 5.38.2-3.2ubuntu0.2
