@@ -911,10 +911,9 @@ async def close_pull_request_issues(
         )
     ).parsed_data
     assert issues is not None
-    if issues.totalCount > 0:
-        for issue in issues:
-            if title == issue.title:
-                issue.edit(state="closed")
+    for issue in issues:
+        if title == issue.title:
+            issue.edit(state="closed")
 
 
 _SSH_LOCK = asyncio.Lock()
