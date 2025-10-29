@@ -45,7 +45,7 @@ outdated-comments = "github_app_geo_project.module.outdated_comments:OutdatedCom
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 c2cwsgiutils = { version = "6.1.8",  extras = ["standard", "debug", "dev"] }
-c2cciutils = "1.7.4"
+c2cciutils = "1.7.5"
 security-md = "1.0.0"
 pyramid-mako = "1.1.0"
 jsonmerge = "1.9.2"
