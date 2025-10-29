@@ -498,14 +498,14 @@ virtualenv = ["virtualenv (>=20.11) ; python_version < \"3.10\"", "virtualenv (>
 
 [[package]]
 name = "c2cciutils"
-version = "1.7.4"
+version = "1.7.5"
 description = "Common utilities for Camptocamp CI"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "c2cciutils-1.7.4-py3-none-any.whl", hash = "sha256:69fffda874ec1faf2d436d4fbbffd64d7927553c1807a618b0cefd58ed8830b1"},
-    {file = "c2cciutils-1.7.4.tar.gz", hash = "sha256:de48ef017eaaae364c12c48788e98bf3334aab645cb9370701fa1a5120a8e616"},
+    {file = "c2cciutils-1.7.5-py3-none-any.whl", hash = "sha256:0be4a127cd8becd9bcf99263379770b9996a2e6fd97bebb3e4201900ff9e641d"},
+    {file = "c2cciutils-1.7.5.tar.gz", hash = "sha256:b19a80d1c54e9450b884b1e5969ae13e2804d8a473b43d526720daf936c36fb9"},
 ]
 
 [package.dependencies]
@@ -517,7 +517,7 @@ requests = ">=2.0.0,<3.0.0"
 security-md = "<=2"
 
 [package.extras]
-publish = ["google-api-python-client (>=2.0.0,<3.0.0)", "google-auth-httplib2 (>=0.0.0,<1.0.0)", "google-auth-oauthlib (>=1.0.0,<2.0.0)", "id (>=1.0.0,<2.0.0)", "twine (>=5.0.0,<6.0.0)"]
+publish = ["id (>=1.0.0,<2.0.0)", "twine (>=5.0.0,<6.0.0)"]
 version = ["multi-repo-automation (>=1.0.0,<2.0.0)"]
 
 [[package]]
@@ -5300,4 +5300,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "fa685c00acb11bc83c53e65fbe4bbb9802897b7457ce746db24bf72bab31462d"
+content-hash = "d29944499bf1ba8949efce7222a4900f5d56a0b6e32fea5bdfd064e9d4442ad2"
