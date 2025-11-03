@@ -14,7 +14,7 @@
   packageRules: [
     /** Disable upgrading the supported Python version */
     {
-      matchFileNames: ['pyproject.toml'],
+      matchFileNames: ['pyproject.toml', '.python-version'],
       enabled: false,
       matchDepNames: ['python'],
     },

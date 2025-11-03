@@ -23,8 +23,29 @@ from github_app_geo_project.module.audit import configuration
 _LOGGER = logging.getLogger(__name__)
 
 
+def get_pre_commit_config(
+    config: configuration.AuditConfiguration,
+    local_config: configuration.AuditConfiguration,
+) -> configuration.PreCommitConfiguration:
+    """Get the pre-commit configuration."""
+    pre_commit_config = config.get("pre-commit", {})
+    local_pre_commit_config = local_config.get("pre-commit", {})
+    return {
+        "enabled": local_pre_commit_config.get(
+            "enabled",
+            pre_commit_config.get("enabled", configuration.ENABLE_PRE_COMMIT_DEFAULT),
+        ),
+        "skip_hooks": local_pre_commit_config.get(
+            "skip_hooks",
+            pre_commit_config.get("skip_hooks", configuration.SKIP_HOOKS_DEFAULT),
+        ),
+    }
+
+
 async def snyk(
     branch: str,
+    audit_config: configuration.AuditConfiguration,
+    audit_local_config: configuration.AuditConfiguration,
     config: configuration.SnykConfiguration,
     local_config: configuration.SnykConfiguration,
     logs_url: str,
@@ -108,13 +129,20 @@ async def snyk(
         True if len(fixable_vulnerabilities_summary) == 0 else (snyk_fix_success and npm_audit_fix_success)
     )
 
-    if (cwd / ".pre-commit-config.yaml").exists():
+    pre_commit_config = get_pre_commit_config(audit_config, audit_local_config)
+    if pre_commit_config.get("enabled", True) and (cwd / ".pre-commit-config.yaml").exists():
         command = ["pre-commit", "run", "--all-files", "--show-diff-on-failure"]
         proc = await asyncio.create_subprocess_exec(
             *command,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             cwd=cwd,
+            env={
+                **os.environ,
+                "SKIP": ",".join(
+                    pre_commit_config.get("skip_hooks", []),
+                ),
+            },
         )
         async with asyncio.timeout(600):
             stdout, stderr = await proc.communicate()

@@ -4,6 +4,7 @@ import asyncio
 import datetime
 import logging
 import math
+import os
 import re
 import shlex
 import urllib
@@ -840,9 +841,12 @@ async def create_commit_pull_request(
     body: str,
     project: configuration.GithubProject,
     cwd: Path,
+    enable_pre_commit: bool = True,
+    skip_pre_commit_hooks: list[str] | None = None,
 ) -> tuple[bool, githubkit.versions.latest.models.PullRequest | None]:
     """Do a commit, then create a pull request."""
-    if (cwd / ".pre-commit-config.yaml").exists():
+    skip_pre_commit_hooks = skip_pre_commit_hooks or []
+    if enable_pre_commit and (cwd / ".pre-commit-config.yaml").exists():
         try:
             command = ["pre-commit", "run", "--all-files", "--show-diff-on-failure"]
             proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
@@ -850,6 +854,10 @@ async def create_commit_pull_request(
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 cwd=cwd,
+                env={
+                    **os.environ,
+                    "SKIP": ",".join(skip_pre_commit_hooks),
+                },
             )
             async with asyncio.timeout(300):
                 stdout, stderr = await proc.communicate()

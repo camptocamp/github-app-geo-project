@@ -273,6 +273,28 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "pre-commit": {
+          "type": "object",
+          "title": "Pre-commit configuration",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable pre-commit",
+              "description": "Enable pre-commit audit",
+              "default": true
+            },
+            "skip_hooks": {
+              "type": "array",
+              "title": "Skip hooks",
+              "description": "List of pre-commit hooks to skip",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          }
         }
       }
     }
