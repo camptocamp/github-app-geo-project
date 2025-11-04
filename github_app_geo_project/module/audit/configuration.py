@@ -189,32 +189,26 @@ POETRY_INSTALL_ARGUMENTS_DEFAULT: list[Any] = []
 
 
 
-class PreCommitConfiguration(TypedDict, total=False):
-    """ Pre-commit configuration. """
-
-    enabled: bool
-    """
-    Enable pre-commit.
-
-    Enable pre-commit audit
-
-    default: True
-    """
-
-    skip_hooks: list[str]
-    """
-    Skip hooks.
-
-    List of pre-commit hooks to skip
-
-    default:
-      []
-    """
-
+# | Pre-commit configuration.
+PreCommitConfiguration = TypedDict('PreCommitConfiguration', {
+    # | Enable pre-commit.
+    # | 
+    # | Enable pre-commit audit
+    # | 
+    # | default: True
+    'enabled': bool,
+    # | Skip hooks.
+    # | 
+    # | List of pre-commit hooks to skip
+    # | 
+    # | default:
+    # |   []
+    'skip-hooks': list[str],
+}, total=False)
 
 
 SKIP_HOOKS_DEFAULT: list[Any] = []
-""" Default value of the field path 'Pre-commit configuration skip_hooks' """
+""" Default value of the field path 'Pre-commit configuration skip-hooks' """
 
 
 

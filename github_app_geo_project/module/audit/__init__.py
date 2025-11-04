@@ -317,7 +317,7 @@ async def _process_snyk_dpkg(
                                 context.github_project,
                                 cwd,
                                 pre_commit_config.get("enabled", True),
-                                pre_commit_config.get("skip_hooks", []),
+                                pre_commit_config.get("skip-hooks", []),
                             )
                             success &= new_success
                             if not new_success:
