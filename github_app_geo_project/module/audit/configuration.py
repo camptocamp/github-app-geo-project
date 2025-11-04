@@ -23,6 +23,8 @@ AuditConfiguration = TypedDict('AuditConfiguration', {
     # | default:
     # |   {}
     'version-mapping': dict[str, str],
+    # | Pre-commit configuration.
+    'pre-commit': "PreCommitConfiguration",
 }, total=False)
 
 
@@ -152,6 +154,11 @@ ENABLE_DPKG_DEFAULT = True
 
 
 
+ENABLE_PRE_COMMIT_DEFAULT = True
+""" Default value of the field path 'Pre-commit configuration enabled' """
+
+
+
 ENABLE_SNYK_DEFAULT = True
 """ Default value of the field path 'Snyk configuration enabled' """
 
@@ -179,6 +186,35 @@ PIP_INSTALL_ARGUMENTS_DEFAULT: list[Any] = []
 
 POETRY_INSTALL_ARGUMENTS_DEFAULT: list[Any] = []
 """ Default value of the field path 'Snyk configuration poetry-install-arguments' """
+
+
+
+class PreCommitConfiguration(TypedDict, total=False):
+    """ Pre-commit configuration. """
+
+    enabled: bool
+    """
+    Enable pre-commit.
+
+    Enable pre-commit audit
+
+    default: True
+    """
+
+    skip_hooks: list[str]
+    """
+    Skip hooks.
+
+    List of pre-commit hooks to skip
+
+    default:
+      []
+    """
+
+
+
+SKIP_HOOKS_DEFAULT: list[Any] = []
+""" Default value of the field path 'Pre-commit configuration skip_hooks' """
 
 
 

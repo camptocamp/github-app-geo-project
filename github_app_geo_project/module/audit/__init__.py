@@ -211,6 +211,8 @@ async def _process_snyk_dpkg(
 
                 result, body, short_message, new_success = await audit_utils.snyk(
                     branch,
+                    context.module_config,
+                    local_config,
                     context.module_config.get("snyk", {}),
                     local_config.get("snyk", {}),
                     logs_url,
@@ -303,6 +305,10 @@ async def _process_snyk_dpkg(
                             _LOGGER.error(message)
 
                         else:
+                            pre_commit_config = audit_utils.get_pre_commit_config(
+                                context.module_config,
+                                local_config,
+                            )
                             new_success, pull_request = await module_utils.create_commit_pull_request(
                                 branch,
                                 new_branch,
@@ -310,6 +316,8 @@ async def _process_snyk_dpkg(
                                 body_md,
                                 context.github_project,
                                 cwd,
+                                pre_commit_config.get("enabled", True),
+                                pre_commit_config.get("skip_hooks", []),
                             )
                             success &= new_success
                             if not new_success:
