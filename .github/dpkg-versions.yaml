@@ -369,7 +369,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/python3.12-venv: 3.12.3-1ubuntu0.8
   ubuntu_24_04/readline-common: 8.2-4build1
   ubuntu_24_04/rpcsvc-proto: 1.4.2-0ubuntu7
-  ubuntu_24_04/runc: 1.2.5-0ubuntu1~24.04.1
+  ubuntu_24_04/runc: 1.3.3-0ubuntu1~24.04.2
   ubuntu_24_04/sed: 4.9-2build1
   ubuntu_24_04/sensible-utils: 0.0.22
   ubuntu_24_04/shared-mime-info: 2.4-4
