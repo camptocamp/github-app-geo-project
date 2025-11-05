@@ -35,9 +35,9 @@ def get_pre_commit_config(
             "enabled",
             pre_commit_config.get("enabled", configuration.ENABLE_PRE_COMMIT_DEFAULT),
         ),
-        "skip_hooks": local_pre_commit_config.get(
-            "skip_hooks",
-            pre_commit_config.get("skip_hooks", configuration.SKIP_HOOKS_DEFAULT),
+        "skip-hooks": local_pre_commit_config.get(
+            "skip-hooks",
+            pre_commit_config.get("skip-hooks", configuration.SKIP_HOOKS_DEFAULT),
         ),
     }
 
@@ -140,7 +140,7 @@ async def snyk(
             env={
                 **os.environ,
                 "SKIP": ",".join(
-                    pre_commit_config.get("skip_hooks", []),
+                    pre_commit_config.get("skip-hooks", []),
                 ),
             },
         )

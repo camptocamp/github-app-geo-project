@@ -22,5 +22,5 @@
     - <a id="properties/audit/properties/version-mapping/additionalProperties"></a>**Additional properties** _(string)_
   - <a id="properties/audit/properties/pre-commit"></a>**`pre-commit`** _(object)_: Cannot contain additional properties.
     - <a id="properties/audit/properties/pre-commit/properties/enabled"></a>**`enabled`** _(boolean)_: Enable pre-commit audit. Default: `true`.
-    - <a id="properties/audit/properties/pre-commit/properties/skip_hooks"></a>**`skip_hooks`** _(array)_: List of pre-commit hooks to skip. Default: `[]`.
-      - <a id="properties/audit/properties/pre-commit/properties/skip_hooks/items"></a>**Items** _(string)_
+    - <a id="properties/audit/properties/pre-commit/properties/skip-hooks"></a>**`skip-hooks`** _(array)_: List of pre-commit hooks to skip. Default: `[]`.
+      - <a id="properties/audit/properties/pre-commit/properties/skip-hooks/items"></a>**Items** _(string)_

@@ -285,7 +285,7 @@
               "description": "Enable pre-commit audit",
               "default": true
             },
-            "skip_hooks": {
+            "skip-hooks": {
               "type": "array",
               "title": "Skip hooks",
               "description": "List of pre-commit hooks to skip",
