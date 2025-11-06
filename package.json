@@ -5,8 +5,8 @@
   "author": "",
   "dependencies": {
     "@jamietanna/renovate-graph": "0.34.0",
-    "@snyk/fix": "1.1299.1",
-    "snyk": "1.1299.1",
+    "@snyk/fix": "1.1300.2",
+    "snyk": "1.1300.2",
     "snyk-python-plugin": "3.1.2"
   }
 }
