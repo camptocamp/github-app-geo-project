@@ -898,7 +898,7 @@ async def _get_process_one_job(
                 )
                 .values(status=models.JobStatus.ERROR.name),
             )
-            affected_rows = result.rowcount
+            affected_rows = result.rowcount  # type: ignore[attr-defined]
             if affected_rows:
                 _LOGGER.error(
                     "Error: %i long started jobs marked as error",
@@ -919,7 +919,7 @@ async def _get_process_one_job(
                 .values(status=models.JobStatus.NEW.name)
             )
             result = await session.execute(statement)
-            affected_rows = result.rowcount
+            affected_rows = result.rowcount  # type: ignore[attr-defined]
             if affected_rows:
                 _LOGGER.warning(
                     "Steal %i long pending jobs",
