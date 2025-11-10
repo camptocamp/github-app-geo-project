@@ -4904,14 +4904,14 @@ keyring = ["keyring (>=21.2.0)"]
 
 [[package]]
 name = "types-aiofiles"
-version = "24.1.0.20250822"
+version = "25.1.0.20251011"
 description = "Typing stubs for aiofiles"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "types_aiofiles-24.1.0.20250822-py3-none-any.whl", hash = "sha256:0ec8f8909e1a85a5a79aed0573af7901f53120dd2a29771dd0b3ef48e12328b0"},
-    {file = "types_aiofiles-24.1.0.20250822.tar.gz", hash = "sha256:9ab90d8e0c307fe97a7cf09338301e3f01a163e39f3b529ace82466355c84a7b"},
+    {file = "types_aiofiles-25.1.0.20251011-py3-none-any.whl", hash = "sha256:8ff8de7f9d42739d8f0dadcceeb781ce27cd8d8c4152d4a7c52f6b20edb8149c"},
+    {file = "types_aiofiles-25.1.0.20251011.tar.gz", hash = "sha256:1c2b8ab260cb3cd40c15f9d10efdc05a6e1e6b02899304d80dfa0410e028d3ff"},
 ]
 
 [[package]]
@@ -5544,4 +5544,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "9591de71106eacfa046d5255d8709f0c92c1e5b3b806c37a646146942fcac198"
+content-hash = "40b15bad678678b0b7d9eb7c9a793a717a9862d7fcbda7a82cea4f41f7e0fac4"
