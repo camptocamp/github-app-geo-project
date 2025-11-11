@@ -27,6 +27,8 @@ from github_app_geo_project.module import utils as module_utils
 from . import configuration
 
 _LOGGER = logging.getLogger(__name__)
+# Don't run clean in parallel
+_LOCK = asyncio.Lock()
 
 
 class CleanError(Exception):
@@ -114,7 +116,8 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
         if context.module_config.get("docker", True):
             await self._clean_docker(context)
         for git in context.module_config.get("git", []):
-            await self._clean_git(context, git)
+            async with _LOCK:
+                await self._clean_git(context, git)
 
         return module.ProcessOutput()
 
