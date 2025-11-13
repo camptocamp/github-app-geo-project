@@ -361,7 +361,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/python3-pkg-resources: 68.1.2-2ubuntu1.2
   ubuntu_24_04/python3-setuptools: 68.1.2-2ubuntu1.2
   ubuntu_24_04/python3-setuptools-whl: 68.1.2-2ubuntu1.2
-  ubuntu_24_04/python3-venv: 3.12.3-0ubuntu2
+  ubuntu_24_04/python3-venv: 3.12.3-0ubuntu2.1
   ubuntu_24_04/python3-wheel: 0.42.0-2
   ubuntu_24_04/python3.12: 3.12.3-1ubuntu0.8
   ubuntu_24_04/python3.12-dev: 3.12.3-1ubuntu0.8
