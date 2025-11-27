@@ -7,14 +7,14 @@ from typing import TypedDict
 
 
 class AutoPullRequest(TypedDict, total=False):
-    """
+    r"""
     Auto pull request.
 
     auto pull request configuration
     """
 
     conditions: list["_ConditionsItem"]
-    """ Conditions. """
+    r""" Conditions. """
 
 
 
@@ -37,21 +37,21 @@ AutoPullRequestModulesConfigurationBase = TypedDict('AutoPullRequestModulesConfi
 
 class _ConditionsItem(TypedDict, total=False):
     author: str
-    """
+    r"""
     Author regex.
 
     The author of the pull request
     """
 
     branch: str
-    """
+    r"""
     Branch regex.
 
     Regex to match the branch of the pull request
     """
 
     title: str
-    """
+    r"""
     Title regex.
 
     Regex to match the title of the pull request

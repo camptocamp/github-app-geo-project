@@ -7,7 +7,7 @@ from typing import Any, Required, TypedDict
 
 
 VERSION_MAPPING_DEFAULT: dict[str, Any] = {}
-""" Default value of the field path 'Versions configuration version-mapping' """
+r""" Default value of the field path 'Versions configuration version-mapping' """
 
 
 
@@ -53,14 +53,14 @@ VersionsConfiguration = TypedDict('VersionsConfiguration', {
 
 class _VersionsConfigurationExternalPackagesItem(TypedDict, total=False):
     package: Required[str]
-    """
+    r"""
     The name of the package from https://endoflife.date
 
     Required property
     """
 
     datasource: Required[str]
-    """
+    r"""
     The datasource of the dependencies
 
     Required property
@@ -69,7 +69,7 @@ class _VersionsConfigurationExternalPackagesItem(TypedDict, total=False):
 
 
 _VersionsConfigurationPackageExtractorAdditionalproperties = dict[str, list["_VersionsConfigurationPackageExtractorAdditionalpropertiesAdditionalpropertiesItem"]]
-""" The package extractor by package name """
+r""" The package extractor by package name """
 
 
 

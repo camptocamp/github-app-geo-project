@@ -7,12 +7,12 @@ from typing import Literal, TypedDict, Union
 
 
 CREATE_LABELS_DEFAULT = False
-""" Default value of the field path 'Changelog create-labels' """
+r""" Default value of the field path 'Changelog create-labels' """
 
 
 
 CREATE_RELEASE_DEFAULT = True
-""" Default value of the field path 'Changelog create-release' """
+r""" Default value of the field path 'Changelog create-release' """
 
 
 
@@ -52,10 +52,10 @@ Changelog = TypedDict('Changelog', {
 
 
 class ChangelogConfigurationBase(TypedDict, total=False):
-    """ Changelog configuration Base. """
+    r""" Changelog configuration Base. """
 
     changelog: "Changelog"
-    """
+    r"""
     Changelog.
 
     The changelog generation configuration
@@ -64,21 +64,21 @@ class ChangelogConfigurationBase(TypedDict, total=False):
 
 
 class ChangelogLabelConfiguration(TypedDict, total=False):
-    """
+    r"""
     Changelog label configuration.
 
     The label configuration
     """
 
     description: str
-    """
+    r"""
     Changelog label description.
 
     The description of the label
     """
 
     color: str
-    """
+    r"""
     Changelog label color.
 
     The color of the label
@@ -87,20 +87,20 @@ class ChangelogLabelConfiguration(TypedDict, total=False):
 
 
 class ChangelogRoutingConfiguration(TypedDict, total=False):
-    """
+    r"""
     Changelog routing configuration.
 
     The routing configuration
     """
 
     section: str
-    """ The section section affected to changelog items that match with the conditions """
+    r""" The section section affected to changelog items that match with the conditions """
 
     name: str
-    """ The name of the routing condition """
+    r""" The name of the routing condition """
 
     condition: Union["ConditionConst", "ConditionAndSolidusOr", "ConditionNot", "ConditionLabel", "ConditionFiles", "ConditionAuthor", "ConditionTitle", "ConditionBranch"]
-    """
+    r"""
     Condition.
 
     The condition to match with the changelog items
@@ -112,111 +112,111 @@ class ChangelogRoutingConfiguration(TypedDict, total=False):
 
 
 class ConditionAndSolidusOr(TypedDict, total=False):
-    """ Condition and/or. """
+    r""" Condition and/or. """
 
     type: "_ConditionAndSolidusOrType"
-    """ The type of the condition """
+    r""" The type of the condition """
 
     conditions: list["ConditionAndSolidusOr"]
-    """ The value of the conditions """
+    r""" The value of the conditions """
 
 
 
 class ConditionAuthor(TypedDict, total=False):
-    """ Condition author. """
+    r""" Condition author. """
 
     type: Literal['author']
-    """ The type of the condition """
+    r""" The type of the condition """
 
     value: str
-    """ The value of the author """
+    r""" The value of the author """
 
 
 
 class ConditionBranch(TypedDict, total=False):
-    """ Condition branch. """
+    r""" Condition branch. """
 
     type: Literal['branch']
-    """ The type of the condition """
+    r""" The type of the condition """
 
     regex: str
-    """ The regex the branch should match """
+    r""" The regex the branch should match """
 
 
 
 class ConditionConst(TypedDict, total=False):
-    """ Condition const. """
+    r""" Condition const. """
 
     type: Literal['const']
-    """ The type of the condition """
+    r""" The type of the condition """
 
     value: bool
-    """ The value of the condition """
+    r""" The value of the condition """
 
 
 
 class ConditionFiles(TypedDict, total=False):
-    """ Condition files. """
+    r""" Condition files. """
 
     type: Literal['files']
-    """ The type of the condition """
+    r""" The type of the condition """
 
     regex: list["_ConditionFilesRegexItem"]
-    """ The list of regex that all the files should match """
+    r""" The list of regex that all the files should match """
 
 
 
 class ConditionLabel(TypedDict, total=False):
-    """ Condition label. """
+    r""" Condition label. """
 
     type: Literal['label']
-    """ The type of the condition """
+    r""" The type of the condition """
 
     value: str
-    """ The value of the label """
+    r""" The value of the label """
 
 
 
 class ConditionNot(TypedDict, total=False):
-    """ Condition not. """
+    r""" Condition not. """
 
     type: "_ConditionNotType"
-    """ The type of the condition """
+    r""" The type of the condition """
 
     condition: "ConditionNot"
-    """ Condition not. """
+    r""" Condition not. """
 
 
 
 class ConditionTitle(TypedDict, total=False):
-    """ Condition title. """
+    r""" Condition title. """
 
     type: Literal['title']
-    """ The type of the condition """
+    r""" The type of the condition """
 
     regex: str
-    """ The regex the title should match """
+    r""" The regex the title should match """
 
 
 
 class Section(TypedDict, total=False):
-    """
+    r"""
     section.
 
     The section configuration
     """
 
     name: str
-    """ The name of the section """
+    r""" The name of the section """
 
     title: str
-    """ The title of the section """
+    r""" The title of the section """
 
     description: str
-    """ The description of the section """
+    r""" The description of the section """
 
     closed: bool
-    """
+    r"""
     The section is closed and openable
 
     default: False
@@ -225,26 +225,26 @@ class Section(TypedDict, total=False):
 
 
 _ConditionAndSolidusOrType = Literal['and'] | Literal['or']
-""" The type of the condition """
+r""" The type of the condition """
 _CONDITIONANDSOLIDUSORTYPE_AND: Literal['and'] = "and"
-"""The values for the 'The type of the condition' enum"""
+r"""The values for the 'The type of the condition' enum"""
 _CONDITIONANDSOLIDUSORTYPE_OR: Literal['or'] = "or"
-"""The values for the 'The type of the condition' enum"""
+r"""The values for the 'The type of the condition' enum"""
 
 
 
 _ConditionFilesRegexItem = str
-""" The regex that all the files should match """
+r""" The regex that all the files should match """
 
 
 
 _ConditionNotType = Literal['not']
-""" The type of the condition """
+r""" The type of the condition """
 _CONDITIONNOTTYPE_NOT: Literal['not'] = "not"
-"""The values for the 'The type of the condition' enum"""
+r"""The values for the 'The type of the condition' enum"""
 
 
 
 _SECTION_CLOSED_DEFAULT = False
-""" Default value of the field path 'section closed' """
+r""" Default value of the field path 'section closed' """
 
