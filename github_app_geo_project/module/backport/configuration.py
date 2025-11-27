@@ -7,20 +7,20 @@ from typing import TypedDict
 
 
 AUTO_CREATE_DEFAULT = True
-""" Default value of the field path 'labels auto-create' """
+r""" Default value of the field path 'labels auto-create' """
 
 
 
 AUTO_DELETE_DEFAULT = True
-""" Default value of the field path 'labels auto-delete' """
+r""" Default value of the field path 'labels auto-delete' """
 
 
 
 class BackportConfiguration(TypedDict, total=False):
-    """ Backport configuration. """
+    r""" Backport configuration. """
 
     labels: "Labels"
-    """
+    r"""
     labels.
 
     The labels configuration
@@ -29,15 +29,15 @@ class BackportConfiguration(TypedDict, total=False):
 
 
 COLOR_DEFAULT = '#5aed94'
-""" Default value of the field path 'labels color' """
+r""" Default value of the field path 'labels color' """
 
 
 
 class CleanModulesConfiguration(TypedDict, total=False):
-    """ Clean modules configuration. """
+    r""" Clean modules configuration. """
 
     backport: "BackportConfiguration"
-    """ Backport configuration. """
+    r""" Backport configuration. """
 
 
 

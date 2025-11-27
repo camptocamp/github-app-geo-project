@@ -7,17 +7,17 @@ from typing import TypedDict, Union
 
 
 CODESPELL_ARGUMENTS_DEFAULT = ['--quiet-level=2', '--check-filenames', '--ignore-words-list=ro']
-""" Default value of the field path 'Codespell arguments' """
+r""" Default value of the field path 'Codespell arguments' """
 
 
 
 CODESPELL_DICTIONARIES_DEFAULT = ['clear', 'rare', 'informal', 'code', 'names', 'en-GB_to_en-US']
-""" Default value of the field path 'Codespell internal-dictionaries' """
+r""" Default value of the field path 'Codespell internal-dictionaries' """
 
 
 
 CODESPELL_IGNORE_REGULAR_EXPRESSION_DEFAULT = ['(.*/)?poetry\\.lock', '(.*/)?package-lock\\.json']
-""" Default value of the field path 'Codespell ignore-re' """
+r""" Default value of the field path 'Codespell ignore-re' """
 
 
 
@@ -58,42 +58,42 @@ Codespell = TypedDict('Codespell', {
 
 
 PULL_REQUEST_CHECKS_COMMITS_MESSAGES_FIRST_CAPITAL_DEFAULT = True
-""" Default value of the field path 'pull request checks commits messages configuration check-first-capital' """
+r""" Default value of the field path 'pull request checks commits messages configuration check-first-capital' """
 
 
 
 PULL_REQUEST_CHECKS_COMMITS_MESSAGES_FIXUP_DEFAULT = True
-""" Default value of the field path 'pull request checks commits messages configuration check-fixup' """
+r""" Default value of the field path 'pull request checks commits messages configuration check-fixup' """
 
 
 
 PULL_REQUEST_CHECKS_COMMITS_MESSAGES_MIN_HEAD_LENGTH_DEFAULT = 5
-""" Default value of the field path 'pull request checks commits messages configuration min-head-length' """
+r""" Default value of the field path 'pull request checks commits messages configuration min-head-length' """
 
 
 
 PULL_REQUEST_CHECKS_COMMITS_MESSAGES_NO_MERGE_COMMITS_DEFAULT = True
-""" Default value of the field path 'pull request checks commits messages configuration check-no-merge-commits' """
+r""" Default value of the field path 'pull request checks commits messages configuration check-no-merge-commits' """
 
 
 
 PULL_REQUEST_CHECKS_COMMITS_MESSAGES_NO_OWN_REVERT_DEFAULT = True
-""" Default value of the field path 'pull request checks commits messages configuration check-no-own-revert' """
+r""" Default value of the field path 'pull request checks commits messages configuration check-no-own-revert' """
 
 
 
 PULL_REQUEST_CHECKS_COMMITS_MESSAGES_ONLY_HEAD_DEFAULT = True
-""" Default value of the field path 'pull request checks commits spelling configuration only-head' """
+r""" Default value of the field path 'pull request checks commits spelling configuration only-head' """
 
 
 
 PULL_REQUEST_CHECKS_COMMITS_MESSAGES_SQUASH_DEFAULT = True
-""" Default value of the field path 'pull request checks commits messages configuration check-squash' """
+r""" Default value of the field path 'pull request checks commits messages configuration check-squash' """
 
 
 
 PULL_REQUEST_CHECKS_ONLY_HEAD_DEFAULT = True
-""" Default value of the field path 'pull request checks pull request spelling configuration only-head' """
+r""" Default value of the field path 'pull request checks pull request spelling configuration only-head' """
 
 
 

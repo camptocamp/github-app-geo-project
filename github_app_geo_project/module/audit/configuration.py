@@ -29,23 +29,23 @@ AuditConfiguration = TypedDict('AuditConfiguration', {
 
 
 class AuditModulesConfiguration(TypedDict, total=False):
-    """ Audit modules configuration. """
+    r""" Audit modules configuration. """
 
     audit: "AuditConfiguration"
-    """ Audit configuration. """
+    r""" Audit configuration. """
 
 
 
 DPKG_SOURCES_DEFAULT = {'ubuntu_22_04': [{'url': 'http://archive.ubuntu.com/ubuntu', 'distribution': 'jammy', 'components': ['main', 'restricted', 'universe', 'multiverse']}, {'url': 'http://security.ubuntu.com/ubuntu', 'distribution': 'jammy-security', 'components': ['main', 'restricted', 'universe', 'multiverse']}, {'url': 'http://security.ubuntu.com/ubuntu', 'distribution': 'jammy-updates', 'components': ['main', 'restricted', 'universe', 'multiverse']}], 'ubuntu_24_04': [{'url': 'http://archive.ubuntu.com/ubuntu', 'distribution': 'noble', 'components': ['main', 'restricted', 'universe', 'multiverse']}, {'url': 'http://security.ubuntu.com/ubuntu', 'distribution': 'noble-security', 'components': ['main', 'restricted', 'universe', 'multiverse']}, {'url': 'http://security.ubuntu.com/ubuntu', 'distribution': 'noble-updates', 'components': ['main', 'restricted', 'universe', 'multiverse']}], 'debian_11': [{'url': 'http://deb.debian.org/debian', 'distribution': 'bullseye', 'components': ['main', 'contrib', 'non-free']}, {'url': 'http://deb.debian.org/debian', 'distribution': 'bullseye-updates', 'components': ['main', 'contrib', 'non-free']}, {'url': 'http://security.debian.org/debian-security', 'distribution': 'bullseye-security', 'components': ['main', 'contrib', 'non-free']}], 'debian_12': [{'url': 'http://deb.debian.org/debian', 'distribution': 'bookworm', 'components': ['main', 'contrib', 'non-free']}, {'url': 'http://deb.debian.org/debian', 'distribution': 'bookworm-updates', 'components': ['main', 'contrib', 'non-free']}, {'url': 'http://security.debian.org/debian-security', 'distribution': 'bookworm-security', 'components': ['main', 'contrib', 'non-free']}]}
-""" Default value of the field path 'Dpkg configuration sources' """
+r""" Default value of the field path 'Dpkg configuration sources' """
 
 
 
 class DpkgConfiguration(TypedDict, total=False):
-    """ Dpkg configuration. """
+    r""" Dpkg configuration. """
 
     enabled: bool
-    """
+    r"""
     Enable dpkg.
 
     Enable dpkg audit
@@ -54,7 +54,7 @@ class DpkgConfiguration(TypedDict, total=False):
     """
 
     sources: dict[str, list["_DpkgSourcesAdditionalpropertiesItem"]]
-    """
+    r"""
     Dpkg sources.
 
     default:
@@ -145,47 +145,47 @@ class DpkgConfiguration(TypedDict, total=False):
 
 
 ENABLE_AUDIT_DEFAULT = True
-""" Default value of the field path 'Audit configuration enabled' """
+r""" Default value of the field path 'Audit configuration enabled' """
 
 
 
 ENABLE_DPKG_DEFAULT = True
-""" Default value of the field path 'Dpkg configuration enabled' """
+r""" Default value of the field path 'Dpkg configuration enabled' """
 
 
 
 ENABLE_PRE_COMMIT_DEFAULT = True
-""" Default value of the field path 'Pre-commit configuration enabled' """
+r""" Default value of the field path 'Pre-commit configuration enabled' """
 
 
 
 ENABLE_SNYK_DEFAULT = True
-""" Default value of the field path 'Snyk configuration enabled' """
+r""" Default value of the field path 'Snyk configuration enabled' """
 
 
 
 FILES_NOT_TO_INSTALL_DEFAULT: list[Any] = []
-""" Default value of the field path 'Snyk configuration files-no-install' """
+r""" Default value of the field path 'Snyk configuration files-no-install' """
 
 
 
 JAVA_PATH_BY_GRADLE_VERSION_DEFAULT: dict[str, Any] = {}
-""" Default value of the field path 'Snyk configuration java-path-for-gradle' """
+r""" Default value of the field path 'Snyk configuration java-path-for-gradle' """
 
 
 
 PIPENV_SYNC_ARGUMENTS_DEFAULT: list[Any] = []
-""" Default value of the field path 'Snyk configuration pipenv-sync-arguments' """
+r""" Default value of the field path 'Snyk configuration pipenv-sync-arguments' """
 
 
 
 PIP_INSTALL_ARGUMENTS_DEFAULT: list[Any] = []
-""" Default value of the field path 'Snyk configuration pip-install-arguments' """
+r""" Default value of the field path 'Snyk configuration pip-install-arguments' """
 
 
 
 POETRY_INSTALL_ARGUMENTS_DEFAULT: list[Any] = []
-""" Default value of the field path 'Snyk configuration poetry-install-arguments' """
+r""" Default value of the field path 'Snyk configuration poetry-install-arguments' """
 
 
 
@@ -208,22 +208,22 @@ PreCommitConfiguration = TypedDict('PreCommitConfiguration', {
 
 
 SKIP_HOOKS_DEFAULT: list[Any] = []
-""" Default value of the field path 'Pre-commit configuration skip-hooks' """
+r""" Default value of the field path 'Pre-commit configuration skip-hooks' """
 
 
 
 SNYK_FIX_ARGUMENTS_DEFAULT = ['--all-projects']
-""" Default value of the field path 'Snyk configuration fix-arguments' """
+r""" Default value of the field path 'Snyk configuration fix-arguments' """
 
 
 
 SNYK_MONITOR_ARGUMENTS_DEFAULT = ['--all-projects']
-""" Default value of the field path 'Snyk configuration monitor-arguments' """
+r""" Default value of the field path 'Snyk configuration monitor-arguments' """
 
 
 
 SNYK_TEST_ARGUMENTS_DEFAULT = ['--all-projects', '--severity-threshold=medium']
-""" Default value of the field path 'Snyk configuration test-arguments' """
+r""" Default value of the field path 'Snyk configuration test-arguments' """
 
 
 
@@ -323,27 +323,27 @@ SnykMonitorConfiguration = TypedDict('SnykMonitorConfiguration', {
 
 
 VERSION_MAPPING_DEFAULT: dict[str, Any] = {}
-""" Default value of the field path 'Audit configuration version-mapping' """
+r""" Default value of the field path 'Audit configuration version-mapping' """
 
 
 
 class _DpkgSourcesAdditionalpropertiesItem(TypedDict, total=False):
     url: str
-    """
+    r"""
     URL.
 
     URL of the source
     """
 
     distribution: str
-    """
+    r"""
     Distribution.
 
     Distribution of the source
     """
 
     components: list[str]
-    """
+    r"""
     Components.
 
     Components of the source
@@ -353,43 +353,43 @@ class _DpkgSourcesAdditionalpropertiesItem(TypedDict, total=False):
 
 _SnykMonitorBusinessCriticalityItem = Literal['critical'] | Literal['high'] | Literal['medium'] | Literal['low']
 _SNYKMONITORBUSINESSCRITICALITYITEM_CRITICAL: Literal['critical'] = "critical"
-"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
+r"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
 _SNYKMONITORBUSINESSCRITICALITYITEM_HIGH: Literal['high'] = "high"
-"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
+r"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
 _SNYKMONITORBUSINESSCRITICALITYITEM_MEDIUM: Literal['medium'] = "medium"
-"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
+r"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
 _SNYKMONITORBUSINESSCRITICALITYITEM_LOW: Literal['low'] = "low"
-"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
+r"""The values for the '_SnykMonitorBusinessCriticalityItem' enum"""
 
 
 
 _SnykMonitorEnvironmentItem = Literal['frontend'] | Literal['backend'] | Literal['internal'] | Literal['external'] | Literal['mobile'] | Literal['saas'] | Literal['onprem'] | Literal['hosted'] | Literal['distributed']
 _SNYKMONITORENVIRONMENTITEM_FRONTEND: Literal['frontend'] = "frontend"
-"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+r"""The values for the '_SnykMonitorEnvironmentItem' enum"""
 _SNYKMONITORENVIRONMENTITEM_BACKEND: Literal['backend'] = "backend"
-"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+r"""The values for the '_SnykMonitorEnvironmentItem' enum"""
 _SNYKMONITORENVIRONMENTITEM_INTERNAL: Literal['internal'] = "internal"
-"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+r"""The values for the '_SnykMonitorEnvironmentItem' enum"""
 _SNYKMONITORENVIRONMENTITEM_EXTERNAL: Literal['external'] = "external"
-"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+r"""The values for the '_SnykMonitorEnvironmentItem' enum"""
 _SNYKMONITORENVIRONMENTITEM_MOBILE: Literal['mobile'] = "mobile"
-"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+r"""The values for the '_SnykMonitorEnvironmentItem' enum"""
 _SNYKMONITORENVIRONMENTITEM_SAAS: Literal['saas'] = "saas"
-"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+r"""The values for the '_SnykMonitorEnvironmentItem' enum"""
 _SNYKMONITORENVIRONMENTITEM_ONPREM: Literal['onprem'] = "onprem"
-"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+r"""The values for the '_SnykMonitorEnvironmentItem' enum"""
 _SNYKMONITORENVIRONMENTITEM_HOSTED: Literal['hosted'] = "hosted"
-"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+r"""The values for the '_SnykMonitorEnvironmentItem' enum"""
 _SNYKMONITORENVIRONMENTITEM_DISTRIBUTED: Literal['distributed'] = "distributed"
-"""The values for the '_SnykMonitorEnvironmentItem' enum"""
+r"""The values for the '_SnykMonitorEnvironmentItem' enum"""
 
 
 
 _SnykMonitorLifecycleItem = Literal['production'] | Literal['development'] | Literal['sandbox']
 _SNYKMONITORLIFECYCLEITEM_PRODUCTION: Literal['production'] = "production"
-"""The values for the '_SnykMonitorLifecycleItem' enum"""
+r"""The values for the '_SnykMonitorLifecycleItem' enum"""
 _SNYKMONITORLIFECYCLEITEM_DEVELOPMENT: Literal['development'] = "development"
-"""The values for the '_SnykMonitorLifecycleItem' enum"""
+r"""The values for the '_SnykMonitorLifecycleItem' enum"""
 _SNYKMONITORLIFECYCLEITEM_SANDBOX: Literal['sandbox'] = "sandbox"
-"""The values for the '_SnykMonitorLifecycleItem' enum"""
+r"""The values for the '_SnykMonitorLifecycleItem' enum"""
 

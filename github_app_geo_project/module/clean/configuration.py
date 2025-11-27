@@ -7,20 +7,20 @@ from typing import Literal, TypedDict
 
 
 AMEND_DEFAULT = False
-""" Default value of the field path 'git amend' """
+r""" Default value of the field path 'git amend' """
 
 
 
 BRANCH_DEFAULT = 'gh-pages'
-""" Default value of the field path 'git branch' """
+r""" Default value of the field path 'git branch' """
 
 
 
 class CleanConfiguration(TypedDict, total=False):
-    """ Clean configuration. """
+    r""" Clean configuration. """
 
     docker: bool
-    """
+    r"""
     docker.
 
     Clean the docker images made from feature branches and pull requests
@@ -32,20 +32,20 @@ class CleanConfiguration(TypedDict, total=False):
 
 
 class CleanModulesConfiguration(TypedDict, total=False):
-    """ Clean modules configuration. """
+    r""" Clean modules configuration. """
 
     clean: "CleanConfiguration"
-    """ Clean configuration. """
+    r""" Clean configuration. """
 
 
 
 DOCKER_DEFAULT = True
-""" Default value of the field path 'Clean configuration docker' """
+r""" Default value of the field path 'Clean configuration docker' """
 
 
 
 FOLDER_DEFAULT = '{name}'
-""" Default value of the field path 'git folder' """
+r""" Default value of the field path 'git folder' """
 
 
 
@@ -81,12 +81,12 @@ Git = TypedDict('Git', {
 
 
 ON_TYPE_DEFAULT = 'all'
-""" Default value of the field path 'git on-type' """
+r""" Default value of the field path 'git on-type' """
 
 
 
 OnType = Literal['feature_branch'] | Literal['pull_request'] | Literal['all']
-"""
+r"""
 on-type.
 
 feature_branch, pull_request or all
@@ -94,9 +94,9 @@ feature_branch, pull_request or all
 default: all
 """
 ONTYPE_FEATURE_BRANCH: Literal['feature_branch'] = "feature_branch"
-"""The values for the 'on-type' enum"""
+r"""The values for the 'on-type' enum"""
 ONTYPE_PULL_REQUEST: Literal['pull_request'] = "pull_request"
-"""The values for the 'on-type' enum"""
+r"""The values for the 'on-type' enum"""
 ONTYPE_ALL: Literal['all'] = "all"
-"""The values for the 'on-type' enum"""
+r"""The values for the 'on-type' enum"""
 

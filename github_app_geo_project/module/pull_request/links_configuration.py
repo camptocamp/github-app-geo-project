@@ -7,7 +7,7 @@ from typing import TypedDict
 
 
 BRANCH_PATTERNS_DEFAULT = ['^(?P<project>[A-Z]{3,6})-(?P<issue>[0-9]+)-.*$', '^(?P<project>[a-z]{3,6})-(?P<issue>[0-9]+)-.*$', '^.*-(?P<project>[A-Z]{3,6})-(?P<issue>[0-9]+)$', '^.*-(?P<project>[a-z]{3,6})-(?P<issue>[0-9]+)$']
-""" Default value of the field path 'Pull request add links configuration branch-patterns' """
+r""" Default value of the field path 'Pull request add links configuration branch-patterns' """
 
 
 
@@ -43,13 +43,13 @@ PullRequestAddLinksConfiguration = TypedDict('PullRequestAddLinksConfiguration',
 
 
 _CONTENT_ITEM_TEXT_DEFAULT = ''
-""" Default value of the field path 'Content item text' """
+r""" Default value of the field path 'Content item text' """
 
 
 
 class _ContentItem(TypedDict, total=False):
     text: str
-    """ default:  """
+    r""" default:  """
 
     url: str
     requires: list[str]
