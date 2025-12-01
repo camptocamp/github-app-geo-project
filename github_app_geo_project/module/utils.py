@@ -218,7 +218,7 @@ def html_to_markdown(html: str) -> str:
     """Convert HTML to markdown."""
     html = _BOLD_RE.sub(r"<b>\2</b>", html)
     html = _ITALIC_RE.sub(r"<i>\2</i>", html)
-    return cast("str", markdownify.markdownify(html))
+    return markdownify.markdownify(html)
 
 
 class HtmlMessage(Message):
