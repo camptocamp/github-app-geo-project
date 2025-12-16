@@ -14,7 +14,7 @@ from github_app_geo_project.views import get_event_loop
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="schema", renderer="json")  # type: ignore[misc]
+@view_config(route_name="schema", renderer="json")  # type: ignore[untyped-decorator]
 def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the welcome page."""
     module_names = set()

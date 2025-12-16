@@ -151,7 +151,7 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
     return {}
 
 
-@view_config(route_name="webhook", renderer="json")  # type: ignore[misc]
+@view_config(route_name="webhook", renderer="json")  # type: ignore[untyped-decorator]
 def webhook(request: pyramid.request.Request) -> dict[str, None]:
     """Receive GitHub application webhook URL."""
     return get_event_loop().run_until_complete(async_webhook(request))

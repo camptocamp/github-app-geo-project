@@ -18,7 +18,7 @@ from github_app_geo_project.module import modules
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="dashboard", renderer="github_app_geo_project:templates/dashboard.html")  # type: ignore[misc]
+@view_config(route_name="dashboard", renderer="github_app_geo_project:templates/dashboard.html")  # type: ignore[untyped-decorator]
 def dashboard(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the dashboard."""
     repository = os.environ["C2C_AUTH_GITHUB_REPOSITORY"]

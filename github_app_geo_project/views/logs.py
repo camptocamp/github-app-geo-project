@@ -15,7 +15,7 @@ from github_app_geo_project import models
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="logs", renderer="github_app_geo_project:templates/logs.html")  # type: ignore[misc]
+@view_config(route_name="logs", renderer="github_app_geo_project:templates/logs.html")  # type: ignore[untyped-decorator]
 def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the logs of a job."""
     if not request.is_authenticated:
