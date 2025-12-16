@@ -1158,28 +1158,28 @@ async def create_checks(
 
     sha = None
     if job.github_event_name == "pull_request":
-        event_data_pull_request = githubkit.webhooks.parse_obj(
+        event_data_pull_request = githubkit.webhooks.parse_obj(  # type: ignore[attr-defined]
             "pull_request",
             job.github_event_data,
         )
         sha = event_data_pull_request.pull_request.head.sha
     if job.github_event_name == "push":
-        event_data_push = githubkit.webhooks.parse_obj("push", job.github_event_data)
+        event_data_push = githubkit.webhooks.parse_obj("push", job.github_event_data)  # type: ignore[attr-defined]
         sha = event_data_push.before if event_data_push.deleted else event_data_push.after
     if job.github_event_name == "workflow_run":
-        event_data_workflow_run = githubkit.webhooks.parse_obj(
+        event_data_workflow_run = githubkit.webhooks.parse_obj(  # type: ignore[attr-defined]
             "workflow_run",
             job.github_event_data,
         )
         sha = event_data_workflow_run.workflow_run.head_sha
     if job.github_event_name == "check_suite":
-        event_data_check_suite = githubkit.webhooks.parse_obj(
+        event_data_check_suite = githubkit.webhooks.parse_obj(  # type: ignore[attr-defined]
             "check_suite",
             job.github_event_data,
         )
         sha = event_data_check_suite.check_suite.head_sha
     if job.github_event_name == "check_run":
-        event_data_check_run = githubkit.webhooks.parse_obj(
+        event_data_check_run = githubkit.webhooks.parse_obj(  # type: ignore[attr-defined]
             "check_run",
             job.github_event_data,
         )

@@ -23,7 +23,7 @@ def _gt_access(
     return access_number[access_1] > access_number[access_2]
 
 
-@view_config(route_name="home", renderer="github_app_geo_project.templates:home.html")  # type: ignore[misc]
+@view_config(route_name="home", renderer="github_app_geo_project.templates:home.html")  # type: ignore[untyped-decorator]
 def output(request: pyramid.request.Request) -> dict[str, Any]:
     """Get the welcome page."""
     repository = os.environ["C2C_AUTH_GITHUB_REPOSITORY"]

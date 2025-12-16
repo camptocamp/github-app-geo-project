@@ -16,32 +16,6 @@ convention = "numpy"
 "**/test_*.py" = ["ANN", "ARG", "ASYNC", "BLE001", "D", "DTZ", "E722", "FBT003", "INP001", "N", "PGH003", "PLC", "PLR2004", "PLW0603", "PLW1641", "RET", "RUF012", "RUF100", "S104", "S105", "S106", "S108", "S113", "S324", "S603", "S607", "S608", "SLF", "TRY003", "TRY301"]
 "**/*_test.py" = ["ANN", "ARG", "ASYNC", "BLE001", "D", "DTZ", "E722", "FBT003", "INP001", "N", "PGH003", "PLC", "PLR2004", "PLW0603", "PLW1641", "RET", "RUF012", "RUF100", "S104", "S105", "S106", "S108", "S113", "S324", "S603", "S607", "S608", "SLF", "TRY003", "TRY301"]
 
-[tool.poetry]
-description = ""
-version = "0.0.0"
-
-[tool.poetry.plugins."paste.app_factory"]
-main = "github_app_geo_project.server:main"
-
-[tool.poetry.plugins."ghci.module"]
-dispatcher = "github_app_geo_project.module.internal:Dispatcher"
-test = "github_app_geo_project.module.tests:TestModule"
-changelog = "github_app_geo_project.module.standard.changelog:Changelog"
-audit = "github_app_geo_project.module.audit:Audit"
-auto-review = "github_app_geo_project.module.standard.auto_review:AutoReview"
-auto-merge = "github_app_geo_project.module.standard.auto_merge:AutoMerge"
-auto-close = "github_app_geo_project.module.standard.auto_close:AutoClose"
-patch = "github_app_geo_project.module.standard.patch:Patch"
-versions = "github_app_geo_project.module.versions:Versions"
-workflow = "github_app_geo_project.module.workflow:Workflow"
-pull-request-checks = "github_app_geo_project.module.pull_request.checks:Checks"
-pull-request-links = "github_app_geo_project.module.pull_request.links:Links"
-delete-old-workflow-runs = "github_app_geo_project.module.delete_old_workflow_runs:DeleteOldWorkflowRuns"
-dispatch-publishing = "github_app_geo_project.module.dispatch_publishing:DispatchPublishing"
-clean = "github_app_geo_project.module.clean:Clean"
-backport = "github_app_geo_project.module.backport:Backport"
-outdated-comments = "github_app_geo_project.module.outdated_comments:OutdatedComments"
-
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
 c2cwsgiutils = { version = "6.1.8",  extras = ["standard", "debug", "dev"] }
@@ -83,6 +57,7 @@ pytest = "8.4.2"
 pytest-asyncio = "1.3.0"
 aioresponses = "0.7.8"
 WebTest = "3.0.7"
+mypy = "1.19.0"
 types-pyyaml = "6.0.12.20250915"
 types-setuptools = "80.9.0.20250822"
 types-markdown = "3.10.0.20251106"
@@ -110,11 +85,12 @@ format-jinja = """
 default = "present"
 
 [project]
+description = ""
+version = "0.0.0"
 classifiers = [
     'Development Status :: 4 - Beta',
     'Environment :: Web Environment',
     'Intended Audience :: Developers',
-    'License :: OSI Approved :: BSD License',
     'Operating System :: OS Independent',
     'Programming Language :: Python',
     'Programming Language :: Python :: 3',
@@ -141,6 +117,28 @@ repository = "https://github.com/camptocamp/github-app-geo-project"
 process-queue = "github_app_geo_project.scripts.process_queue:main"
 send-event = "github_app_geo_project.scripts.send_event:main"
 health-check = "github_app_geo_project.scripts.health_check:main"
+
+[project.entry-points."paste.app_factory"]
+main = "github_app_geo_project.server:main"
+
+[project.entry-points."ghci.module"]
+dispatcher = "github_app_geo_project.module.internal:Dispatcher"
+test = "github_app_geo_project.module.tests:TestModule"
+changelog = "github_app_geo_project.module.standard.changelog:Changelog"
+audit = "github_app_geo_project.module.audit:Audit"
+auto-review = "github_app_geo_project.module.standard.auto_review:AutoReview"
+auto-merge = "github_app_geo_project.module.standard.auto_merge:AutoMerge"
+auto-close = "github_app_geo_project.module.standard.auto_close:AutoClose"
+patch = "github_app_geo_project.module.standard.patch:Patch"
+versions = "github_app_geo_project.module.versions:Versions"
+workflow = "github_app_geo_project.module.workflow:Workflow"
+pull-request-checks = "github_app_geo_project.module.pull_request.checks:Checks"
+pull-request-links = "github_app_geo_project.module.pull_request.links:Links"
+delete-old-workflow-runs = "github_app_geo_project.module.delete_old_workflow_runs:DeleteOldWorkflowRuns"
+dispatch-publishing = "github_app_geo_project.module.dispatch_publishing:DispatchPublishing"
+clean = "github_app_geo_project.module.clean:Clean"
+backport = "github_app_geo_project.module.backport:Backport"
+outdated-comments = "github_app_geo_project.module.outdated_comments:OutdatedComments"
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning", "poetry-plugin-export"]

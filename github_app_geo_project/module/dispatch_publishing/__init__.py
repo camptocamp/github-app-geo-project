@@ -92,7 +92,7 @@ class DispatchPublishing(module.Module[None, None, None, None]):
             )
             if event_data.action == "published" and isinstance(
                 event_data,
-                githubkit.versions.v2022_11_28.webhooks.RepositoryDispatchEvent,
+                githubkit.versions.v2022_11_28.webhooks.RepositoryDispatchEvent,  # type: ignore[attr-defined]
             ):
                 return [module.Action(None)]
         return []
