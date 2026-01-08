@@ -18,7 +18,7 @@ convention = "numpy"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-c2cwsgiutils = { version = "6.1.8",  extras = ["standard", "debug", "dev"] }
+c2cwsgiutils = { version = "6.1.9",  extras = ["standard", "debug", "dev"] }
 c2cciutils = "1.7.5"
 security-md = "1.0.0"
 pyramid-mako = "1.1.0"
@@ -49,7 +49,7 @@ sqlalchemy = {extras = ["asyncio"], version = "2.0.45"}
 asyncpg = "0.31.0"
 
 [tool.poetry.group.dev.dependencies]
-c2cwsgiutils = { version = "6.1.8",  extras = ["test-images"] }
+c2cwsgiutils = { version = "6.1.9",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.17.3" }
 prospector-profile-duplicated = "1.10.5"
 prospector-profile-utils = "1.26.5"
