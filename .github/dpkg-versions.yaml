@@ -25,7 +25,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/debianutils: 5.17build1
   ubuntu_24_04/default-jre-headless: 2:1.21-75+exp1
   ubuntu_24_04/diffutils: 1:3.10-1build1
-  ubuntu_24_04/dirmngr: 2.4.4-2ubuntu17.3
+  ubuntu_24_04/dirmngr: 2.4.4-2ubuntu17.4
   ubuntu_24_04/docker.io: 27.5.1-0ubuntu3~24.04.2
   ubuntu_24_04/dpkg: 1.22.6ubuntu6.5
   ubuntu_24_04/dpkg-dev: 1.22.6ubuntu6.5
@@ -47,13 +47,13 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/gcc-x86-64-linux-gnu: 4:13.2.0-7ubuntu1
   ubuntu_24_04/git: 1:2.43.0-1ubuntu7.3
   ubuntu_24_04/git-man: 1:2.43.0-1ubuntu7.3
-  ubuntu_24_04/gnupg: 2.4.4-2ubuntu17.3
-  ubuntu_24_04/gnupg-utils: 2.4.4-2ubuntu17.3
-  ubuntu_24_04/gpg: 2.4.4-2ubuntu17.3
-  ubuntu_24_04/gpg-agent: 2.4.4-2ubuntu17.3
-  ubuntu_24_04/gpgconf: 2.4.4-2ubuntu17.3
-  ubuntu_24_04/gpgsm: 2.4.4-2ubuntu17.3
-  ubuntu_24_04/gpgv: 2.4.4-2ubuntu17.3
+  ubuntu_24_04/gnupg: 2.4.4-2ubuntu17.4
+  ubuntu_24_04/gnupg-utils: 2.4.4-2ubuntu17.4
+  ubuntu_24_04/gpg: 2.4.4-2ubuntu17.4
+  ubuntu_24_04/gpg-agent: 2.4.4-2ubuntu17.4
+  ubuntu_24_04/gpgconf: 2.4.4-2ubuntu17.4
+  ubuntu_24_04/gpgsm: 2.4.4-2ubuntu17.4
+  ubuntu_24_04/gpgv: 2.4.4-2ubuntu17.4
   ubuntu_24_04/grep: 3.11-4build1
   ubuntu_24_04/gtk-update-icon-cache: 3.24.41-4ubuntu1.3
   ubuntu_24_04/gzip: 1.12-1ubuntu3.1
@@ -63,7 +63,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/init-system-helpers: 1.66ubuntu1
   ubuntu_24_04/iptables: 1.8.10-3ubuntu2
   ubuntu_24_04/java-common: 0.75+exp1
-  ubuntu_24_04/keyboxd: 2.4.4-2ubuntu17.3
+  ubuntu_24_04/keyboxd: 2.4.4-2ubuntu17.4
   ubuntu_24_04/libacl1: 2.3.2-1build1.1
   ubuntu_24_04/libaom3: 3.8.2-2ubuntu0.1
   ubuntu_24_04/libapt-pkg6.0t64: 2.8.3
@@ -135,12 +135,12 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libgdbm6t64: 1.23-5.1build1
   ubuntu_24_04/libgdk-pixbuf-2.0-0: 2.42.10+dfsg-3ubuntu3.2
   ubuntu_24_04/libgdk-pixbuf2.0-common: 2.42.10+dfsg-3ubuntu3.2
-  ubuntu_24_04/libgirepository-2.0-0: 2.80.0-6ubuntu3.4
-  ubuntu_24_04/libglib2.0-0t64: 2.80.0-6ubuntu3.4
-  ubuntu_24_04/libglib2.0-bin: 2.80.0-6ubuntu3.4
-  ubuntu_24_04/libglib2.0-data: 2.80.0-6ubuntu3.4
-  ubuntu_24_04/libglib2.0-dev: 2.80.0-6ubuntu3.4
-  ubuntu_24_04/libglib2.0-dev-bin: 2.80.0-6ubuntu3.4
+  ubuntu_24_04/libgirepository-2.0-0: 2.80.0-6ubuntu3.6
+  ubuntu_24_04/libglib2.0-0t64: 2.80.0-6ubuntu3.6
+  ubuntu_24_04/libglib2.0-bin: 2.80.0-6ubuntu3.6
+  ubuntu_24_04/libglib2.0-data: 2.80.0-6ubuntu3.6
+  ubuntu_24_04/libglib2.0-dev: 2.80.0-6ubuntu3.6
+  ubuntu_24_04/libglib2.0-dev-bin: 2.80.0-6ubuntu3.6
   ubuntu_24_04/libgmp10: 2:6.3.0+dfsg-2ubuntu6.1
   ubuntu_24_04/libgnutls30t64: 3.8.3-1.1ubuntu3.4
   ubuntu_24_04/libgomp1: 14.2.0-4ubuntu2~24.04
