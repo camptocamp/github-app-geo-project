@@ -466,10 +466,21 @@ class Audit(
                 context.github_event_data,
             )
             for commit in event_data_push.commits:
+                # Check if SECURITY.md is removed on the default branch
+                if (
+                    "SECURITY.md" in (commit.removed or [])
+                    and event_data_push.ref == f"refs/heads/{event_data_push.repository.default_branch}"
+                ):
+                    return [
+                        module.Action(
+                            priority=module.PRIORITY_CRON,
+                            data=_EventData(type="cleanup"),
+                            title="cleanup",
+                        ),
+                    ]
                 if "SECURITY.md" in [
                     *(commit.modified or []),
                     *(commit.added or []),
-                    *(commit.removed or []),
                 ]:
                     return [
                         module.Action(
@@ -542,6 +553,40 @@ class Audit(
         success = True
         intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
 
+        # Handle cleanup when SECURITY.md is removed on default branch
+        if context.module_event_data.type == "cleanup":
+            _LOGGER.info("Cleaning up audit-related pull requests and issues")
+            # Close all audit-related pull requests
+            async for branch in context.github_project.aio_github.paginate(
+                context.github_project.aio_github.rest.repos.async_list_branches,
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+            ):
+                branch_name = branch.name
+                for key_prefix in ["snyk", "dpkg"]:
+                    if branch_name.startswith(f"ghci/audit/{key_prefix}/"):
+                        _LOGGER.debug("Closing pull requests for branch %s", branch_name)
+
+                        version = branch_name.split("/", 3)[-1]
+                        issue_message_middle = "Snyk check/fix" if key_prefix == "snyk" else "Dpkg"
+                        await module_utils.close_pull_request_issues(
+                            branch_name,
+                            f"Audit {issue_message_middle} {version}",
+                            context.github_project,
+                        )
+
+            # Clear all checks from dashboard
+            issue_check.remove_check("outdated")
+            issue_check.remove_check("snyk")
+            issue_check.remove_check("dpkg")
+
+            return module.ProcessOutput(
+                dashboard=issue_check.to_string(),
+                intermediate_status=intermediate_status,
+                updated_transversal_status=True,
+                success=True,
+            )
+
         # If no SECURITY.md apply on default branch
         key_starts = []
         security_file = None
@@ -564,7 +609,7 @@ class Audit(
         else:
             issue_check.remove_check("outdated")
 
-        if context.module_config.get("snyk", {}).get(
+        if security_file is not None and context.module_config.get("snyk", {}).get(
             "enabled",
             configuration.ENABLE_SNYK_DEFAULT,
         ):
@@ -592,7 +637,8 @@ class Audit(
             else:
                 raise
         if (
-            context.module_config.get("dpkg", {}).get(
+            security_file is not None
+            and context.module_config.get("dpkg", {}).get(
                 "enabled",
                 configuration.ENABLE_DPKG_DEFAULT,
             )
@@ -619,9 +665,18 @@ class Audit(
                 versions = module_utils.get_stabilization_versions(security)
             else:
                 _LOGGER.debug(
-                    "No SECURITY.md file in the repository, apply on default branch",
+                    "No SECURITY.md file in the repository, nothing to audit",
                 )
-                versions = [await context.github_project.default_branch()]
+                return module.ProcessOutput(
+                    actions=[
+                        module.Action(
+                            priority=module.PRIORITY_CRON,
+                            data=_EventData(type="cleanup"),
+                            title="cleanup",
+                        )
+                    ],
+                    dashboard=issue_check.to_string(),
+                )
             _LOGGER.debug("Versions: %s", ", ".join(versions))
 
             all_key_starts = []
