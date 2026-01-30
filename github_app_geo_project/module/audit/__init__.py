@@ -61,6 +61,7 @@ class _EventData(BaseModel):
     dpkg: bool = False
     is_dashboard: bool = False
     version: str | None = None
+    known_versions: list[str] | None = None  # for cleanup
 
 
 def _get_process_output(
@@ -478,6 +479,7 @@ class Audit(
                             title="cleanup",
                         ),
                     ]
+
                 if "SECURITY.md" in [
                     *(commit.modified or []),
                     *(commit.added or []),
@@ -556,6 +558,7 @@ class Audit(
         # Handle cleanup when SECURITY.md is removed on default branch
         if context.module_event_data.type == "cleanup":
             _LOGGER.info("Cleaning up audit-related pull requests and issues")
+            known_versions = context.module_event_data.known_versions or []
             # Close all audit-related pull requests
             async for branch in context.github_project.aio_github.paginate(
                 context.github_project.aio_github.rest.repos.async_list_branches,
@@ -568,24 +571,25 @@ class Audit(
                         _LOGGER.debug("Closing pull requests for branch %s", branch_name)
 
                         version = branch_name.split("/", 3)[-1]
-                        issue_message_middle = "Snyk check/fix" if key_prefix == "snyk" else "Dpkg"
-                        await module_utils.close_pull_request_issues(
-                            branch_name,
-                            f"Audit {issue_message_middle} {version}",
-                            context.github_project,
-                        )
+                        if version not in known_versions:
+                            issue_message_middle = "Snyk check/fix" if key_prefix == "snyk" else "Dpkg"
+                            await module_utils.close_pull_request_issues(
+                                branch_name,
+                                f"Audit {issue_message_middle} {version}",
+                                context.github_project,
+                            )
 
-            # Clear all checks from dashboard
-            issue_check.remove_check("outdated")
-            issue_check.remove_check("snyk")
-            issue_check.remove_check("dpkg")
+            if not known_versions:
+                # Clear all checks from dashboard
+                issue_check.remove_check("outdated")
+                issue_check.remove_check("snyk")
+                issue_check.remove_check("dpkg")
 
-            return module.ProcessOutput(
-                dashboard=issue_check.to_string(),
-                intermediate_status=intermediate_status,
-                updated_transversal_status=True,
-                success=True,
-            )
+                return module.ProcessOutput(
+                    dashboard=issue_check.to_string(),
+                    success=True,
+                )
+            return module.ProcessOutput(success=True)
 
         # If no SECURITY.md apply on default branch
         key_starts = []
@@ -694,12 +698,18 @@ class Audit(
             priority = (
                 module.PRIORITY_STANDARD if context.module_event_data.is_dashboard else module.PRIORITY_CRON
             )
-            actions = []
-            for version in versions:
-                version = context.module_config.get("version-mapping", {}).get(  # noqa: PLW2901
-                    version,
-                    version,
+            # Apply version mapping to get the actual branch names used
+            mapped_versions = [
+                context.module_config.get("version-mapping", {}).get(version, version) for version in versions
+            ]
+            actions = [
+                module.Action(
+                    priority=module.PRIORITY_CRON,
+                    data=_EventData(type="cleanup", known_versions=mapped_versions),
+                    title="cleanup",
                 )
+            ]
+            for version in mapped_versions:
                 if context.module_event_data.snyk and context.module_config.get(
                     "snyk",
                     {},
