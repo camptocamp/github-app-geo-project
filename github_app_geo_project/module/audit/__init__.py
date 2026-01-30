@@ -698,10 +698,15 @@ class Audit(
             priority = (
                 module.PRIORITY_STANDARD if context.module_event_data.is_dashboard else module.PRIORITY_CRON
             )
+            # Apply version mapping to get the actual branch names used
+            mapped_versions = [
+                context.module_config.get("version-mapping", {}).get(version, version)
+                for version in versions
+            ]
             actions = [
                 module.Action(
                     priority=module.PRIORITY_CRON,
-                    data=_EventData(type="cleanup", known_versions=versions),
+                    data=_EventData(type="cleanup", known_versions=mapped_versions),
                     title="cleanup",
                 )
             ]
