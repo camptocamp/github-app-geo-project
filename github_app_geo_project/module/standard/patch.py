@@ -3,18 +3,21 @@
 import asyncio
 import io
 import logging
+import re
 import subprocess  # nosec
 import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any
 
+import githubkit.exception
 import githubkit.webhooks
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
 
 _LOGGER = logging.getLogger(__name__)
+_CODEQL_JOB_NAME_MATCHER = re.compile(r"^Analyze \([a-z]+\)$")
 
 
 class PatchError(Exception):
@@ -70,16 +73,31 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
+        if context.module_event_name == "workflow_job":
+            event_data_workflow_job = githubkit.webhooks.parse_obj(
+                "workflow_job",
+                context.github_event_data,
+            )
+            if (
+                event_data_workflow_job.action == "completed"
+                and event_data_workflow_job.workflow_job.conclusion == "failure"
+                # Don't run on dynamic workflows like CodeQL
+                and not _CODEQL_JOB_NAME_MATCHER.match(event_data_workflow_job.workflow_job.name)
+            ):
+                return [module.Action(priority=module.PRIORITY_STANDARD, data={})]
         if context.module_event_name == "workflow_run":
-            event_data = githubkit.webhooks.parse_obj(
+            event_data_workflow_run = githubkit.webhooks.parse_obj(
                 "workflow_run",
                 context.github_event_data,
             )
             if (
-                event_data.action == "completed"
-                and event_data.workflow_run.conclusion == "failure"
+                event_data_workflow_run.action == "completed"
+                and event_data_workflow_run.workflow_run.conclusion == "failure"
                 # Don't run on dynamic workflows like CodeQL
-                and (event_data.workflow is None or not event_data.workflow.path.startswith("dynamic/"))
+                and (
+                    event_data_workflow_run.workflow is None
+                    or not event_data_workflow_run.workflow.path.startswith("dynamic/")
+                )
             ):
                 return [module.Action(priority=module.PRIORITY_STANDARD, data={})]
         return []
@@ -93,18 +111,70 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
 
         Note that this method is called in the queue consuming Pod
         """
-        assert context.module_event_name == "workflow_run"
-        event_data = githubkit.webhooks.parse_obj(
-            "workflow_run",
-            context.github_event_data,
-        )
+        if context.module_event_name == "workflow_job":
+            event_data_workflow_job = githubkit.webhooks.parse_obj(
+                "workflow_job",
+                context.github_event_data,
+            )
+            run_id = event_data_workflow_job.workflow_job.run_id
+            head_branch = event_data_workflow_job.workflow_job.head_branch
+            is_clone = False
+            try:
+                workflow_run_response = (
+                    await context.github_project.aio_github.rest.actions.async_get_workflow_run(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                        run_id=run_id,
+                    )
+                )
+                workflow_run = workflow_run_response.parsed_data
+                head_repo = getattr(workflow_run, "head_repository", None)
+                base_repo = getattr(workflow_run, "repository", None)
+                head_owner = getattr(head_repo, "owner", None) if head_repo is not None else None
+                base_owner = getattr(base_repo, "owner", None) if base_repo is not None else None
+                is_clone = (
+                    getattr(head_owner, "login", None) != getattr(base_owner, "login", None)
+                    if head_owner is not None and base_owner is not None
+                    else False
+                )
+            except githubkit.exception.RequestFailed as exception:
+                # If we cannot determine fork information, fall back to assuming it's not a clone.
+                _LOGGER.exception(
+                    "Failed to get workflow run information for run_id %s: %s",
+                    run_id,
+                    exception.response.status_code,
+                )
+        elif context.module_event_name == "workflow_run":
+            event_data_workflow_run = githubkit.webhooks.parse_obj(
+                "workflow_run",
+                context.github_event_data,
+            )
+            run_id = event_data_workflow_run.workflow_run.id
+            head_branch = event_data_workflow_run.workflow_run.head_branch
+            is_clone = (
+                event_data_workflow_run.workflow_run.head_repository.owner.login
+                != event_data_workflow_run.workflow_run.repository.owner.login
+                if event_data_workflow_run.workflow_run.head_repository.owner
+                and event_data_workflow_run.workflow_run.repository.owner
+                else False
+            )
+        else:
+            return module.ProcessOutput(
+                success=False,
+                output={"summary": f"Invalid event '{context.module_event_name}' for the Patch module"},
+            )
+
+        if head_branch is None:
+            _LOGGER.error("workflow event head_branch is None; cannot apply patch.")
+            error_message = "Missing head branch information from workflow event"
+            raise PatchError(error_message)
 
         # Get workflow artifacts
         artifacts_response = (
             await context.github_project.aio_github.rest.actions.async_list_workflow_run_artifacts(
                 owner=context.github_project.owner,
                 repo=context.github_project.repository,
-                run_id=event_data.workflow_run.id,
+                run_id=run_id,
             )
         )
         artifacts = artifacts_response.parsed_data.artifacts
@@ -113,18 +183,9 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
             _LOGGER.debug("No artifacts found")
             return module.ProcessOutput()
 
-        is_clone = (
-            event_data.workflow_run.head_repository.owner.login
-            != event_data.workflow_run.repository.owner.login
-            if event_data.workflow_run.head_repository.owner and event_data.workflow_run.repository.owner
-            else False
-        )
         should_push = False
         result_message = []
         error_messages = []
-
-        # Get workflow run details to access head_branch
-        head_branch = event_data.workflow_run.head_branch
 
         with tempfile.TemporaryDirectory() as tmpdirname:
             cwd = Path(tmpdirname)
@@ -281,5 +342,5 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                 "contents": "write",
                 "workflows": "read",
             },
-            {"workflow_run"},
+            {"workflow_run", "workflow_job"},
         )
