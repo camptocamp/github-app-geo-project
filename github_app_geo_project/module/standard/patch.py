@@ -190,7 +190,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                         if is_clone:
                             result_message.extend(["```diff", patch_input, "```"])
                         else:
-                            command = ["git", "apply", "--allow-empty", "--verbose"]
+                            command = ["git", "apply", "--allow-empty", "--index", "--verbose"]
                             proc = await asyncio.create_subprocess_exec(
                                 *command,
                                 stdin=asyncio.subprocess.PIPE,
