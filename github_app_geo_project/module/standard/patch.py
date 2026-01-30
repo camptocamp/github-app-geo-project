@@ -10,6 +10,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+import githubkit.exception
 import githubkit.webhooks
 
 from github_app_geo_project import module
@@ -139,9 +140,13 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                 base_login = getattr(base_owner, "login", None) if base_owner is not None else None
                 if head_login is not None and base_login is not None:
                     is_clone = head_login != base_login
-            except Exception:
+            except githubkit.exception.RequestFailed as exception:
                 # If we cannot determine fork information, fall back to assuming it's not a clone.
-                _LOGGER.exception("Failed to get workflow run information for run_id %s", run_id)
+                _LOGGER.exception(
+                    "Failed to get workflow run information for run_id %s: %s",
+                    run_id,
+                    exception.response.status_code,
+                )
         elif context.module_event_name == "workflow_run":
             event_data = githubkit.webhooks.parse_obj(
                 "workflow_run",
