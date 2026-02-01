@@ -43,7 +43,7 @@ repos:
     hooks:
       - id: poetry2-lock
         additional_dependencies:
-          - poetry==2.3.1 # pypi
+          - poetry==2.3.2 # pypi
         language_version: '3.12'
       - id: canonicalize
       - id: prospector-to-ruff
