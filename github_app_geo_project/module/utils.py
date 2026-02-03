@@ -915,7 +915,7 @@ async def close_pull_request_issues(
             owner=github_project.owner,
             repo=github_project.repository,
             state="open",
-            creator=github_project.application.slug + "[bot]",
+            creator=f"{github_project.application.slug}[bot]",
         )
     ).parsed_data
     assert issues is not None
