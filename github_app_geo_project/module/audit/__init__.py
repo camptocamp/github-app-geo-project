@@ -540,7 +540,7 @@ class Audit(
 
     def title(self) -> str:
         """Get the title of the module."""
-        return "Audit (Snyk/dpkg)"
+        return "Audit (Snyk/dpkg/Renovate)"
 
     def description(self) -> str:
         """Get the description of the module."""
