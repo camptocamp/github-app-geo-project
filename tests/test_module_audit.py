@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from github_app_geo_project.module.audit import _process_renovate, configuration, _EventData
+from github_app_geo_project.module.audit import _process_renovate, _EventData
 
 
 @pytest.mark.asyncio
@@ -38,8 +38,7 @@ async def test_process_renovate_default_branch_success():
             # Mock EditRenovateConfigV2 to avoid pre-commit issues
             with patch("github_app_geo_project.module.audit.editor.EditRenovateConfigV2") as mock_editor:
                 mock_config = MagicMock()
-                mock_editor.return_value.__enter__ = Mock(return_value=mock_config)
-                mock_editor.return_value.__exit__ = Mock(return_value=None)
+                mock_editor.return_value = MagicMock(__enter__=Mock(return_value=mock_config), __exit__=Mock())
                 
                 # Mock _create_pull_request_if_changes
                 with patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr:
