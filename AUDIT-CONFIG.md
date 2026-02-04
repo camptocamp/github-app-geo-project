@@ -18,6 +18,8 @@
           - <a id="properties/audit/properties/dpkg/properties/sources/additionalProperties/items/properties/distribution"></a>**`distribution`** _(string)_: Distribution of the source.
           - <a id="properties/audit/properties/dpkg/properties/sources/additionalProperties/items/properties/components"></a>**`components`** _(array)_: Components of the source.
             - <a id="properties/audit/properties/dpkg/properties/sources/additionalProperties/items/properties/components/items"></a>**Items** _(string)_
+  - <a id="properties/audit/properties/renovate"></a>**`renovate`** _(object)_: Cannot contain additional properties.
+    - <a id="properties/audit/properties/renovate/properties/enabled"></a>**`enabled`** _(boolean)_: Enable Renovate audit. Default: `true`.
   - <a id="properties/audit/properties/version-mapping"></a>**`version-mapping`** _(object)_: Mapping of version to the branch name. Can contain additional properties. Default: `{}`.
     - <a id="properties/audit/properties/version-mapping/additionalProperties"></a>**Additional properties** _(string)_
   - <a id="properties/audit/properties/pre-commit"></a>**`pre-commit`** _(object)_: Cannot contain additional properties.

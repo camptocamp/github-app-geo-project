@@ -104,7 +104,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
                 base64.b64decode(security_file.content).decode("utf-8"),
             )
 
-            stabilization_branches += module_utils.get_stabilization_versions(security)
+            stabilization_branches += security.branches()
 
         else:
             _LOGGER.debug(

@@ -265,6 +265,19 @@
             }
           }
         },
+        "renovate": {
+          "type": "object",
+          "title": "Renovate configuration",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable Renovate",
+              "description": "Enable Renovate audit",
+              "default": true
+            }
+          }
+        },
         "version-mapping": {
           "type": "object",
           "title": "Version mapping",
