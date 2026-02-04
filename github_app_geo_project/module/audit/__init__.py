@@ -579,6 +579,28 @@ class Audit(
                                 context.github_project,
                             )
 
+            issue: githubkit.versions.latest.models.Issue
+            async for issue in context.github_project.aio_github.paginate(
+                context.github_project.aio_github.rest.issues.async_list_for_repo,
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                state="open",
+                creator=f"{context.github_project.application.slug}[bot]",
+            ):
+                issue_title: str = issue.title
+                for key_prefix in ["Snyk check/fix", "Dpkg"]:
+                    prefix = f"Pull request Audit {key_prefix} "
+                    if issue_title.startswith(prefix):
+                        version = issue_title[len(prefix) :].split(" ", 1)[0]
+                        if version not in known_versions:
+                            _LOGGER.debug("Closing issue %s", issue.html_url)
+                            await context.github_project.aio_github.rest.issues.async_update(
+                                owner=context.github_project.owner,
+                                repo=context.github_project.repository,
+                                issue_number=issue.number,
+                                state="closed",
+                            )
+
             if not known_versions:
                 # Clear all checks from dashboard
                 issue_check.remove_check("outdated")
