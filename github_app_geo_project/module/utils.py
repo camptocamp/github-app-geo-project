@@ -1029,31 +1029,6 @@ async def git_clone(
     return cwd
 
 
-def get_stabilization_versions(security: security_md.Security) -> list[str]:
-    """Get the stabilization versions."""
-    version_index = security.version_index
-    supported_until_index = security.support_until_index
-    alternates_tag_index = security.alternate_tag_index
-
-    if version_index < 0:
-        _LOGGER.warning("No Version column in the SECURITY.md")
-        return []
-    if supported_until_index < 0:
-        _LOGGER.warning("No Supported Until column in the SECURITY.md")
-        return []
-
-    versions = []
-    alternate_tags = []
-    for row in security.data:
-        if row[supported_until_index] != "Unsupported":
-            versions.append(row[version_index])
-        if alternates_tag_index >= 0:
-            alternate_tags.extend(
-                [v.strip() for v in row[alternates_tag_index].split(",") if v.strip()],
-            )
-    return [v for v in versions if v not in alternate_tags]
-
-
 def get_alternate_versions(security: security_md.Security, branch: str) -> list[str]:
     """Get the stabilization versions."""
     alternate_index = security.alternate_tag_index

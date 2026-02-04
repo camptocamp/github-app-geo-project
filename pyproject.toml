@@ -47,6 +47,7 @@ deprecated = "1.3.1"
 aiomonitor = "0.7.1"
 sqlalchemy = {extras = ["asyncio"], version = "2.0.46"}
 asyncpg = "0.31.0"
+multi-repo-automation = "1.7.0"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.9",  extras = ["test-images"] }
@@ -107,7 +108,7 @@ authors = [{name = "Stéphane Brunner",email = "stephane.brunner@camptocamp.com"
 packages = [{ include = "github_app_geo_project" }]
 include = ["github_app_geo_project/py.typed"]
 requires-python = ">=3.11"
-dependencies = ["c2cwsgiutils[debug,dev,standard]", "c2cciutils", "security-md", "pyramid-mako", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aioresponses", "pytest-asyncio", "cryptography", "urllib3", "certifi", "sentry-sdk", "webob", "waitress", "lxml-html-clean", "tag-publish", "aiohttp", "aiofiles", "githubkit[auth-app]", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "requests==2.32.5"]
+dependencies = ["c2cwsgiutils[debug,dev,standard]", "c2cciutils", "security-md", "pyramid-mako", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aioresponses", "pytest-asyncio", "cryptography", "urllib3", "certifi", "sentry-sdk", "webob", "waitress", "lxml-html-clean", "tag-publish", "aiohttp", "aiofiles", "githubkit[auth-app]", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "requests==2.32.5", "multi-repo-automation"]
 
 [project.urls]
 repository = "https://github.com/camptocamp/github-app-geo-project"

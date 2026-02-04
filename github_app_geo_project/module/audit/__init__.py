@@ -18,6 +18,7 @@ import githubkit.exception
 import githubkit.webhooks
 import security_md
 import yaml
+from multi_repo_automation import editor
 from pydantic import BaseModel
 
 from github_app_geo_project import models, module
@@ -111,6 +112,78 @@ async def _process_error(
         issue_check.set_title(key, f"{key}: everything is fine")
 
     return output_url
+
+
+async def _process_renovate(
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
+    known_versions: list[str] | None,
+) -> bool:
+    # Checkout the right branch on a temporary directory
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        _LOGGER.debug(
+            "Clone the repository in the temporary directory: %s",
+            tmpdirname,
+        )
+        cwd = Path(tmpdirname)
+        if context.module_event_data.version is None:
+            _LOGGER.debug("Process renovate update on default branch")
+
+            assert known_versions is not None
+
+            default_branch = await context.github_project.default_branch()
+
+            new_cwd = await module_utils.git_clone(context.github_project, default_branch, cwd)
+            if new_cwd is None:
+                _LOGGER.error("Failed to clone the repository for Renovate update on default branch")
+                return False
+
+            with editor.EditRenovateConfigV2(new_cwd / ".github" / "renovate.json5") as renovate_config:
+                renovate_config["baseBranchPatterns"] = [
+                    default_branch,
+                    *known_versions,
+                ]
+
+            success, _ = await _create_pull_request_if_changes(
+                default_branch,
+                f"ghci/audit/renovate/{default_branch}",
+                "Update Renovate configuration",
+                "Update the stabilization branches in the Renovate configuration",
+                context,
+                {},
+                new_cwd,
+                None,
+            )
+            return success
+        _LOGGER.debug(
+            "Process Renovate cleanup for version %s",
+            context.module_event_data.version,
+        )
+        new_cwd = await module_utils.git_clone(context.github_project, context.module_event_data.version, cwd)
+        if new_cwd is None:
+            _LOGGER.error(
+                "Failed to clone the repository for Renovate cleanup on version %s",
+                context.module_event_data.version,
+            )
+            return False
+
+        renovate_config_path = new_cwd / ".github" / "renovate.json5"
+        if renovate_config_path.exists():
+            renovate_config_path.unlink()
+        security_md_path = new_cwd / "SECURITY.md"
+        if security_md_path.exists():
+            security_md_path.unlink()
+
+        success, _ = await _create_pull_request_if_changes(
+            context.module_event_data.version,
+            f"ghci/audit/renovate/{context.module_event_data.version}",
+            f"Cleanup Renovate configuration for version {context.module_event_data.version}",
+            "Remove the Renovate configuration and the SECURITY.md file if they exist",
+            context,
+            {},
+            new_cwd,
+            None,
+        )
+        return success
 
 
 async def _process_outdated(
@@ -257,99 +330,18 @@ async def _process_snyk_dpkg(
             body_md += f"[Logs]({logs_url})"
             short_message.append(f"[Logs]({logs_url})")
 
-            command = ["git", "diff", "--quiet"]
-            diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
-            try:
-                async with asyncio.timeout(60):
-                    stdout, stderr = await diff_proc.communicate()
-                if diff_proc.returncode != 0:
-                    command = ["git", "diff"]
-                    proc = await asyncio.create_subprocess_exec(
-                        *command,
-                        stdin=asyncio.subprocess.PIPE,
-                        stdout=asyncio.subprocess.PIPE,
-                        cwd=cwd,
-                    )
-                    try:
-                        async with asyncio.timeout(60):
-                            stdout, stderr = await proc.communicate()
-                        message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                            command,
-                            proc,
-                            stdout,
-                            stderr,
-                        )
-                        message.title = "Changes to be committed"
-                        _LOGGER.debug(message)
-                    except TimeoutError:
-                        proc.kill()
-                        raise
-
-                    command = ["git", "checkout", "-b", new_branch]
-                    proc = await asyncio.create_subprocess_exec(
-                        *command,
-                        stdin=asyncio.subprocess.PIPE,
-                        stdout=asyncio.subprocess.PIPE,
-                        cwd=cwd,
-                    )
-                    try:
-                        async with asyncio.timeout(60):
-                            stdout, stderr = await proc.communicate()
-                        if proc.returncode != 0:
-                            message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                                command,
-                                proc,
-                                stdout,
-                                stderr,
-                            )
-                            message.title = "Error while creating the new branch"
-                            _LOGGER.error(message)
-
-                        else:
-                            pre_commit_config = audit_utils.get_pre_commit_config(
-                                context.module_config,
-                                local_config,
-                            )
-                            new_success, pull_request = await module_utils.create_commit_pull_request(
-                                branch,
-                                new_branch,
-                                f"Audit {key}",
-                                body_md,
-                                context.github_project,
-                                cwd,
-                                pre_commit_config.get("enabled", True),
-                                pre_commit_config.get("skip-hooks", []),
-                            )
-                            success &= new_success
-                            if not new_success:
-                                _LOGGER.error(
-                                    "Error while create commit or pull request",
-                                )
-                            elif pull_request is not None:
-                                issue_check.set_title(
-                                    key,
-                                    f"{key} ([Pull request]({pull_request.html_url}))",
-                                )
-                                short_message.append(
-                                    f"[Pull request]({pull_request.html_url})",
-                                )
-                    except TimeoutError:
-                        proc.kill()
-                        raise
-
-                else:
-                    _LOGGER.debug("No changes to commit")
-                    await module_utils.close_pull_request_issues(
-                        new_branch,
-                        f"Audit {key}",
-                        context.github_project,
-                    )
-            except TimeoutError:
-                try:
-                    diff_proc.kill()
-                except:  # noqa: S110
-                    pass
-                raise
+            new_success, pr_messages = await _create_pull_request_if_changes(
+                branch,
+                new_branch,
+                key,
+                body_md,
+                context,
+                local_config,
+                cwd,
+                issue_check,
+            )
+            success &= new_success
+            short_message.extend(pr_messages)
 
         transversal_message = ", ".join(short_message)
         intermediate_status.status.types[key] = _TransversalStatusTool(
@@ -425,6 +417,117 @@ async def _use_python_version(python_version: str, cwd: Path) -> dict[str, str]:
     return env
 
 
+async def _create_pull_request_if_changes(
+    branch: str,
+    new_branch: str,
+    key: str,
+    body_md: str,
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
+    local_config: configuration.AuditConfiguration,
+    cwd: Path,
+    issue_check: module_utils.DashboardIssue | None,
+) -> tuple[bool, list[str]]:
+    """Create a pull request if there are changes to commit."""
+    success = True
+    short_message: list[str] = []
+
+    command = ["git", "diff", "--quiet"]
+    diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
+    try:
+        async with asyncio.timeout(60):
+            await diff_proc.communicate()
+        if diff_proc.returncode != 0:
+            command = ["git", "diff"]
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+            try:
+                async with asyncio.timeout(60):
+                    stdout, stderr = await proc.communicate()
+                message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                    command,
+                    proc,
+                    stdout,
+                    stderr,
+                )
+                message.title = "Changes to be committed"
+                _LOGGER.debug(message)
+            except TimeoutError:
+                proc.kill()
+                raise
+
+            command = ["git", "checkout", "-b", new_branch]
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                cwd=cwd,
+            )
+            try:
+                async with asyncio.timeout(60):
+                    stdout, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                        command,
+                        proc,
+                        stdout,
+                        stderr,
+                    )
+                    message.title = "Error while creating the new branch"
+                    _LOGGER.error(message)
+
+                else:
+                    pre_commit_config = audit_utils.get_pre_commit_config(
+                        context.module_config,
+                        local_config,
+                    )
+                    new_success, pull_request = await module_utils.create_commit_pull_request(
+                        branch,
+                        new_branch,
+                        f"Audit {key}",
+                        body_md,
+                        context.github_project,
+                        cwd,
+                        pre_commit_config.get("enabled", True),
+                        pre_commit_config.get("skip-hooks", []),
+                    )
+                    success &= new_success
+                    if not new_success:
+                        _LOGGER.error(
+                            "Error while create commit or pull request",
+                        )
+                    elif pull_request is not None and issue_check is not None:
+                        issue_check.set_title(
+                            key,
+                            f"{key} ([Pull request]({pull_request.html_url}))",
+                        )
+                        short_message.append(
+                            f"[Pull request]({pull_request.html_url})",
+                        )
+            except TimeoutError:
+                proc.kill()
+                raise
+
+        else:
+            _LOGGER.debug("No changes to commit")
+            await module_utils.close_pull_request_issues(
+                new_branch,
+                f"Audit {key}",
+                context.github_project,
+            )
+    except TimeoutError:
+        try:
+            diff_proc.kill()
+        except:  # noqa: S110
+            pass
+        raise
+
+    return success, short_message
+
+
 class Audit(
     module.Module[
         configuration.AuditConfiguration,
@@ -441,7 +544,7 @@ class Audit(
 
     def description(self) -> str:
         """Get the description of the module."""
-        return "Audit the project with Snyk (for CVE in dependency) and update dpkg package version to trigger a rebuild"
+        return "Audit the project with Snyk (for CVE in dependency) and update dpkg package version to trigger a rebuild, also update the Renovate configuration"
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
@@ -527,7 +630,14 @@ class Audit(
                     priority=module.PRIORITY_CRON,
                     data=_EventData(type="outdated"),
                     title="outdated",
-                ),
+                )
+            )
+            results.append(
+                module.Action(
+                    priority=module.PRIORITY_CRON,
+                    data=_EventData(type="renovate"),
+                    title="renovate",
+                )
             )
             snyk = True
             dpkg = True
@@ -566,13 +676,19 @@ class Audit(
                 repo=context.github_project.repository,
             ):
                 branch_name = branch.name
-                for key_prefix in ["snyk", "dpkg"]:
+                for key_prefix in ["snyk", "dpkg", "renovate"]:
                     if branch_name.startswith(f"ghci/audit/{key_prefix}/"):
                         _LOGGER.debug("Closing pull requests for branch %s", branch_name)
 
                         version = branch_name.split("/", 3)[-1]
                         if version not in known_versions:
-                            issue_message_middle = "Snyk check/fix" if key_prefix == "snyk" else "Dpkg"
+                            issue_message_middle = (
+                                "Snyk check/fix"
+                                if key_prefix == "snyk"
+                                else "Dpkg"
+                                if key_prefix == "dpkg"
+                                else "Renovate"
+                            )
                             await module_utils.close_pull_request_issues(
                                 branch_name,
                                 f"Audit {issue_message_middle} {version}",
@@ -588,7 +704,7 @@ class Audit(
                 creator=f"{context.github_project.application.slug}[bot]",
             ):
                 issue_title: str = issue.title
-                for key_prefix in ["Snyk check/fix", "Dpkg"]:
+                for key_prefix in ["Snyk check/fix", "Dpkg", "Renovate"]:
                     prefix = f"Pull request Audit {key_prefix} "
                     if issue_title.startswith(prefix):
                         version = issue_title[len(prefix) :].split(" ", 1)[0]
@@ -675,6 +791,49 @@ class Audit(
         else:
             issue_check.remove_check("dpkg")
 
+        if context.module_event_data.type == "renovate" and context.module_config.get("renovate", {}).get(
+            "enabled",
+            configuration.ENABLE_RENOVATE_DEFAULT,
+        ):
+            actions = []
+            mapped_versions = None
+            if context.module_event_data.version is None:
+                # Creates new jobs with the versions from the SECURITY.md
+                versions = []
+                if (
+                    isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+                    and security_file.content is not None
+                ):
+                    security = security_md.Security(
+                        base64.b64decode(security_file.content).decode("utf-8"),
+                    )
+
+                    versions = security.branches()
+                else:
+                    _LOGGER.debug(
+                        "No SECURITY.md file in the repository, nothing to do for Renovate",
+                    )
+                    return module.ProcessOutput()
+
+                mapped_versions = [
+                    context.module_config.get("version-mapping", {}).get(version, version)
+                    for version in versions
+                ]
+
+                _LOGGER.debug("Versions: %s", ", ".join(versions))
+                actions.extend(
+                    [
+                        module.Action(
+                            priority=module.PRIORITY_CRON,
+                            data=_EventData(type="renovate", version=version, known_versions=mapped_versions),
+                            title=f"renovate ({version})",
+                        )
+                        for version in mapped_versions
+                    ],
+                )
+
+            success = await _process_renovate(context, mapped_versions)
+            return module.ProcessOutput(actions=actions, success=success)
         if context.module_event_data.type == "outdated":
             await _process_outdated(context, issue_check)
         elif context.module_event_data.version is None:
@@ -688,7 +847,7 @@ class Audit(
                     base64.b64decode(security_file.content).decode("utf-8"),
                 )
 
-                versions = module_utils.get_stabilization_versions(security)
+                versions = security.branches()
             else:
                 _LOGGER.debug(
                     "No SECURITY.md file in the repository, nothing to audit",
