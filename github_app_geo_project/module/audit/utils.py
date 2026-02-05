@@ -798,7 +798,8 @@ async def _get_packages_version(
         await asyncio.to_thread(_get_sources, dist, config, local_config)
     if package not in _PACKAGE_VERSION:
         _LOGGER.warning("No version found for %s", package)
-    return str(_PACKAGE_VERSION.get(package))
+        return None
+    return str(_PACKAGE_VERSION[package])
 
 
 async def dpkg(
@@ -832,7 +833,7 @@ async def dpkg(
                     current_version = debian_inspector.version.Version.from_string(versions[package_full])
                 except ValueError as exception:
                     _LOGGER.warning(
-                        "Error while parsing the current version %s of the package %s: %s",
+                        "Error while parsing the current version '%s' of the package %s: %s",
                         versions[package_full],
                         package_full,
                         exception,
@@ -844,7 +845,7 @@ async def dpkg(
                         versions[package_full] = version
                 except ValueError as exception:
                     _LOGGER.warning(
-                        "Error while parsing the new version %s of the package %s: %s",
+                        "Error while parsing the new version '%s' of the package %s: %s",
                         version,
                         package_full,
                         exception,

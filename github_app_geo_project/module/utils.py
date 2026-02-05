@@ -773,12 +773,16 @@ async def create_pull_request(
             ).parsed_data
             if issues:
                 assert issues is not None
-                for candidate in issues:
-                    if title == candidate.title:
-                        candidate.create_comment("The pull request is still open.")
+                for issue in issues:
+                    if title == issue.title:
                         found = True
-                        if body != candidate.body:
-                            candidate.edit(body=body)
+                        if body != issue.body:
+                            await github_project.aio_github.rest.issues.async_update(
+                                owner=github_project.owner,
+                                repo=github_project.repository,
+                                issue_number=issue.number,
+                                body=body,
+                            )
             if not found:
                 await github_project.aio_github.rest.issues.async_create(
                     owner=github_project.owner,
@@ -921,7 +925,12 @@ async def close_pull_request_issues(
     assert issues is not None
     for issue in issues:
         if title == issue.title:
-            issue.edit(state="closed")
+            await github_project.aio_github.rest.issues.async_update(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                issue_number=issue.number,
+                state="closed",
+            )
 
 
 _SSH_LOCK = asyncio.Lock()
