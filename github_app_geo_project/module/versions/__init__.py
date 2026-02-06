@@ -287,11 +287,7 @@ class Versions(
                             os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_NUMBER", "10"),
                         ),
                         previous_jobs=[
-                            *(
-                                context.module_event_data.previous_jobs
-                                if context.module_event_data.previous_jobs
-                                else []
-                            ),
+                            *(context.module_event_data.previous_jobs or []),
                             context.job_id,
                         ],
                     ),
@@ -387,11 +383,7 @@ class Versions(
                                     alternate_versions=context.module_event_data.alternate_versions,
                                     retry=context.module_event_data.retry - 1,
                                     previous_jobs=[
-                                        *(
-                                            context.module_event_data.previous_jobs
-                                            if context.module_event_data.previous_jobs
-                                            else []
-                                        ),
+                                        *(context.module_event_data.previous_jobs or []),
                                         context.job_id,
                                     ],
                                 ),

@@ -794,7 +794,7 @@ async def _get_packages_version(
         _SOURCES.clear()
         _GENERATION_TIME = datetime.datetime.now(datetime.UTC)
     if package not in _PACKAGE_VERSION:
-        dist = package.split("/")[0]
+        dist = package.split("/", maxsplit=1)[0]
         await asyncio.to_thread(_get_sources, dist, config, local_config)
     if package not in _PACKAGE_VERSION:
         _LOGGER.warning("No version found for %s", package)
