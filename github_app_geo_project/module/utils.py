@@ -11,7 +11,7 @@ import urllib
 from pathlib import Path
 from typing import Any, cast
 
-import aiofiles
+import anyio
 import githubkit.exception
 import githubkit.versions.latest.models
 import html_sanitizer
@@ -944,10 +944,9 @@ async def git_clone(
     """Clone the Git repository."""
     # Store the ssh key
     async with _SSH_LOCK:
-        directory = Path("~/.ssh/").expanduser()
-        if not directory.exists():
-            directory.mkdir(parents=True)
-        async with aiofiles.open(directory / "id_rsa", "w", encoding="utf-8") as file:
+        directory = await anyio.Path("~/.ssh").expanduser()
+        await directory.mkdir(parents=True, exist_ok=True)
+        async with await (directory / "id_rsa").open("w", encoding="utf-8") as file:
             await file.write(github_project.application.private_key)
 
     command = [

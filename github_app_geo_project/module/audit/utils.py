@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import NamedTuple
 
-import aiofiles
+import anyio
 import apt_repo
 import debian_inspector.version
 import security_md
@@ -693,13 +693,13 @@ async def _npm_audit_fix(
             result.append(message)
         _LOGGER.debug("Fixing version in %s", package_lock_file_name)
         # Remove the add '~' in the version in the package.json
-        async with aiofiles.open(directory / "package.json", encoding="utf-8") as package_file:
+        async with await anyio.open_file(directory / "package.json", encoding="utf-8") as package_file:
             package_json = json.load(io.StringIO(await package_file.read()))
             for dependencies_type in ("dependencies", "devDependencies"):
                 for package, version in package_json.get(dependencies_type, {}).items():
                     if version.startswith("^"):
                         package_json[dependencies_type][package] = version[1:]
-        async with aiofiles.open(directory / "package.json", "w", encoding="utf-8") as package_file:
+        async with await anyio.open_file(directory / "package.json", "w", encoding="utf-8") as package_file:
             string_io = io.StringIO()
             json.dump(package_json, string_io, indent=2)
             await package_file.write(string_io.getvalue())

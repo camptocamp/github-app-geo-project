@@ -20,8 +20,8 @@ import urllib.parse
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-import aiofiles
 import aiomonitor
+import anyio
 import c2cwsgiutils.setup_process
 import githubkit.exception
 import githubkit.versions.latest.models
@@ -1272,7 +1272,7 @@ class _WatchDog:
             current_task.set_name("WatchDog")
         while True:
             _LOGGER.debug("Watch dog: alive")
-            async with aiofiles.open(
+            async with await anyio.open_file(
                 "/var/ghci/watch_dog",
                 "w",
                 encoding="utf-8",

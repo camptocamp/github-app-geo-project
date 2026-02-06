@@ -14,8 +14,8 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-import aiofiles
 import aiohttp
+import anyio
 import c2cciutils.configuration
 import githubkit.exception
 import githubkit.versions.latest.models
@@ -340,7 +340,7 @@ class Versions(
 
                     github_path = cwd / ".github"
                     github_path.mkdir(parents=True, exist_ok=True)
-                    async with aiofiles.open(
+                    async with await anyio.open_file(
                         github_path / "renovate.json5",
                         "w",
                     ) as renovate_file:
@@ -767,7 +767,7 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            async with aiofiles.open(cwd / filename, encoding="utf-8") as file:
+            async with await anyio.open_file(cwd / filename, encoding="utf-8") as file:
                 data = tomllib.loads(await file.read())
                 name = data.get("project", {}).get("name")
                 names = names_by_datasource.setdefault(
@@ -800,7 +800,7 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            async with aiofiles.open(cwd / filename, encoding="utf-8") as file:
+            async with await anyio.open_file(cwd / filename, encoding="utf-8") as file:
                 names = names_by_datasource.setdefault(
                     "pypi",
                     _TransversalStatusNameByDatasource(),
@@ -812,7 +812,7 @@ async def _get_names(
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     docker_config = {}
     if (cwd / ".github" / "publish.yaml").exists():
-        async with aiofiles.open(
+        async with await anyio.open_file(
             cwd / ".github" / "publish.yaml",
             encoding="utf-8",
         ) as file:
@@ -880,7 +880,7 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
-            async with aiofiles.open(cwd / filename, encoding="utf-8") as file:
+            async with await anyio.open_file(cwd / filename, encoding="utf-8") as file:
                 data = json.load(io.StringIO(await file.read()))
                 name = data.get("name")
                 names = names_by_datasource.setdefault(
