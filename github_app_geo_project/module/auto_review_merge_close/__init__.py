@@ -12,7 +12,7 @@ import githubkit.versions.latest.models
 import githubkit.webhooks
 
 from github_app_geo_project import module
-from github_app_geo_project.module.standard import auto_configuration
+from github_app_geo_project.module.auto_review_merge_close import configuration
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ def equals_if_defined(reference: str | None, value: str) -> bool:
 
 class Auto(
     module.Module[
-        auto_configuration.AutoPullRequest,
+        configuration.AutoPullRequest,
         dict[str, Any],
         dict[str, Any],
         None,
@@ -49,7 +49,7 @@ class Auto(
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
-        return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Auto-review-merge-close"
+        return "https://github.com/camptocamp/github-app-geo-project/blob/master/github_app_geo_project/module/auto_review_merge_close/README.md"
 
     def get_actions(
         self,
@@ -81,7 +81,7 @@ class Auto(
     async def do_action(
         self,
         context: module.ProcessContext[
-            auto_configuration.AutoPullRequest,
+            configuration.AutoPullRequest,
             dict[str, Any],
         ],
         pull_request: githubkit.versions.latest.models.PullRequest,
@@ -91,7 +91,7 @@ class Auto(
     async def process(
         self,
         context: module.ProcessContext[
-            auto_configuration.AutoPullRequest,
+            configuration.AutoPullRequest,
             dict[str, Any],
         ],
     ) -> module.ProcessOutput[dict[str, Any], None]:

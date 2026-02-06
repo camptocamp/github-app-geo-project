@@ -61,7 +61,7 @@ class DeleteOldWorkflowRuns(
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
-        return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Delete-Old-Workflow-Job"
+        return "https://github.com/camptocamp/github-app-geo-project/blob/master/github_app_geo_project/module/delete_old_workflow_runs/README.md"
 
     def get_actions(
         self,

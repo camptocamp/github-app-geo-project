@@ -14,7 +14,7 @@
       - <a id="properties/changelog/properties/sections/items/properties/name"></a>**`name`** _(string)_: The name of the section.
       - <a id="properties/changelog/properties/sections/items/properties/title"></a>**`title`** _(string)_: The title of the section.
       - <a id="properties/changelog/properties/sections/items/properties/description"></a>**`description`** _(string)_: The description of the section.
-      - <a id="properties/changelog/properties/sections/items/properties/closed"></a>**`closed`** _(boolean)_: The section is closed and openable. Default: `false`.
+      - <a id="properties/changelog/properties/sections/items/properties/closed"></a>**`closed`** _(boolean)_: Whether the section content is collapsed by default in the changelog. Default: `false`.
   - <a id="properties/changelog/properties/default-section"></a>**`default-section`** _(string)_: The default section for items.
   - <a id="properties/changelog/properties/routing"></a>**`routing`** _(array)_: The routing configuration.
     - <a id="properties/changelog/properties/routing/items"></a>**Items** _(object)_: The routing configuration.

@@ -6,3 +6,5 @@ lifecycle
 feature_branch
 pull_request
 color
+const
+regex

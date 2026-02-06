@@ -28,7 +28,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
-        return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Workflow"
+        return "https://github.com/camptocamp/github-app-geo-project/blob/master/github_app_geo_project/module/workflow/README.md"
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the GitHub application permissions needed by the module."""

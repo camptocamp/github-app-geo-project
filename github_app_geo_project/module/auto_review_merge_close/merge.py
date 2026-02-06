@@ -6,7 +6,8 @@ from typing import Any
 import githubkit.versions.latest.models
 
 from github_app_geo_project import module
-from github_app_geo_project.module.standard import auto, auto_configuration
+from github_app_geo_project.module import auto_review_merge_close as auto
+from github_app_geo_project.module.auto_review_merge_close import configuration
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class AutoMerge(auto.Auto):
     async def do_action(
         self,
         context: module.ProcessContext[
-            auto_configuration.AutoPullRequest,
+            configuration.AutoPullRequest,
             dict[str, Any],
         ],
         pull_request: githubkit.versions.latest.models.PullRequest,
