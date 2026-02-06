@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-import aiofiles
+import anyio
 import githubkit.exception
 import githubkit.versions.latest.models
 import githubkit.versions.v2022_11_28.webhooks
@@ -713,7 +713,7 @@ class Backport(
                         "```",
                     ],
                 )
-                async with aiofiles.open(
+                async with await anyio.open_file(
                     cwd / "BACKPORT_TODO",
                     "w",
                     encoding="utf-8",
