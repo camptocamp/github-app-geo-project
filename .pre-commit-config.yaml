@@ -4,8 +4,8 @@ exclude: |-
   (?x)^(
     github_app_geo_project/project_configuration\.py
     |github_app_geo_project/application_configuration\.py
-    |github_app_geo_project/module/standard/changelog_configuration\.py
-    |github_app_geo_project/module/standard/auto_configuration\.py
+    |github_app_geo_project/module/changelog/configuration\.py
+    |github_app_geo_project/module/auto_review_merge_close/configuration\.py
     |github_app_geo_project/module/audit/configuration\.py
     |github_app_geo_project/module/pull_request/checks_configuration\.py
     |github_app_geo_project/module/pull_request/links_configuration\.py
@@ -140,16 +140,16 @@ repos:
           - github_app_geo_project/application-schema.json
           - APPLICATION-CONFIG.md
       - id: jsonschema2md
-        files: ^github_app_geo_project/module/standard/changelog-schema\.json$
+        files: ^github_app_geo_project/module/changelog/schema\.json$
         args:
           - --pre-commit
-          - github_app_geo_project/module/standard/changelog-schema.json
+          - github_app_geo_project/module/changelog/schema.json
           - CHANGELOG-CONFIG.md
       - id: jsonschema2md
-        files: ^github_app_geo_project/module/standard/auto-schema\.json$
+        files: ^github_app_geo_project/module/auto_review_merge_close/schema\.json$
         args:
           - --pre-commit
-          - github_app_geo_project/module/standard/auto-schema.json
+          - github_app_geo_project/module/auto_review_merge_close/schema.json
           - AUTO-CONFIG.md
       - id: jsonschema2md
         files: ^github_app_geo_project/module/audit/schema\.json$
@@ -215,6 +215,7 @@ repos:
         files: |-
           (?x)^(
             github_app_geo_project/module/.*/schema\.json
+            github_app_geo_project/module/.*/*-schema\.json
           )$
         args:
           - --fields=description,title

@@ -8,7 +8,7 @@ inherits:
 ignore-paths:
   - github_app_geo_project/project_configuration.py
   - github_app_geo_project/application_configuration.py
-  - github_app_geo_project/module/standard/changelog_configuration.py
+  - github_app_geo_project/module/changelog/configuration.py
   - github_app_geo_project/module/audit/configuration.py
   - github_app_geo_project/module/clean/configuration.py
   - github_app_geo_project/module/versions/configuration.py
@@ -16,7 +16,7 @@ ignore-paths:
   - github_app_geo_project/module/delete_old_workflow_runs/configuration.py
   - github_app_geo_project/module/pull_request/checks_configuration.py
   - github_app_geo_project/module/pull_request/links_configuration.py
-  - github_app_geo_project/module/standard/auto_configuration.py
+  - github_app_geo_project/module/auto_review_merge_close/configuration.py
 
 mypy:
   options:

@@ -12,10 +12,10 @@ generate:
     destination: github_app_geo_project/project_configuration.py
   - source: github_app_geo_project/application-schema.json
     destination: github_app_geo_project/application_configuration.py
-  - source: github_app_geo_project/module/standard/changelog-schema.json
-    destination: github_app_geo_project/module/standard/changelog_configuration.py
-  - source: github_app_geo_project/module/standard/auto-schema.json
-    destination: github_app_geo_project/module/standard/auto_configuration.py
+  - source: github_app_geo_project/module/changelog/schema.json
+    destination: github_app_geo_project/module/changelog/configuration.py
+  - source: github_app_geo_project/module/auto_review_merge_close/schema.json
+    destination: github_app_geo_project/module/auto_review_merge_close/configuration.py
   - source: github_app_geo_project/module/audit/schema.json
     destination: github_app_geo_project/module/audit/configuration.py
   - source: github_app_geo_project/module/pull_request/checks-schema.json

@@ -68,7 +68,7 @@
               },
               "closed": {
                 "type": "boolean",
-                "description": "The section is closed and openable",
+                "description": "Whether the section content is collapsed by default in the changelog",
                 "default": false
               }
             }

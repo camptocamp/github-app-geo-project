@@ -58,7 +58,7 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
-        return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Outdated-comments"
+        return "https://github.com/camptocamp/github-app-geo-project/blob/master/github_app_geo_project/module/outdated_comments/README.md"
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the configuration."""

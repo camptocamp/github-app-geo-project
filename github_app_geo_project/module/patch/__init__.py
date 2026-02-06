@@ -61,7 +61,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
-        return "https://github.com/camptocamp/github-app-geo-project/wiki/Module-%E2%80%90-Patch"
+        return "https://github.com/camptocamp/github-app-geo-project/blob/master/github_app_geo_project/module/patch/README.md"
 
     def get_actions(
         self,
@@ -78,6 +78,15 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                 "workflow_job",
                 context.github_event_data,
             )
+
+            _LOGGER.debug(
+                """Received workflow job with user information (will be used to check if the user is trusted):
+                actor: %s,
+                sender type: %s.""",
+                event_data_workflow_job.workflow_job.run_attempt,
+                event_data_workflow_job.sender.type,
+            )
+
             if (
                 event_data_workflow_job.action == "completed"
                 and event_data_workflow_job.workflow_job.conclusion == "failure"
@@ -90,6 +99,17 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                 "workflow_run",
                 context.github_event_data,
             )
+
+            _LOGGER.debug(
+                """Received workflow job with user information (will be used to check if the user is trusted):
+                actor: %s,
+                sender: %s,
+                triggering_actor: %s.""",
+                event_data_workflow_run.workflow_run.actor,
+                event_data_workflow_run.sender.login,
+                event_data_workflow_run.workflow_run.triggering_actor,
+            )
+
             if (
                 event_data_workflow_run.action == "completed"
                 and event_data_workflow_run.workflow_run.conclusion == "failure"

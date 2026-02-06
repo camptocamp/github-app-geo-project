@@ -217,7 +217,7 @@ class Section(TypedDict, total=False):
 
     closed: bool
     r"""
-    The section is closed and openable
+    Whether the section content is collapsed by default in the changelog
 
     default: False
     """

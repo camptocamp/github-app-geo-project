@@ -16,7 +16,7 @@ import packaging.version
 from github_app_geo_project import module
 from github_app_geo_project.configuration import GithubProject
 from github_app_geo_project.module import utils
-from github_app_geo_project.module.standard import changelog_configuration
+from github_app_geo_project.module.changelog import configuration
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -73,14 +73,14 @@ class ChangelogItem(NamedTuple):
 
 
 Condition = (
-    changelog_configuration.ConditionConst
-    | changelog_configuration.ConditionAndSolidusOr
-    | changelog_configuration.ConditionNot
-    | changelog_configuration.ConditionLabel
-    | changelog_configuration.ConditionFiles
-    | changelog_configuration.ConditionAuthor
-    | changelog_configuration.ConditionTitle
-    | changelog_configuration.ConditionBranch
+    configuration.ConditionConst
+    | configuration.ConditionAndSolidusOr
+    | configuration.ConditionNot
+    | configuration.ConditionLabel
+    | configuration.ConditionFiles
+    | configuration.ConditionAuthor
+    | configuration.ConditionTitle
+    | configuration.ConditionBranch
 )
 
 
@@ -105,7 +105,7 @@ def match(item: ChangelogItem, condition: Condition) -> bool:
 
 def match_and(
     item: ChangelogItem,
-    condition: changelog_configuration.ConditionAndSolidusOr,
+    condition: configuration.ConditionAndSolidusOr,
 ) -> bool:
     """Match all the conditions."""
     return all(match(item, cond) for cond in condition["conditions"])
@@ -113,7 +113,7 @@ def match_and(
 
 def match_or(
     item: ChangelogItem,
-    condition: changelog_configuration.ConditionAndSolidusOr,
+    condition: configuration.ConditionAndSolidusOr,
 ) -> bool:
     """Match any of the conditions."""
     return any(match(item, cond) for cond in condition["conditions"])
@@ -121,7 +121,7 @@ def match_or(
 
 def match_not(
     item: ChangelogItem,
-    condition: changelog_configuration.ConditionNot,
+    condition: configuration.ConditionNot,
 ) -> bool:
     """Get the opposite of the condition."""
     return not match(item, condition["condition"])
@@ -129,7 +129,7 @@ def match_not(
 
 def match_const(
     item: ChangelogItem,
-    condition: changelog_configuration.ConditionConst,
+    condition: configuration.ConditionConst,
 ) -> bool:
     """Get a constant value."""
     del item
@@ -138,7 +138,7 @@ def match_const(
 
 def match_title(
     item: ChangelogItem,
-    condition: changelog_configuration.ConditionTitle,
+    condition: configuration.ConditionTitle,
 ) -> bool:
     """Match the title of the pull request."""
     return re.match(condition["regex"], item.title) is not None
@@ -146,7 +146,7 @@ def match_title(
 
 def match_files(
     item: ChangelogItem,
-    condition: changelog_configuration.ConditionFiles,
+    condition: configuration.ConditionFiles,
 ) -> bool:
     """Match all the files of the pull request."""
     file_re = re.compile("|".join(condition["regex"]))
@@ -155,7 +155,7 @@ def match_files(
 
 def match_label(
     item: ChangelogItem,
-    condition: changelog_configuration.ConditionLabel,
+    condition: configuration.ConditionLabel,
 ) -> bool:
     """Match a label of the pull request."""
     return condition["value"] in item.labels
@@ -163,7 +163,7 @@ def match_label(
 
 def match_branch(
     item: ChangelogItem,
-    condition: changelog_configuration.ConditionBranch,
+    condition: configuration.ConditionBranch,
 ) -> bool:
     """Match the branch of the pull request."""
     if not item.branch:
@@ -173,7 +173,7 @@ def match_branch(
 
 def match_author(
     item: ChangelogItem,
-    condition: changelog_configuration.ConditionAuthor,
+    condition: configuration.ConditionAuthor,
 ) -> bool:
     """Match the author of the pull request."""
     if item.author is None:
@@ -190,7 +190,7 @@ class MatchedItem(NamedTuple):
 
 def get_section(
     item: ChangelogItem,
-    config: changelog_configuration.Changelog,
+    config: configuration.Changelog,
 ) -> tuple[str, MatchedItem]:
     """Get the section of the changelog item."""
     group = config["default-section"]
@@ -387,7 +387,7 @@ def _get_discussion_url(github_project: GithubProject, tag: str) -> str | None:
 
 async def generate_changelog(
     github_project: GithubProject,
-    configuration: changelog_configuration.Changelog,
+    configuration: configuration.Changelog,
     tag_str: str,
     tags: dict[Tag, Tag],
 ) -> str:
@@ -624,7 +624,7 @@ async def generate_changelog(
 
 class Changelog(
     module.Module[
-        changelog_configuration.Changelog,
+        configuration.Changelog,
         dict[str, Any],
         dict[str, Any],
         None,
@@ -789,7 +789,7 @@ class Changelog(
     async def process(
         self,
         context: module.ProcessContext[
-            changelog_configuration.Changelog,
+            configuration.Changelog,
             dict[str, Any],
         ],
     ) -> module.ProcessOutput[dict[str, Any], None]:
@@ -802,7 +802,7 @@ class Changelog(
 
         if context.module_config.get(
             "create-labels",
-            changelog_configuration.CREATE_LABELS_DEFAULT,
+            configuration.CREATE_LABELS_DEFAULT,
         ):
             existing_labels = {  # type: ignore[var-annotated]
                 github_label.name
@@ -834,7 +834,7 @@ class Changelog(
         if context.module_event_data.get("type") == "tag":
             if not context.module_config.get(
                 "create-release",
-                changelog_configuration.CREATE_RELEASE_DEFAULT,
+                configuration.CREATE_RELEASE_DEFAULT,
             ):
                 return module.ProcessOutput()
 
