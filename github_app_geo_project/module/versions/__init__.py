@@ -249,9 +249,7 @@ class Versions(
                     base64.b64decode(security_file_content.content).decode("utf-8"),
                 )
 
-                stabilization_versions = module_utils.get_stabilization_versions(
-                    security,
-                )
+                stabilization_versions = security.branches()
                 intermediate_status.has_security_policy = True
             else:
                 _LOGGER.debug(

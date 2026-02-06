@@ -16,6 +16,8 @@ AuditConfiguration = TypedDict('AuditConfiguration', {
     'snyk': "SnykConfiguration",
     # | Dpkg configuration.
     'dpkg': "DpkgConfiguration",
+    # | Renovate configuration.
+    'renovate': "RenovateConfiguration",
     # | Version mapping.
     # | 
     # | Mapping of version to the branch name
@@ -159,6 +161,11 @@ r""" Default value of the field path 'Pre-commit configuration enabled' """
 
 
 
+ENABLE_RENOVATE_DEFAULT = True
+r""" Default value of the field path 'Renovate configuration enabled' """
+
+
+
 ENABLE_SNYK_DEFAULT = True
 r""" Default value of the field path 'Snyk configuration enabled' """
 
@@ -205,6 +212,20 @@ PreCommitConfiguration = TypedDict('PreCommitConfiguration', {
     # |   []
     'skip-hooks': list[str],
 }, total=False)
+
+
+class RenovateConfiguration(TypedDict, total=False):
+    r""" Renovate configuration. """
+
+    enabled: bool
+    r"""
+    Enable Renovate.
+
+    Enable Renovate audit
+
+    default: True
+    """
+
 
 
 SKIP_HOOKS_DEFAULT: list[Any] = []
