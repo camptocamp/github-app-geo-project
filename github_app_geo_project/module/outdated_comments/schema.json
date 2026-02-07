@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/master/outdated_comments/schema.json",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/master/github_app_geo_project/module/outdated_comments/schema.json",
   "type": "object",
   "title": "Outdated comments configuration",
   "additionalProperties": false,
