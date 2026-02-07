@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/camptocamp/github-app-geo-project/master/github_app_geo_project/module/standard/changelog-schema.json
+# yaml-language-server: $schema=https://raw.githubusercontent.com/camptocamp/github-app-geo-project/master/github_app_geo_project/module/changelog/schema.json
 
 changelog:
   default-section: New feature
