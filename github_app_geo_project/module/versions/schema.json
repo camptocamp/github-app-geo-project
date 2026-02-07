@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/github_app_geo_project/versions/schema.json",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/main/github_app_geo_project/module/versions/schema.json",
   "type": "object",
   "title": "Versions configuration",
   "additionalProperties": false,

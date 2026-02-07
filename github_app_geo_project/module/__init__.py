@@ -104,7 +104,44 @@ class CleanupContext(NamedTuple, Generic[_EVENT_DATA]):
 
 
 class ProcessContext(NamedTuple, Generic[_CONFIGURATION, _EVENT_DATA]):
-    """The context of the process."""
+    """
+    The context provided to the process method of a module.
+
+    This context contains all the information needed to process a module action,
+    including database session, GitHub project information, event data, and configuration.
+
+    Attributes
+    ----------
+        session: The async SQLAlchemy session to be used for database operations.
+        github_project: The GitHub project information containing owner, repository,
+            and authenticated GitHub API client (aio_github).
+        github_event_name: The GitHub event name present in the X-GitHub-Event header
+            (e.g., 'push', 'pull_request', 'issues', etc.).
+        github_event_data: The complete GitHub event data as a dictionary.
+        module_config: The module configuration of type _CONFIGURATION (typically a Pydantic model).
+        module_event_name: The module-specific event name (e.g., 'dashboard', 'cron', etc.).
+        module_event_data: The module event data of type _EVENT_DATA created by get_actions method.
+        issue_data: The raw data from the issue dashboard (typically a markdown string).
+        job_id: The unique job ID for this processing task.
+        service_url: The base URL of the application service for generating links.
+
+    Example:
+        >>> async def process(self, context: ProcessContext) -> ProcessOutput:
+        ...     # Access GitHub project information
+        ...     owner = context.github_project.owner
+        ...     repo = context.github_project.repository
+        ...
+        ...     # Access module configuration
+        ...     config = context.module_config
+        ...
+        ...     # Access event data
+        ...     event_type = context.module_event_data.type
+        ...
+        ...     # Use database session
+        ...     result = await context.session.execute(...)
+        ...
+        ...     return ProcessOutput(success=True)
+    """
 
     session: sqlalchemy.ext.asyncio.AsyncSession
     """The session to be used."""

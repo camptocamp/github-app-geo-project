@@ -118,6 +118,22 @@ async def _process_renovate(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     known_versions: list[str] | None,
 ) -> bool:
+    """
+    Process Renovate configuration updates.
+
+    Args:
+        context: ProcessContext containing:
+            - module_event_data: Event data for the module (_EventData)
+            - github_project: GitHub project information
+            - module_config: Module configuration (AuditConfiguration)
+            - service_url: Service URL for generating links
+            - job_id: Job ID for logging
+        known_versions: List of known versions to update in baseBranchPatterns
+
+    Returns
+    -------
+        bool: True if successful, False otherwise
+    """
     # Checkout the right branch on a temporary directory
     with tempfile.TemporaryDirectory() as tmpdirname:
         _LOGGER.debug(
@@ -137,11 +153,16 @@ async def _process_renovate(
                 _LOGGER.error("Failed to clone the repository for Renovate update on default branch")
                 return False
 
-            with editor.EditRenovateConfigV2(new_cwd / ".github" / "renovate.json5") as renovate_config:
-                renovate_config["baseBranchPatterns"] = [
-                    default_branch,
-                    *known_versions,
-                ]
+            renovate_config_path = new_cwd / ".github" / "renovate.json5"
+            if renovate_config_path.exists():
+                with editor.EditRenovateConfigV2(str(renovate_config_path)) as renovate_config:
+                    # Add other versions to baseBranchPatterns, avoiding duplicates
+                    other_versions = [v for v in known_versions if v != default_branch]
+                    if other_versions:
+                        renovate_config["baseBranchPatterns"] = [default_branch, *other_versions]
+                    elif "baseBranchPatterns" in renovate_config:
+                        # Remove baseBranchPatterns if it only contains the default branch
+                        del renovate_config["baseBranchPatterns"]
 
             success, _ = await _create_pull_request_if_changes(
                 default_branch,
@@ -158,6 +179,16 @@ async def _process_renovate(
             "Process Renovate cleanup for version %s",
             context.module_event_data.version,
         )
+
+        # Never process cleanup on the default branch
+        default_branch = await context.github_project.default_branch()
+        if context.module_event_data.version == default_branch:
+            _LOGGER.debug(
+                "Skipping Renovate cleanup for default branch %s",
+                default_branch,
+            )
+            return True
+
         new_cwd = await module_utils.git_clone(context.github_project, context.module_event_data.version, cwd)
         if new_cwd is None:
             _LOGGER.error(

@@ -1,5 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/master/github_app_geo_project/module/delete_old_workflow_runs/schema.json",
   "type": "object",
   "title": "Delete old workflow runs configuration",
   "properties": {

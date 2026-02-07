@@ -17,7 +17,7 @@ async def test_process_renovate_default_branch_success():
     context.module_event_data = _EventData(version=None)
     context.github_project = Mock()
     # Mock default_branch
-    context.github_project.default_branch = AsyncMock(return_value="main")
+    context.github_project.default_branch = AsyncMock(return_value="master")
 
     known_versions = ["1.0", "2.0"]
     # Mock git_clone to return a valid path
@@ -55,18 +55,20 @@ async def test_process_renovate_default_branch_success():
                 assert mock_git_clone.call_count == 1
                 call_args = mock_git_clone.call_args
                 assert call_args[0][0] == context.github_project
-                assert call_args[0][1] == "main"
+                assert call_args[0][1] == "master"
                 # Don't check exact path since function creates its own temp dir
 
                 # Verify the renovate config was updated
-                mock_config.__setitem__.assert_called_once_with("baseBranchPatterns", ["main", "1.0", "2.0"])
+                mock_config.__setitem__.assert_called_once_with(
+                    "baseBranchPatterns", ["master", "1.0", "2.0"]
+                )
 
                 mock_create_pr.assert_called_once()
 
                 # Verify the call arguments
                 pr_call_args = mock_create_pr.call_args
-                assert pr_call_args[0][0] == "main"  # branch
-                assert pr_call_args[0][1] == "ghci/audit/renovate/main"  # new_branch
+                assert pr_call_args[0][0] == "master"  # branch
+                assert pr_call_args[0][1] == "ghci/audit/renovate/master"  # new_branch
                 assert pr_call_args[0][2] == "Update Renovate configuration"  # key
 
 
@@ -78,7 +80,7 @@ async def test_process_renovate_default_branch_clone_failure():
     context.module_event_data = _EventData(version=None)
     context.github_project = Mock()
     # Mock default_branch
-    context.github_project.default_branch = AsyncMock(return_value="main")
+    context.github_project.default_branch = AsyncMock(return_value="master")
 
     known_versions = ["1.0", "2.0"]
     # Mock git_clone to return None (failure)
@@ -99,6 +101,7 @@ async def test_process_renovate_version_cleanup_success():
     context = Mock()
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
+    context.github_project.default_branch = AsyncMock(return_value="master")
     # Mock git_clone to return a valid path
     with (
         patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone,
@@ -149,6 +152,7 @@ async def test_process_renovate_version_cleanup_clone_failure():
     context = Mock()
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
+    context.github_project.default_branch = AsyncMock(return_value="master")
     # Mock git_clone to return None (failure)
     with patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone:
         mock_git_clone.return_value = None
@@ -167,6 +171,7 @@ async def test_process_renovate_version_cleanup_files_not_exist():
     context = Mock()
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
+    context.github_project.default_branch = AsyncMock(return_value="master")
     # Mock git_clone to return a valid path with no renovate or security files
     with (
         patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone,
@@ -204,6 +209,7 @@ async def test_process_renovate_version_cleanup_pr_creation_failure():
     context = Mock()
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
+    context.github_project.default_branch = AsyncMock(return_value="master")
     # Mock git_clone to return a valid path
     with tempfile.TemporaryDirectory() as tmpdir:
         temp_path = Path(tmpdir)
