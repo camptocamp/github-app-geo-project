@@ -1009,8 +1009,8 @@ class Changelog(
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
-        # Get changelog-schema.json related to this file
-        with (Path(__file__).parent / "changelog-schema.json").open(
+        # Get schema.json related to this file
+        with (Path(__file__).parent / "schema.json").open(
             encoding="utf-8",
         ) as schema_file:
             return json.loads(schema_file.read()).get("properties", {}).get("changelog")  # type: ignore[no-any-return]
