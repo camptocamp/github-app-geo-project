@@ -130,7 +130,7 @@ class Auto(
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
-        with (Path(__file__).parent / "auto-schema.json").open(
+        with (Path(__file__).parent / "schema.json").open(
             encoding="utf-8",
         ) as schema_file:
             return json.loads(schema_file.read()).get("definitions", {}).get("auto")  # type: ignore[no-any-return]
