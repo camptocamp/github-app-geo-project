@@ -36,9 +36,12 @@ async def test_process_renovate_default_branch_success():
         mock_git_clone.return_value = clone_path
 
         # Mock EditRenovateConfigV2 to avoid pre-commit issues
-        with patch("github_app_geo_project.module.audit.editor.EditRenovateConfigV2") as mock_editor:
+        with patch("github_app_geo_project.module.audit.editor.EditRenovateConfig") as mock_editor:
             mock_config = MagicMock()
-            mock_editor.return_value = MagicMock(__enter__=Mock(return_value=mock_config), __exit__=Mock())
+            mock_editor.return_value = MagicMock(
+                __aenter__=AsyncMock(return_value=mock_config),
+                __aexit__=AsyncMock(return_value=None),
+            )
 
             # Mock _create_pull_request_if_changes
             with patch(

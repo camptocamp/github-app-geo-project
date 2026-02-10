@@ -18,7 +18,7 @@ import githubkit.exception
 import githubkit.webhooks
 import security_md
 import yaml
-from multi_repo_automation import editor
+from multi_repo_automation import aio_editor as editor
 from pydantic import BaseModel
 
 from github_app_geo_project import models, module
@@ -155,7 +155,7 @@ async def _process_renovate(
 
             renovate_config_path = new_cwd / ".github" / "renovate.json5"
             if renovate_config_path.exists():
-                with editor.EditRenovateConfigV2(str(renovate_config_path)) as renovate_config:
+                async with editor.EditRenovateConfig(anyio.Path(renovate_config_path)) as renovate_config:
                     # Add other versions to baseBranchPatterns, avoiding duplicates
                     other_versions = [v for v in known_versions if v != default_branch]
                     if other_versions:
