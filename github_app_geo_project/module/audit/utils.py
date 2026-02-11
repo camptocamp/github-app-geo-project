@@ -22,6 +22,19 @@ from github_app_geo_project.module.audit import configuration
 
 _LOGGER = logging.getLogger(__name__)
 
+# Add timeout environment variables with defaults at module level
+_TIMEOUT_SUBPROCESS = int(os.environ.get("GHCI_SUBPROCESS_TIMEOUT", "60"))
+_TIMEOUT_PIP_FREEZE = int(os.environ.get("GHCI_PIP_FREEZE_TIMEOUT", "60"))
+_TIMEOUT_PRECOMMIT = int(os.environ.get("GHCI_PRECOMMIT_TIMEOUT", "1200"))
+_TIMEOUT_GIT_DIFF = int(os.environ.get("GHCI_GIT_DIFF_TIMEOUT", "60"))
+_TIMEOUT_GRADLE = int(os.environ.get("GHCI_GRADLE_TIMEOUT", "60"))
+_TIMEOUT_GIT_LSFILES = int(os.environ.get("GHCI_GIT_LSFILES_TIMEOUT", "60"))
+_TIMEOUT_PYTHON_INSTALL = int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "600"))
+_TIMEOUT_SNYK = int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))
+_TIMEOUT_SNYK_FIX = int(os.environ.get("GHCI_SNYK_FIX_TIMEOUT", os.environ.get("GHCI_SNYK_TIMEOUT", "600")))
+_TIMEOUT_POETRY_VERSION = int(os.environ.get("GHCI_POETRY_VERSION_TIMEOUT", "10"))
+_TIMEOUT_NPM_AUDIT = int(os.environ.get("GHCI_NPM_AUDIT_TIMEOUT", "300"))
+
 
 def get_pre_commit_config(
     config: configuration.AuditConfiguration,
@@ -79,7 +92,7 @@ async def snyk(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )  # nosec
-    async with asyncio.timeout(60):
+    async with asyncio.timeout(_TIMEOUT_PIP_FREEZE):
         stdout, stderr = await proc.communicate()
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     message.title = "Pip freeze"
@@ -144,7 +157,7 @@ async def snyk(
                 ),
             },
         )
-        async with asyncio.timeout(600):
+        async with asyncio.timeout(_TIMEOUT_PRECOMMIT):
             stdout, stderr = await proc.communicate()
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
         message.title = "Run pre-commit"
@@ -152,8 +165,8 @@ async def snyk(
 
     command = ["git", "diff", "--quiet"]
     diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
-    async with asyncio.timeout(60):
-        stdout, stderr = await proc.communicate()
+    async with asyncio.timeout(_TIMEOUT_GIT_DIFF):
+        await diff_proc.wait()
     if diff_proc.returncode != 0:
         (
             high_vulnerabilities,
@@ -191,7 +204,7 @@ async def _select_java_version(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(60):
+    async with asyncio.timeout(_TIMEOUT_GRADLE):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(
@@ -217,7 +230,7 @@ async def _select_java_version(
         await module_utils.run_timeout(
             ["./gradlew", "--version"],
             env,
-            10,
+            _TIMEOUT_SUBPROCESS,
             "Gradle version",
             "Error on getting Gradle version",
             "Timeout on getting Gradle version",
@@ -242,7 +255,7 @@ async def _install_requirements_dependencies(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(60):
+    async with asyncio.timeout(_TIMEOUT_GIT_LSFILES):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -266,7 +279,7 @@ async def _install_requirements_dependencies(
                     f"--requirement={file}",
                 ],
                 env,
-                int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "600")),
+                _TIMEOUT_PYTHON_INSTALL,
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
@@ -290,7 +303,7 @@ async def _install_pipenv_dependencies(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(60):
+    async with asyncio.timeout(_TIMEOUT_GIT_LSFILES):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -312,7 +325,7 @@ async def _install_pipenv_dependencies(
                     *local_config.get("pipenv-sync-arguments", config.get("pipenv-sync-arguments", [])),
                 ],
                 env,
-                int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "600")),
+                _TIMEOUT_PYTHON_INSTALL,
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
@@ -336,7 +349,7 @@ async def _install_poetry_dependencies(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(60):
+    async with asyncio.timeout(_TIMEOUT_GIT_LSFILES):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -357,7 +370,7 @@ async def _install_poetry_dependencies(
                     *local_config.get("poetry-install-arguments", config.get("poetry-install-arguments", [])),
                 ],
                 env,
-                int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "600")),
+                _TIMEOUT_PYTHON_INSTALL,
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
@@ -409,7 +422,7 @@ async def _snyk_monitor(
     _, _, message = await module_utils.run_timeout(
         command,
         env,
-        int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+        _TIMEOUT_SNYK,
         "Project monitored",
         "Error while monitoring the project",
         "Timeout while monitoring the project",
@@ -439,7 +452,7 @@ async def _snyk_test(
     await module_utils.run_timeout(
         command,
         env_no_debug,
-        int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+        _TIMEOUT_SNYK,
         "Snyk test (human)",
         "Error while testing the project",
         "Timeout while testing the project",
@@ -458,7 +471,7 @@ async def _snyk_test(
     test_json_str, _, message = await module_utils.run_timeout(
         command,
         env_no_debug,
-        int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+        _TIMEOUT_SNYK,
         "Snyk test",
         "Error while testing the project",
         "Timeout while testing the project",
@@ -605,7 +618,7 @@ async def _snyk_fix(
     await module_utils.run_timeout(
         ["poetry", "--version"],
         os.environ.copy(),
-        10,
+        _TIMEOUT_POETRY_VERSION,
         "Poetry version",
         "Error while getting the Poetry version",
         "Timeout while getting the Poetry version",
@@ -631,7 +644,7 @@ async def _snyk_fix(
         fix_message, snyk_fix_success, message = await module_utils.run_timeout(
             command,
             env_no_debug,
-            int(os.environ.get("GHCI_SNYK_FIX_TIMEOUT", os.environ.get("GHCI_SNYK_TIMEOUT", "600"))),
+            _TIMEOUT_SNYK_FIX,
             "Snyk fix",
             "Error while fixing the project",
             "Timeout while fixing the project",
@@ -645,7 +658,7 @@ async def _snyk_fix(
             await module_utils.run_timeout(
                 command,
                 env_debug,
-                int(os.environ.get("GHCI_SNYK_FIX_TIMEOUT", os.environ.get("GHCI_SNYK_TIMEOUT", "300"))),
+                _TIMEOUT_SNYK,
                 "Snyk fix (debug)",
                 "Error while fixing the project (debug)",
                 "Timeout while fixing the project (debug)",
@@ -683,7 +696,7 @@ async def _npm_audit_fix(
         _, success, message = await module_utils.run_timeout(
             command,
             os.environ.copy(),
-            int(os.environ.get("GHCI_SNYK_TIMEOUT", "300")),
+            _TIMEOUT_NPM_AUDIT,
             "Npm audit fix",
             "Error while fixing the project",
             "Timeout while fixing the project",
