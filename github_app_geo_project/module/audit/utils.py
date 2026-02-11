@@ -31,7 +31,7 @@ _TIMEOUT_GRADLE = int(os.environ.get("GHCI_GRADLE_TIMEOUT", "60"))
 _TIMEOUT_GIT_LSFILES = int(os.environ.get("GHCI_GIT_LSFILES_TIMEOUT", "60"))
 _TIMEOUT_PYTHON_INSTALL = int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "600"))
 _TIMEOUT_SNYK = int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))
-_TIMEOUT_SNYK_FIX = int(os.environ.get("GHCI_SNYK_FIX_TIMEOUT", "600"))
+_TIMEOUT_SNYK_FIX = int(os.environ.get("GHCI_SNYK_FIX_TIMEOUT", os.environ.get("GHCI_SNYK_TIMEOUT", "600")))
 _TIMEOUT_POETRY_VERSION = int(os.environ.get("GHCI_POETRY_VERSION_TIMEOUT", "10"))
 _TIMEOUT_NPM_AUDIT = int(os.environ.get("GHCI_NPM_AUDIT_TIMEOUT", "300"))
 
