@@ -166,7 +166,7 @@ async def snyk(
     command = ["git", "diff", "--quiet"]
     diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
     async with asyncio.timeout(_TIMEOUT_GIT_DIFF):
-        stdout, stderr = await proc.communicate()
+        await diff_proc.wait()
     if diff_proc.returncode != 0:
         (
             high_vulnerabilities,
