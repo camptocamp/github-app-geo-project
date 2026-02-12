@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from github_app_geo_project.module.audit import _EventData, _process_renovate
+from github_app_geo_project.module.audit import _EventData, _process_renovate, _run_command_with_timeout
 
 
 @pytest.mark.asyncio
@@ -235,3 +235,129 @@ async def test_process_renovate_version_cleanup_pr_creation_failure():
 
                 # Assertions
                 assert result is False
+
+
+@pytest.mark.asyncio
+async def test_run_command_with_timeout_success():
+    """Test successful command execution."""
+    # Use a simple command that will complete quickly
+    command = ["echo", "test output"]
+    stdout, stderr, returncode = await _run_command_with_timeout(
+        command, timeout=5, description="test echo"
+    )
+    
+    assert stdout == b"test output\n"
+    assert stderr == b""
+    assert returncode == 0
+
+
+@pytest.mark.asyncio
+async def test_run_command_with_timeout_command_timeout():
+    """Test command timeout with logging."""
+    # Use a command that will timeout (sleep for longer than timeout)
+    command = ["sleep", "10"]
+    
+    with pytest.raises(TimeoutError):
+        await _run_command_with_timeout(command, timeout=1, description="test sleep")
+
+
+@pytest.mark.asyncio
+async def test_run_command_with_timeout_logs_output_on_timeout():
+    """Test that stdout/stderr are logged on timeout."""
+    # Create a command that produces output and then sleeps
+    # Using sh -c to run a compound command
+    command = ["sh", "-c", "echo 'output before timeout' && sleep 10"]
+    
+    with (
+        pytest.raises(TimeoutError),
+        patch("github_app_geo_project.module.audit._LOGGER") as mock_logger,
+    ):
+        await _run_command_with_timeout(command, timeout=1, description="test command")
+    
+    # Verify that warning was called with timeout information
+    assert mock_logger.warning.called
+    call_args = mock_logger.warning.call_args
+    assert call_args[0][0] == "%s timed out after %d seconds\nstdout: %s\nstderr: %s"
+    assert call_args[0][1] == "test command"
+    assert call_args[0][2] == 1
+
+
+@pytest.mark.asyncio
+async def test_run_command_with_timeout_process_already_terminated():
+    """Test timeout when process is already terminated."""
+    # Mock a subprocess that terminates before we can kill it
+    with patch("asyncio.create_subprocess_exec") as mock_create:
+        mock_proc = AsyncMock()
+        mock_proc.communicate = AsyncMock(side_effect=TimeoutError())
+        mock_proc.kill = Mock(side_effect=ProcessLookupError())
+        mock_proc.stdout = None
+        mock_create.return_value = mock_proc
+        
+        with pytest.raises(TimeoutError):
+            await _run_command_with_timeout(
+                ["test"], timeout=1, description="test command"
+            )
+        
+        # Verify kill was attempted despite ProcessLookupError
+        mock_proc.kill.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_run_command_with_timeout_empty_output_buffers():
+    """Test timeout with empty output buffers."""
+    # Use a command that will timeout (sleep with no output)
+    command = ["sleep", "10"]
+    
+    with (
+        pytest.raises(TimeoutError),
+        patch("github_app_geo_project.module.audit._LOGGER") as mock_logger,
+    ):
+        await _run_command_with_timeout(
+            command, timeout=1, description="test command"
+        )
+    
+    # Verify empty strings are logged when no output is available
+    assert mock_logger.warning.called
+    call_args = mock_logger.warning.call_args
+    # stdout and stderr should be empty
+    assert call_args[0][3] == ""  # stdout
+    assert call_args[0][4] == ""  # stderr
+
+
+@pytest.mark.asyncio
+async def test_run_command_with_timeout_custom_working_directory():
+    """Test command execution with custom working directory."""
+    import tempfile
+    from pathlib import Path
+    import anyio
+    
+    # Create a temporary directory with a test file
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp_path = Path(tmpdir)
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("test content")
+        
+        # List files in the directory
+        command = ["ls", "-1"]
+        cwd = anyio.Path(tmpdir)
+        stdout, stderr, returncode = await _run_command_with_timeout(
+            command, cwd=cwd, timeout=5, description="test ls"
+        )
+        
+        assert returncode == 0
+        assert b"test.txt" in stdout
+        assert stderr == b""
+
+
+@pytest.mark.asyncio
+async def test_run_command_with_timeout_nonzero_exit_code():
+    """Test command that exits with non-zero code."""
+    # Use a command that will fail
+    command = ["ls", "/nonexistent_directory_12345"]
+    stdout, stderr, returncode = await _run_command_with_timeout(
+        command, timeout=5, description="test failing ls"
+    )
+    
+    # Command should complete but with non-zero exit code
+    assert returncode != 0
+    assert b"No such file or directory" in stderr or b"cannot access" in stderr

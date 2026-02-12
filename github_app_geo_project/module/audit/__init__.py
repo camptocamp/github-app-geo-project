@@ -71,13 +71,20 @@ async def _run_command_with_timeout(
         except ProcessLookupError:
             # Process already terminated
             pass
+        
+        # Try to read any available output with a short timeout
         stdout = b""
         stderr = b""
-        if proc.stdout:
-            try:
-                stdout = proc.stdout.read_nowait() or b""
-            except asyncio.QueueEmpty:
-                pass
+        try:
+            async with asyncio.timeout(0.1):
+                if proc.stdout:
+                    stdout = await proc.stdout.read()
+                if proc.stderr:
+                    stderr = await proc.stderr.read()
+        except (TimeoutError, ValueError):
+            # If we can't read the output quickly, just skip it
+            pass
+        
         _LOGGER.warning(
             "%s timed out after %d seconds\nstdout: %s\nstderr: %s",
             description,
