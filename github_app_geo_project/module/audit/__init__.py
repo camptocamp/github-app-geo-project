@@ -527,16 +527,12 @@ async def _create_pull_request_if_changes(
             await diff_proc.communicate()
         if diff_proc.returncode != 0:
             command = ["git", "diff"]
-            try:
-                stdout, stderr, _ = await _run_command_with_timeout(
-                    command,
-                    cwd,
-                    timeout=60,
-                    description="git diff",
-                )
-            except TimeoutError:
-                stdout = b""
-                stderr = b""
+            stdout, stderr, _ = await _run_command_with_timeout(
+                command,
+                cwd,
+                timeout=60,
+                description="git diff",
+            )
             message = module_utils.AnsiProcessMessage.from_async_artifacts(
                 command,
                 None,
@@ -547,17 +543,12 @@ async def _create_pull_request_if_changes(
             _LOGGER.debug(message)
 
             command = ["git", "checkout", "-b", new_branch]
-            try:
-                stdout, stderr, returncode = await _run_command_with_timeout(
-                    command,
-                    cwd,
-                    timeout=60,
-                    description=f"git checkout {new_branch}",
-                )
-            except TimeoutError:
-                stdout = b""
-                stderr = b""
-                returncode = -1
+            stdout, stderr, returncode = await _run_command_with_timeout(
+                command,
+                cwd,
+                timeout=60,
+                description=f"git checkout {new_branch}",
+            )
 
             if returncode != 0:
                 message = module_utils.AnsiProcessMessage(
