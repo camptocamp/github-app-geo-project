@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import anyio
 import pytest
 
 from github_app_geo_project.module.audit import _EventData, _process_renovate, _run_command_with_timeout
@@ -327,10 +328,6 @@ async def test_run_command_with_timeout_empty_output_buffers():
 @pytest.mark.asyncio
 async def test_run_command_with_timeout_custom_working_directory():
     """Test command execution with custom working directory."""
-    import tempfile
-    from pathlib import Path
-    import anyio
-    
     # Create a temporary directory with a test file
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
