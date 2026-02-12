@@ -718,24 +718,31 @@ async def create_pull_request(
     auto_merge: bool = True,
 ) -> tuple[bool, githubkit.versions.latest.models.PullRequest | None]:
     """Create a pull request."""
-    command = ["git", "push", "--force", "origin", new_branch]
-    proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-        *command,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        cwd=cwd,
-    )
-    async with asyncio.timeout(60):
-        stdout, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        proc_message = AnsiProcessMessage.from_async_artifacts(
-            command,
-            proc,
-            stdout,
-            stderr,
+    try:
+        command = ["git", "push", "--force", "origin", new_branch]
+        proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
+            *command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            cwd=cwd,
         )
-        proc_message.title = "Error pushing branch"
-        _LOGGER.warning(proc_message)
+        async with asyncio.timeout(60):
+            stdout, stderr = await proc.communicate()
+        if proc.returncode != 0:
+            proc_message = AnsiProcessMessage.from_async_artifacts(
+                command,
+                proc,
+                stdout,
+                stderr,
+            )
+            proc_message.title = "Error pushing branch"
+            _LOGGER.warning(proc_message)
+            return False, None
+    except FileNotFoundError:
+        _LOGGER.warning("Git not found")
+        return False, None
+    except TimeoutError:
+        _LOGGER.warning("Timeout pushing branch")
         return False, None
 
     pull_requests = (
@@ -875,7 +882,26 @@ async def create_commit_pull_request(
             _LOGGER.debug(proc_message)
         except FileNotFoundError:
             _LOGGER.debug("pre-commit not installed")
+
+    # Print the changes to be committed
+    command = ["git", "diff"]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            cwd=cwd,
+        )
+        async with asyncio.timeout(30):
+            stdout, stderr = await proc.communicate()
+        proc_message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
+        proc_message.title = "Changes to be committed"
+        _LOGGER.debug(proc_message)
+    except TimeoutError:
+        _LOGGER.warning("Timeout printing changes to be committed")
+
     if not await create_commit(message, cwd):
+        _LOGGER.debug("No changes to commit")
         return False, None
     return await create_pull_request(branch, new_branch, message, body, project, cwd)
 
