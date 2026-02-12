@@ -354,7 +354,7 @@ async def test_run_command_with_timeout_nonzero_exit_code():
     """Test command that exits with non-zero code."""
     # Use a command that will fail
     command = ["ls", "/nonexistent_directory_12345"]
-    stdout, stderr, returncode = await _run_command_with_timeout(
+    _, stderr, returncode = await _run_command_with_timeout(
         command, timeout=5, description="test failing ls"
     )
     
