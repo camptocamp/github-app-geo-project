@@ -469,78 +469,57 @@ async def _create_pull_request_if_changes(
             await diff_proc.communicate()
         if diff_proc.returncode != 0:
             command = ["git", "diff"]
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
+            await module_utils.run_timeout(
+                command,
+                env=None,
+                timeout=60,
+                success_message="Changes to be committed",
+                error_message="Git diff failed",
+                timeout_message="Git diff timed out",
                 cwd=cwd,
+                error=False,
             )
-            try:
-                async with asyncio.timeout(60):
-                    stdout, stderr = await proc.communicate()
-                message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                    command,
-                    proc,
-                    stdout,
-                    stderr,
-                )
-                message.title = "Changes to be committed"
-                _LOGGER.debug(message)
-            except TimeoutError:
-                proc.kill()
-                raise
 
             command = ["git", "checkout", "-b", new_branch]
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
+            _, success_checkout, _ = await module_utils.run_timeout(
+                command,
+                env=None,
+                timeout=60,
+                success_message="Git checkout completed",
+                error_message="Error while creating the new branch",
+                timeout_message="Git checkout timed out",
                 cwd=cwd,
+                error=True,
             )
-            try:
-                async with asyncio.timeout(60):
-                    stdout, stderr = await proc.communicate()
-                if proc.returncode != 0:
-                    message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                        command,
-                        proc,
-                        stdout,
-                        stderr,
-                    )
-                    message.title = "Error while creating the new branch"
-                    _LOGGER.error(message)
 
-                else:
-                    pre_commit_config = audit_utils.get_pre_commit_config(
-                        context.module_config,
-                        local_config,
+            if success_checkout:
+                pre_commit_config = audit_utils.get_pre_commit_config(
+                    context.module_config,
+                    local_config,
+                )
+                new_success, pull_request = await module_utils.create_commit_pull_request(
+                    branch,
+                    new_branch,
+                    f"Audit {key}",
+                    body_md,
+                    context.github_project,
+                    cwd,
+                    pre_commit_config.get("enabled", True),
+                    pre_commit_config.get("skip-hooks", []),
+                )
+                success &= new_success
+                if not new_success:
+                    _LOGGER.error(
+                        "Error while create commit or pull request",
                     )
-                    new_success, pull_request = await module_utils.create_commit_pull_request(
-                        branch,
-                        new_branch,
-                        f"Audit {key}",
-                        body_md,
-                        context.github_project,
-                        cwd,
-                        pre_commit_config.get("enabled", True),
-                        pre_commit_config.get("skip-hooks", []),
+                elif pull_request is not None and issue_check is not None:
+                    issue_check.set_title(
+                        key,
+                        f"{key} ([Pull request]({pull_request.html_url}))",
                     )
-                    success &= new_success
-                    if not new_success:
-                        _LOGGER.error(
-                            "Error while create commit or pull request",
-                        )
-                    elif pull_request is not None and issue_check is not None:
-                        issue_check.set_title(
-                            key,
-                            f"{key} ([Pull request]({pull_request.html_url}))",
-                        )
-                        short_message.append(
-                            f"[Pull request]({pull_request.html_url})",
-                        )
-            except TimeoutError:
-                proc.kill()
-                raise
+                    short_message.append(
+                        f"[Pull request]({pull_request.html_url})",
+                    )
 
         else:
             _LOGGER.debug("No changes to commit")
@@ -552,8 +531,10 @@ async def _create_pull_request_if_changes(
     except TimeoutError:
         try:
             diff_proc.kill()
-        except:  # noqa: S110
-            pass
+        except ProcessLookupError:
+            _LOGGER.debug(
+                "diff_proc already terminated before kill() after timeout; ignoring ProcessLookupError",
+            )
         raise
 
     return success, short_message
