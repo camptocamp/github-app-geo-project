@@ -32,6 +32,64 @@ _LOGGER = logging.getLogger(__name__)
 _OUTDATED = "Outdated version"
 
 
+async def _run_command_with_timeout(
+    command: list[str],
+    cwd: anyio.Path | None = None,
+    timeout: int = 60,  # noqa: ASYNC109
+    description: str = "Command",
+) -> tuple[bytes, bytes, int]:
+    """
+    Run a command with timeout and return stdout, stderr, and return code.
+
+    Safely handles timeout by avoiding double-kill of the process.
+
+    Args:
+        command: The command to run
+        cwd: Working directory
+        timeout: Timeout in seconds
+        description: Description for logging
+
+    Returns
+    -------
+        Tuple of (stdout, stderr, returncode)
+    """
+    proc = await asyncio.create_subprocess_exec(
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+        cwd=cwd,
+    )
+    try:
+        async with asyncio.timeout(timeout):
+            stdout, stderr = await proc.communicate()
+    except TimeoutError:
+        try:
+            proc.kill()
+            # Give it a moment to die
+            await asyncio.sleep(0.1)
+        except ProcessLookupError:
+            # Process already terminated
+            pass
+        stdout = b""
+        stderr = b""
+        if proc.stdout:
+            try:
+                stdout = proc.stdout.read_nowait() or b""
+            except asyncio.QueueEmpty:
+                pass
+        _LOGGER.warning(
+            "%s timed out after %d seconds\nstdout: %s\nstderr: %s",
+            description,
+            timeout,
+            stdout.decode("utf-8", errors="replace"),
+            stderr.decode("utf-8", errors="replace"),
+        )
+        raise
+    else:
+        return stdout, stderr, proc.returncode or 0
+
+
 class _TransversalStatusTool(BaseModel):
     title: str
 
@@ -469,78 +527,76 @@ async def _create_pull_request_if_changes(
             await diff_proc.communicate()
         if diff_proc.returncode != 0:
             command = ["git", "diff"]
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                cwd=cwd,
-            )
             try:
-                async with asyncio.timeout(60):
-                    stdout, stderr = await proc.communicate()
-                message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                stdout, stderr, _ = await _run_command_with_timeout(
                     command,
-                    proc,
+                    cwd,
+                    timeout=60,
+                    description="git diff",
+                )
+            except TimeoutError:
+                stdout = b""
+                stderr = b""
+            message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                command,
+                None,
+                stdout,
+                stderr,
+            )
+            message.title = "Changes to be committed"
+            _LOGGER.debug(message)
+
+            command = ["git", "checkout", "-b", new_branch]
+            try:
+                stdout, stderr, returncode = await _run_command_with_timeout(
+                    command,
+                    cwd,
+                    timeout=60,
+                    description=f"git checkout {new_branch}",
+                )
+            except TimeoutError:
+                stdout = b""
+                stderr = b""
+                returncode = -1
+
+            if returncode != 0:
+                message = module_utils.AnsiProcessMessage(
+                    command,
+                    returncode,
                     stdout,
                     stderr,
                 )
-                message.title = "Changes to be committed"
-                _LOGGER.debug(message)
-            except TimeoutError:
-                proc.kill()
-                raise
+                message.title = "Error while creating the new branch"
+                _LOGGER.error(message)
 
-            command = ["git", "checkout", "-b", new_branch]
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                cwd=cwd,
-            )
-            try:
-                async with asyncio.timeout(60):
-                    stdout, stderr = await proc.communicate()
-                if proc.returncode != 0:
-                    message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                        command,
-                        proc,
-                        stdout,
-                        stderr,
+            else:
+                pre_commit_config = audit_utils.get_pre_commit_config(
+                    context.module_config,
+                    local_config,
+                )
+                new_success, pull_request = await module_utils.create_commit_pull_request(
+                    branch,
+                    new_branch,
+                    f"Audit {key}",
+                    body_md,
+                    context.github_project,
+                    cwd,
+                    pre_commit_config.get("enabled", True),
+                    pre_commit_config.get("skip-hooks", []),
+                )
+                success &= new_success
+                if not new_success:
+                    _LOGGER.error(
+                        "Error while create commit or pull request",
                     )
-                    message.title = "Error while creating the new branch"
-                    _LOGGER.error(message)
-
-                else:
-                    pre_commit_config = audit_utils.get_pre_commit_config(
-                        context.module_config,
-                        local_config,
+                elif pull_request is not None and issue_check is not None:
+                    issue_check.set_title(
+                        key,
+                        f"{key} ([Pull request]({pull_request.html_url}))",
                     )
-                    new_success, pull_request = await module_utils.create_commit_pull_request(
-                        branch,
-                        new_branch,
-                        f"Audit {key}",
-                        body_md,
-                        context.github_project,
-                        cwd,
-                        pre_commit_config.get("enabled", True),
-                        pre_commit_config.get("skip-hooks", []),
+                    short_message.append(
+                        f"[Pull request]({pull_request.html_url})",
                     )
-                    success &= new_success
-                    if not new_success:
-                        _LOGGER.error(
-                            "Error while create commit or pull request",
-                        )
-                    elif pull_request is not None and issue_check is not None:
-                        issue_check.set_title(
-                            key,
-                            f"{key} ([Pull request]({pull_request.html_url}))",
-                        )
-                        short_message.append(
-                            f"[Pull request]({pull_request.html_url})",
-                        )
-            except TimeoutError:
-                proc.kill()
-                raise
 
         else:
             _LOGGER.debug("No changes to commit")
@@ -552,7 +608,7 @@ async def _create_pull_request_if_changes(
     except TimeoutError:
         try:
             diff_proc.kill()
-        except:  # noqa: S110
+        except ProcessLookupError:
             pass
         raise
 
