@@ -18,6 +18,8 @@ async def test_process_renovate_default_branch_success():
     context.github_project = Mock()
     # Mock default_branch
     context.github_project.default_branch = AsyncMock(return_value="master")
+    context.service_url = "https://example.com/"
+    context.job_id = 123
 
     known_versions = ["1.0", "2.0"]
     # Mock git_clone to return a valid path
@@ -105,6 +107,8 @@ async def test_process_renovate_version_cleanup_success():
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
     context.github_project.default_branch = AsyncMock(return_value="master")
+    context.service_url = "https://example.com/"
+    context.job_id = 123
     # Mock git_clone to return a valid path
     with (
         patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone,
@@ -175,6 +179,8 @@ async def test_process_renovate_version_cleanup_files_not_exist():
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
     context.github_project.default_branch = AsyncMock(return_value="master")
+    context.service_url = "https://example.com/"
+    context.job_id = 123
     # Mock git_clone to return a valid path with no renovate or security files
     with (
         patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone,
@@ -213,6 +219,8 @@ async def test_process_renovate_version_cleanup_pr_creation_failure():
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
     context.github_project.default_branch = AsyncMock(return_value="master")
+    context.service_url = "https://example.com/"
+    context.job_id = 123
     # Mock git_clone to return a valid path
     with tempfile.TemporaryDirectory() as tmpdir:
         temp_path = Path(tmpdir)

@@ -647,50 +647,40 @@ async def run_timeout(
 async def has_changes(cwd: Path, include_un_followed: bool = False) -> bool:
     """Check if there are changes."""
     if include_un_followed:
-        proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-            "git",
-            "status",
-            "--porcelain",
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            cwd=cwd,
+        stdout, _, _ = await run_timeout(
+            ["git", "status", "--porcelain"],
+            None,
+            60,
+            "Git status",
+            "Error getting git status",
+            "Timeout getting git status",
+            cwd,
         )
-        async with asyncio.timeout(60):
-            stdout, _ = await proc.communicate()
         return bool(stdout)
-    proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-        "git",
-        "diff",
-        "--exit-code",
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        cwd=cwd,
+    _, success, _ = await run_timeout(
+        ["git", "diff", "--exit-code"],
+        None,
+        60,
+        "Git diff",
+        "Error running git diff",
+        "Timeout running git diff",
+        cwd,
     )
-    async with asyncio.timeout(60):
-        await proc.communicate()
-    return proc.returncode != 0
+    return not success
 
 
 async def create_commit(message: str, cwd: Path) -> bool:
     """Do a commit."""
-    command = ["git", "add", "--all"]
-    proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-        *command,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        cwd=cwd,
+    _, success, _ = await run_timeout(
+        ["git", "add", "--all"],
+        None,
+        30,
+        "Add files to commit",
+        "Error adding files to commit",
+        "Timeout adding files to commit",
+        cwd,
     )
-    async with asyncio.timeout(30):
-        stdout, stderr = await proc.communicate()
-    if proc.returncode != 0:
-        proc_message = AnsiProcessMessage.from_async_artifacts(
-            command,
-            proc,
-            stdout,
-            stderr,
-        )
-        proc_message.title = "Error adding files to commit"
-        _LOGGER.warning(proc_message)
+    if not success:
         return False
     _, success, _ = await run_timeout(
         [
@@ -718,33 +708,17 @@ async def create_pull_request(
     auto_merge: bool = True,
 ) -> tuple[bool, githubkit.versions.latest.models.PullRequest | None]:
     """Create a pull request."""
-    try:
-        command = ["git", "push", "--force", "origin", new_branch]
-        proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-            *command,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            cwd=cwd,
-        )
-        async with asyncio.timeout(60):
-            stdout, stderr = await proc.communicate()
-        if proc.returncode != 0:
-            proc_message = AnsiProcessMessage.from_async_artifacts(
-                command,
-                proc,
-                stdout,
-                stderr,
-            )
-            proc_message.title = "Error pushing branch"
-            _LOGGER.warning(proc_message)
-            return False, None
-    except FileNotFoundError:
-        _LOGGER.warning("Git not found")
+    _, success, _ = await run_timeout(
+        ["git", "push", "--force", "origin", new_branch],
+        None,
+        60,
+        "Push branch",
+        "Error pushing branch",
+        "Timeout pushing branch",
+        cwd,
+    )
+    if not success:
         return False, None
-    except TimeoutError:
-        _LOGGER.warning("Timeout pushing branch")
-        return False, None
-
     pull_requests = (
         await github_project.aio_github.rest.pulls.async_list(
             owner=github_project.owner,
@@ -858,47 +832,29 @@ async def create_commit_pull_request(
     """Do a commit, then create a pull request."""
     skip_pre_commit_hooks = skip_pre_commit_hooks or []
     if enable_pre_commit and (cwd / ".pre-commit-config.yaml").exists():
-        try:
-            command = ["pre-commit", "run", "--all-files", "--show-diff-on-failure"]
-            proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-                *command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                cwd=cwd,
-                env={
-                    **os.environ,
-                    "SKIP": ",".join(skip_pre_commit_hooks),
-                },
-            )
-            async with asyncio.timeout(300):
-                stdout, stderr = await proc.communicate()
-            proc_message = AnsiProcessMessage.from_async_artifacts(
-                command,
-                proc,
-                stdout,
-                stderr,
-            )
-            proc_message.title = "Run pre-commit"
-            _LOGGER.debug(proc_message)
-        except FileNotFoundError:
-            _LOGGER.debug("pre-commit not installed")
+        await run_timeout(
+            ["pre-commit", "run", "--all-files", "--show-diff-on-failure"],
+            {
+                **os.environ,
+                "SKIP": ",".join(skip_pre_commit_hooks),
+            },
+            300,
+            "Run pre-commit",
+            "Error running pre-commit",
+            "Timeout running pre-commit",
+            cwd,
+        )
 
     # Print the changes to be committed
-    command = ["git", "diff"]
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *command,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            cwd=cwd,
-        )
-        async with asyncio.timeout(30):
-            stdout, stderr = await proc.communicate()
-        proc_message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
-        proc_message.title = "Changes to be committed"
-        _LOGGER.debug(proc_message)
-    except TimeoutError:
-        _LOGGER.warning("Timeout printing changes to be committed")
+    await run_timeout(
+        ["git", "diff"],
+        None,
+        30,
+        "Changes to be committed",
+        "Error printing changes to be committed",
+        "Timeout printing changes to be committed",
+        cwd,
+    )
 
     if not await create_commit(message, cwd):
         _LOGGER.debug("No changes to commit")
@@ -975,27 +931,22 @@ async def git_clone(
         async with await (directory / "id_rsa").open("w", encoding="utf-8") as file:
             await file.write(github_project.application.private_key)
 
-    command = [
-        "git",
-        "clone",
-        *(["--depth=1", f"--branch={branch}"] if branch else []),
-        f"https://x-access-token:{github_project.token}@github.com/{github_project.owner}/{github_project.repository}.git",
-    ]
-    proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-        *command,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        cwd=cwd,
+    _, success, _ = await run_timeout(
+        [
+            "git",
+            "clone",
+            *(["--depth=1", f"--branch={branch}"] if branch else []),
+            f"https://x-access-token:{github_project.token}@github.com/{github_project.owner}/{github_project.repository}.git",
+        ],
+        None,
+        600,
+        "Clone repository",
+        "Error cloning the repository",
+        "Timeout cloning the repository",
+        cwd,
     )
-    async with asyncio.timeout(600):
-        stdout, stderr = await proc.communicate()
-    message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
-    if proc.returncode != 0:
-        message.title = "Error cloning the repository"
-        _LOGGER.warning(message)
+    if not success:
         return None
-    message.title = "Clone repository"
-    _LOGGER.debug(message)
 
     cwd = cwd / github_project.repository.split("/")[-1]
     user = (
@@ -1003,62 +954,46 @@ async def git_clone(
             github_project.application.slug + "[bot]",
         )
     ).parsed_data
-    command = [
-        "git",
-        "config",
-        "user.email",
-        f"{user.id}+{user.login}@users.noreply.github.com",
-    ]
-    proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-        *command,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        cwd=cwd,
+    _, success, _ = await run_timeout(
+        [
+            "git",
+            "config",
+            "user.email",
+            f"{user.id}+{user.login}@users.noreply.github.com",
+        ],
+        None,
+        60,
+        "Set email",
+        "Error setting the email",
+        "Timeout setting the email",
+        cwd,
     )
-    async with asyncio.timeout(60):
-        stdout, stderr = await proc.communicate()
-    message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
-
-    if proc.returncode != 0:
-        message.title = "Error setting the email"
-        _LOGGER.warning(message)
+    if not success:
         return None
-    message.title = "Set email"
-    _LOGGER.debug(message)
 
-    command = ["git", "config", "user.name", user.login]
-    proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-        *command,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        cwd=cwd,
+    _, success, _ = await run_timeout(
+        ["git", "config", "user.name", user.login],
+        None,
+        60,
+        "Set name",
+        "Error setting the name",
+        "Timeout setting the name",
+        cwd,
     )
-    async with asyncio.timeout(60):
-        stdout, stderr = await proc.communicate()
-    message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
-    if proc.returncode != 0:
-        message.title = "Error setting the name"
-        _LOGGER.warning(message)
+    if not success:
         return None
-    message.title = "Set name"
-    _LOGGER.debug(message)
 
-    command = ["git", "config", "gpg.format", "ssh"]
-    proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-        *command,
-        stdin=asyncio.subprocess.PIPE,
-        stdout=asyncio.subprocess.PIPE,
-        cwd=cwd,
+    _, success, _ = await run_timeout(
+        ["git", "config", "gpg.format", "ssh"],
+        None,
+        60,
+        "Set gpg format",
+        "Error setting the gpg format",
+        "Timeout setting the gpg format",
+        cwd,
     )
-    async with asyncio.timeout(60):
-        stdout, stderr = await proc.communicate()
-    message = AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
-    if proc.returncode != 0:
-        message.title = "Error setting the gpg format"
-        _LOGGER.warning(message)
+    if not success:
         return None
-    message.title = "Set gpg format"
-    _LOGGER.debug(message)
 
     return cwd
 
