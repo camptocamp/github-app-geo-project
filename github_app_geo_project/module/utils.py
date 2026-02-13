@@ -838,7 +838,7 @@ async def create_commit_pull_request(
                 **os.environ,
                 "SKIP": ",".join(skip_pre_commit_hooks),
             },
-            300,
+            600,
             "Run pre-commit",
             "Error running pre-commit",
             "Timeout running pre-commit",
