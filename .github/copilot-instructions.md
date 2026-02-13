@@ -38,6 +38,14 @@ It contains the following attributes:
 - `aio_github` (githubkit.AsyncGitHub): The authenticated GitHub API client for async operations. This is used to interact with GitHub REST APIs.
 - `application` (github_app_geo_project.configuration.GithubApplication): The GitHub application information.
 
+### Subprocess
+
+The function `asyncio.create_subprocess_exec` shouldn't be used in the modules. Instead, the `github_app_geo_project.module.utils.run_timeout` function should be used to run subprocesses with a timeout and proper logging.
+
+## Bash
+
+Use the long parameter names for clarity and maintainability.
+
 ## Future
 
 The project should fully be in async mode.
