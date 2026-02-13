@@ -164,11 +164,15 @@ async def _process_renovate(
                         # Remove baseBranchPatterns if it only contains the default branch
                         del renovate_config["baseBranchPatterns"]
 
+            logs_url = urllib.parse.urljoin(
+                context.service_url,
+                f"logs/{context.job_id}",
+            )
             success, _ = await _create_pull_request_if_changes(
                 default_branch,
                 f"ghci/audit/renovate/{default_branch}",
                 "Update Renovate configuration",
-                "Update the stabilization branches in the Renovate configuration",
+                f"Update the stabilization branches in the Renovate configuration\n\n[Logs]({logs_url})",
                 context,
                 {},
                 new_cwd,
@@ -204,11 +208,15 @@ async def _process_renovate(
         if security_md_path.exists():
             security_md_path.unlink()
 
+        logs_url = urllib.parse.urljoin(
+            context.service_url,
+            f"logs/{context.job_id}",
+        )
         success, _ = await _create_pull_request_if_changes(
             context.module_event_data.version,
             f"ghci/audit/renovate/{context.module_event_data.version}",
             f"Cleanup Renovate configuration for version {context.module_event_data.version}",
-            "Remove the Renovate configuration and the SECURITY.md file if they exist",
+            f"Remove the Renovate configuration and the SECURITY.md file if they exist\n\n[Logs]({logs_url})",
             context,
             {},
             new_cwd,
