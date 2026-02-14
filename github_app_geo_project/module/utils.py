@@ -736,13 +736,23 @@ async def create_pull_request(
             pull_request.created_at,
             pull_request.head.ref,
         )
+        # Update the body if needed
+        if pull_request.body != body:
+            await github_project.aio_github.rest.pulls.async_update(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                pull_number=pull_request.number,
+                body=body,
+            )
         # Create an issue if the pull request is open for 5 days
         if pull_request.created_at < datetime.datetime.now(
             tz=datetime.UTC,
         ) - datetime.timedelta(days=5):
-            _LOGGER.warning("Pull request #%s is open for 5 days", pull_request.number)
-            title = f"Pull request {message} is open for 5 days"
-            body = f"See: #{pull_request.number}"
+            nb_days = (datetime.datetime.now(tz=datetime.UTC) - pull_request.created_at).days
+            _LOGGER.warning("Pull request #%s is open for %d days", pull_request.number, nb_days)
+            title_start = f"Pull request {message} is open for "
+            title = f"{title_start}{nb_days} days"
+            issue_body = f"See: #{pull_request.number}"
             found = False
             issues = (
                 await github_project.aio_github.rest.issues.async_list_for_repo(
@@ -755,21 +765,29 @@ async def create_pull_request(
             if issues:
                 assert issues is not None
                 for issue in issues:
-                    if title == issue.title:
+                    if issue.title.startswith(title_start):
                         found = True
-                        if body != issue.body:
+                        if issue_body != issue.body:
                             await github_project.aio_github.rest.issues.async_update(
                                 owner=github_project.owner,
                                 repo=github_project.repository,
                                 issue_number=issue.number,
-                                body=body,
+                                body=issue_body,
+                                title=title,
+                            )
+                        elif issue.title != title:
+                            await github_project.aio_github.rest.issues.async_update(
+                                owner=github_project.owner,
+                                repo=github_project.repository,
+                                issue_number=issue.number,
+                                title=title,
                             )
             if not found:
                 await github_project.aio_github.rest.issues.async_create(
                     owner=github_project.owner,
                     repo=github_project.repository,
                     title=title,
-                    body=body,
+                    body=issue_body,
                 )
             return False, pull_request
     else:
