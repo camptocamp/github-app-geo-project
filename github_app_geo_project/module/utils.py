@@ -850,12 +850,24 @@ async def create_commit_pull_request(
     """Do a commit, then create a pull request."""
     skip_pre_commit_hooks = skip_pre_commit_hooks or []
     if enable_pre_commit and (cwd / ".pre-commit-config.yaml").exists():
+        # If the .python-version file exists, we activate pyenv in the subprocess
+        env = dict(os.environ)
+        python_version_file = cwd / ".python-version"
+        if python_version_file.exists():
+            # We search for pyenv in the PATH
+            pyenv_proc = await asyncio.create_subprocess_exec(
+                "pyenv",
+                "root",
+                stdout=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await pyenv_proc.communicate()
+            pyenv_root = stdout.decode().strip()
+            env["PYENV_ROOT"] = pyenv_root
+            env["PATH"] = f"{Path(pyenv_root) / 'shims'!s}:{Path(pyenv_root) / 'bin'!s}:{env['PATH']}"
+        env["SKIP"] = ",".join(skip_pre_commit_hooks)
         await run_timeout(
             ["pre-commit", "run", "--all-files", "--show-diff-on-failure"],
-            {
-                **os.environ,
-                "SKIP": ",".join(skip_pre_commit_hooks),
-            },
+            env,
             600,
             "Run pre-commit",
             "Error running pre-commit",
