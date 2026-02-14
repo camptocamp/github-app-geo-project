@@ -1,43 +1,16 @@
-The auto modules will do some simple operations on modules:
+# Auto pull request modules configuration base
 
-- Auto review: add a positive review on the pull request (doesn't work as expected because the application cannot be set as an official reviewer)
-- Auto merge: activate the auto-merge option of a pull request, even if it is preferable that the modules themselves activate this option.
-- Auto close: close the pull request, used to automatically close unwanted pull requests created by applications like pre-commit.
+## Properties
 
-The module has a `condition` option to select the affected pull requests.
+- <a id="properties/auto-review"></a>**`auto-review`**: Refer to _[#/definitions/auto](#definitions/auto)_.
+- <a id="properties/auto-merge"></a>**`auto-merge`**: Refer to _[#/definitions/auto](#definitions/auto)_.
+- <a id="properties/auto-close"></a>**`auto-close`**: Refer to _[#/definitions/auto](#definitions/auto)_.
 
-### Functionality Details
+## Definitions
 
-- **Auto Review**: Automatically adds a positive review to eligible pull requests. This is useful for automating approval workflows, but note that the GitHub application cannot be set as an official reviewer, so this may not trigger all required checks.
-- **Auto Merge**: Enables the auto-merge option on pull requests that meet the specified conditions. This helps streamline the merging process for trusted or routine changes.
-- **Auto Close**: Closes pull requests that match certain criteria, such as those created by automated tools or that are no longer needed.
-
-### When is it triggered?
-
-The module is typically triggered by pull request events (opened, updated, labeled, etc.) or as part of scheduled automation runs.
-
-### Configuration Options
-
-You can configure the module using the `.github/ghci.yaml` file or a similar configuration file. Example options include:
-
-- `auto-*.enabled`: Enable or disable the auto module (default: `true`)
-- `auto-*.condition`: Condition(s) to select which pull requests are affected (e.g., label, author, branch pattern)
-
-### Example Configuration
-
-```yaml
-auto-review:
-  enabled: true
-  condition:
-    label: "automerge"
-    author: "dependabot[bot]"
-    branch_pattern: "feature/*"
-```
-
-### Usage Notes
-
-- Ensure the GitHub App has the necessary permissions to review, merge, and close pull requests.
-- Use the `condition` option to avoid affecting unintended pull requests.
-- The auto review feature may not satisfy all required review checks due to GitHub limitations.
-
-[Configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/AUTO-CONFIG.md).
+- <a id="definitions/auto"></a>**`auto`** _(object)_: auto pull request configuration. Cannot contain additional properties.
+  - <a id="definitions/auto/properties/conditions"></a>**`conditions`** _(array)_
+    - <a id="definitions/auto/properties/conditions/items"></a>**Items** _(object)_: Cannot contain additional properties.
+      - <a id="definitions/auto/properties/conditions/items/properties/author"></a>**`author`** _(string)_: The author of the pull request.
+      - <a id="definitions/auto/properties/conditions/items/properties/branch"></a>**`branch`** _(string)_: Regex to match the branch of the pull request.
+      - <a id="definitions/auto/properties/conditions/items/properties/title"></a>**`title`** _(string)_: Regex to match the title of the pull request.
