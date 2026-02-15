@@ -49,7 +49,7 @@ class _TransversalStatusNameInDatasource(BaseModel):
 
 
 class _TransversalStatusVersion(BaseModel):
-    support: str
+    support: str = "Undefined"
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
     dependencies_by_datasource: dict[str, _TransversalStatusNameInDatasource] = {}
 
@@ -1166,27 +1166,69 @@ async def _update_upstream_versions(
             )
 
 
-def _parse_support_date(text: str) -> datetime.datetime:
+def _parse_support_date(text: str) -> datetime.datetime | None:
+    # Try ISO and DD/MM/YYYY date formats
+    try:
+        date = datetime.datetime.fromisoformat(text)
+        if date.tzinfo is None:
+            date = date.replace(tzinfo=datetime.UTC)
+    except Exception:  # noqa: BLE001,S110
+        pass
+    else:
+        return date
+    try:
+        return datetime.datetime.strptime(text, "%d/%m/%Y").replace(tzinfo=datetime.UTC)
+    except Exception:  # noqa: BLE001,S110
+        pass
+    return None
+
+
+def _support_category(s: str) -> int:
+    s = (s or "").strip().lower()
+    if s == "unsupported":
+        return 0
+    if s == "best effort":
+        return 1
+    if s == "to be defined":
+        return 2
+    if _parse_support_date(s) is not None:
+        return 3
+    return -1  # Any other string
+
+
+def _support_cmp(a: str, b: str) -> int:
     """
-    Parse a date string into a datetime object with timezone.
-
-    Handles both ISO format and DD/MM/YYYY format.
-
-    Arguments:
-    ---------
-        text: The date string to parse
+    Compare two support status strings.
 
     Returns
     -------
-        A datetime object with UTC timezone
+        -1 if a < b (a is less supported than b)
+         0 if equal
+         1 if a > b (a is better supported than b)
+
+    Order: unsupported < best effort < date < to be defined < other.
+    Older dates are considered less supported.
     """
-    try:
-        return utils.datetime_with_timezone(datetime.datetime.fromisoformat(text))
-    except ValueError:
-        # Parse date like 01/01/2024
-        return datetime.datetime.strptime(text, "%d/%m/%Y").replace(
-            tzinfo=datetime.UTC,
-        )
+
+    cat_a = _support_category(a)
+    cat_b = _support_category(b)
+    if cat_a != cat_b:
+        return -1 if cat_a < cat_b else 1
+    if cat_a == 3 and cat_b == 3:
+        # Both are dates, compare as dates (oldest = less support)
+        try:
+            da = _parse_support_date(a)
+            db = _parse_support_date(b)
+            assert da is not None
+            assert db is not None
+            if da < db:
+                return -1
+            if da > db:
+                return 1
+        except Exception:
+            _LOGGER.exception("Error parsing dates for support comparison: %s, %s", a, b)
+            return 0
+    return 0
 
 
 def _is_supported(base: str, other: str) -> bool:
@@ -1205,27 +1247,8 @@ def _is_supported(base: str, other: str) -> bool:
     -------
         True if the other status is supported relative to the base, False otherwise
     """
-    base = base.lower()
-    other = other.lower()
-    if base == other:
-        return True
-    if base == "unsupported":
-        return True
-    if other == "unsupported":
-        return False
-    if base == "best effort":
-        return True
-    if other == "best effort":
-        return False
-    if base == "to be defined":
-        return True
-    if other == "to be defined":
-        return False
-    try:
-        return _parse_support_date(base) <= _parse_support_date(other)
-    except ValueError as exc:
-        _LOGGER.warning("Failed to parse support date: %s", exc)
-        return False
+    # Use the comparison: base is supported if it is at least as good as other
+    return _support_cmp(base, other) <= 0
 
 
 def _build_internal_dependencies(
@@ -1433,4 +1456,36 @@ def _apply_additional_packages(
             days_old=10,
         )
         pydentic_data = _TransversalStatusRepo(**data)
+        # If support is not set but dependencies_by_datasource is, set support to the least support of dependencies
+        for version_data in pydentic_data.versions.values():
+            if version_data.support == "Undefined":
+                # Gather all dependency supports
+                supports = []
+                for dep_datasource_name, dep_datasource in version_data.dependencies_by_datasource.items():
+                    for dep_name, dep_versions in dep_datasource.versions_by_names.items():
+                        for dep_version in dep_versions.versions:
+                            # Try to get support from transversal_status if possible
+                            for other_repo_data in transversal_status.repositories.values():
+                                for other_version, other_version_data in other_repo_data.versions.items():
+                                    if other_version == dep_version:
+                                        for (
+                                            other_datasource_name,
+                                            other_name,
+                                        ) in other_version_data.names_by_datasource.items():
+                                            if (
+                                                dep_datasource_name == other_datasource_name
+                                                and dep_name in other_name.names
+                                            ):
+                                                supports.append(other_version_data.support)
+
+                # Fallback: if not found, just use "Unsupported"
+                if supports:
+                    # Choose the "least" support (most restrictive)
+                    min_support = supports[0]
+                    for s in supports[1:]:
+                        if _support_cmp(s, min_support) < 0:
+                            min_support = s
+                    version_data.support = min_support
+                else:
+                    version_data.support = _UNSUPPORTED
         transversal_status.repositories[repo] = pydentic_data
