@@ -906,7 +906,10 @@ class Audit(
             actions = [
                 module.Action(
                     priority=module.PRIORITY_CRON,
-                    data=_EventData(type="cleanup", known_versions=mapped_versions),
+                    data=_EventData(
+                        type="cleanup",
+                        known_versions=[*mapped_versions, await context.github_project.default_branch()],
+                    ),
                     title="cleanup",
                 )
             ]
