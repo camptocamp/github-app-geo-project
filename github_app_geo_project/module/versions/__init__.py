@@ -1432,5 +1432,11 @@ def _apply_additional_packages(
             repo,
             days_old=10,
         )
+        if isinstance(data, dict):
+            versions = data.get("versions")
+            if isinstance(versions, dict):
+                for version_data in versions.values():
+                    if isinstance(version_data, dict) and "support" not in version_data:
+                        version_data["support"] = _NO_SUPPORT_DEFINED
         pydentic_data = _TransversalStatusRepo(**data)
         transversal_status.repositories[repo] = pydentic_data
