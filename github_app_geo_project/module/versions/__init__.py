@@ -1511,7 +1511,9 @@ def _apply_additional_packages(
                             except NameError:
                                 cleaned_dep_version = dep_version
                             try:
-                                canonical_dep_version = _canonical_minor_version(cleaned_dep_version)
+                                canonical_dep_version = _canonical_minor_version(
+                                    dep_datasource_name, cleaned_dep_version
+                                )
                             except NameError:
                                 canonical_dep_version = None
                             normalized_dep_version = (
@@ -1534,7 +1536,7 @@ def _apply_additional_packages(
                                         cleaned_other_version = other_version
                                     try:
                                         canonical_other_version = _canonical_minor_version(
-                                            cleaned_other_version
+                                            dep_datasource_name, cleaned_other_version
                                         )
                                     except NameError:
                                         canonical_other_version = None
