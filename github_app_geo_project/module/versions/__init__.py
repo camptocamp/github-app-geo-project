@@ -1449,6 +1449,21 @@ def _apply_additional_packages(
         context: The process context containing the module configuration
         transversal_status: The global status to update with additional packages
     """
+    # Build a one-time index for O(1) dependency-support lookups:
+    # (datasource_name, package_name, normalized_version) -> list[support]
+    # The normalized version is computed per datasource (docker uses the full version,
+    # others use the canonical major.minor form).
+    support_index: dict[tuple[str, str, str], list[str]] = {}
+    for other_repo_data in transversal_status.repositories.values():
+        for other_version, other_version_data in other_repo_data.versions.items():
+            cleaned_other_version = _clean_version(other_version)
+            for other_datasource_name, other_name in other_version_data.names_by_datasource.items():
+                normalized_other_version = _canonical_minor_version(other_datasource_name, cleaned_other_version)
+                for name in other_name.names:
+                    support_index.setdefault(
+                        (other_datasource_name, name, normalized_other_version), []
+                    ).append(other_version_data.support)
+
     for repo, data in context.module_config.get("additional-packages", {}).items():
         module_utils.manage_updated_separated(
             transversal_status.updated,
@@ -1505,19 +1520,10 @@ def _apply_additional_packages(
                 for dep_datasource_name, dep_datasource in version_data.dependencies_by_datasource.items():
                     for dep_name, dep_versions in dep_datasource.versions_by_names.items():
                         for dep_version in dep_versions.versions:
-                            # Normalize the dependency version to align with how versions are stored elsewhere
-                            try:
-                                cleaned_dep_version = _clean_version(dep_version)
-                            except NameError:
-                                cleaned_dep_version = dep_version
-                            try:
-                                canonical_dep_version = _canonical_minor_version(
-                                    dep_datasource_name, cleaned_dep_version
-                                )
-                            except NameError:
-                                canonical_dep_version = None
-                            normalized_dep_version = (
-                                canonical_dep_version or cleaned_dep_version or dep_version
+                            # Normalize the dependency version (datasource-aware) to align with the index
+                            cleaned_dep_version = _clean_version(dep_version)
+                            normalized_dep_version = _canonical_minor_version(
+                                dep_datasource_name, cleaned_dep_version
                             )
 
                             # Build possible dependency name representations (e.g., for docker name:tag)
@@ -1527,33 +1533,11 @@ def _apply_additional_packages(
                             if normalized_dep_version and normalized_dep_version != dep_version:
                                 dep_name_candidates.add(f"{dep_name}:{normalized_dep_version}")
 
-                            # Try to get support from transversal_status if possible
-                            for other_repo_data in transversal_status.repositories.values():
-                                for other_version, other_version_data in other_repo_data.versions.items():
-                                    try:
-                                        cleaned_other_version = _clean_version(other_version)
-                                    except NameError:
-                                        cleaned_other_version = other_version
-                                    try:
-                                        canonical_other_version = _canonical_minor_version(
-                                            dep_datasource_name, cleaned_other_version
-                                        )
-                                    except NameError:
-                                        canonical_other_version = None
-                                    normalized_other_version = (
-                                        canonical_other_version or cleaned_other_version or other_version
-                                    )
-
-                                    if normalized_other_version == normalized_dep_version:
-                                        for (
-                                            other_datasource_name,
-                                            other_name,
-                                        ) in other_version_data.names_by_datasource.items():
-                                            if dep_datasource_name == other_datasource_name and any(
-                                                candidate in other_name.names
-                                                for candidate in dep_name_candidates
-                                            ):
-                                                supports.append(other_version_data.support)
+                            # O(1) lookup using pre-built index
+                            for candidate in dep_name_candidates:
+                                key = (dep_datasource_name, candidate, normalized_dep_version)
+                                if key in support_index:
+                                    supports.extend(support_index[key])
 
                 # Fallback: if not found, just use "Unsupported"
                 if supports:
