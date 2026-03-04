@@ -1206,7 +1206,8 @@ def _support_cmp(a: str, b: str) -> int:
          0 if equal
          1 if a > b (a is better supported than b)
 
-    Order: unsupported < best effort < date < to be defined < other.
+    Order: other < unsupported < best effort < to be defined < date.
+    "Other" corresponds to any unrecognized support string and is treated as least supported.
     Older dates are considered less supported.
     """
 
@@ -1247,7 +1248,7 @@ def _is_supported(base: str, other: str) -> bool:
     -------
         True if the other status is supported relative to the base, False otherwise
     """
-    # Use the comparison: base is supported if it is at least as good as other
+    # Use the comparison: other is supported if it is at least as good as base
     return _support_cmp(base, other) <= 0
 
 
