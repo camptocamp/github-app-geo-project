@@ -1464,17 +1464,34 @@ def _apply_additional_packages(
                 for dep_datasource_name, dep_datasource in version_data["dependencies_by_datasource"].items():
                     for dep_name, dep_versions in dep_datasource["versions_by_names"].items():
                         for dep_version in dep_versions["versions"]:
+                            # Normalize the dependency version (datasource-aware) to align with lookups
+                            normalized_dep_version = _canonical_minor_version(
+                                dep_datasource_name,
+                                _clean_version(dep_version),
+                            )
+
+                            # Build possible dependency name representations (e.g., for docker name:tag)
+                            dep_name_candidates = {dep_name}
+                            if dep_version:
+                                dep_name_candidates.add(f"{dep_name}:{dep_version}")
+                            if normalized_dep_version and normalized_dep_version != dep_version:
+                                dep_name_candidates.add(f"{dep_name}:{normalized_dep_version}")
+
                             # Try to get support from transversal_status if possible
                             for other_repo_data in transversal_status.repositories.values():
                                 for other_version, other_version_data in other_repo_data.versions.items():
-                                    if other_version == dep_version:
+                                    normalized_other_version = _canonical_minor_version(
+                                        dep_datasource_name,
+                                        _clean_version(other_version),
+                                    )
+                                    if normalized_other_version == normalized_dep_version:
                                         for (
                                             other_datasource_name,
                                             other_name,
                                         ) in other_version_data.names_by_datasource.items():
-                                            if (
-                                                dep_datasource_name == other_datasource_name
-                                                and dep_name in other_name.names
+                                            if dep_datasource_name == other_datasource_name and any(
+                                                candidate in other_name.names
+                                                for candidate in dep_name_candidates
                                             ):
                                                 supports.append(other_version_data.support)
 
