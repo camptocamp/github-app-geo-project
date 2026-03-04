@@ -831,9 +831,9 @@ class Audit(
                     versions = security.branches()
                 else:
                     _LOGGER.debug(
-                        "No SECURITY.md file in the repository, nothing to do for Renovate",
+                        "No SECURITY.md file in the repository, will attempt to remove baseBranchPatterns from Renovate config if present",
                     )
-                    return module.ProcessOutput()
+                    versions = []
 
                 mapped_versions = [
                     context.module_config.get("version-mapping", {}).get(version, version)
