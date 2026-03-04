@@ -1456,21 +1456,14 @@ def _apply_additional_packages(
             repo,
             days_old=10,
         )
-        if isinstance(data, dict):
-            versions = data.get("versions")
-            if isinstance(versions, dict):
-                for version_data in versions.values():
-                    if isinstance(version_data, dict) and "support" not in version_data:
-                        version_data["support"] = _NO_SUPPORT_DEFINED
-        pydentic_data = _TransversalStatusRepo(**data)
         # If support is not set but dependencies_by_datasource is, set support to the least support of dependencies
-        for version_data in pydentic_data.versions.values():
-            if version_data.support == "Undefined":
+        for version_data in data["versions"].values():
+            if "support" not in version_data:
                 # Gather all dependency supports
                 supports = []
-                for dep_datasource_name, dep_datasource in version_data.dependencies_by_datasource.items():
-                    for dep_name, dep_versions in dep_datasource.versions_by_names.items():
-                        for dep_version in dep_versions.versions:
+                for dep_datasource_name, dep_datasource in version_data["dependencies_by_datasource"].items():
+                    for dep_name, dep_versions in dep_datasource["versions_by_names"].items():
+                        for dep_version in dep_versions["versions"]:
                             # Try to get support from transversal_status if possible
                             for other_repo_data in transversal_status.repositories.values():
                                 for other_version, other_version_data in other_repo_data.versions.items():
@@ -1492,7 +1485,16 @@ def _apply_additional_packages(
                     for s in supports[1:]:
                         if _support_cmp(s, min_support) < 0:
                             min_support = s
-                    version_data.support = min_support
+                    version_data["support"] = min_support
                 else:
-                    version_data.support = _UNSUPPORTED
+                    version_data["support"] = _UNSUPPORTED
+
+        if isinstance(data, dict):
+            versions = data.get("versions")
+            if isinstance(versions, dict):
+                for version_data in versions.values():
+                    if isinstance(version_data, dict) and "support" not in version_data:
+                        version_data["support"] = _NO_SUPPORT_DEFINED
+
+        pydentic_data = _TransversalStatusRepo(**data)
         transversal_status.repositories[repo] = pydentic_data
