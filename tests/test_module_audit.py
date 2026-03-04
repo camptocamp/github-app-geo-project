@@ -78,6 +78,58 @@ async def test_process_renovate_default_branch_success():
 
 
 @pytest.mark.asyncio
+async def test_process_renovate_default_branch_no_security_file():
+    """Test Renovate update when SECURITY.md is missing."""
+    # Setup context
+    context = Mock()
+    context.module_event_data = _EventData(version=None)
+    context.github_project = Mock()
+    # Mock default_branch
+    context.github_project.default_branch = AsyncMock(return_value="master")
+    context.service_url = "https://example.com/"
+    context.job_id = 123
+
+    known_versions = []
+    # Mock git_clone to return a valid path
+    with (
+        patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone,
+        tempfile.TemporaryDirectory() as tmpdir,
+    ):
+        clone_path = Path(tmpdir) / "repo"
+        clone_path.mkdir()
+        github_dir = clone_path / ".github"
+        github_dir.mkdir()
+        renovate_file = github_dir / "renovate.json5"
+        renovate_file.write_text("{\n}")
+
+        mock_git_clone.return_value = clone_path
+
+        # Mock EditRenovateConfigV2 to avoid pre-commit issues
+        with patch("github_app_geo_project.module.audit.editor.EditRenovateConfig") as mock_editor:
+            mock_config = MagicMock()
+            mock_config.__contains__.return_value = True
+            mock_editor.return_value = MagicMock(
+                __aenter__=AsyncMock(return_value=mock_config),
+                __aexit__=AsyncMock(return_value=None),
+            )
+
+            # Mock _create_pull_request_if_changes
+            with patch(
+                "github_app_geo_project.module.audit._create_pull_request_if_changes"
+            ) as mock_create_pr:
+                mock_create_pr.return_value = (True, [])
+
+                # Call the function
+                result = await _process_renovate(context, known_versions)
+
+                # Assertions
+                assert result is True
+                mock_config.__setitem__.assert_not_called()
+                mock_config.__delitem__.assert_called_once_with("baseBranchPatterns")
+                mock_create_pr.assert_called_once()
+
+
+@pytest.mark.asyncio
 async def test_process_renovate_default_branch_clone_failure():
     """Test failed clone on default branch scenario."""
     # Setup context
