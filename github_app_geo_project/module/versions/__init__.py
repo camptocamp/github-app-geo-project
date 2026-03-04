@@ -49,7 +49,7 @@ class _TransversalStatusNameInDatasource(BaseModel):
 
 
 class _TransversalStatusVersion(BaseModel):
-    support: str = "Undefined"
+    support: str = _NO_SUPPORT_DEFINED
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
     dependencies_by_datasource: dict[str, _TransversalStatusNameInDatasource] = {}
 
