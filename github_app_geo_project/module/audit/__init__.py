@@ -831,7 +831,7 @@ class Audit(
                     versions = security.branches()
                 else:
                     _LOGGER.debug(
-                        "No SECURITY.md file in the repository, removing baseBranchPatterns from Renovate config",
+                        "No SECURITY.md file in the repository, will attempt to remove baseBranchPatterns from Renovate config if present",
                     )
                     versions = []
 
