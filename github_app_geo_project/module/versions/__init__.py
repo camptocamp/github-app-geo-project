@@ -1458,7 +1458,9 @@ def _apply_additional_packages(
         for other_version, other_version_data in other_repo_data.versions.items():
             cleaned_other_version = _clean_version(other_version)
             for other_datasource_name, other_name in other_version_data.names_by_datasource.items():
-                normalized_other_version = _canonical_minor_version(other_datasource_name, cleaned_other_version)
+                normalized_other_version = _canonical_minor_version(
+                    other_datasource_name, cleaned_other_version
+                )
                 for name in other_name.names:
                     support_index.setdefault(
                         (other_datasource_name, name, normalized_other_version), []
