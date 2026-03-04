@@ -1514,7 +1514,9 @@ def _apply_additional_packages(
                                 canonical_dep_version = _canonical_minor_version(cleaned_dep_version)
                             except NameError:
                                 canonical_dep_version = None
-                            normalized_dep_version = canonical_dep_version or cleaned_dep_version or dep_version
+                            normalized_dep_version = (
+                                canonical_dep_version or cleaned_dep_version or dep_version
+                            )
 
                             # Build possible dependency name representations (e.g., for docker name:tag)
                             dep_name_candidates = {dep_name}
@@ -1531,7 +1533,9 @@ def _apply_additional_packages(
                                     except NameError:
                                         cleaned_other_version = other_version
                                     try:
-                                        canonical_other_version = _canonical_minor_version(cleaned_other_version)
+                                        canonical_other_version = _canonical_minor_version(
+                                            cleaned_other_version
+                                        )
                                     except NameError:
                                         canonical_other_version = None
                                     normalized_other_version = (
@@ -1543,9 +1547,9 @@ def _apply_additional_packages(
                                             other_datasource_name,
                                             other_name,
                                         ) in other_version_data.names_by_datasource.items():
-                                            if (
-                                                dep_datasource_name == other_datasource_name
-                                                and any(candidate in other_name.names for candidate in dep_name_candidates)
+                                            if dep_datasource_name == other_datasource_name and any(
+                                                candidate in other_name.names
+                                                for candidate in dep_name_candidates
                                             ):
                                                 supports.append(other_version_data.support)
 
