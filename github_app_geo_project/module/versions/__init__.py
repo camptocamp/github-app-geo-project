@@ -1531,41 +1531,4 @@ def _apply_additional_packages(
                         version_data["support"] = _NO_SUPPORT_DEFINED
 
         pydentic_data = _TransversalStatusRepo(**data)
-        # If support is not set but dependencies_by_datasource is, set support to the least support of dependencies
-        for version_data in pydentic_data.versions.values():
-            if version_data.support == "Undefined":
-                # Gather all dependency supports
-                supports = []
-                for dep_datasource_name, dep_datasource in version_data.dependencies_by_datasource.items():
-                    for dep_name, dep_versions in dep_datasource.versions_by_names.items():
-                        for dep_version in dep_versions.versions:
-                            # Normalize the dependency version (datasource-aware) to align with the index
-                            cleaned_dep_version = _clean_version(dep_version)
-                            normalized_dep_version = _canonical_minor_version(
-                                dep_datasource_name, cleaned_dep_version
-                            )
-
-                            # Build possible dependency name representations (e.g., for docker name:tag)
-                            dep_name_candidates = {dep_name}
-                            if dep_version:
-                                dep_name_candidates.add(f"{dep_name}:{dep_version}")
-                            if normalized_dep_version and normalized_dep_version != dep_version:
-                                dep_name_candidates.add(f"{dep_name}:{normalized_dep_version}")
-
-                            # O(1) lookup using pre-built index
-                            for candidate in dep_name_candidates:
-                                key = (dep_datasource_name, candidate, normalized_dep_version)
-                                if key in support_index:
-                                    supports.extend(support_index[key])
-
-                # Fallback: if not found, just use "Unsupported"
-                if supports:
-                    # Choose the "least" support (most restrictive)
-                    min_support = supports[0]
-                    for s in supports[1:]:
-                        if _support_cmp(s, min_support) < 0:
-                            min_support = s
-                    version_data.support = min_support
-                else:
-                    version_data.support = _UNSUPPORTED
         transversal_status.repositories[repo] = pydentic_data
