@@ -1473,46 +1473,44 @@ def _apply_additional_packages(
             repo,
             days_old=10,
         )
-        # If support is not set but dependencies_by_datasource is, set support to the least support of dependencies
-        for version_data in data["versions"].values():
-            if "support" not in version_data:
-                # Gather all dependency supports
+        if not isinstance(data, dict):
+            continue
+        versions = data.get("versions")
+        if isinstance(versions, dict):
+            for version_data in versions.values():
+                if not isinstance(version_data, dict) or "support" in version_data:
+                    continue
+                deps_by_datasource = version_data.get("dependencies_by_datasource")
+                if not isinstance(deps_by_datasource, dict):
+                    version_data["support"] = _NO_SUPPORT_DEFINED
+                    continue
+                # Gather all dependency supports using the pre-built index
                 supports = []
-                for dep_datasource_name, dep_datasource in version_data["dependencies_by_datasource"].items():
-                    for dep_name, dep_versions in dep_datasource["versions_by_names"].items():
-                        for dep_version in dep_versions["versions"]:
+                for dep_datasource_name, dep_datasource in deps_by_datasource.items():
+                    if not isinstance(dep_datasource, dict):
+                        continue
+                    for dep_name, dep_versions in dep_datasource.get("versions_by_names", {}).items():
+                        if not isinstance(dep_versions, dict):
+                            continue
+                        for dep_version in dep_versions.get("versions", []):
                             # Normalize the dependency version (datasource-aware) to align with lookups
                             normalized_dep_version = _canonical_minor_version(
                                 dep_datasource_name,
                                 _clean_version(dep_version),
                             )
-
                             # Build possible dependency name representations (e.g., for docker name:tag)
                             dep_name_candidates = {dep_name}
                             if dep_version:
                                 dep_name_candidates.add(f"{dep_name}:{dep_version}")
                             if normalized_dep_version and normalized_dep_version != dep_version:
                                 dep_name_candidates.add(f"{dep_name}:{normalized_dep_version}")
-
-                            # Try to get support from transversal_status if possible
-                            for other_repo_data in transversal_status.repositories.values():
-                                for other_version, other_version_data in other_repo_data.versions.items():
-                                    normalized_other_version = _canonical_minor_version(
-                                        dep_datasource_name,
-                                        _clean_version(other_version),
+                            # Use support_index for O(1) lookup
+                            for candidate in dep_name_candidates:
+                                supports.extend(
+                                    support_index.get(
+                                        (dep_datasource_name, candidate, normalized_dep_version), []
                                     )
-                                    if normalized_other_version == normalized_dep_version:
-                                        for (
-                                            other_datasource_name,
-                                            other_name,
-                                        ) in other_version_data.names_by_datasource.items():
-                                            if dep_datasource_name == other_datasource_name and any(
-                                                candidate in other_name.names
-                                                for candidate in dep_name_candidates
-                                            ):
-                                                supports.append(other_version_data.support)
-
-                # Fallback: if not found, just use "Unsupported"
+                                )
                 if supports:
                     # Choose the "least" support (most restrictive)
                     min_support = supports[0]
@@ -1522,13 +1520,6 @@ def _apply_additional_packages(
                     version_data["support"] = min_support
                 else:
                     version_data["support"] = _UNSUPPORTED
-
-        if isinstance(data, dict):
-            versions = data.get("versions")
-            if isinstance(versions, dict):
-                for version_data in versions.values():
-                    if isinstance(version_data, dict) and "support" not in version_data:
-                        version_data["support"] = _NO_SUPPORT_DEFINED
 
         pydentic_data = _TransversalStatusRepo(**data)
         transversal_status.repositories[repo] = pydentic_data
