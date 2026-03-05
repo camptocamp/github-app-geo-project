@@ -1227,7 +1227,8 @@ def _support_cmp(a: str, b: str) -> int:
             if da > db:
                 return 1
         except Exception:
-            _LOGGER.exception("Error parsing dates for support comparison: %s, %s", a, b)
+            message = "Error parsing dates for support comparison: %s, %s"
+            _LOGGER.exception(message, a, b)
             return 0
     return 0
 
