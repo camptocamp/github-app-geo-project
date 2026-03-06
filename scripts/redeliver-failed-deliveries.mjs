@@ -1,8 +1,6 @@
 // This script uses GitHub's Octokit SDK to make API requests. For more information, see "[AUTOTITLE](/rest/guides/scripting-with-the-rest-api-and-javascript)."
 import { App, Octokit } from 'octokit';
 
-
-
 //
 async function checkAndRedeliverWebhooks() {
     // Get the values of environment variables that were set by the GitHub Actions workflow.
