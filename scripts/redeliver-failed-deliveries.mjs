@@ -85,6 +85,9 @@ async function fetchWebhookDeliveriesSince({ lastWebhookRedeliveryTime, app }) {
     const deliveries = [];
 
     for await (const { data } of iterator) {
+        if (!data || data.length === 0) {
+            continue;
+        }
         const oldestDeliveryTimestamp = new Date(data[data.length - 1].delivered_at).getTime();
 
         if (oldestDeliveryTimestamp < lastWebhookRedeliveryTime) {
