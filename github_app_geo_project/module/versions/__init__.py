@@ -61,6 +61,22 @@ class _TransversalStatusRepo(BaseModel):
     upstream_updated: datetime.datetime | None = None
     url: str | None = None
     has_security_policy: bool = False
+    names_index: dict[str, dict[str, dict[str, str]]] = {}
+    """Pre-computed index for this repo: datasource -> package_name -> canonical_version -> support_status"""
+
+
+class _NamesStatus(BaseModel):
+    status_by_version: dict[str, str] = {}
+    repo: str | None = None
+    has_security_policy: bool = False
+
+
+class _NamesByDataSources(BaseModel):
+    by_package: dict[str, _NamesStatus] = {}
+
+
+class _Names(BaseModel):
+    by_datasources: dict[str, _NamesByDataSources] = {}
 
 
 class _TransversalStatus(BaseModel):
@@ -84,20 +100,6 @@ class _IntermediateStatus(BaseModel):
     ] = {}
     stabilization_versions: list[str] = []
     external_repositories: dict[str, _TransversalStatusRepo] = {}
-
-
-class _NamesStatus(BaseModel):
-    status_by_version: dict[str, str] = {}
-    repo: str | None = None
-    has_security_policy: bool = False
-
-
-class _NamesByDataSources(BaseModel):
-    by_package: dict[str, _NamesStatus] = {}
-
-
-class _Names(BaseModel):
-    by_datasources: dict[str, _NamesByDataSources] = {}
 
 
 class _Dependency(BaseModel):
@@ -490,6 +492,10 @@ class Versions(
         message.title = "Repo:"
         _LOGGER.debug(message)
 
+        _rebuild_repo_names(repo)
+        for external_name in intermediate_status.external_repositories:
+            _rebuild_repo_names(transversal_status.repositories[external_name])
+
         return transversal_status
 
     def has_transversal_dashboard(self) -> bool:
@@ -504,27 +510,7 @@ class Versions(
         transversal_status = context.status
 
         if "repository" in context.params:
-            names = _Names()
-            for repo, repo_data in transversal_status.repositories.items():
-                for branch, branch_data in repo_data.versions.items():
-                    for (
-                        datasource,
-                        datasource_data,
-                    ) in branch_data.names_by_datasource.items():
-                        for name in datasource_data.names:
-                            current_status = names.by_datasources.setdefault(
-                                datasource,
-                                _NamesByDataSources(),
-                            ).by_package.setdefault(
-                                name,
-                                _NamesStatus(
-                                    repo=repo,
-                                    has_security_policy=repo_data.has_security_policy,
-                                ),
-                            )
-                            current_status.status_by_version[_canonical_minor_version(datasource, branch)] = (
-                                branch_data.support
-                            )
+            names = _build_global_names(transversal_status)
 
             message = module_utils.HtmlMessage(
                 utils.format_json_str(names.model_dump_json()),
@@ -721,6 +707,80 @@ def _canonical_minor_version(datasource: str, version: str) -> str:
     if match:
         return match.group(1)
     return version
+
+
+def _rebuild_repo_names(repo_data: "_TransversalStatusRepo") -> None:
+    """
+    Rebuild the names index for a single repository.
+
+    This pre-computes a flattened reverse index for the repo, mapping
+    (datasource, package_name, canonical_version) to support status.
+    The result is stored in repo_data.names_index and persisted with the repo.
+
+    Arguments:
+    ---------
+        repo_data: The repository data to update in place
+    """
+    names_index: dict[str, dict[str, dict[str, str]]] = {}
+    for branch, branch_data in repo_data.versions.items():
+        for datasource, datasource_data in branch_data.names_by_datasource.items():
+            for name in datasource_data.names:
+                names_index.setdefault(datasource, {}).setdefault(
+                    name,
+                    {},
+                )[_canonical_minor_version(datasource, branch)] = branch_data.support
+    repo_data.names_index = names_index
+
+
+def _build_global_names(transversal_status: "_TransversalStatus") -> _Names:
+    """
+    Assemble the global names lookup from the per-repo persisted indices.
+
+    Merges all repos' pre-computed names_index into a single _Names structure
+    used by _build_internal_dependencies. Falls back to building from versions
+    data for repos that have no names_index yet (backward compatibility).
+
+    Arguments:
+    ---------
+        transversal_status: The transversal status containing all repos
+
+    Returns
+    -------
+        A _Names instance ready for dependency resolution
+    """
+    names = _Names()
+    for repo_name, repo_data in transversal_status.repositories.items():
+        if repo_data.names_index:
+            for datasource, ds_packages in repo_data.names_index.items():
+                ds_names = names.by_datasources.setdefault(datasource, _NamesByDataSources())
+                for package_name, version_support in ds_packages.items():
+                    pkg_status = ds_names.by_package.setdefault(
+                        package_name,
+                        _NamesStatus(
+                            repo=repo_name,
+                            has_security_policy=repo_data.has_security_policy,
+                        ),
+                    )
+                    pkg_status.status_by_version.update(version_support)
+        else:
+            # Backward compat: build from versions data for repos without a names_index
+            for branch, branch_data in repo_data.versions.items():
+                for datasource, datasource_data in branch_data.names_by_datasource.items():
+                    for name in datasource_data.names:
+                        current_status = names.by_datasources.setdefault(
+                            datasource,
+                            _NamesByDataSources(),
+                        ).by_package.setdefault(
+                            name,
+                            _NamesStatus(
+                                repo=repo_name,
+                                has_security_policy=repo_data.has_security_policy,
+                            ),
+                        )
+                        current_status.status_by_version[_canonical_minor_version(datasource, branch)] = (
+                            branch_data.support
+                        )
+    return names
 
 
 async def _get_names(

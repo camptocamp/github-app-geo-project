@@ -164,6 +164,20 @@ DEBUG: Determining if we should process repository camptocamp/tilecloud, using G
     assert transversal_status_json.get("repositories") == {
         "camptocamp/test": {
             "has_security_policy": False,
+            "names_index": {
+                "docker": {
+                    "ghcr.io/camptocamp/github-app-geo-project:master": {"master": "Best effort"},
+                },
+                "github-release": {
+                    "camptocamp/test": {"master": "Best effort"},
+                },
+                "npm": {
+                    "ghci": {"master": "Best effort"},
+                },
+                "pypi": {
+                    "github-app-geo-project": {"master": "Best effort"},
+                },
+            },
             "versions": {
                 "master": {
                     "dependencies_by_datasource": {
@@ -1376,6 +1390,7 @@ def test_transversal_status_to_json():
         "repositories": {
             "package1": {
                 "has_security_policy": False,
+                "names_index": {},
                 "url": "url1",
                 "versions": {},
             },
