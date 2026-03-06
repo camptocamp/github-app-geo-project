@@ -49,7 +49,7 @@ class _TransversalStatusNameInDatasource(BaseModel):
 
 
 class _TransversalStatusVersion(BaseModel):
-    support: str
+    support: str = _NO_SUPPORT_DEFINED
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
     dependencies_by_datasource: dict[str, _TransversalStatusNameInDatasource] = {}
 
@@ -1166,27 +1166,76 @@ async def _update_upstream_versions(
             )
 
 
-def _parse_support_date(text: str) -> datetime.datetime:
+def _parse_support_date(text: str) -> datetime.datetime | None:
+    # Try ISO and DD/MM/YYYY date formats
+    try:
+        date = datetime.datetime.fromisoformat(text)
+        if date.tzinfo is None:
+            date = date.replace(tzinfo=datetime.UTC)
+    except Exception:  # noqa: BLE001,S110
+        pass
+    else:
+        return date
+    try:
+        return datetime.datetime.strptime(text, "%d/%m/%Y").replace(tzinfo=datetime.UTC)
+    except Exception:  # noqa: BLE001,S110
+        pass
+    return None
+
+
+def _support_category(s: str) -> int:
+    s = (s or "").strip().lower()
+    if s == "unsupported":
+        return 0
+    if s == "best effort":
+        return 1
+    if s == "to be defined":
+        return 2
+    if _parse_support_date(s) is not None:
+        return 3
+    return -1  # Any other string
+
+
+def _support_cmp(a: str, b: str) -> int:
     """
-    Parse a date string into a datetime object with timezone.
-
-    Handles both ISO format and DD/MM/YYYY format.
-
-    Arguments:
-    ---------
-        text: The date string to parse
+    Compare two support status strings.
 
     Returns
     -------
-        A datetime object with UTC timezone
+        -1 if a < b (a is less supported than b)
+         0 if equal
+         1 if a > b (a is better supported than b)
+
+    Order: other < unsupported < best effort < to be defined < date.
+    "Other" corresponds to any unrecognized support string and is treated as least supported.
+    Older dates are considered less supported.
     """
-    try:
-        return utils.datetime_with_timezone(datetime.datetime.fromisoformat(text))
-    except ValueError:
-        # Parse date like 01/01/2024
-        return datetime.datetime.strptime(text, "%d/%m/%Y").replace(
-            tzinfo=datetime.UTC,
-        )
+
+    # Normalize once and use consistently for category and date parsing
+    a_norm = (a or "").strip()
+    b_norm = (b or "").strip()
+
+    cat_a = _support_category(a_norm)
+    cat_b = _support_category(b_norm)
+    if cat_a != cat_b:
+        return -1 if cat_a < cat_b else 1
+    if cat_a == 3 and cat_b == 3:
+        # Both are dates, compare as dates (oldest = less support)
+        try:
+            da = _parse_support_date(a_norm)
+            db = _parse_support_date(b_norm)
+            if da is None or db is None:
+                message = f"Failed to parse support dates for comparison: {a!r}, {b!r}"
+                raise ValueError(message)  # noqa: TRY301
+            if da < db:
+                return -1
+            if da > db:
+                return 1
+        except Exception:
+            message = "Error parsing dates for support comparison: %s, %s"
+            _LOGGER.exception(message, a, b)
+            return 0
+    return 0
 
 
 def _is_supported(base: str, other: str) -> bool:
@@ -1205,27 +1254,8 @@ def _is_supported(base: str, other: str) -> bool:
     -------
         True if the other status is supported relative to the base, False otherwise
     """
-    base = base.lower()
-    other = other.lower()
-    if base == other:
-        return True
-    if base == "unsupported":
-        return True
-    if other == "unsupported":
-        return False
-    if base == "best effort":
-        return True
-    if other == "best effort":
-        return False
-    if base == "to be defined":
-        return True
-    if other == "to be defined":
-        return False
-    try:
-        return _parse_support_date(base) <= _parse_support_date(other)
-    except ValueError as exc:
-        _LOGGER.warning("Failed to parse support date: %s", exc)
-        return False
+    # Use the comparison: other is supported if it is at least as good as base
+    return _support_cmp(base, other) <= 0
 
 
 def _build_internal_dependencies(
@@ -1425,6 +1455,23 @@ def _apply_additional_packages(
         context: The process context containing the module configuration
         transversal_status: The global status to update with additional packages
     """
+    # Build a one-time index for O(1) dependency-support lookups:
+    # (datasource_name, package_name, normalized_version) -> list[support]
+    # The normalized version is computed per datasource (docker uses the full version,
+    # others use the canonical major.minor form).
+    support_index: dict[tuple[str, str, str], list[str]] = {}
+    for other_repo_data in transversal_status.repositories.values():
+        for other_version, other_version_data in other_repo_data.versions.items():
+            cleaned_other_version = _clean_version(other_version)
+            for other_datasource_name, other_name in other_version_data.names_by_datasource.items():
+                normalized_other_version = _canonical_minor_version(
+                    other_datasource_name, cleaned_other_version
+                )
+                for name in other_name.names:
+                    support_index.setdefault(
+                        (other_datasource_name, name, normalized_other_version), []
+                    ).append(other_version_data.support)
+
     for repo, data in context.module_config.get("additional-packages", {}).items():
         module_utils.manage_updated_separated(
             transversal_status.updated,
@@ -1432,11 +1479,60 @@ def _apply_additional_packages(
             repo,
             days_old=10,
         )
+        if not isinstance(data, dict):
+            continue
+        versions = data.get("versions")
+        if isinstance(versions, dict):
+            for version_data in versions.values():
+                if not isinstance(version_data, dict) or "support" in version_data:
+                    continue
+                deps_by_datasource = version_data.get("dependencies_by_datasource")
+                if not isinstance(deps_by_datasource, dict):
+                    version_data["support"] = _NO_SUPPORT_DEFINED
+                    continue
+                # Gather all dependency supports using the pre-built index
+                supports = []
+                for dep_datasource_name, dep_datasource in deps_by_datasource.items():
+                    if not isinstance(dep_datasource, dict):
+                        continue
+                    for dep_name, dep_versions in dep_datasource.get("versions_by_names", {}).items():
+                        if not isinstance(dep_versions, dict):
+                            continue
+                        for dep_version in dep_versions.get("versions", []):
+                            # Normalize the dependency version (datasource-aware) to align with lookups
+                            normalized_dep_version = _canonical_minor_version(
+                                dep_datasource_name,
+                                _clean_version(dep_version),
+                            )
+                            # Build possible dependency name representations (e.g., for docker name:tag)
+                            dep_name_candidates = {dep_name}
+                            if dep_version:
+                                dep_name_candidates.add(f"{dep_name}:{dep_version}")
+                            if normalized_dep_version and normalized_dep_version != dep_version:
+                                dep_name_candidates.add(f"{dep_name}:{normalized_dep_version}")
+                            # Use support_index for O(1) lookup
+                            for candidate in dep_name_candidates:
+                                supports.extend(
+                                    support_index.get(
+                                        (dep_datasource_name, candidate, normalized_dep_version), []
+                                    )
+                                )
+                if supports:
+                    # Choose the "least" support (most restrictive)
+                    min_support = supports[0]
+                    for s in supports[1:]:
+                        if _support_cmp(s, min_support) < 0:
+                            min_support = s
+                    version_data["support"] = min_support
+                else:
+                    version_data["support"] = _UNSUPPORTED
+
         if isinstance(data, dict):
             versions = data.get("versions")
             if isinstance(versions, dict):
                 for version_data in versions.values():
                     if isinstance(version_data, dict) and "support" not in version_data:
                         version_data["support"] = _NO_SUPPORT_DEFINED
+
         pydentic_data = _TransversalStatusRepo(**data)
         transversal_status.repositories[repo] = pydentic_data

@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -16,7 +17,10 @@ from github_app_geo_project.module.versions import (
     _IntermediateStatus,
     _is_supported,
     _order_versions,
+    _parse_support_date,
     _read_dependencies,
+    _support_category,
+    _support_cmp,
     _TransversalStatus,
     _TransversalStatusNameByDatasource,
     _TransversalStatusNameInDatasource,
@@ -1391,8 +1395,8 @@ def test_order_versions():
     [
         ("test", "test", True),
         ("other", "other", True),
-        ("other", "test", False),
-        ("test", "other", False),
+        ("other", "test", True),
+        ("test", "other", True),
         ("Best effort", "To be defined", True),
         ("To be defined", "Best effort", False),
         ("Unsupported", "Best effort", True),
@@ -1413,3 +1417,157 @@ def test_order_versions():
 )
 def test_is_supported(support, dependency_support, expected_result):
     assert _is_supported(support, dependency_support) == expected_result
+
+
+@pytest.mark.parametrize(
+    ("text", "expected_year", "expected_month", "expected_day", "expected_none"),
+    [
+        ("2024-06-01", 2024, 6, 1, False),
+        ("01/06/2024", 2024, 6, 1, False),
+        ("notadate", None, None, None, True),
+    ],
+)
+def test_parse_support_date(text, expected_year, expected_month, expected_day, expected_none):
+    result = _parse_support_date(text)
+    if expected_none:
+        assert result is None
+    else:
+        assert result is not None
+        assert result.tzinfo is not None
+        if expected_year is not None:
+            assert result.year == expected_year
+        if expected_month is not None:
+            assert result.month == expected_month
+        if expected_day is not None:
+            assert result.day == expected_day
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("unsupported", 0),
+        ("best effort", 1),
+        ("to be defined", 2),
+        ("2024-06-01", 3),
+        ("01/06/2024", 3),
+        ("other", -1),
+    ],
+)
+def test_support_category(value, expected):
+    assert _support_category(value) == expected
+
+
+@pytest.mark.parametrize(
+    ("a", "b", "expected"),
+    [
+        # Category comparison
+        ("unsupported", "best effort", -1),
+        ("best effort", "unsupported", 1),
+        ("best effort", "2024-06-01", -1),
+        ("2024-06-01", "best effort", 1),
+        ("to be defined", "2024-06-01", -1),
+        ("2024-06-01", "to be defined", 1),
+        ("other", "to be defined", -1),
+        ("to be defined", "other", 1),
+        # Date comparison
+        ("2024-06-01", "2024-06-02", -1),
+        ("2024-06-02", "2024-06-01", 1),
+        ("2024-06-01", "2024-06-01", 0),
+        # Same category
+        ("unsupported", "unsupported", 0),
+        ("best effort", "best effort", 0),
+        ("to be defined", "to be defined", 0),
+        ("other", "other", 0),
+    ],
+)
+def test_support_cmp(a, b, expected):
+    assert _support_cmp(a, b) == expected
+
+
+def test_apply_additional_packages_least_support():
+    # Setup transversal_status with two dependencies, one with better support than the other
+    from github_app_geo_project.module.versions import (
+        _UNSUPPORTED,
+        _apply_additional_packages,
+        _TransversalStatus,
+        _TransversalStatusNameByDatasource,
+        _TransversalStatusRepo,
+        _TransversalStatusVersion,
+    )
+
+    # Existing repo with two versions, each with a different support
+    transversal_status = _TransversalStatus(
+        updated={
+            "repo1": datetime.datetime.now(datetime.UTC),
+        },
+        repositories={
+            "repo1": _TransversalStatusRepo(
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="2024-06-01",
+                        names_by_datasource={
+                            "pypi": _TransversalStatusNameByDatasource(names=["dep1"]),
+                        },
+                    ),
+                    "2.0": _TransversalStatusVersion(
+                        support="2023-06-01",
+                        names_by_datasource={
+                            "pypi": _TransversalStatusNameByDatasource(names=["dep2"]),
+                        },
+                    ),
+                }
+            )
+        },
+    )
+
+    # Additional package config with dependencies but no support set
+    additional_packages = {
+        "repo2": {
+            "versions": {
+                "main": {
+                    "dependencies_by_datasource": {
+                        "pypi": {
+                            "versions_by_names": {
+                                "dep1": {"versions": ["1.0"]},
+                                "dep2": {"versions": ["2.0"]},
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    class DummyContext:
+        module_config = {"additional-packages": additional_packages}
+
+    # Apply
+    _apply_additional_packages(DummyContext(), transversal_status)
+
+    # Should set support to the least support (most restrictive, i.e., "2023-06-01")
+    repo2 = transversal_status.repositories["repo2"]
+    main_version = repo2.versions["main"]
+    assert main_version.support == "2023-06-01"
+
+    # Now test fallback to UNSUPPORTED if no dependency support found
+    transversal_status.repositories.clear()
+    additional_packages = {
+        "repo3": {
+            "versions": {
+                "main": {
+                    "dependencies_by_datasource": {
+                        "pypi": {
+                            "versions_by_names": {
+                                "dep3": {"versions": ["3.0"]},
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    DummyContext.module_config = {"additional-packages": additional_packages}
+    _apply_additional_packages(DummyContext(), transversal_status)
+    repo3 = transversal_status.repositories["repo3"]
+    main_version = repo3.versions["main"]
+    assert main_version.support == _UNSUPPORTED
