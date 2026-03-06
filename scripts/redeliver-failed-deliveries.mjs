@@ -1,7 +1,7 @@
 // This script uses GitHub's Octokit SDK to make API requests. For more information, see "[AUTOTITLE](/rest/guides/scripting-with-the-rest-api-and-javascript)."
-import { App } from '@octokit/app';
-import { Octokit } from 'octokit';
-import { paginateRest } from '@octokit/plugin-paginate-rest';
+import { App, Octokit } from 'octokit';
+
+
 
 //
 async function checkAndRedeliverWebhooks() {
@@ -9,7 +9,7 @@ async function checkAndRedeliverWebhooks() {
     const APP_ID = process.env.APP_ID;
     const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-    const MyOctokit = Octokit.plugin(paginateRest);
+    const MyOctokit = Octokit;
 
     // Create an instance of the octokit `App` using the app ID and private key values that were set in the GitHub Actions workflow.
     //
