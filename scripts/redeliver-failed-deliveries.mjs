@@ -56,7 +56,7 @@ async function checkAndRedeliverWebhooks() {
         console.log(
             `Redelivered ${failedDeliveryIDs.length} failed webhook deliveries out of ${
                 deliveries.length
-            } total deliveries since ${Date(lastWebhookRedeliveryTime)}.`,
+            } total deliveries since ${new Date(Number(lastWebhookRedeliveryTime))}.`,
         );
     } catch (error) {
         // If there was an error, log the error so that it appears in the workflow run log, then throw the error so that the workflow run registers as a failure.
