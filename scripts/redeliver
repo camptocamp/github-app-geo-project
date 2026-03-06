@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+
+import os
+import subprocess
+import sys
+
+
+def _main() -> None:
+    app_id = subprocess.run(
+        ["gopass", "show", "private/2fa/github/app-geo-saas-int/app-id"],  # noqa: S607
+        stdout=subprocess.PIPE,
+        encoding="utf-8",
+        check=True,
+    ).stdout.strip()
+    private_key = subprocess.run(
+        ["gopass", "show", "private/2fa/github/app-geo-saas-int/private-key"],  # noqa: S607
+        stdout=subprocess.PIPE,
+        encoding="utf-8",
+        check=True,
+    ).stdout.strip()
+
+    env = {
+        **os.environ,
+        "APP_ID": app_id,
+        "PRIVATE_KEY": private_key,
+    }
+    sys.exit(
+        subprocess.run(
+            ["node", "scripts/redeliver-failed-deliveries.mjs"],  # noqa: S607
+            env=env,
+            check=True,
+        ).returncode
+    )
+
+
+if __name__ == "__main__":
+    _main()
