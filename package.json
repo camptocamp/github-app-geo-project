@@ -6,6 +6,7 @@
   "dependencies": {
     "@jamietanna/renovate-graph": "0.34.0",
     "@octokit/plugin-paginate-rest": "11.3.3",
+    "@octokit/app": "14.0.0",
     "@snyk/fix": "1.1303.0",
     "octokit": "4.0.2",
     "snyk": "1.1303.0",
