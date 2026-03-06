@@ -1,7 +1,8 @@
-// This script uses GitHub's Octokit SDK to make API requests. For more information, see "[AUTOTITLE](/rest/guides/scripting-with-the-rest-api-and-javascript)."
+// This script uses GitHub's Octokit SDK to make API requests. For more information, see
+// https://docs.github.com/en/rest/guides/scripting-with-the-rest-api-and-javascript
 import { App, Octokit } from 'octokit';
 
-//
+
 async function checkAndRedeliverWebhooks() {
     // Get the values of environment variables that were set by the GitHub Actions workflow.
     const APP_ID = process.env.APP_ID;
@@ -19,7 +20,7 @@ async function checkAndRedeliverWebhooks() {
     });
 
     try {
-        const lastWebhookRedeliveryTime = (Date.now() - 24 * 60 * 60 * 1000).toString();
+        const lastWebhookRedeliveryTime = Date.now() - 24 * 60 * 60 * 1000;
 
         // Get the webhook deliveries that were delivered after `lastWebhookRedeliveryTime`.
         const deliveries = await fetchWebhookDeliveriesSince({ lastWebhookRedeliveryTime, app });
@@ -54,7 +55,7 @@ async function checkAndRedeliverWebhooks() {
         console.log(
             `Redelivered ${failedDeliveryIDs.length} failed webhook deliveries out of ${
                 deliveries.length
-            } total deliveries since ${new Date(Number(lastWebhookRedeliveryTime))}.`,
+            } total deliveries since ${new Date(lastWebhookRedeliveryTime)}.`,
         );
     } catch (error) {
         // If there was an error, log the error so that it appears in the workflow run log, then throw the error so that the workflow run registers as a failure.
@@ -67,7 +68,8 @@ async function checkAndRedeliverWebhooks() {
 }
 
 // This function will fetch all of the webhook deliveries that were delivered since `lastWebhookRedeliveryTime`.
-// It uses the `octokit.paginate.iterator()` method to iterate through paginated results. For more information, see "[AUTOTITLE](/rest/guides/scripting-with-the-rest-api-and-javascript#making-paginated-requests)."
+// It uses the `octokit.paginate.iterator()` method to iterate through paginated results. For more information, see
+// https://docs.github.com/en/rest/guides/scripting-with-the-rest-api-and-javascript#making-paginated-requests
 //
 // If a page of results includes deliveries that occurred before `lastWebhookRedeliveryTime`,
 // it will store only the deliveries that occurred after `lastWebhookRedeliveryTime` and then stop.
