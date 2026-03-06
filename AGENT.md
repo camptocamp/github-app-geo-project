@@ -46,6 +46,12 @@ The function `asyncio.create_subprocess_exec` shouldn't be used in the modules. 
 
 Use the long parameter names for clarity and maintainability.
 
+## Commits
+
+Do not use the conventional commit conventions.
+The commit messages should start with a capital.
+If necessary, like a commit that concern only one module, use the format: 'Context: Massage'.
+
 ## Future
 
 The project should fully be in async mode.
