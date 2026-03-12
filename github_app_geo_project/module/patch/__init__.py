@@ -203,6 +203,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
             _LOGGER.debug("No artifacts found")
             return module.ProcessOutput()
 
+        artifacts.sort(key=lambda x: x.created_at)
+
         should_push = False
         result_message = []
         error_messages = []
