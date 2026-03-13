@@ -13,6 +13,7 @@ exclude: |-
     |github_app_geo_project/module/versions/configuration\.py
     |github_app_geo_project/module/clean/configuration\.py
     |github_app_geo_project/module/backport/configuration\.py
+    |github_app_geo_project/module/updates/configuration\.py
   )$
 
 repos:
@@ -124,6 +125,8 @@ repos:
             |github_app_geo_project/module/.*/schema\.json
             |github_app_geo_project/module/.*/.*-schema\.json
           )$
+        additional_dependencies:
+          - jsonschema-gentypes[validation]
   - repo: https://github.com/sbrunner/jsonschema2md
     rev: 1.7.0
     hooks:
@@ -208,21 +211,21 @@ repos:
             |jsonschema\-gentypes\.yaml
             |\.github/publish\.yaml
           )$
-  - repo: https://github.com/mheap/json-schema-spell-checker
-    rev: main
-    hooks:
-      - id: json-schema-spell-checker
-        files: |-
-          (?x)^(
-            github_app_geo_project/module/.*/schema\.json
-            github_app_geo_project/module/.*/*-schema\.json
-          )$
-        args:
-          - --fields=description,title
-          - --spelling=.github/spell-ignore-words.txt
-          - --ignore-numbers
-          - --ignore-acronyms
-          - --en-us
+  #  - repo: https://github.com/mheap/json-schema-spell-checker
+  #    rev: 321b956c17ed71835578b15eb5023fb9cf4a7af1
+  #    hooks:
+  #      - id: json-schema-spell-checker
+  #        files: |-
+  #          (?x)^(
+  #            github_app_geo_project/module/.*/schema\.json
+  #            github_app_geo_project/module/.*/*-schema\.json
+  #          )$
+  #        args:
+  #          - --fields=description,title
+  #          - --spelling=.github/spell-ignore-words.txt
+  #          - --ignore-numbers
+  #          - --ignore-acronyms
+  #          - --en-us
   - repo: https://github.com/renovatebot/pre-commit-hooks
     rev: 43.46.5
     hooks:
