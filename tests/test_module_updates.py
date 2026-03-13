@@ -1,6 +1,7 @@
 import base64
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import githubkit.versions.latest.models
 import pytest
 
 from github_app_geo_project import module
@@ -52,6 +53,7 @@ async def test_process_discovery(mock_context):
 
     # Mocking the response object structure for async_get_content
     mock_response = MagicMock()
+    mock_response.parsed_data = MagicMock(spec=githubkit.versions.latest.models.ContentFile)
     mock_response.parsed_data.content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
     mock_context.github_project.aio_github.rest.repos.async_get_content.return_value = mock_response
 
@@ -81,7 +83,7 @@ async def test_process_worker(mock_context):
 @patch("github_app_geo_project.module.updates.mra.EditYAML")
 @pytest.mark.asyncio
 async def test_process_branch(mock_edit_yaml, mock_utils, mock_context, tmp_path):
-    mock_utils.git_clone = AsyncMock(return_value=str(tmp_path))
+    mock_utils.git_clone = AsyncMock(return_value=tmp_path)
     mock_utils.create_commit_pull_request = AsyncMock()
 
     updates_module = updates.Updates()
@@ -129,7 +131,7 @@ async def test_process_branch(mock_edit_yaml, mock_utils, mock_context, tmp_path
 @patch("github_app_geo_project.module.updates.mra.EditYAML")
 @pytest.mark.asyncio
 async def test_process_branch_no_update(mock_edit_yaml, mock_utils, mock_context, tmp_path):
-    mock_utils.git_clone = AsyncMock(return_value=str(tmp_path))
+    mock_utils.git_clone = AsyncMock(return_value=tmp_path)
     mock_utils.create_commit_pull_request = AsyncMock()
 
     updates_module = updates.Updates()

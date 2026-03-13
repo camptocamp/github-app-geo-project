@@ -2510,14 +2510,14 @@ files = [
 
 [[package]]
 name = "multi-repo-automation"
-version = "1.8.0"
+version = "1.8.1"
 description = "Library for automation updates on multiple repositories."
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "multi_repo_automation-1.8.0-py3-none-any.whl", hash = "sha256:c7d4b2100a74c9f213fc3e9e1cff6862f755fc5cb7a9a3bf7ab92c4c8588bbb6"},
-    {file = "multi_repo_automation-1.8.0.tar.gz", hash = "sha256:23d95a5a68005471da3d419582fc74e23dfbb68f1d56e8fb1cfe895114cb99fb"},
+    {file = "multi_repo_automation-1.8.1-py3-none-any.whl", hash = "sha256:38cb36bee291a5486278621002c3e1c5c6779a7d6f0addc62c44056629f58318"},
+    {file = "multi_repo_automation-1.8.1.tar.gz", hash = "sha256:d86a284bee562a44d7bdc3eec639423c7f6ec291dfa4c931d18333e482f62689"},
 ]
 
 [package.dependencies]
@@ -5778,4 +5778,4 @@ test = ["zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.13"
-content-hash = "bd231ba3fcade0c1ff2e0e686d3d5cc75e0c2a46247fe7bf41b34266ed749248"
+content-hash = "6bbc7b6036372e822364f86423eb941e060358957454da0f8ef6e7b3d379f60b"
