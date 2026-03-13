@@ -8,6 +8,8 @@ Each modules should have a complete end user documentation in a markdown file us
 
 The modules should be reasonably tested in `tests/test_module_<name>.py`.
 
+The module types (`configuration`, `event data`, `transversal status`, `intermediate status`) should be strongly-typed, the configuration must comes from the generated `configuration.py`. the others must be Pydantic models or `None`, and should not use untyped `dict`.
+
 ## Important classes
 
 ### ProcessContext
@@ -58,3 +60,7 @@ The project should fully be in async mode.
 `pathlib` must not be used.
 Adding an `async` to a non-async function is completely possible.
 `aiofiles` must not be used, use `anyio` instead.
+
+## Technical Terms
+
+Technical terms in Markdown files, commits, and pull requests must be enclosed in backticks.

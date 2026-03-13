@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/camptocamp/github-app-geo-project/main/github_app_geo_project/module/updates/schema.json",
+  "type": "object",
+  "title": "Updates configuration",
+  "additionalProperties": false,
+  "properties": {
+    "enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable updates"
+    }
+  }
+}

@@ -46,7 +46,8 @@ deprecated = "1.3.1"
 aiomonitor = "0.7.1"
 sqlalchemy = {extras = ["asyncio"], version = "2.0.47"}
 asyncpg = "0.31.0"
-multi-repo-automation = "1.8.0"
+multi-repo-automation = "1.8.1"
+
 anyio = "4.12.1"
 "pre-commit" = "4.5.1"
 prek = "0.3.4"
@@ -142,6 +143,7 @@ dispatch-publishing = "github_app_geo_project.module.dispatch_publishing:Dispatc
 clean = "github_app_geo_project.module.clean:Clean"
 backport = "github_app_geo_project.module.backport:Backport"
 outdated-comments = "github_app_geo_project.module.outdated_comments:OutdatedComments"
+updates = "github_app_geo_project.module.updates:Updates"
 
 [build-system]
 requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning", "poetry-plugin-export"]

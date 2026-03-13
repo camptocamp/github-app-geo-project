@@ -7,7 +7,7 @@ import math
 import os
 import re
 import shlex
-import urllib
+import urllib.parse
 from pathlib import Path
 from typing import Any, cast
 
@@ -827,8 +827,8 @@ async def auto_merge_pull_request(
                 """,
                 variables={"pullRequestId": pull_request.node_id},
             )
-        except githubkit.exception.RequestFailed as exception:
-            if exception.response.status_code == 400:
+        except githubkit.exception.RequestFailed as request_exception:
+            if request_exception.response.status_code == 400:
                 continue
             raise
         else:
