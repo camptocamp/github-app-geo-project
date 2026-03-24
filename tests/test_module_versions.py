@@ -1405,6 +1405,21 @@ def test_order_versions():
     assert ordered_versions == ["master", "3.0", "2.0", "1.15", "1.5", "1.2", "1.0"]
 
 
+def test_order_versions_single_integer():
+    # Single-integer versions like "20" (from node-version datasource) must sort
+    # among numeric versions, not before them like branch names.
+    versions = ["20", "18", "3.11", "master", "21"]
+    ordered_versions = _order_versions(versions)
+    assert ordered_versions == ["master", "21", "20", "18", "3.11"]
+
+
+def test_order_versions_three_part():
+    # X.Y.Z versions are treated as numeric (compared by major.minor).
+    versions = ["1.2.3", "1.10.0", "master", "2.0.0"]
+    ordered_versions = _order_versions(versions)
+    assert ordered_versions == ["master", "2.0.0", "1.10.0", "1.2.3"]
+
+
 @pytest.mark.parametrize(
     ("support", "dependency_support", "expected_result"),
     [

@@ -582,10 +582,13 @@ class _Version:
     Helper class for comparing version strings.
 
     Provides custom comparisons for version strings, correctly handling
-    semantic versioning with major and minor components.
+    numeric versions (integers like "20", "X.Y", or "X.Y.Z") versus
+    non-numeric branch names (like "master", "main", "develop").
+
+    Non-numeric versions sort after all numeric versions.
     """
 
-    _VERSION_RE = re.compile(r"^(\d+)\.(\d+)$")
+    _VERSION_RE = re.compile(r"^(\d+)(?:\.(\d+))?(?:\.\d+)*$")
 
     def __init__(self, version: str) -> None:
         """
@@ -601,8 +604,12 @@ class _Version:
         """
         Compare this version with another.
 
-        Implements a custom comparison that handles versions in the format "X.Y"
-        specially, comparing components numerically rather than lexicographically.
+        Numeric versions (matching `^\\d+(\\.(\\d+))?(\\.\\d+)*$`, e.g. "20",
+        "3.11", "1.2.3") are compared numerically by major then minor component;
+        patch and further components are ignored. A missing minor component is
+        treated as 0 (so "20" and "20.0" are considered equal).
+        Non-numeric versions (e.g. branch names like "master") sort after all
+        numeric versions.
 
         Arguments:
         ---------
@@ -623,9 +630,11 @@ class _Version:
         if match2 is None:
             return -1
         if match1.group(1) == match2.group(1):
-            if match1.group(2) == match2.group(2):
+            minor1 = int(match1.group(2)) if match1.group(2) is not None else 0
+            minor2 = int(match2.group(2)) if match2.group(2) is not None else 0
+            if minor1 == minor2:
                 return 0
-            return 1 if int(match1.group(2)) > int(match2.group(2)) else -1
+            return 1 if minor1 > minor2 else -1
         return 1 if int(match1.group(1)) > int(match2.group(1)) else -1
 
     def __lt__(self, other: "_Version") -> bool:
