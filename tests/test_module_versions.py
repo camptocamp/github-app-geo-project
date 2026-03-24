@@ -286,6 +286,13 @@ def test_get_transversal_dashboard_repo_forward(other_support: str, expected_col
             ),
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
+                names_index={
+                    "pypi": {
+                        "other_package": {
+                            "2.0": other_support,
+                        },
+                    },
+                },
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support=other_support,
@@ -342,6 +349,13 @@ def test_get_transversal_dashboard_repo_forward_docker() -> None:
             ),
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
+                names_index={
+                    "docker": {
+                        "camptocamp/other:2.0": {
+                            "2.0": "Best effort",
+                        },
+                    },
+                },
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -400,6 +414,16 @@ def test_get_transversal_dashboard_repo_forward_docker_2() -> None:
             ),
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
+                names_index={
+                    "docker": {
+                        "osgeo/gdal:ubuntu-small-3.8.5": {
+                            "2.0": "Best effort",
+                        },
+                        "ghcr.io/osgeo/gdal:ubuntu-small-3.8.5": {
+                            "2.0": "Best effort",
+                        },
+                    },
+                },
                 versions={
                     "2.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -461,6 +485,16 @@ def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
             ),
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
+                names_index={
+                    "docker": {
+                        "camptocamp/other:1.0": {
+                            "1.0": "Best effort",
+                        },
+                        "camptocamp/other:2.0": {
+                            "2.0": "Best effort",
+                        },
+                    },
+                },
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -531,6 +565,13 @@ def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
             ),
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
+                names_index={
+                    "pypi": {
+                        "other_package": {
+                            "3.0": "Best effort",
+                        },
+                    },
+                },
                 versions={
                     "3.0": _TransversalStatusVersion(
                         support="Best effort",
@@ -587,6 +628,13 @@ def test_get_transversal_dashboard_repo_forward_no_support() -> None:
             ),
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=False,
+                names_index={
+                    "pypi": {
+                        "other_package": {
+                            "master": "Best effort",
+                        },
+                    },
+                },
                 versions={
                     "master": _TransversalStatusVersion(
                         support="Best effort",
@@ -643,6 +691,13 @@ def test_get_transversal_dashboard_repo_forward_no_support_version() -> None:
             ),
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
+                names_index={
+                    "pypi": {
+                        "other_package": {
+                            "1.0": "01/01/2045",
+                        },
+                    },
+                },
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="01/01/2045",
@@ -1570,6 +1625,13 @@ def test_apply_additional_packages_least_support():
         "repo2": {
             "versions": {
                 "main": {
+                    "names_by_datasource": {
+                        "pypi": {
+                            "names": [
+                                "repo2",
+                            ],
+                        },
+                    },
                     "dependencies_by_datasource": {
                         "pypi": {
                             "versions_by_names": {
@@ -1577,7 +1639,7 @@ def test_apply_additional_packages_least_support():
                                 "dep2": {"versions": ["2.0"]},
                             }
                         }
-                    }
+                    },
                 }
             }
         }
@@ -1593,6 +1655,13 @@ def test_apply_additional_packages_least_support():
     repo2 = transversal_status.repositories["repo2"]
     main_version = repo2.versions["main"]
     assert main_version.support == "2023-06-01"
+    assert repo2.names_index == {
+        "pypi": {
+            "repo2": {
+                "main": "2023-06-01",
+            },
+        },
+    }
 
     # Now test fallback to UNSUPPORTED if no dependency support found
     transversal_status.repositories.clear()
