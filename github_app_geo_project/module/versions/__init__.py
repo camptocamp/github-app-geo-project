@@ -1383,13 +1383,16 @@ def _build_internal_dependencies(
                     dependency_version,
                 )
                 if datasource_name == "docker":
-                    all_versions_str = ", ".join(dependency_package_data.status_by_version.keys())
-                    assert len(dependency_package_data.status_by_version) == 1, (
-                        f"Expected exactly one version for docker dependencies: {all_versions_str}, {full_dependency_name}, {dependency_version}, {dependency_minor}"
-                    )
-                    support = next(
-                        iter(dependency_package_data.status_by_version.values()),
-                    )
+                    status_values = set(dependency_package_data.status_by_version.values())
+                    if not status_values:
+                        support = _NO_SUPPORT_DEFINED
+                    else:
+                        real_statuses = {s for s in status_values if s != _NO_SUPPORT_DEFINED}
+                        candidates = list(real_statuses or status_values)
+                        support = candidates[0]
+                        for other_support in candidates[1:]:
+                            if _support_cmp(other_support, support) < 0:
+                                support = other_support
                 elif not dependency_package_data.has_security_policy:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
