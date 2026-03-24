@@ -1366,7 +1366,10 @@ def _build_internal_dependencies(
                     dependency_version,
                 )
                 if datasource_name == "docker":
-                    assert len(dependency_package_data.status_by_version) == 1
+                    all_versions_str = ", ".join(dependency_package_data.status_by_version.keys())
+                    assert len(dependency_package_data.status_by_version) == 1, (
+                        f"Expected exactly one version for docker dependencies: {all_versions_str}, {full_dependency_name}, {dependency_version}, {dependency_minor}"
+                    )
                     support = next(
                         iter(dependency_package_data.status_by_version.values()),
                     )
