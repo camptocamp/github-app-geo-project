@@ -750,36 +750,17 @@ def _build_global_names(transversal_status: "_TransversalStatus") -> _Names:
     """
     names = _Names()
     for repo_name, repo_data in transversal_status.repositories.items():
-        if repo_data.names_index:
-            for datasource, ds_packages in repo_data.names_index.items():
-                ds_names = names.by_datasources.setdefault(datasource, _NamesByDataSources())
-                for package_name, version_support in ds_packages.items():
-                    pkg_status = ds_names.by_package.setdefault(
-                        package_name,
-                        _NamesStatus(
-                            repo=repo_name,
-                            has_security_policy=repo_data.has_security_policy,
-                        ),
-                    )
-                    pkg_status.status_by_version.update(version_support)
-        else:
-            # Backward compat: build from versions data for repos without a names_index
-            for branch, branch_data in repo_data.versions.items():
-                for datasource, datasource_data in branch_data.names_by_datasource.items():
-                    for name in datasource_data.names:
-                        current_status = names.by_datasources.setdefault(
-                            datasource,
-                            _NamesByDataSources(),
-                        ).by_package.setdefault(
-                            name,
-                            _NamesStatus(
-                                repo=repo_name,
-                                has_security_policy=repo_data.has_security_policy,
-                            ),
-                        )
-                        current_status.status_by_version[_canonical_minor_version(datasource, branch)] = (
-                            branch_data.support
-                        )
+        for datasource, ds_packages in repo_data.names_index.items():
+            ds_names = names.by_datasources.setdefault(datasource, _NamesByDataSources())
+            for package_name, version_support in ds_packages.items():
+                pkg_status = ds_names.by_package.setdefault(
+                    package_name,
+                    _NamesStatus(
+                        repo=repo_name,
+                        has_security_policy=repo_data.has_security_policy,
+                    ),
+                )
+                pkg_status.status_by_version.update(version_support)
     return names
 
 
@@ -1595,4 +1576,5 @@ def _apply_additional_packages(
                         version_data["support"] = _NO_SUPPORT_DEFINED
 
         pydentic_data = _TransversalStatusRepo(**data)
+        _rebuild_repo_names(pydentic_data)
         transversal_status.repositories[repo] = pydentic_data
