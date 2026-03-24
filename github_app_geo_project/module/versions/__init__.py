@@ -619,14 +619,14 @@ class _Version:
         if match1 is None and match2 is None:
             return 1 if self.version > other.version else -1
         if match1 is None:
-            return -1
-        if match2 is None:
             return 1
+        if match2 is None:
+            return -1
         if match1.group(1) == match2.group(1):
             if match1.group(2) == match2.group(2):
                 return 0
-            return 1 if match1.group(2) > match2.group(2) else -1
-        return 1 if match1.group(1) > match2.group(1) else -1
+            return 1 if int(match1.group(2)) > int(match2.group(2)) else -1
+        return 1 if int(match1.group(1)) > int(match2.group(1)) else -1
 
     def __lt__(self, other: "_Version") -> bool:
         """

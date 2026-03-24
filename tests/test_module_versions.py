@@ -1400,9 +1400,9 @@ def test_transversal_status_to_json():
 
 
 def test_order_versions():
-    versions = ["1.0", "2.0", "1.5", "toto", "3.0", "1.2"]
+    versions = ["1.0", "2.0", "1.5", "master", "3.0", "1.2", "1.15"]
     ordered_versions = _order_versions(versions)
-    assert ordered_versions == ["3.0", "2.0", "1.5", "1.2", "1.0", "toto"]
+    assert ordered_versions == ["master", "3.0", "2.0", "1.15", "1.5", "1.2", "1.0"]
 
 
 @pytest.mark.parametrize(
