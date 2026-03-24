@@ -22,7 +22,7 @@ import githubkit.exception
 import githubkit.versions.latest.models
 import security_md
 import yaml
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_serializer, model_validator
 
 from github_app_geo_project import module, utils
 from github_app_geo_project.module import ProcessOutput
@@ -60,6 +60,73 @@ class _TransversalStatusNameInDatasource(BaseModel):
     versions_by_names: dict[str, _TransversalStatusVersions] = {}
 
 
+class _TransversalStatusDependencyBranches(BaseModel):
+    branches: list[str] = []
+
+
+class _TransversalStatusDependenciesByVersion(BaseModel):
+    branches_by_version: dict[str, _TransversalStatusDependencyBranches] = {}
+
+
+class _TransversalStatusDependenciesByDatasource(BaseModel):
+    by_dependency: dict[str, _TransversalStatusDependenciesByVersion] = {}
+
+
+class _TransversalStatusDependenciesIndex(BaseModel):
+    by_datasource: dict[str, _TransversalStatusDependenciesByDatasource] = {}
+
+
+class _TransversalStatusNamesByVersion(BaseModel):
+    """Map canonical version -> support status for a package."""
+
+    by_version: dict[str, str] = {}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_flat(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "by_version" not in data:
+            return {"by_version": data}
+        return data
+
+    @model_serializer(mode="plain")
+    def _to_flat(self) -> dict[str, str]:
+        return self.by_version
+
+
+class _TransversalStatusNamesByPackage(BaseModel):
+    """Map package name -> versions map for one datasource."""
+
+    by_package: dict[str, _TransversalStatusNamesByVersion] = {}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_flat(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "by_package" not in data:
+            return {"by_package": data}
+        return data
+
+    @model_serializer(mode="plain")
+    def _to_flat(self) -> dict[str, _TransversalStatusNamesByVersion]:
+        return self.by_package
+
+
+class _TransversalStatusNamesIndex(BaseModel):
+    """Map datasource -> package map."""
+
+    by_datasource: dict[str, _TransversalStatusNamesByPackage] = {}
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_flat(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "by_datasource" not in data:
+            return {"by_datasource": data}
+        return data
+
+    @model_serializer(mode="plain")
+    def _to_flat(self) -> dict[str, _TransversalStatusNamesByPackage]:
+        return self.by_datasource
+
+
 class _TransversalStatusVersion(BaseModel):
     support: str = _NO_SUPPORT_DEFINED
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
@@ -73,8 +140,14 @@ class _TransversalStatusRepo(BaseModel):
     upstream_updated: datetime.datetime | None = None
     url: str | None = None
     has_security_policy: bool = False
-    names_index: dict[str, dict[str, dict[str, str]]] = {}
+    names_index: _TransversalStatusNamesIndex = Field(
+        default_factory=_TransversalStatusNamesIndex,
+    )
     """Pre-computed index for this repo: datasource -> package_name -> canonical_version -> support_status"""
+    dependencies_index: _TransversalStatusDependenciesIndex = Field(
+        default_factory=_TransversalStatusDependenciesIndex,
+    )
+    """Pre-computed index for this repo: datasource -> dependency_name[:dependency_version] -> normalized_version -> branches"""
 
 
 class _NamesStatus(BaseModel):
@@ -505,8 +578,10 @@ class Versions(
         _LOGGER.debug(message)
 
         _rebuild_repo_names(repo)
+        _rebuild_repo_dependencies(repo)
         for external_name in intermediate_status.external_repositories:
             _rebuild_repo_names(transversal_status.repositories[external_name])
+            _rebuild_repo_dependencies(transversal_status.repositories[external_name])
 
         return transversal_status
 
@@ -749,15 +824,51 @@ def _rebuild_repo_names(repo_data: "_TransversalStatusRepo") -> None:
     ---------
         repo_data: The repository data to update in place
     """
-    names_index: dict[str, dict[str, dict[str, str]]] = {}
+    names_index = _TransversalStatusNamesIndex()
     for branch, branch_data in repo_data.versions.items():
         for datasource, datasource_data in branch_data.names_by_datasource.items():
             for name in datasource_data.names:
-                names_index.setdefault(datasource, {}).setdefault(
+                names_index.by_datasource.setdefault(
+                    datasource,
+                    _TransversalStatusNamesByPackage(),
+                ).by_package.setdefault(
                     name,
-                    {},
-                )[_canonical_minor_version(datasource, branch)] = branch_data.support
+                    _TransversalStatusNamesByVersion(),
+                ).by_version[_canonical_minor_version(datasource, branch)] = branch_data.support
     repo_data.names_index = names_index
+
+
+def _rebuild_repo_dependencies(repo_data: "_TransversalStatusRepo") -> None:
+    """Rebuild the per-repo dependency index used by reverse dependency lookups."""
+    dependencies_index = _TransversalStatusDependenciesIndex()
+    for branch, branch_data in repo_data.versions.items():
+        for datasource, datasource_data in branch_data.dependencies_by_datasource.items():
+            for dependency_name, dependency_versions in datasource_data.versions_by_names.items():
+                for dependency_version in dependency_versions.versions:
+                    indexed_name = (
+                        f"{dependency_name}:{dependency_version}"
+                        if datasource == "docker"
+                        else dependency_name
+                    )
+                    normalized_version = _canonical_minor_version(datasource, dependency_version)
+                    branches = (
+                        dependencies_index.by_datasource.setdefault(
+                            datasource,
+                            _TransversalStatusDependenciesByDatasource(),
+                        )
+                        .by_dependency.setdefault(
+                            indexed_name,
+                            _TransversalStatusDependenciesByVersion(),
+                        )
+                        .branches_by_version.setdefault(
+                            normalized_version,
+                            _TransversalStatusDependencyBranches(),
+                        )
+                        .branches
+                    )
+                    if branch not in branches:
+                        branches.append(branch)
+    repo_data.dependencies_index = dependencies_index
 
 
 def _build_global_names(transversal_status: "_TransversalStatus") -> _Names:
@@ -778,9 +889,9 @@ def _build_global_names(transversal_status: "_TransversalStatus") -> _Names:
     """
     names = _Names()
     for repo_name, repo_data in transversal_status.repositories.items():
-        for datasource, ds_packages in repo_data.names_index.items():
+        for datasource, ds_packages in repo_data.names_index.by_datasource.items():
             ds_names = names.by_datasources.setdefault(datasource, _NamesByDataSources())
-            for package_name, version_support in ds_packages.items():
+            for package_name, version_support in ds_packages.by_package.items():
                 pkg_status = ds_names.by_package.setdefault(
                     package_name,
                     _NamesStatus(
@@ -788,7 +899,7 @@ def _build_global_names(transversal_status: "_TransversalStatus") -> _Names:
                         has_security_policy=repo_data.has_security_policy,
                     ),
                 )
-                pkg_status.status_by_version.update(version_support)
+                pkg_status.status_by_version.update(version_support.by_version)
     return names
 
 
@@ -1454,37 +1565,31 @@ def _build_reverse_dependency(
     for other_repo, other_repo_data in transversal_status.repositories.items():
         if repository == other_repo:
             continue
-        for (
-            other_version,
-            other_version_data,
-        ) in other_repo_data.versions.items():
-            for (
-                datasource_name,
-                datasource_data,
-            ) in other_version_data.dependencies_by_datasource.items():
-                if datasource_name not in all_datasource_names:
+
+        for datasource_name, datasource_data in other_repo_data.dependencies_index.by_datasource.items():
+            if datasource_name not in all_datasource_names:
+                continue
+            for package_name, versions_data in datasource_data.by_dependency.items():
+                if package_name not in all_datasource_names[datasource_name]:
                     continue
-                for (
-                    package_name,
-                    package_data,
-                ) in datasource_data.versions_by_names.items():
-                    for version in package_data.versions:
-                        if datasource_name == "docker":
-                            package_name = f"{package_name}:{version}"  # noqa: PLW2901
-                        if package_name not in all_datasource_names[datasource_name]:
+                for minor_version, dependant_branches in versions_data.branches_by_version.items():
+                    target_version = (
+                        all_datasource_names[datasource_name][package_name]
+                        if datasource_name == "docker"
+                        else minor_version
+                    )
+                    for other_version in dependant_branches.branches:
+                        other_version_data = other_repo_data.versions.get(other_version)
+                        if other_version_data is None:
                             continue
-                        minor_version = (
-                            all_datasource_names[datasource_name][package_name]
-                            if datasource_name == "docker"
-                            else _canonical_minor_version(datasource_name, version)
-                        )
-                        version_data = repo_data.versions.get(minor_version)
+
+                        version_data = repo_data.versions.get(target_version)
                         match = False
                         if version_data is not None and datasource_name in version_data.names_by_datasource:
                             match = package_name in version_data.names_by_datasource[datasource_name].names
                         if version_data is not None and match:
                             dependencies_branches.by_branch.setdefault(
-                                minor_version,
+                                target_version,
                                 _Dependencies(color=_UNSUPPORTED_COLOR),
                             ).reverse.append(
                                 _Dependency(
@@ -1505,7 +1610,7 @@ def _build_reverse_dependency(
                             )
                         else:
                             dependencies_branches.by_branch.setdefault(
-                                minor_version,
+                                target_version,
                                 _Dependencies(
                                     support=(
                                         _UNSUPPORTED if repo_data.has_security_policy else _NO_SUPPORT_DEFINED
@@ -1625,4 +1730,5 @@ def _apply_additional_packages(
 
         pydentic_data = _TransversalStatusRepo(**data)
         _rebuild_repo_names(pydentic_data)
+        _rebuild_repo_dependencies(pydentic_data)
         transversal_status.repositories[repo] = pydentic_data

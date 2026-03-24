@@ -9,6 +9,7 @@ from aioresponses import aioresponses
 
 from github_app_geo_project.module.versions import (
     Versions,
+    _build_reverse_dependency,
     _canonical_minor_version,
     _Dependencies,
     _DependenciesBranches,
@@ -19,10 +20,12 @@ from github_app_geo_project.module.versions import (
     _order_versions,
     _parse_support_date,
     _read_dependencies,
+    _rebuild_repo_dependencies,
     _support_category,
     _support_cmp,
     _SupportCategory,
     _TransversalStatus,
+    _TransversalStatusDependenciesIndex,
     _TransversalStatusNameByDatasource,
     _TransversalStatusNameInDatasource,
     _TransversalStatusRepo,
@@ -164,6 +167,23 @@ DEBUG: Determining if we should process repository camptocamp/tilecloud, using G
     transversal_status_json = versions.transversal_status_to_json(transversal_status)
     assert transversal_status_json.get("repositories") == {
         "camptocamp/test": {
+            "dependencies_index": {
+                "by_datasource": {
+                    "github-tags": {
+                        "by_dependency": {
+                            "actions/checkout": {
+                                "branches_by_version": {
+                                    "4": {
+                                        "branches": [
+                                            "master",
+                                        ],
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
             "has_security_policy": False,
             "names_index": {
                 "docker": {
@@ -936,6 +956,7 @@ def test_get_transversal_dashboard_repo_reverse(other_support: str, expected_col
             ),
         },
     )
+    _rebuild_repo_dependencies(context.status.repositories["camptocamp/other"])
     context.params = {"repository": "camptocamp/test"}
     output = versions.get_transversal_dashboard(context)
     assert output.data["dependencies_branches"] == _DependenciesBranches(
@@ -992,6 +1013,7 @@ def test_get_transversal_dashboard_repo_reverse_docker() -> None:
             ),
         },
     )
+    _rebuild_repo_dependencies(context.status.repositories["camptocamp/other"])
     context.params = {"repository": "camptocamp/test"}
     output = versions.get_transversal_dashboard(context)
     assert output.data["dependencies_branches"] == _DependenciesBranches(
@@ -1050,8 +1072,78 @@ def test_get_transversal_dashboard_repo_reverse_docker_different() -> None:
             ),
         },
     )
+    _rebuild_repo_dependencies(context.status.repositories["camptocamp/other"])
     context.params = {"repository": "camptocamp/test"}
     output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={
+            "1.0": _Dependencies(
+                support="Best effort",
+                color="--bs-body-bg",
+                forward=[],
+                reverse=[
+                    _Dependency(
+                        name="camptocamp/other",
+                        datasource="-",
+                        version="2.0",
+                        support="Best effort",
+                        color="--bs-body-bg",
+                        repo="camptocamp/other",
+                    ),
+                ],
+            ),
+        },
+    )
+
+
+def test_get_transversal_dashboard_repo_reverse_docker_alternate_tag() -> None:
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        names_by_datasource={
+                            "docker": _TransversalStatusNameByDatasource(
+                                names=["camptocamp/test:1.0", "camptocamp/test:latest"],
+                            ),
+                        },
+                    ),
+                },
+            ),
+            "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
+                versions={
+                    "2.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        dependencies_by_datasource={},
+                    ),
+                },
+                dependencies_index=_TransversalStatusDependenciesIndex(
+                    by_datasource={
+                        "docker": {
+                            "by_dependency": {
+                                "camptocamp/test:latest": {
+                                    "branches_by_version": {
+                                        "latest": {
+                                            "branches": ["2.0"],
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                ),
+            ),
+        },
+    )
+    context.params = {"repository": "camptocamp/test"}
+
+    output = versions.get_transversal_dashboard(context)
+
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
@@ -1102,6 +1194,7 @@ def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
             ),
         },
     )
+    _rebuild_repo_dependencies(context.status.repositories["camptocamp/other"])
     context.params = {"repository": "camptocamp/test"}
     output = versions.get_transversal_dashboard(context)
     assert output.data["dependencies_branches"] == _DependenciesBranches(
@@ -1580,6 +1673,7 @@ def test_transversal_status_to_json():
     assert module.transversal_status_to_json(status) == {
         "repositories": {
             "package1": {
+                "dependencies_index": {"by_datasource": {}},
                 "has_security_policy": False,
                 "names_index": {},
                 "url": "url1",
@@ -1622,6 +1716,162 @@ def test_order_versions_leading_zeros():
     ordered_versions = _order_versions(versions)
     # Both represent the same numeric version; order must be stable and not raise
     assert set(ordered_versions) == {"1.1.05", "1.1.5"}
+
+
+def test_rebuild_repo_dependencies_index() -> None:
+    repo = _TransversalStatusRepo(
+        versions={
+            "1.2": _TransversalStatusVersion(
+                dependencies_by_datasource={
+                    "pypi": _TransversalStatusNameInDatasource(
+                        versions_by_names={
+                            "pkg": _TransversalStatusVersions(versions=["1.2.3"]),
+                        },
+                    ),
+                },
+            ),
+        },
+    )
+
+    _rebuild_repo_dependencies(repo)
+
+    assert repo.dependencies_index.model_dump() == {
+        "by_datasource": {
+            "pypi": {
+                "by_dependency": {
+                    "pkg": {
+                        "branches_by_version": {
+                            "1.2": {
+                                "branches": ["1.2"],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
+
+
+def test_build_reverse_dependency_uses_dependencies_index() -> None:
+    target_repo = _TransversalStatusRepo(
+        versions={
+            "1.2": _TransversalStatusVersion(
+                support="Best effort",
+                names_by_datasource={
+                    "pypi": _TransversalStatusNameByDatasource(names=["pkg"]),
+                },
+            ),
+        },
+        has_security_policy=True,
+    )
+    dependent_repo = _TransversalStatusRepo(
+        versions={
+            "main": _TransversalStatusVersion(
+                support="Best effort",
+                dependencies_by_datasource={},
+            ),
+        },
+    )
+    dependent_repo.dependencies_index = _TransversalStatusDependenciesIndex(
+        by_datasource={
+            "pypi": {
+                "by_dependency": {
+                    "pkg": {
+                        "branches_by_version": {
+                            "1.2": {
+                                "branches": ["main"],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    )
+
+    transversal_status = _TransversalStatus(
+        repositories={
+            "org/target": target_repo,
+            "org/dependent": dependent_repo,
+        },
+    )
+
+    dependencies_branches = _DependenciesBranches()
+    _build_reverse_dependency(
+        "org/target",
+        target_repo,
+        transversal_status,
+        dependencies_branches,
+    )
+
+    assert dependencies_branches.by_branch["1.2"].reverse[0] == _Dependency(
+        name="org/dependent",
+        datasource="-",
+        version="main",
+        support="Best effort",
+        color="--bs-body-bg",
+        repo="org/dependent",
+    )
+
+
+def test_build_reverse_dependency_uses_dependencies_index_docker() -> None:
+    target_repo = _TransversalStatusRepo(
+        versions={
+            "1.2": _TransversalStatusVersion(
+                support="Best effort",
+                names_by_datasource={
+                    "docker": _TransversalStatusNameByDatasource(names=["image:latest"]),
+                },
+            ),
+        },
+        has_security_policy=True,
+    )
+    dependent_repo = _TransversalStatusRepo(
+        versions={
+            "main": _TransversalStatusVersion(
+                support="Best effort",
+                dependencies_by_datasource={},
+            ),
+        },
+    )
+    dependent_repo.dependencies_index = _TransversalStatusDependenciesIndex(
+        by_datasource={
+            "docker": {
+                "by_dependency": {
+                    "image:latest": {
+                        "branches_by_version": {
+                            "1.2": {
+                                "branches": ["main"],
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    )
+
+    transversal_status = _TransversalStatus(
+        repositories={
+            "org/target": target_repo,
+            "org/dependent": dependent_repo,
+        },
+    )
+
+    dependencies_branches = _DependenciesBranches()
+    _build_reverse_dependency(
+        "org/target",
+        target_repo,
+        transversal_status,
+        dependencies_branches,
+    )
+
+    assert dependencies_branches.by_branch["1.2"].reverse[0] == _Dependency(
+        name="org/dependent",
+        datasource="-",
+        version="main",
+        support="Best effort",
+        color="--bs-body-bg",
+        repo="org/dependent",
+    )
 
 
 @pytest.mark.parametrize(
@@ -1790,7 +2040,7 @@ def test_apply_additional_packages_least_support():
     repo2 = transversal_status.repositories["repo2"]
     main_version = repo2.versions["main"]
     assert main_version.support == "2023-06-01"
-    assert repo2.names_index == {
+    assert repo2.names_index.model_dump() == {
         "pypi": {
             "repo2": {
                 "main": "2023-06-01",
