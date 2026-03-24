@@ -21,6 +21,7 @@ from github_app_geo_project.module.versions import (
     _read_dependencies,
     _support_category,
     _support_cmp,
+    _SupportCategory,
     _TransversalStatus,
     _TransversalStatusNameByDatasource,
     _TransversalStatusNameInDatasource,
@@ -1460,12 +1461,13 @@ def test_parse_support_date(text, expected_year, expected_month, expected_day, e
 @pytest.mark.parametrize(
     ("value", "expected"),
     [
-        ("unsupported", 0),
-        ("best effort", 1),
-        ("to be defined", 2),
-        ("2024-06-01", 3),
-        ("01/06/2024", 3),
-        ("other", -1),
+        ("no support defined", _SupportCategory.NO_SUPPORT_DEFINED),
+        ("unsupported", _SupportCategory.UNSUPPORTED),
+        ("best effort", _SupportCategory.BEST_EFFORT),
+        ("to be defined", _SupportCategory.TO_BE_DEFINED),
+        ("2024-06-01", _SupportCategory.DATE),
+        ("01/06/2024", _SupportCategory.DATE),
+        ("other", _SupportCategory.UNKNOWN),
     ],
 )
 def test_support_category(value, expected):
