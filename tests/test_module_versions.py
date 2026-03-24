@@ -1405,6 +1405,14 @@ def test_order_versions():
     assert ordered_versions == ["master", "3.0", "2.0", "1.15", "1.5", "1.2", "1.0"]
 
 
+def test_order_versions_leading_zeros():
+    # "1.05" and "1.5" have the same numeric value; comparison must be consistent
+    versions = ["1.05", "1.5"]
+    ordered_versions = _order_versions(versions)
+    # Both represent the same numeric version; order must be stable and not raise
+    assert set(ordered_versions) == {"1.05", "1.5"}
+
+
 @pytest.mark.parametrize(
     ("support", "dependency_support", "expected_result"),
     [

@@ -622,11 +622,11 @@ class _Version:
             return 1
         if match2 is None:
             return -1
-        if match1.group(1) == match2.group(1):
-            if match1.group(2) == match2.group(2):
-                return 0
-            return 1 if int(match1.group(2)) > int(match2.group(2)) else -1
-        return 1 if int(match1.group(1)) > int(match2.group(1)) else -1
+        tuple1 = (int(match1.group(1)), int(match1.group(2)))
+        tuple2 = (int(match2.group(1)), int(match2.group(2)))
+        if tuple1 == tuple2:
+            return 0
+        return 1 if tuple1 > tuple2 else -1
 
     def __lt__(self, other: "_Version") -> bool:
         """
