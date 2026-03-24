@@ -52,7 +52,7 @@ Use the long parameter names for clarity and maintainability.
 
 Do not use the conventional commit conventions.
 The commit messages should start with a capital.
-If necessary, like a commit that concern only one module, use the format: 'Context: Massage'.
+If necessary, for example for a commit that concerns only one module, use the format: 'Context: Message' (with a message that starts with an uppercase).
 
 ## Future
 

@@ -11,6 +11,7 @@ import re
 import tempfile
 import tomllib
 from collections.abc import Iterable
+from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
@@ -32,8 +33,19 @@ _LOGGER = logging.getLogger(__name__)
 
 _NO_SUPPORT_DEFINED = "No support defined"
 _UNSUPPORTED = "Unsupported"
+_BEST_EFFORT = "Best effort"
+_TO_BE_DEFINED = "To be defined"
 _UNSUPPORTED_COLOR = "--bs-danger"
 _SUPPORTED_COLOR = "--bs-body-bg"
+
+
+class _SupportCategory(IntEnum):
+    NO_SUPPORT_DEFINED = 0
+    UNSUPPORTED = 1
+    BEST_EFFORT = 2
+    TO_BE_DEFINED = 3
+    DATE = 4
+    UNKNOWN = -1
 
 
 class _TransversalStatusNameByDatasource(BaseModel):
@@ -261,7 +273,7 @@ class Versions(
             stabilization_versions.append(default_branch)
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_versions))
             for version in stabilization_versions:
-                intermediate_status.version_support[version] = "Best effort"
+                intermediate_status.version_support[version] = _BEST_EFFORT
 
             if security is not None:
                 version_index = security.version_index
@@ -468,7 +480,7 @@ class Versions(
             version = versions.setdefault(
                 intermediate_version_name,
                 _TransversalStatusVersion(
-                    support="Best effort",
+                    support=(_BEST_EFFORT if repo.has_security_policy else _NO_SUPPORT_DEFINED),
                 ),
             )
             if intermediate_status.version_names_by_datasource:
@@ -1206,7 +1218,7 @@ async def _update_upstream_versions(
         for cycle in cycles:
             eol = cycle.get("eol")
             if eol is False:
-                eol = "Best effort"
+                eol = _BEST_EFFORT
             else:
                 if not isinstance(eol, str):
                     continue
@@ -1243,17 +1255,19 @@ def _parse_support_date(text: str) -> datetime.datetime | None:
     return None
 
 
-def _support_category(s: str) -> int:
+def _support_category(s: str) -> _SupportCategory:
     s = (s or "").strip().lower()
-    if s == "unsupported":
-        return 0
-    if s == "best effort":
-        return 1
-    if s == "to be defined":
-        return 2
+    if s == _NO_SUPPORT_DEFINED.lower():
+        return _SupportCategory.NO_SUPPORT_DEFINED
+    if s == _UNSUPPORTED.lower():
+        return _SupportCategory.UNSUPPORTED
+    if s == _BEST_EFFORT.lower():
+        return _SupportCategory.BEST_EFFORT
+    if s == _TO_BE_DEFINED.lower():
+        return _SupportCategory.TO_BE_DEFINED
     if _parse_support_date(s) is not None:
-        return 3
-    return -1  # Any other string
+        return _SupportCategory.DATE
+    return _SupportCategory.UNKNOWN  # Any other string
 
 
 def _support_cmp(a: str, b: str) -> int:
@@ -1277,9 +1291,12 @@ def _support_cmp(a: str, b: str) -> int:
 
     cat_a = _support_category(a_norm)
     cat_b = _support_category(b_norm)
+    if _SupportCategory.NO_SUPPORT_DEFINED in (cat_a, cat_b):
+        # No support defined is considered equal to everything to never be in red
+        return 0
     if cat_a != cat_b:
         return -1 if cat_a < cat_b else 1
-    if cat_a == 3 and cat_b == 3:
+    if cat_a == _SupportCategory.DATE and cat_b == _SupportCategory.DATE:
         # Both are dates, compare as dates (oldest = less support)
         try:
             da = _parse_support_date(a_norm)
@@ -1486,7 +1503,16 @@ def _build_reverse_dependency(
                         else:
                             dependencies_branches.by_branch.setdefault(
                                 minor_version,
-                                _Dependencies(),
+                                _Dependencies(
+                                    support=(
+                                        _UNSUPPORTED if repo_data.has_security_policy else _NO_SUPPORT_DEFINED
+                                    ),
+                                    color=(
+                                        _UNSUPPORTED_COLOR
+                                        if repo_data.has_security_policy
+                                        else _SUPPORTED_COLOR
+                                    ),
+                                ),
                             ).reverse.append(
                                 _Dependency(
                                     name=other_repo,
