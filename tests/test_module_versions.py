@@ -543,6 +543,133 @@ def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
     )
 
 
+def test_get_transversal_dashboard_repo_forward_docker_multiple_statuses() -> None:
+    """A single docker image tag published by two branches with different support levels.
+
+    The most restrictive status should be selected.
+    """
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="27/06/2027",
+                        dependencies_by_datasource={
+                            "docker": _TransversalStatusNameInDatasource(
+                                versions_by_names={
+                                    "camptocamp/other": _TransversalStatusVersions(versions=["latest"]),
+                                },
+                            ),
+                        },
+                    ),
+                },
+            ),
+            "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="Best effort",
+                        names_by_datasource={
+                            "docker": _TransversalStatusNameByDatasource(
+                                names=["camptocamp/other:latest"],
+                            ),
+                        },
+                    ),
+                    "2.0": _TransversalStatusVersion(
+                        support="Unsupported",
+                        names_by_datasource={
+                            "docker": _TransversalStatusNameByDatasource(
+                                names=["camptocamp/other:latest"],
+                            ),
+                        },
+                    ),
+                },
+            ),
+        },
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={
+            "1.0": _Dependencies(
+                support="27/06/2027",
+                color="--bs-body-bg",
+                forward=[
+                    _Dependency(
+                        name="camptocamp/other",
+                        datasource="docker",
+                        version="latest",
+                        support="Unsupported",
+                        color="--bs-danger",
+                        repo="camptocamp/other",
+                    ),
+                ],
+                reverse=[],
+            ),
+        },
+    )
+
+
+def test_get_transversal_dashboard_repo_forward_docker_empty_status() -> None:
+    """A docker image tag present in the names index but with no status_by_version entries.
+
+    The fallback "No support defined" status should be used.
+    """
+    versions = Versions()
+    context = Mock()
+    context.status = _TransversalStatus(
+        repositories={
+            "camptocamp/test": _TransversalStatusRepo(
+                has_security_policy=True,
+                versions={
+                    "1.0": _TransversalStatusVersion(
+                        support="27/06/2027",
+                        dependencies_by_datasource={
+                            "docker": _TransversalStatusNameInDatasource(
+                                versions_by_names={
+                                    "camptocamp/other": _TransversalStatusVersions(versions=["latest"]),
+                                },
+                            ),
+                        },
+                    ),
+                },
+            ),
+            "camptocamp/other": _TransversalStatusRepo(
+                has_security_policy=True,
+                names_index={
+                    "docker": {
+                        "camptocamp/other:latest": {},
+                    },
+                },
+            ),
+        },
+    )
+    context.params = {"repository": "camptocamp/test"}
+    output = versions.get_transversal_dashboard(context)
+    assert output.data["dependencies_branches"] == _DependenciesBranches(
+        by_branch={
+            "1.0": _Dependencies(
+                support="27/06/2027",
+                color="--bs-body-bg",
+                forward=[
+                    _Dependency(
+                        name="camptocamp/other",
+                        datasource="docker",
+                        version="latest",
+                        support="No support defined",
+                        color="--bs-body-bg",
+                        repo="camptocamp/other",
+                    ),
+                ],
+                reverse=[],
+            ),
+        },
+    )
+
+
 def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
     versions = Versions()
     context = Mock()
