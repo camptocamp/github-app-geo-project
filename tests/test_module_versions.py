@@ -569,6 +569,14 @@ def test_get_transversal_dashboard_repo_forward_docker_multiple_statuses() -> No
             ),
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
+                names_index={
+                    "docker": {
+                        "camptocamp/other:latest": {
+                            "1.0": "Best effort",
+                            "2.0": "Unsupported",
+                        },
+                    },
+                },
                 versions={
                     "1.0": _TransversalStatusVersion(
                         support="Best effort",
