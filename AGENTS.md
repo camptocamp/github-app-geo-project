@@ -48,6 +48,14 @@ The function `asyncio.create_subprocess_exec` shouldn't be used in the modules. 
 
 Use the long parameter names for clarity and maintainability.
 
+## Development
+
+Initialize project: `poetry install --all-extras --all-groups`.
+
+Run prospector: `poetry run prospector --output-format=pylint --ignore-paths=scripts`.
+
+Run tests: `poetry run pytest -vv tests`.
+
 ## Commits
 
 Do not use the conventional commit conventions.

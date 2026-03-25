@@ -14,6 +14,7 @@ from github_app_geo_project.module.versions import (
     _Dependencies,
     _DependenciesBranches,
     _Dependency,
+    _DependencyReverse,
     _EventData,
     _IntermediateStatus,
     _is_supported,
@@ -966,9 +967,8 @@ def test_get_transversal_dashboard_repo_reverse(other_support: str, expected_col
                 color="--bs-body-bg",
                 forward=[],
                 reverse=[
-                    _Dependency(
+                    _DependencyReverse(
                         name="camptocamp/other",
-                        datasource="-",
                         version="2.0",
                         support=other_support,
                         color=expected_color,
@@ -1023,9 +1023,8 @@ def test_get_transversal_dashboard_repo_reverse_docker() -> None:
                 color="--bs-body-bg",
                 forward=[],
                 reverse=[
-                    _Dependency(
+                    _DependencyReverse(
                         name="camptocamp/other",
-                        datasource="-",
                         version="2.0",
                         support="Best effort",
                         color="--bs-body-bg",
@@ -1082,9 +1081,8 @@ def test_get_transversal_dashboard_repo_reverse_docker_different() -> None:
                 color="--bs-body-bg",
                 forward=[],
                 reverse=[
-                    _Dependency(
+                    _DependencyReverse(
                         name="camptocamp/other",
-                        datasource="-",
                         version="2.0",
                         support="Best effort",
                         color="--bs-body-bg",
@@ -1151,9 +1149,8 @@ def test_get_transversal_dashboard_repo_reverse_docker_alternate_tag() -> None:
                 color="--bs-body-bg",
                 forward=[],
                 reverse=[
-                    _Dependency(
+                    _DependencyReverse(
                         name="camptocamp/other",
-                        datasource="-",
                         version="2.0",
                         support="Best effort",
                         color="--bs-body-bg",
@@ -1208,9 +1205,8 @@ def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
                 color="--bs-danger",
                 forward=[],
                 reverse=[
-                    _Dependency(
+                    _DependencyReverse(
                         name="camptocamp/other",
-                        datasource="-",
                         version="2.0",
                         support="Best effort",
                         color="--bs-danger",
@@ -1803,9 +1799,8 @@ def test_build_reverse_dependency_uses_dependencies_index() -> None:
         dependencies_branches,
     )
 
-    assert dependencies_branches.by_branch["1.2"].reverse[0] == _Dependency(
+    assert dependencies_branches.by_branch["1.2"].reverse[0] == _DependencyReverse(
         name="org/dependent",
-        datasource="-",
         version="main",
         support="Best effort",
         color="--bs-body-bg",
@@ -1864,9 +1859,8 @@ def test_build_reverse_dependency_uses_dependencies_index_docker() -> None:
         dependencies_branches,
     )
 
-    assert dependencies_branches.by_branch["1.2"].reverse[0] == _Dependency(
+    assert dependencies_branches.by_branch["1.2"].reverse[0] == _DependencyReverse(
         name="org/dependent",
-        datasource="-",
         version="main",
         support="Best effort",
         color="--bs-body-bg",

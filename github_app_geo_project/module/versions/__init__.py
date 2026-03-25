@@ -187,20 +187,27 @@ class _IntermediateStatus(BaseModel):
     external_repositories: dict[str, _TransversalStatusRepo] = {}
 
 
-class _Dependency(BaseModel):
+class _DependencyBase(BaseModel):
     name: str
-    datasource: str
     version: str
     support: str
     color: str
     repo: str
 
 
+class _Dependency(_DependencyBase):
+    datasource: str
+
+
+class _DependencyReverse(_DependencyBase):
+    pass
+
+
 class _Dependencies(BaseModel):
     support: str = _UNSUPPORTED
     color: str = _UNSUPPORTED_COLOR
     forward: list[_Dependency] = []
-    reverse: list[_Dependency] = []
+    reverse: list[_DependencyReverse] = []
 
 
 class _DependenciesBranches(BaseModel):
@@ -1592,9 +1599,8 @@ def _build_reverse_dependency(
                                 target_version,
                                 _Dependencies(color=_UNSUPPORTED_COLOR),
                             ).reverse.append(
-                                _Dependency(
+                                _DependencyReverse(
                                     name=other_repo,
-                                    datasource="-",
                                     version=_clean_version(other_version),
                                     support=other_version_data.support,
                                     color=(
@@ -1622,9 +1628,8 @@ def _build_reverse_dependency(
                                     ),
                                 ),
                             ).reverse.append(
-                                _Dependency(
+                                _DependencyReverse(
                                     name=other_repo,
-                                    datasource="-",
                                     version=_clean_version(other_version),
                                     support=other_version_data.support,
                                     color=_UNSUPPORTED_COLOR,
