@@ -519,7 +519,7 @@ class Versions(
                 repo.url = intermediate_status.url
                 repo.has_security_policy = intermediate_status.has_security_policy
 
-            for version_name in repo.versions:
+            for version_name in list(repo.versions):
                 if version_name not in intermediate_status.version_support:
                     del repo.versions[version_name]
 
