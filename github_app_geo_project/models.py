@@ -8,8 +8,8 @@ from typing import Any, TypedDict, Union
 
 import sqlalchemy
 import sqlalchemy.sql.functions
-from sqlalchemy import JSON, BigInteger, DateTime, Enum, Integer, Unicode
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import JSON, BigInteger, DateTime, Enum, ForeignKey, Integer, Unicode
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -68,8 +68,14 @@ class Queue(Base):
     module: Mapped[str] = mapped_column(Unicode, nullable=True)
     module_event_name: Mapped[str] = mapped_column(Unicode, nullable=False)
     module_event_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=True)
-    log: Mapped[str] = mapped_column(Unicode, nullable=True)
+    log: Mapped[str | None] = mapped_column(Unicode, nullable=True)
     check_run_id: Mapped[int] = mapped_column(BigInteger, nullable=True)
+    logs: Mapped[list["JobLogEntry"]] = relationship(
+        "JobLogEntry",
+        back_populates="job",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def __repr__(self) -> str:
         """Return the representation of the job."""
@@ -84,6 +90,40 @@ class Queue(Base):
     def status_enum(self, value: JobStatus) -> None:
         """Set the status from an enum."""
         self.status = value.name
+
+
+class JobLogEntry(Base):
+    """SQLAlchemy model for job log entries."""
+
+    __tablename__ = "job_log"
+    __table_args__ = (
+        sqlalchemy.Index("job_log_job_id_id", "job_id", "id"),
+        {"schema": _SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(
+        Integer,
+        primary_key=True,
+        nullable=False,
+        autoincrement=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=sqlalchemy.sql.functions.now(),
+        index=True,
+    )
+    job_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey(f"{_SCHEMA}.queue.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    job: Mapped[Queue] = relationship("Queue", back_populates="logs")
+    level_name: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
+    level_no: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    filename: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
+    log: Mapped[str] = mapped_column(Unicode, nullable=False)
 
 
 class OutputStatus(enum.Enum):

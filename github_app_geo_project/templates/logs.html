@@ -110,6 +110,45 @@
 
     %if logs:
     <h2>Logs</h2>
+    %if error_message:
+    <div class="alert alert-danger" role="alert">${error_message}</div>
+    %endif
+    <form class="row gy-2 gx-3 align-items-center mb-3" method="get">
+      <div class="col-auto">
+        <label class="form-label" for="level-filter">Level</label>
+        <input
+          class="form-control"
+          id="level-filter"
+          name="level"
+          type="text"
+          list="level-filter-options"
+          value="${level_filter}"
+          placeholder="Log level (CRITICAL, ERROR, WARNING, INFO or DEBUG)"
+        />
+        <datalist id="level-filter-options">
+          <option value="CRITICAL"></option>
+          <option value="ERROR"></option>
+          <option value="WARNING"></option>
+          <option value="INFO"></option>
+          <option value="DEBUG"></option>
+        </datalist>
+      </div>
+      <div class="col-auto">
+        <label class="form-label" for="filename-filter">File</label>
+        <input
+          class="form-control"
+          id="filename-filter"
+          name="filename"
+          type="text"
+          value="${filename_filter}"
+          placeholder="Regular expression apply on filename"
+        />
+      </div>
+      <div class="col-auto align-self-end">
+        <button class="btn btn-primary" type="submit">Filter</button>
+        <a class="btn btn-outline-secondary" href="${request.current_route_url()}">Reset</a>
+      </div>
+    </form>
     <div class="logs">${logs | sanitizer, n}</div>
     %endif
 
