@@ -5,10 +5,10 @@
   "author": "",
   "dependencies": {
     "@jamietanna/renovate-graph": "0.34.0",
-    "@octokit/plugin-paginate-rest": "11.4.1",
-    "@octokit/app": "14.0.0",
+    "@octokit/plugin-paginate-rest": "14.0.0",
+    "@octokit/app": "16.1.2",
     "@snyk/fix": "1.1303.0",
-    "octokit": "4.0.2",
+    "octokit": "5.0.5",
     "snyk": "1.1303.0",
     "snyk-python-plugin": "3.1.6"
   }
