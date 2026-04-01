@@ -26,7 +26,6 @@ import anyio
 import c2cwsgiutils.setup_process
 import githubkit.exception
 import githubkit.versions.latest.models
-import githubkit.versions.v2022_11_28.webhooks.issues
 import githubkit.webhooks
 import plaster
 import prometheus_client.exposition
@@ -210,17 +209,17 @@ async def _process_job(
             )
             # Get Rate limit status
             rate_limit = (await github_project.aio_github.rest.rate_limit.async_get()).parsed_data
-            if rate_limit.rate.remaining < 1000:
+            if rate_limit.resources.core.remaining < 1000:
                 _LOGGER.warning(
                     "Rate limit status: %s/%s",
-                    rate_limit.rate.remaining,
-                    rate_limit.rate.limit,
+                    rate_limit.resources.core.remaining,
+                    rate_limit.resources.core.limit,
                 )
                 # Wait until github_project.github.rate_limiting_resettime
                 await asyncio.sleep(
                     max(
                         0,
-                        rate_limit.rate.reset - time.time(),
+                        rate_limit.resources.core.reset - time.time(),
                     ),
                 )
 
@@ -818,7 +817,7 @@ async def _process_dashboard_issue(
     )
     event_data_issue = githubkit.webhooks.parse_obj("issues", event_data)
 
-    if not isinstance(event_data_issue, githubkit.versions.v2022_11_28.webhooks.issues.WebhookIssuesEdited):  # type: ignore[attr-defined]
+    if not isinstance(event_data_issue, githubkit.versions.latest.models.WebhookIssuesEdited):
         _LOGGER.debug("Dashboard issue not edited")
         return
 

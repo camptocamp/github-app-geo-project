@@ -6,13 +6,12 @@ import json
 import logging
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import anyio
 import githubkit.exception
 import githubkit.versions.latest.models
-import githubkit.versions.v2022_11_28.webhooks
-import githubkit.versions.v2022_11_28.webhooks.pull_request
+import githubkit.versions.latest.webhooks
 import githubkit.webhooks
 import security_md
 from pydantic import BaseModel
@@ -214,7 +213,7 @@ class Backport(
                 has_security_md = False
                 if isinstance(
                     event_data_pull_request,
-                    githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestClosed,  # type: ignore[attr-defined]
+                    githubkit.versions.latest.models.WebhookPullRequestClosed,
                 ):
                     commits = (
                         await context.github_project.aio_github.rest.pulls.async_list_commits(
@@ -389,7 +388,7 @@ class Backport(
             configuration.BackportConfiguration,
             _ActionData,
         ],
-        event_data_pull_request: githubkit.versions.v2022_11_28.webhooks.PullRequestEvent,
+        event_data_pull_request: githubkit.versions.latest.webhooks.PullRequestEvent,
         target_branch: str,
     ) -> bool:
         """Backport the pull request to the target branch."""
@@ -494,7 +493,19 @@ class Backport(
             ] = list(pull_request_commits)
 
             if len(commits) != 1:
-                merge_commit_sha = event_data_pull_request.pull_request.merge_commit_sha
+                assert isinstance(
+                    pull_request,
+                    githubkit.versions.latest.models.PullRequestWebhook,
+                )
+                # The merge_commit_sha is no more present in the last version of the definition, get it by an other way!
+                pull_request_response = await context.github_project.aio_github.rest.pulls.async_get(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    pull_number=pull_request.number,
+                )
+                pull_request_payload = pull_request_response.json()
+                merge_commit_sha = cast("str", pull_request_payload.get("merge_commit_sha"))
+
                 if merge_commit_sha:
                     # Get merge commit
                     merge_commit = (
