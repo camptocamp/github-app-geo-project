@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import concurrent
+import contextlib
 import contextvars
 import datetime
 import functools
@@ -65,6 +66,7 @@ class _JobInfo(NamedTuple):
 _RUNNING_JOBS: dict[int, _JobInfo] = {}
 
 _LAST_RUN_TIME = time.time()
+_FLUSH_LOCK = asyncio.Lock()
 
 
 class _Handler(logging.Handler):
@@ -73,6 +75,7 @@ class _Handler(logging.Handler):
     def __init__(self, job_id: int) -> None:
         super().__init__()
         self.results: list[logging.LogRecord] = []
+        self.last_written_index = 0
         self.job_id = job_id
         self.context_var.set(job_id)
 
@@ -114,6 +117,41 @@ class _Formatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         str_msg = super().format(record).strip()
         return f"<pre>{str_msg}</pre>"
+
+
+async def _flush_job_logs(
+    session_factory: sqlalchemy.ext.asyncio.async_sessionmaker[sqlalchemy.ext.asyncio.AsyncSession],
+    handler: _Handler,
+    job_id: int,
+) -> None:
+    async with _FLUSH_LOCK:
+        new_entries = handler.results[handler.last_written_index :]
+        if not new_entries:
+            return
+        async with session_factory() as log_session:
+            for entry in new_entries:
+                log_session.add(
+                    models.JobLogEntry(
+                        job_id=job_id,
+                        log=handler.format(entry),
+                        level_name=entry.levelname,
+                        level_no=entry.levelno,
+                        filename=entry.pathname,
+                    )
+                )
+            await log_session.commit()
+        handler.last_written_index += len(new_entries)
+
+
+async def _stream_job_logs(
+    session_factory: sqlalchemy.ext.asyncio.async_sessionmaker[sqlalchemy.ext.asyncio.AsyncSession],
+    handler: _Handler,
+    job_id: int,
+    interval: float,
+) -> None:
+    while True:
+        await asyncio.sleep(interval)
+        await _flush_job_logs(session_factory, handler, job_id)
 
 
 async def _validate_job(
@@ -264,6 +302,20 @@ async def _process_job(
                 service_url=config["service-url"],
             )
             root_logger.addHandler(handler)
+            log_task = None
+            log_interval = float(os.environ.get("GHCI_LOGS_STREAM_INTERVAL", "2"))
+            log_session_factory = sqlalchemy.ext.asyncio.async_sessionmaker(
+                bind=session.bind,
+            )
+            log_task = asyncio.create_task(
+                _stream_job_logs(
+                    log_session_factory,
+                    handler,
+                    job.id,
+                    log_interval,
+                ),
+                name=f"Stream logs {job.id}",
+            )
             result = None
             try:
                 start = datetime.datetime.now(tz=datetime.UTC)
@@ -386,6 +438,11 @@ async def _process_job(
                 raise GHCIError(str(exception)) from exception
             finally:
                 root_logger.removeHandler(handler)
+                if log_task is not None:
+                    log_task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await log_task
+                await _flush_job_logs(log_session_factory, handler, job.id)
 
             if github_project is not None and github_project.aio_github is not None:
                 check_output = {
@@ -455,7 +512,7 @@ async def _process_job(
             )
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
-            job.log = "\n".join([handler.format(msg) for msg in handler.results])
+            job.log = None
             if result is not None and github_project is not None and github_project.aio_github is not None:
                 _LOGGER.debug("Process actions")
                 # Store needed values locally to avoid accessing the job object during transaction
@@ -1043,7 +1100,7 @@ async def _process_one_job(
             job.id,
             job.module or "-",
         )
-        job.log = "\n".join([handler.format(msg) for msg in handler.results])
+        job.log = None
     finally:
         sentry_sdk.set_context("job", {})
         if job.status_enum == models.JobStatus.PENDING:
