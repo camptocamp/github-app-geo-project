@@ -1,2 +1,3 @@
 github_app_geo_project/templates/output.html
+github_app_geo_project/templates/logs.html
 github_app_geo_project/module/audit/repository.html

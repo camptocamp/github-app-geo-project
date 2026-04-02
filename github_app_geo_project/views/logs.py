@@ -1,6 +1,7 @@
 """Output view."""
 
 import logging
+import re
 from typing import Any
 
 import pyramid.httpexceptions
@@ -13,6 +14,7 @@ from pyramid.view import view_config
 from github_app_geo_project import models
 
 _LOGGER = logging.getLogger(__name__)
+_LEVEL_RE = re.compile("^[0-9]+$")
 
 
 @view_config(route_name="logs", renderer="github_app_geo_project:templates/logs.html")  # type: ignore[untyped-decorator]
@@ -23,7 +25,7 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
 
     title = f"Logs of job {request.matchdict['id']}"
     logs: str | None = "Element not found"
-    error_message = None
+    error_messages = []
     has_access = True
 
     session_factory = request.registry["dbsession_factory"]
@@ -43,22 +45,11 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
                     models.JobLogEntry.job_id == job.id,
                 )
 
-                level_filter = request.params.get("level")
-                if level_filter:
-                    level_map = {
-                        "CRITICAL": 50,
-                        "ERROR": 40,
-                        "WARNING": 30,
-                        "INFO": 20,
-                        "DEBUG": 10,
-                    }
-                    level = level_filter.strip().upper()
-                    if level:
-                        if level not in level_map:
-                            message = f"Invalid log level filter: {level_filter}"
-                            raise pyramid.httpexceptions.HTTPBadRequest(detail=message)
-                        level_no = level_map[level]
-                        log_query = log_query.where(models.JobLogEntry.level_no >= level_no)
+                level_filter = request.params.get("level", "")
+                if _LEVEL_RE.match(level_filter):
+                    log_query = log_query.where(models.JobLogEntry.level_no >= int(level_filter))
+                elif level_filter:
+                    error_messages.append("Invalid level filter")
 
                 filename_filter = request.params.get("filename")
                 if filename_filter:
@@ -66,15 +57,18 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
                         models.JobLogEntry.filename.op("~")(filename_filter),
                     )
 
-                try:
-                    log_entries = log_query.order_by(models.JobLogEntry.id).all()
-                except (sqlalchemy.exc.DataError, sqlalchemy.exc.ProgrammingError) as exception:
-                    _LOGGER.warning(
-                        "Invalid filename filter regex for job %s: %s",
-                        job.id,
-                        exception,
-                    )
-                    error_message = "Invalid filename filter regex"
+                if not error_messages:
+                    try:
+                        log_entries = log_query.order_by(models.JobLogEntry.id).all()
+                    except (sqlalchemy.exc.DataError, sqlalchemy.exc.ProgrammingError) as exception:
+                        _LOGGER.info(
+                            "Invalid filename filter regex for job %s: %s",
+                            job.id,
+                            exception,
+                        )
+                        error_messages.append("Invalid filename filter regex")
+                        log_entries = []
+                else:
                     log_entries = []
                 if log_entries:
                     logs = "\n".join(entry.log for entry in log_entries)
@@ -93,8 +87,8 @@ def logs_view(request: pyramid.request.Request) -> dict[str, Any]:
                 "title": title,
                 "logs": logs,
                 "job": job,
-                "error_message": error_message,
-                "level_filter": level_filter or "",
+                "error_message": "<br />".join(error_messages),
+                "level_filter": level_filter,
                 "filename_filter": filename_filter or "",
                 "reload": job.status_enum in [models.JobStatus.NEW, models.JobStatus.PENDING],
                 "favicon_postfix": (
