@@ -116,22 +116,18 @@
     <form class="row gy-2 gx-3 align-items-center mb-3" method="get">
       <div class="col-auto">
         <label class="form-label" for="level-filter">Level</label>
-        <input
-          class="form-control"
+        <select
+          class="form-select"
           id="level-filter"
           name="level"
-          type="text"
-          list="level-filter-options"
-          value="${level_filter}"
-          placeholder="Log level (CRITICAL, ERROR, WARNING, INFO or DEBUG)"
-        />
-        <datalist id="level-filter-options">
-          <option value="CRITICAL"></option>
-          <option value="ERROR"></option>
-          <option value="WARNING"></option>
-          <option value="INFO"></option>
-          <option value="DEBUG"></option>
-        </datalist>
+        >
+          <option value="">All levels</option>
+          <option value="50"${' selected' if level_filter == '50' else ''}>CRITICAL</option>
+          <option value="40"${' selected' if level_filter == '40' else ''}>ERROR</option>
+          <option value="30"${' selected' if level_filter == '30' else ''}>WARNING</option>
+          <option value="20"${' selected' if level_filter == '20' else ''}>INFO</option>
+          <option value="10"${' selected' if level_filter in ('10', '') else ''}>DEBUG</option>
+        </select>
       </div>
       <div class="col-auto">
         <label class="form-label" for="filename-filter">File</label>
