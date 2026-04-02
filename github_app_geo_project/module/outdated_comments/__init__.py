@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import githubkit.versions.latest.models
-import githubkit.versions.v2022_11_28.webhooks.pull_request_review
 import githubkit.webhooks
 from pydantic import BaseModel
 
@@ -95,7 +94,7 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
             )
             if event_data.action == "submitted" and isinstance(
                 event_data,
-                githubkit.versions.v2022_11_28.webhooks.pull_request_review.WebhookPullRequestReviewSubmitted,  # type: ignore[attr-defined]
+                githubkit.versions.latest.models.WebhookPullRequestReviewSubmitted,
             ):
                 return [
                     module.Action(

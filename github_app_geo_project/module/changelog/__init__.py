@@ -8,8 +8,6 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import githubkit.exception
 import githubkit.versions.latest.models
-import githubkit.versions.v2022_11_28.webhooks.discussion
-import githubkit.versions.v2022_11_28.webhooks.pull_request
 import githubkit.webhooks
 import packaging.version
 
@@ -715,8 +713,8 @@ class Changelog(
                 ) and (
                     isinstance(
                         event_data_pull_request,
-                        githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestMilestoned  # type: ignore[attr-defined]
-                        | githubkit.versions.v2022_11_28.webhooks.pull_request.WebhookPullRequestDemilestoned,  # type: ignore[attr-defined]
+                        githubkit.versions.latest.models.WebhookPullRequestMilestoned
+                        | githubkit.versions.latest.models.WebhookPullRequestDemilestoned,
                     )
                 ):
                     milestone_version = (
@@ -910,7 +908,7 @@ class Changelog(
             if (
                 isinstance(
                     event_data,
-                    githubkit.versions.v2022_11_28.webhooks.discussion.WebhookDiscussionEdited,  # type: ignore[attr-defined]
+                    githubkit.versions.latest.models.WebhookDiscussionEdited,
                 )
                 and event_data.changes
                 and event_data.changes.title

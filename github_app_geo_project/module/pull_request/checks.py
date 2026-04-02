@@ -13,7 +13,7 @@ from typing import Any, cast
 import githubkit
 import githubkit.exception
 import githubkit.versions.latest.models
-import githubkit.versions.v2022_11_28.webhooks
+import githubkit.versions.latest.webhooks
 import githubkit.webhooks
 
 from github_app_geo_project import module
@@ -33,7 +33,7 @@ async def _get_code_spell_command(
         checks_configuration.PullRequestChecksConfiguration,
         dict[str, Any],
     ],
-    event_data: githubkit.versions.v2022_11_28.webhooks.PullRequestEvent,
+    event_data: githubkit.versions.latest.webhooks.PullRequestEvent,
     ignore_file: NamedTemporaryFileStr,
 ) -> list[str]:
     """Get the codespell command."""
