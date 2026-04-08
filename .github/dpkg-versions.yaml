@@ -208,6 +208,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_24_04/libnetfilter-conntrack3: 1.0.9-6build1
   ubuntu_24_04/libnettle8t64: 3.9.1-2.2build1.1
   ubuntu_24_04/libnfnetlink0: 1.0.2-2build1
+  ubuntu_24_04/libnftables1: 1.0.9-1ubuntu0.1
   ubuntu_24_04/libnftnl11: 1.2.6-2build1
   ubuntu_24_04/libnghttp2-14: 1.59.0-1ubuntu0.2
   ubuntu_24_04/libnpth0t64: 1.6-3.1build1
