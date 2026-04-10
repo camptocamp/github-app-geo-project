@@ -1337,12 +1337,12 @@ async def _update_upstream_versions(
             else:
                 if not isinstance(eol, str):
                     continue
-                if utils.datetime_with_timezone(
+                parsed_eol = utils.datetime_with_timezone(
                     datetime.datetime.fromisoformat(eol),
-                ) < datetime.datetime.now(
-                    datetime.UTC,
-                ):
+                )
+                if parsed_eol < datetime.datetime.now(datetime.UTC):
                     continue
+                eol = parsed_eol.astimezone(datetime.UTC).strftime("%d/%m/%Y")
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
                 support=eol,
                 names_by_datasource={
