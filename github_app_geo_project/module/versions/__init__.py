@@ -1525,10 +1525,7 @@ def _support_cmp(a: str | _SupportType | _Support, b: str | _SupportType | _Supp
     return 0
 
 
-def _is_supported(
-    base: str | _SupportType | _Support,
-    other: str | _SupportType | _Support,
-) -> bool:
+def _is_supported(base: _Support, other: _Support) -> bool:
     """
     Determine if a version is supported based on two support status strings.
 
