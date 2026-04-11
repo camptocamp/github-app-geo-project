@@ -1470,18 +1470,15 @@ def _support_category(s: str, support_until: datetime.date | None = None) -> _Su
     return _SupportCategory.UNKNOWN  # Any other string
 
 
-def _support_value(value: str | _SupportType) -> str:
+def _support_value(value: str | _SupportType | _Support) -> str:
+    if isinstance(value, _Support):
+        return value.type.value
     if isinstance(value, _SupportType):
         return value.value
     return value
 
 
-def _support_cmp(
-    a: str | _SupportType,
-    b: str | _SupportType,
-    a_support_until: datetime.date | None = None,
-    b_support_until: datetime.date | None = None,
-) -> int:
+def _support_cmp(a: str | _SupportType | _Support, b: str | _SupportType | _Support) -> int:
     """
     Compare two support status strings.
 
@@ -1499,9 +1496,11 @@ def _support_cmp(
     # Normalize once and use consistently for category and date parsing
     a_norm = (_support_value(a) or "").strip()
     b_norm = (_support_value(b) or "").strip()
+    a_until = a.until if isinstance(a, _Support) else None
+    b_until = b.until if isinstance(b, _Support) else None
 
-    cat_a = _support_category(a_norm, a_support_until)
-    cat_b = _support_category(b_norm, b_support_until)
+    cat_a = _support_category(a_norm, a_until)
+    cat_b = _support_category(b_norm, b_until)
     if _SupportCategory.NO_SUPPORT_DEFINED in (cat_a, cat_b):
         # No support defined is considered equal to everything to never be in red
         return 0
@@ -1510,8 +1509,8 @@ def _support_cmp(
     if cat_a == _SupportCategory.DATE and cat_b == _SupportCategory.DATE:
         # Both are dates, compare as dates (oldest = less support)
         try:
-            da = a_support_until or _parse_support_date_value(a_norm)
-            db = b_support_until or _parse_support_date_value(b_norm)
+            da = a_until or _parse_support_date_value(a_norm)
+            db = b_until or _parse_support_date_value(b_norm)
             if da is None or db is None:
                 message = f"Failed to parse support dates for comparison: {a!r}, {b!r}"
                 raise ValueError(message)  # noqa: TRY301
@@ -1527,10 +1526,8 @@ def _support_cmp(
 
 
 def _is_supported(
-    base: str | _SupportType,
-    other: str | _SupportType,
-    base_support_until: datetime.date | None = None,
-    other_support_until: datetime.date | None = None,
+    base: str | _SupportType | _Support,
+    other: str | _SupportType | _Support,
 ) -> bool:
     """
     Determine if a version is supported based on two support status strings.
@@ -1548,15 +1545,7 @@ def _is_supported(
         True if the other status is supported relative to the base, False otherwise
     """
     # Use the comparison: other is supported if it is at least as good as base
-    return (
-        _support_cmp(
-            base,
-            other,
-            a_support_until=base_support_until,
-            b_support_until=other_support_until,
-        )
-        <= 0
-    )
+    return _support_cmp(base, other) <= 0
 
 
 def _build_internal_dependencies(
@@ -1644,9 +1633,8 @@ def _build_internal_dependencies(
                             _SUPPORTED_COLOR
                             if dependency_package_data.has_security_policy is False
                             or _is_supported(
-                                version_data.support.type.value,
+                                version_data.support,
                                 support,
-                                base_support_until=version_data.support.until,
                             )
                             else _UNSUPPORTED_COLOR
                         ),
@@ -1721,10 +1709,8 @@ def _build_reverse_dependency(
                                     color=(
                                         _SUPPORTED_COLOR
                                         if _is_supported(
-                                            other_version_data.support.type.value,
-                                            version_data.support.type.value,
-                                            base_support_until=other_version_data.support.until,
-                                            other_support_until=version_data.support.until,
+                                            other_version_data.support,
+                                            version_data.support,
                                         )
                                         else _UNSUPPORTED_COLOR
                                     ),
