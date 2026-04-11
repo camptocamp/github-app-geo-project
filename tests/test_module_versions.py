@@ -294,7 +294,7 @@ def test_get_transversal_dashboard_repo_forward(other_support: str, expected_col
                 has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                        support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                         dependencies_by_datasource={
                             "pypi": _TransversalStatusNameInDatasource(
                                 versions_by_names={
@@ -330,7 +330,7 @@ def test_get_transversal_dashboard_repo_forward(other_support: str, expected_col
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                 color="--bs-body-bg",
                 forward=[
                     _Dependency(
@@ -420,7 +420,7 @@ def test_get_transversal_dashboard_repo_forward_docker_2() -> None:
                 has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support={"type": "27/06/2027", "until": datetime.date(2027, 6, 27)},
+                        support={"type": "Date", "until": datetime.date(2027, 6, 27)},
                         dependencies_by_datasource={
                             "docker": _TransversalStatusNameInDatasource(
                                 versions_by_names={
@@ -466,7 +466,7 @@ def test_get_transversal_dashboard_repo_forward_docker_2() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support={"type": "27/06/2027", "until": datetime.date(2027, 6, 27)},
+                support={"type": "Date", "until": datetime.date(2027, 6, 27)},
                 color="--bs-body-bg",
                 forward=[
                     _Dependency(
@@ -577,7 +577,7 @@ def test_get_transversal_dashboard_repo_forward_docker_multiple_statuses() -> No
                 has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support={"type": "27/06/2027", "until": datetime.date(2027, 6, 27)},
+                        support={"type": "Date", "until": datetime.date(2027, 6, 27)},
                         dependencies_by_datasource={
                             "docker": _TransversalStatusNameInDatasource(
                                 versions_by_names={
@@ -624,7 +624,7 @@ def test_get_transversal_dashboard_repo_forward_docker_multiple_statuses() -> No
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support={"type": "27/06/2027", "until": datetime.date(2027, 6, 27)},
+                support={"type": "Date", "until": datetime.date(2027, 6, 27)},
                 color="--bs-body-bg",
                 forward=[
                     _Dependency(
@@ -655,7 +655,7 @@ def test_get_transversal_dashboard_repo_forward_docker_empty_status() -> None:
                 has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support={"type": "27/06/2027", "until": datetime.date(2027, 6, 27)},
+                        support={"type": "Date", "until": datetime.date(2027, 6, 27)},
                         dependencies_by_datasource={
                             "docker": _TransversalStatusNameInDatasource(
                                 versions_by_names={
@@ -681,7 +681,7 @@ def test_get_transversal_dashboard_repo_forward_docker_empty_status() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support={"type": "27/06/2027", "until": datetime.date(2027, 6, 27)},
+                support={"type": "Date", "until": datetime.date(2027, 6, 27)},
                 color="--bs-body-bg",
                 forward=[
                     _Dependency(
@@ -771,7 +771,7 @@ def test_get_transversal_dashboard_repo_forward_no_support() -> None:
                 has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                        support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                         dependencies_by_datasource={
                             "pypi": _TransversalStatusNameInDatasource(
                                 versions_by_names={
@@ -807,7 +807,7 @@ def test_get_transversal_dashboard_repo_forward_no_support() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                 color="--bs-body-bg",
                 forward=[
                     _Dependency(
@@ -834,7 +834,7 @@ def test_get_transversal_dashboard_repo_forward_no_support_version() -> None:
                 has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                        support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                         dependencies_by_datasource={
                             "pypi": _TransversalStatusNameInDatasource(
                                 versions_by_names={
@@ -856,7 +856,7 @@ def test_get_transversal_dashboard_repo_forward_no_support_version() -> None:
                 },
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                        support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                         names_by_datasource={
                             "pypi": _TransversalStatusNameByDatasource(names=["other_package"]),
                         },
@@ -870,7 +870,7 @@ def test_get_transversal_dashboard_repo_forward_no_support_version() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                 color="--bs-body-bg",
                 forward=[
                     _Dependency(
@@ -897,7 +897,7 @@ def test_get_transversal_dashboard_repo_forward_no_package() -> None:
                 has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                        support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                         dependencies_by_datasource={
                             "pypi": _TransversalStatusNameInDatasource(
                                 versions_by_names={
@@ -915,7 +915,7 @@ def test_get_transversal_dashboard_repo_forward_no_package() -> None:
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                 color="--bs-body-bg",
                 forward=[],
                 reverse=[],
@@ -937,7 +937,7 @@ def test_get_transversal_dashboard_repo_reverse(other_support: str, expected_col
                 has_security_policy=True,
                 versions={
                     "1.0": _TransversalStatusVersion(
-                        support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                        support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                         names_by_datasource={"pypi": _TransversalStatusNameByDatasource(names=["test"])},
                     ),
                 },
@@ -963,7 +963,7 @@ def test_get_transversal_dashboard_repo_reverse(other_support: str, expected_col
     assert output.data["dependencies_branches"] == _DependenciesBranches(
         by_branch={
             "1.0": _Dependencies(
-                support={"type": "01/01/2045", "until": datetime.date(2045, 1, 1)},
+                support={"type": "Date", "until": datetime.date(2045, 1, 1)},
                 color="--bs-body-bg",
                 forward=[],
                 reverse=[

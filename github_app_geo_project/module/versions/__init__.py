@@ -11,7 +11,7 @@ import re
 import tempfile
 import tomllib
 from collections.abc import Iterable
-from enum import IntEnum
+from enum import Enum, IntEnum
 from pathlib import Path
 from typing import Any
 
@@ -46,6 +46,15 @@ class _SupportCategory(IntEnum):
     TO_BE_DEFINED = 3
     DATE = 4
     UNKNOWN = -1
+
+
+class _SupportType(Enum):
+    NO_SUPPORT_DEFINED = _NO_SUPPORT_DEFINED
+    UNSUPPORTED = _UNSUPPORTED
+    BEST_EFFORT = _BEST_EFFORT
+    TO_BE_DEFINED = _TO_BE_DEFINED
+    DATE = "Date"
+    UNKNOWN = "Unknown"
 
 
 class _TransversalStatusNameByDatasource(BaseModel):
@@ -128,12 +137,12 @@ class _TransversalStatusNamesIndex(BaseModel):
 
 
 class _Support(BaseModel):
-    type: str = _NO_SUPPORT_DEFINED
+    type: _SupportType = _SupportType.NO_SUPPORT_DEFINED
     until: datetime.date | None = None
 
     @model_serializer(mode="plain")
     def _to_plain(self) -> dict[str, Any]:
-        data: dict[str, Any] = {"type": self.type}
+        data: dict[str, Any] = {"type": self.type.value}
         if self.until is not None:
             data["until"] = self.until
         return data
@@ -142,13 +151,34 @@ class _Support(BaseModel):
     @classmethod
     def _from_str(cls, data: Any) -> Any:
         if isinstance(data, str):
-            return {"type": data}
+            parsed_date = _parse_support_date_value(data)
+            if parsed_date is not None:
+                return {"type": _SupportType.DATE, "until": parsed_date}
+            try:
+                return {"type": _SupportType(data)}
+            except ValueError:
+                return {"type": _SupportType.UNKNOWN}
+        if isinstance(data, dict) and "type" in data:
+            support_type = data.get("type")
+            if isinstance(support_type, str):
+                parsed_date = _parse_support_date_value(support_type)
+                if parsed_date is not None:
+                    data = {
+                        **data,
+                        "type": _SupportType.DATE,
+                        "until": data.get("until") or parsed_date,
+                    }
+                else:
+                    try:
+                        data = {**data, "type": _SupportType(support_type)}
+                    except ValueError:
+                        data = {**data, "type": _SupportType.UNKNOWN}
         return data
 
     @model_validator(mode="after")
     def _set_until_from_type(self) -> "_Support":
-        if self.until is None:
-            self.until = _parse_support_date_value(self.type)
+        if self.until is None and self.type not in (_SupportType.DATE, _SupportType.UNKNOWN):
+            self.until = _parse_support_date_value(str(self.type.value))
         return self
 
 
@@ -1587,7 +1617,7 @@ def _build_internal_dependencies(
                             _SUPPORTED_COLOR
                             if dependency_package_data.has_security_policy is False
                             or _is_supported(
-                                version_data.support.type,
+                                version_data.support.type.value,
                                 support,
                                 base_support_until=version_data.support.until,
                             )
@@ -1660,12 +1690,12 @@ def _build_reverse_dependency(
                                 _DependencyReverse(
                                     name=other_repo,
                                     version=_clean_version(other_version),
-                                    support=other_version_data.support.type,
+                                    support=other_version_data.support.type.value,
                                     color=(
                                         _SUPPORTED_COLOR
                                         if _is_supported(
-                                            other_version_data.support.type,
-                                            version_data.support.type,
+                                            other_version_data.support.type.value,
+                                            version_data.support.type.value,
                                             base_support_until=other_version_data.support.until,
                                             other_support_until=version_data.support.until,
                                         )
@@ -1695,7 +1725,7 @@ def _build_reverse_dependency(
                                 _DependencyReverse(
                                     name=other_repo,
                                     version=_clean_version(other_version),
-                                    support=other_version_data.support.type,
+                                    support=other_version_data.support.type.value,
                                     color=(
                                         _SUPPORTED_COLOR
                                         if not repo_data.has_security_policy
@@ -1737,7 +1767,7 @@ def _apply_additional_packages(
                 for name in other_name.names:
                     support_index.setdefault(
                         (other_datasource_name, name, normalized_other_version), []
-                    ).append(other_version_data.support.type)
+                    ).append(other_version_data.support.type.value)
 
     for repo, data in context.module_config.get("additional-packages", {}).items():
         module_utils.manage_updated_separated(
