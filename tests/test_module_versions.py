@@ -22,9 +22,9 @@ from github_app_geo_project.module.versions import (
     _parse_support_date,
     _read_dependencies,
     _rebuild_repo_dependencies,
-    _Support,
     _support_category,
     _support_cmp,
+    _support_from_value,
     _SupportCategory,
     _SupportType,
     _TransversalStatus,
@@ -1919,7 +1919,13 @@ def test_build_reverse_dependency_uses_dependencies_index_docker() -> None:
     ],
 )
 def test_is_supported(support, dependency_support, expected_result):
-    assert _is_supported(support, dependency_support) == expected_result
+    assert (
+        _is_supported(
+            _support_from_value(support),
+            _support_from_value(dependency_support),
+        )
+        == expected_result
+    )
 
 
 @pytest.mark.parametrize(
@@ -1985,26 +1991,38 @@ def test_support_category(value, expected):
     ],
 )
 def test_support_cmp(a, b, expected):
-    assert _support_cmp(a, b) == expected
+    assert _support_cmp(_support_from_value(a), _support_from_value(b)) == expected
 
 
 def test_support_cmp_enum() -> None:
-    assert _support_cmp(_SupportType.BEST_EFFORT, _SupportType.UNSUPPORTED) == 1
-    assert _support_cmp(_SupportType.UNSUPPORTED, _SupportType.BEST_EFFORT) == -1
+    assert (
+        _support_cmp(
+            _support_from_value(_SupportType.BEST_EFFORT),
+            _support_from_value(_SupportType.UNSUPPORTED),
+        )
+        == 1
+    )
+    assert (
+        _support_cmp(
+            _support_from_value(_SupportType.UNSUPPORTED),
+            _support_from_value(_SupportType.BEST_EFFORT),
+        )
+        == -1
+    )
 
 
 def test_is_supported_enum() -> None:
     assert (
         _is_supported(
-            _Support(type=_SupportType.BEST_EFFORT),
-            _Support(type=_SupportType.UNSUPPORTED),
+            _support_from_value(_SupportType.BEST_EFFORT),
+            _support_from_value(_SupportType.UNSUPPORTED),
         )
         is False
     )
     assert (
         _is_supported(
-            _Support(type=_SupportType.UNSUPPORTED),
-            _Support(type=_SupportType.BEST_EFFORT),
+            _support_from_value(_SupportType.UNSUPPORTED),
+            _support_from_value(_SupportType.BEST_EFFORT),
         )
         is True
     )
