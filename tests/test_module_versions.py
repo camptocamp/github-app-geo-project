@@ -25,6 +25,7 @@ from github_app_geo_project.module.versions import (
     _support_category,
     _support_cmp,
     _SupportCategory,
+    _SupportType,
     _TransversalStatus,
     _TransversalStatusDependenciesIndex,
     _TransversalStatusNameByDatasource,
@@ -1984,6 +1985,16 @@ def test_support_category(value, expected):
 )
 def test_support_cmp(a, b, expected):
     assert _support_cmp(a, b) == expected
+
+
+def test_support_cmp_enum() -> None:
+    assert _support_cmp(_SupportType.BEST_EFFORT, _SupportType.UNSUPPORTED) == 1
+    assert _support_cmp(_SupportType.UNSUPPORTED, _SupportType.BEST_EFFORT) == -1
+
+
+def test_is_supported_enum() -> None:
+    assert _is_supported(_SupportType.BEST_EFFORT, _SupportType.UNSUPPORTED) is False
+    assert _is_supported(_SupportType.UNSUPPORTED, _SupportType.BEST_EFFORT) is True
 
 
 def test_apply_additional_packages_least_support():

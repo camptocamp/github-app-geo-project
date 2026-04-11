@@ -1470,9 +1470,15 @@ def _support_category(s: str, support_until: datetime.date | None = None) -> _Su
     return _SupportCategory.UNKNOWN  # Any other string
 
 
+def _support_value(value: str | _SupportType) -> str:
+    if isinstance(value, _SupportType):
+        return value.value
+    return value
+
+
 def _support_cmp(
-    a: str,
-    b: str,
+    a: str | _SupportType,
+    b: str | _SupportType,
     a_support_until: datetime.date | None = None,
     b_support_until: datetime.date | None = None,
 ) -> int:
@@ -1491,8 +1497,8 @@ def _support_cmp(
     """
 
     # Normalize once and use consistently for category and date parsing
-    a_norm = (a or "").strip()
-    b_norm = (b or "").strip()
+    a_norm = (_support_value(a) or "").strip()
+    b_norm = (_support_value(b) or "").strip()
 
     cat_a = _support_category(a_norm, a_support_until)
     cat_b = _support_category(b_norm, b_support_until)
@@ -1521,8 +1527,8 @@ def _support_cmp(
 
 
 def _is_supported(
-    base: str,
-    other: str,
+    base: str | _SupportType,
+    other: str | _SupportType,
     base_support_until: datetime.date | None = None,
     other_support_until: datetime.date | None = None,
 ) -> bool:
