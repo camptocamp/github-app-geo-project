@@ -10,6 +10,8 @@ The modules should be reasonably tested in `tests/test_module_<name>.py`.
 
 The module types (`configuration`, `event data`, `transversal status`, `intermediate status`) should be strongly-typed, the configuration must comes from the generated `configuration.py`. the others must be Pydantic models or `None`, and should not use untyped `dict`.
 
+Avoid `model_serializer` whenever possible.
+
 ## Important classes
 
 ### ProcessContext
@@ -61,6 +63,8 @@ Run tests: `poetry run pytest -vv tests`.
 Do not use the conventional commit conventions.
 The commit messages should start with a capital.
 If necessary, for example for a commit that concerns only one module, use the format: 'Context: Message' (with a message that starts with an uppercase).
+
+Before each commit ensure that `poetry run prospector --output-format=pylint --ignore-paths=scripts` and `poetry run pytest -vv tests` do not return errors.
 
 ## Future
 
