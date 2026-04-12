@@ -1,5 +1,7 @@
 """Utility functions for the auto* modules."""
 
+from __future__ import annotations
+
 import asyncio
 import base64
 import datetime
@@ -10,10 +12,9 @@ import os
 import re
 import tempfile
 import tomllib
-from collections.abc import Iterable
-from enum import IntEnum
+from enum import Enum, IntEnum
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, cast
 
 import aiohttp
 import anyio
@@ -22,19 +23,18 @@ import githubkit.exception
 import githubkit.versions.latest.models
 import security_md
 import yaml
-from pydantic import BaseModel, Field, model_serializer, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from github_app_geo_project import module, utils
 from github_app_geo_project.module import ProcessOutput
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.versions import configuration
 
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+
 _LOGGER = logging.getLogger(__name__)
 
-_NO_SUPPORT_DEFINED = "No support defined"
-_UNSUPPORTED = "Unsupported"
-_BEST_EFFORT = "Best effort"
-_TO_BE_DEFINED = "To be defined"
 _UNSUPPORTED_COLOR = "--bs-danger"
 _SUPPORTED_COLOR = "--bs-body-bg"
 
@@ -46,6 +46,15 @@ class _SupportCategory(IntEnum):
     TO_BE_DEFINED = 3
     DATE = 4
     UNKNOWN = -1
+
+
+class _SupportType(Enum):
+    NO_SUPPORT_DEFINED = "No support defined"
+    UNSUPPORTED = "Unsupported"
+    BEST_EFFORT = "Best effort"
+    TO_BE_DEFINED = "To be defined"
+    DATE = "Date"
+    UNKNOWN = "Unknown"
 
 
 class _TransversalStatusNameByDatasource(BaseModel):
@@ -79,7 +88,7 @@ class _TransversalStatusDependenciesIndex(BaseModel):
 class _TransversalStatusNamesByVersion(BaseModel):
     """Map canonical version -> support status for a package."""
 
-    by_version: dict[str, str] = {}
+    by_version: dict[str, _Support] = {}
 
     @model_validator(mode="before")
     @classmethod
@@ -88,9 +97,13 @@ class _TransversalStatusNamesByVersion(BaseModel):
             return {"by_version": data}
         return data
 
-    @model_serializer(mode="plain")
-    def _to_flat(self) -> dict[str, str]:
-        return self.by_version
+    @model_validator(mode="after")
+    def _normalize_supports(self) -> _TransversalStatusNamesByVersion:
+        self.by_version = {
+            key: value if isinstance(value, _Support) else _Support.model_validate(value)
+            for key, value in self.by_version.items()
+        }
+        return self
 
 
 class _TransversalStatusNamesByPackage(BaseModel):
@@ -105,10 +118,6 @@ class _TransversalStatusNamesByPackage(BaseModel):
             return {"by_package": data}
         return data
 
-    @model_serializer(mode="plain")
-    def _to_flat(self) -> dict[str, _TransversalStatusNamesByVersion]:
-        return self.by_package
-
 
 class _TransversalStatusNamesIndex(BaseModel):
     """Map datasource -> package map."""
@@ -122,13 +131,63 @@ class _TransversalStatusNamesIndex(BaseModel):
             return {"by_datasource": data}
         return data
 
-    @model_serializer(mode="plain")
-    def _to_flat(self) -> dict[str, _TransversalStatusNamesByPackage]:
-        return self.by_datasource
+
+class _Support(BaseModel):
+    type: _SupportType = _SupportType.NO_SUPPORT_DEFINED
+    until: datetime.date | None = None
+
+    @property
+    def display(self) -> str:
+        if self.type == _SupportType.DATE and self.until is not None:
+            return self.until.strftime("%d/%m/%Y")
+        return self.type.value
+
+    @model_validator(mode="before")
+    @classmethod
+    def _from_str(cls, data: Any) -> Any:
+        if isinstance(data, str):
+            parsed_date = _parse_support_date_value(data)
+            if parsed_date is not None:
+                return {"type": _SupportType.DATE, "until": parsed_date}
+            for support_type in _SupportType:
+                if support_type.value.lower() == data.lower():
+                    return {"type": support_type}
+            return {"type": _SupportType.UNKNOWN}
+        if isinstance(data, dict) and data.get("type") == "Date":
+            return {
+                "type": _SupportType.DATE,
+                "until": cast("datetime.date | None", data.get("until")),
+            }
+        if isinstance(data, dict) and "type" in data:
+            raw_type = data.get("type")
+            if isinstance(raw_type, _SupportType):
+                return {**data, "type": raw_type}
+            if raw_type is None:
+                return {**data, "type": _SupportType.UNKNOWN}
+            if isinstance(raw_type, str):
+                parsed_date = _parse_support_date_value(raw_type)
+                if parsed_date is not None:
+                    return {
+                        **data,
+                        "type": _SupportType.DATE,
+                        "until": data.get("until") or parsed_date,
+                    }
+                try:
+                    return {**data, "type": _SupportType(raw_type)}
+                except ValueError:
+                    return {**data, "type": _SupportType.UNKNOWN}
+            return {**data, "type": _SupportType.UNKNOWN}
+        return data
+
+    @model_validator(mode="after")
+    def _set_until_from_type(self) -> _Support:
+        if self.until is None and self.type != _SupportType.UNKNOWN:
+            self.until = _parse_support_date_value(str(self.type.value))
+        return self
 
 
 class _TransversalStatusVersion(BaseModel):
-    support: str = _NO_SUPPORT_DEFINED
+    support: _Support = Field(default_factory=_Support)
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
     dependencies_by_datasource: dict[str, _TransversalStatusNameInDatasource] = {}
 
@@ -151,7 +210,7 @@ class _TransversalStatusRepo(BaseModel):
 
 
 class _NamesStatus(BaseModel):
-    status_by_version: dict[str, str] = {}
+    status_by_version: dict[str, _Support] = {}
     repo: str | None = None
     has_security_policy: bool = False
 
@@ -177,7 +236,7 @@ class _IntermediateStatus(BaseModel):
     version: str | None = None
     url: str | None = None
     has_security_policy: bool = False
-    version_support: dict[str, str] = {}
+    version_support: dict[str, _Support] = {}
     version_names_by_datasource: dict[str, _TransversalStatusNameByDatasource] = {}
     version_dependencies_by_datasource: dict[
         str,
@@ -190,7 +249,7 @@ class _IntermediateStatus(BaseModel):
 class _DependencyBase(BaseModel):
     name: str
     version: str
-    support: str
+    support: _Support
     color: str
     repo: str
 
@@ -204,7 +263,7 @@ class _DependencyReverse(_DependencyBase):
 
 
 class _Dependencies(BaseModel):
-    support: str = _UNSUPPORTED
+    support: _Support = Field(default_factory=lambda: _Support(type=_SupportType.UNSUPPORTED))
     color: str = _UNSUPPORTED_COLOR
     forward: list[_Dependency] = []
     reverse: list[_DependencyReverse] = []
@@ -353,7 +412,9 @@ class Versions(
             stabilization_versions.append(default_branch)
             _LOGGER.debug("Versions: %s", ", ".join(stabilization_versions))
             for version in stabilization_versions:
-                intermediate_status.version_support[version] = _BEST_EFFORT
+                intermediate_status.version_support[version] = _Support(
+                    type=_SupportType.BEST_EFFORT,
+                )
 
             if security is not None:
                 version_index = security.version_index
@@ -363,7 +424,9 @@ class Versions(
                         version = raw[version_index]
                         support = raw[support_index]
                         if version in intermediate_status.version_support:
-                            intermediate_status.version_support[version] = support
+                            intermediate_status.version_support[version] = _Support(
+                                type=_SupportType(support)
+                            )
 
             intermediate_status.stabilization_versions = stabilization_versions
 
@@ -560,7 +623,13 @@ class Versions(
             version = versions.setdefault(
                 intermediate_version_name,
                 _TransversalStatusVersion(
-                    support=(_BEST_EFFORT if repo.has_security_policy else _NO_SUPPORT_DEFINED),
+                    support=_Support(
+                        type=(
+                            _SupportType.BEST_EFFORT
+                            if repo.has_security_policy
+                            else _SupportType.NO_SUPPORT_DEFINED
+                        ),
+                    ),
                 ),
             )
             if intermediate_status.version_names_by_datasource:
@@ -694,7 +763,7 @@ class _Version:
         """
         self.version = version
 
-    def __cmp__(self, other: "_Version") -> int:
+    def __cmp__(self, other: _Version) -> int:
         r"""
         Compare this version with another.
 
@@ -738,7 +807,7 @@ class _Version:
             return 0
         return 1 if tuple1 > tuple2 else -1
 
-    def __lt__(self, other: "_Version") -> bool:
+    def __lt__(self, other: _Version) -> bool:
         """
         Less than comparison operator.
 
@@ -819,7 +888,7 @@ def _canonical_minor_version(datasource: str, version: str) -> str:
     return version
 
 
-def _rebuild_repo_names(repo_data: "_TransversalStatusRepo") -> None:
+def _rebuild_repo_names(repo_data: _TransversalStatusRepo) -> None:
     """
     Rebuild the names index for a single repository.
 
@@ -845,7 +914,7 @@ def _rebuild_repo_names(repo_data: "_TransversalStatusRepo") -> None:
     repo_data.names_index = names_index
 
 
-def _rebuild_repo_dependencies(repo_data: "_TransversalStatusRepo") -> None:
+def _rebuild_repo_dependencies(repo_data: _TransversalStatusRepo) -> None:
     """Rebuild the per-repo dependency index used by reverse dependency lookups."""
     dependencies_index = _TransversalStatusDependenciesIndex()
     for branch, branch_data in repo_data.versions.items():
@@ -878,7 +947,7 @@ def _rebuild_repo_dependencies(repo_data: "_TransversalStatusRepo") -> None:
     repo_data.dependencies_index = dependencies_index
 
 
-def _build_global_names(transversal_status: "_TransversalStatus") -> _Names:
+def _build_global_names(transversal_status: _TransversalStatus) -> _Names:
     """
     Assemble the global names lookup from the per-repo persisted indices.
 
@@ -1332,19 +1401,21 @@ async def _update_upstream_versions(
         _LOGGER.debug(message)
         for cycle in cycles:
             eol = cycle.get("eol")
+            support_until = None
             if eol is False:
-                eol = _BEST_EFFORT
+                eol = _SupportType.BEST_EFFORT.value
             else:
                 if not isinstance(eol, str):
                     continue
-                if utils.datetime_with_timezone(
+                parsed_eol = utils.datetime_with_timezone(
                     datetime.datetime.fromisoformat(eol),
-                ) < datetime.datetime.now(
-                    datetime.UTC,
-                ):
+                )
+                if parsed_eol < datetime.datetime.now(datetime.UTC):
                     continue
+                support_until = parsed_eol.astimezone(datetime.UTC).date()
+                eol = parsed_eol.astimezone(datetime.UTC).strftime("%d/%m/%Y")
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
-                support=eol,
+                support=_Support(type=_SupportType.DATE, until=support_until),
                 names_by_datasource={
                     datasource: _TransversalStatusNameByDatasource(
                         names=[package],
@@ -1354,6 +1425,8 @@ async def _update_upstream_versions(
 
 
 def _parse_support_date(text: str) -> datetime.datetime | None:
+    if not isinstance(text, str):
+        return None
     # Try ISO and DD/MM/YYYY date formats
     try:
         date = datetime.datetime.fromisoformat(text)
@@ -1370,22 +1443,31 @@ def _parse_support_date(text: str) -> datetime.datetime | None:
     return None
 
 
-def _support_category(s: str) -> _SupportCategory:
-    s = (s or "").strip().lower()
-    if s == _NO_SUPPORT_DEFINED.lower():
+def _parse_support_date_value(text: str) -> datetime.date | None:
+    parsed = _parse_support_date(text)
+    if parsed is None:
+        return None
+    return parsed.astimezone(datetime.UTC).date()
+
+
+def _support_category(s: str, support_until: datetime.date | None = None) -> _SupportCategory:
+    if not isinstance(s, str):
+        s = ""
+    s = s.strip().lower()
+    if s == _SupportType.NO_SUPPORT_DEFINED.value.lower():
         return _SupportCategory.NO_SUPPORT_DEFINED
-    if s == _UNSUPPORTED.lower():
+    if s == _SupportType.UNSUPPORTED.value.lower():
         return _SupportCategory.UNSUPPORTED
-    if s == _BEST_EFFORT.lower():
+    if s == _SupportType.BEST_EFFORT.value.lower():
         return _SupportCategory.BEST_EFFORT
-    if s == _TO_BE_DEFINED.lower():
+    if s == _SupportType.TO_BE_DEFINED.value.lower():
         return _SupportCategory.TO_BE_DEFINED
-    if _parse_support_date(s) is not None:
+    if support_until is not None or _parse_support_date(s) is not None:
         return _SupportCategory.DATE
     return _SupportCategory.UNKNOWN  # Any other string
 
 
-def _support_cmp(a: str, b: str) -> int:
+def _support_cmp(a: _Support, b: _Support) -> int:
     """
     Compare two support status strings.
 
@@ -1400,12 +1482,8 @@ def _support_cmp(a: str, b: str) -> int:
     Older dates are considered less supported.
     """
 
-    # Normalize once and use consistently for category and date parsing
-    a_norm = (a or "").strip()
-    b_norm = (b or "").strip()
-
-    cat_a = _support_category(a_norm)
-    cat_b = _support_category(b_norm)
+    cat_a = _support_category(a.type.value, a.until)
+    cat_b = _support_category(b.type.value, b.until)
     if _SupportCategory.NO_SUPPORT_DEFINED in (cat_a, cat_b):
         # No support defined is considered equal to everything to never be in red
         return 0
@@ -1414,14 +1492,12 @@ def _support_cmp(a: str, b: str) -> int:
     if cat_a == _SupportCategory.DATE and cat_b == _SupportCategory.DATE:
         # Both are dates, compare as dates (oldest = less support)
         try:
-            da = _parse_support_date(a_norm)
-            db = _parse_support_date(b_norm)
-            if da is None or db is None:
+            if a.until is None or b.until is None:
                 message = f"Failed to parse support dates for comparison: {a!r}, {b!r}"
                 raise ValueError(message)  # noqa: TRY301
-            if da < db:
+            if a.until < b.until:
                 return -1
-            if da > db:
+            if a.until > b.until:
                 return 1
         except Exception:
             message = "Error parsing dates for support comparison: %s, %s"
@@ -1430,7 +1506,7 @@ def _support_cmp(a: str, b: str) -> int:
     return 0
 
 
-def _is_supported(base: str, other: str) -> bool:
+def _is_supported(base: _Support, other: _Support) -> bool:
     """
     Determine if a version is supported based on two support status strings.
 
@@ -1498,25 +1574,33 @@ def _build_internal_dependencies(
                     dependency_version,
                 )
                 if datasource_name == "docker":
-                    status_values = set(dependency_package_data.status_by_version.values())
+                    status_values = list(dependency_package_data.status_by_version.values())
                     if not status_values:
-                        support = _NO_SUPPORT_DEFINED
+                        support = _Support(type=_SupportType.NO_SUPPORT_DEFINED)
                     else:
-                        real_statuses = {s for s in status_values if s != _NO_SUPPORT_DEFINED}
-                        candidates = list(real_statuses or status_values)
+                        real_statuses = [
+                            s for s in status_values if s.type != _SupportType.NO_SUPPORT_DEFINED
+                        ]
+                        candidates = real_statuses or status_values
                         support = candidates[0]
                         for other_support in candidates[1:]:
-                            if _support_cmp(other_support, support) < 0:
+                            if (
+                                _support_cmp(
+                                    other_support,
+                                    support,
+                                )
+                                < 0
+                            ):
                                 support = other_support
                 elif not dependency_package_data.has_security_policy:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
-                        _NO_SUPPORT_DEFINED,
+                        _Support(type=_SupportType.NO_SUPPORT_DEFINED),
                     )
                 else:
                     support = dependency_package_data.status_by_version.get(
                         dependency_minor,
-                        _UNSUPPORTED,
+                        _Support(type=_SupportType.UNSUPPORTED),
                     )
                 clean_dependency_version = _clean_version(dependency_version)
                 dependencies_branch.forward.append(
@@ -1532,7 +1616,10 @@ def _build_internal_dependencies(
                         color=(
                             _SUPPORTED_COLOR
                             if dependency_package_data.has_security_policy is False
-                            or _is_supported(version_data.support, support)
+                            or _is_supported(
+                                version_data.support,
+                                support,
+                            )
                             else _UNSUPPORTED_COLOR
                         ),
                         repo=dependency_package_data.repo or "-",
@@ -1618,8 +1705,12 @@ def _build_reverse_dependency(
                             dependencies_branches.by_branch.setdefault(
                                 target_version,
                                 _Dependencies(
-                                    support=(
-                                        _UNSUPPORTED if repo_data.has_security_policy else _NO_SUPPORT_DEFINED
+                                    support=_Support(
+                                        type=(
+                                            _SupportType.UNSUPPORTED
+                                            if repo_data.has_security_policy
+                                            else _SupportType.NO_SUPPORT_DEFINED
+                                        ),
                                     ),
                                     color=(
                                         _UNSUPPORTED_COLOR
@@ -1632,7 +1723,11 @@ def _build_reverse_dependency(
                                     name=other_repo,
                                     version=_clean_version(other_version),
                                     support=other_version_data.support,
-                                    color=_UNSUPPORTED_COLOR,
+                                    color=(
+                                        _SUPPORTED_COLOR
+                                        if not repo_data.has_security_policy
+                                        else _UNSUPPORTED_COLOR
+                                    ),
                                     repo=other_repo,
                                 ),
                             )
@@ -1658,7 +1753,7 @@ def _apply_additional_packages(
     # (datasource_name, package_name, normalized_version) -> list[support]
     # The normalized version is computed per datasource (docker uses the full version,
     # others use the canonical major.minor form).
-    support_index: dict[tuple[str, str, str], list[str]] = {}
+    support_index: dict[tuple[str, str, str], list[_Support]] = {}
     for other_repo_data in transversal_status.repositories.values():
         for other_version, other_version_data in other_repo_data.versions.items():
             cleaned_other_version = _clean_version(other_version)
@@ -1687,10 +1782,10 @@ def _apply_additional_packages(
                     continue
                 deps_by_datasource = version_data.get("dependencies_by_datasource")
                 if not isinstance(deps_by_datasource, dict):
-                    version_data["support"] = _NO_SUPPORT_DEFINED
+                    version_data["support"] = _Support(type=_SupportType.NO_SUPPORT_DEFINED)
                     continue
                 # Gather all dependency supports using the pre-built index
-                supports = []
+                supports: list[_Support] = []
                 for dep_datasource_name, dep_datasource in deps_by_datasource.items():
                     if not isinstance(dep_datasource, dict):
                         continue
@@ -1724,14 +1819,14 @@ def _apply_additional_packages(
                             min_support = s
                     version_data["support"] = min_support
                 else:
-                    version_data["support"] = _UNSUPPORTED
+                    version_data["support"] = _Support(type=_SupportType.UNSUPPORTED)
 
         if isinstance(data, dict):
             versions = data.get("versions")
             if isinstance(versions, dict):
                 for version_data in versions.values():
                     if isinstance(version_data, dict) and "support" not in version_data:
-                        version_data["support"] = _NO_SUPPORT_DEFINED
+                        version_data["support"] = _Support(type=_SupportType.NO_SUPPORT_DEFINED)
 
         pydentic_data = _TransversalStatusRepo(**data)
         _rebuild_repo_names(pydentic_data)
