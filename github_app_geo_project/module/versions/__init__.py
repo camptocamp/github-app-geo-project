@@ -1490,13 +1490,11 @@ def _support_cmp(a: _Support, b: _Support) -> int:
     """
 
     # Normalize once and use consistently for category and date parsing
-    a_norm = (a.type.value or "").strip()
-    b_norm = (b.type.value or "").strip()
     a_until = a.until
     b_until = b.until
 
-    cat_a = _support_category(a_norm, a_until)
-    cat_b = _support_category(b_norm, b_until)
+    cat_a = _support_category(a.type.value, a_until)
+    cat_b = _support_category(b.type.value, b_until)
     if _SupportCategory.NO_SUPPORT_DEFINED in (cat_a, cat_b):
         # No support defined is considered equal to everything to never be in red
         return 0
@@ -1505,14 +1503,12 @@ def _support_cmp(a: _Support, b: _Support) -> int:
     if cat_a == _SupportCategory.DATE and cat_b == _SupportCategory.DATE:
         # Both are dates, compare as dates (oldest = less support)
         try:
-            da = a_until or _parse_support_date_value(a_norm)
-            db = b_until or _parse_support_date_value(b_norm)
-            if da is None or db is None:
+            if a_until is None or b_until is None:
                 message = f"Failed to parse support dates for comparison: {a!r}, {b!r}"
                 raise ValueError(message)  # noqa: TRY301
-            if da < db:
+            if a_until < b_until:
                 return -1
-            if da > db:
+            if a_until > b_until:
                 return 1
         except Exception:
             message = "Error parsing dates for support comparison: %s, %s"
