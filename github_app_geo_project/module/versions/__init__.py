@@ -136,6 +136,12 @@ class _Support(BaseModel):
     type: _SupportType = _SupportType.NO_SUPPORT_DEFINED
     until: datetime.date | None = None
 
+    @property
+    def display(self) -> str:
+        if self.type == _SupportType.DATE and self.until is not None:
+            return self.until.strftime("%d/%m/%Y")
+        return self.type.value
+
     @model_validator(mode="before")
     @classmethod
     def _from_str(cls, data: Any) -> Any:
@@ -244,12 +250,6 @@ class _DependencyBase(BaseModel):
     support: _Support
     color: str
     repo: str
-
-    @property
-    def support_display(self) -> str:
-        if self.support.type == _SupportType.DATE and self.support.until is not None:
-            return self.support.until.strftime("%d/%m/%Y")
-        return self.support.type.value
 
 
 class _Dependency(_DependencyBase):
