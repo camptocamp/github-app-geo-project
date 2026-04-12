@@ -1632,7 +1632,11 @@ def _build_reverse_dependency(
                                     name=other_repo,
                                     version=_clean_version(other_version),
                                     support=other_version_data.support,
-                                    color=_UNSUPPORTED_COLOR,
+                                    color=(
+                                        _SUPPORTED_COLOR
+                                        if not repo_data.has_security_policy
+                                        else _UNSUPPORTED_COLOR
+                                    ),
                                     repo=other_repo,
                                 ),
                             )
