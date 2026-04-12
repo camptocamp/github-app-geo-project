@@ -14,7 +14,7 @@ import tempfile
 import tomllib
 from enum import Enum, IntEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import aiohttp
 import anyio
@@ -55,12 +55,6 @@ class _SupportType(Enum):
     TO_BE_DEFINED = "To be defined"
     DATE = "Date"
     UNKNOWN = "Unknown"
-
-
-def _support_display(support: _Support) -> str:
-    if support.type == _SupportType.DATE and support.until is not None:
-        return support.until.strftime("%d/%m/%Y")
-    return support.type.value
 
 
 class _TransversalStatusNameByDatasource(BaseModel):
@@ -106,7 +100,7 @@ class _TransversalStatusNamesByVersion(BaseModel):
     @model_validator(mode="after")
     def _normalize_supports(self) -> _TransversalStatusNamesByVersion:
         self.by_version = {
-            key: value if isinstance(value, _Support) else _Support.model_validate(value)
+            key: value if isinstance(value, _Support) else _Support(type=_SupportType(value))
             for key, value in self.by_version.items()
         }
         return self
@@ -156,23 +150,25 @@ class _Support(BaseModel):
         if isinstance(data, dict) and data.get("type") == "Date":
             return {
                 "type": _SupportType.DATE,
-                "until": data.get("until"),
+                "until": cast("datetime.date | None", data.get("until")),
             }
         if isinstance(data, dict) and "type" in data:
-            support_type = data.get("type")
-            if isinstance(support_type, str):
-                parsed_date = _parse_support_date_value(support_type)
+            raw_type = data.get("type")
+            if raw_type is None:
+                return {**data, "type": _SupportType.UNKNOWN}
+            if isinstance(raw_type, str):
+                parsed_date = _parse_support_date_value(raw_type)
                 if parsed_date is not None:
-                    data = {
+                    return {
                         **data,
                         "type": _SupportType.DATE,
                         "until": data.get("until") or parsed_date,
                     }
-                else:
-                    try:
-                        data = {**data, "type": _SupportType(support_type)}
-                    except ValueError:
-                        data = {**data, "type": _SupportType.UNKNOWN}
+                try:
+                    return {**data, "type": _SupportType(raw_type)}
+                except ValueError:
+                    return {**data, "type": _SupportType.UNKNOWN}
+            return {**data, "type": _SupportType.UNKNOWN}
         return data
 
     @model_validator(mode="after")
@@ -245,22 +241,15 @@ class _IntermediateStatus(BaseModel):
 class _DependencyBase(BaseModel):
     name: str
     version: str
-    support: str
+    support: _Support
     color: str
     repo: str
 
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_support(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "support" in data:
-            value = data.get("support")
-            if isinstance(value, _Support):
-                data = {**data, "support": _support_display(value)}
-            elif isinstance(value, dict):
-                data = {**data, "support": _support_display(_Support(**value))}
-            elif isinstance(value, _SupportType):
-                data = {**data, "support": value.value}
-        return data
+    @property
+    def support_display(self) -> str:
+        if self.support.type == _SupportType.DATE and self.support.until is not None:
+            return self.support.until.strftime("%d/%m/%Y")
+        return self.support.type.value
 
 
 class _Dependency(_DependencyBase):
@@ -433,7 +422,9 @@ class Versions(
                         version = raw[version_index]
                         support = raw[support_index]
                         if version in intermediate_status.version_support:
-                            intermediate_status.version_support[version] = _Support(type=support)
+                            intermediate_status.version_support[version] = _Support(
+                                type=_SupportType(support)
+                            )
 
             intermediate_status.stabilization_versions = stabilization_versions
 
@@ -1422,7 +1413,7 @@ async def _update_upstream_versions(
                 support_until = parsed_eol.astimezone(datetime.UTC).date()
                 eol = parsed_eol.astimezone(datetime.UTC).strftime("%d/%m/%Y")
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
-                support=_Support(type=eol, until=support_until),
+                support=_Support(type=_SupportType(eol), until=support_until),
                 names_by_datasource={
                     datasource: _TransversalStatusNameByDatasource(
                         names=[package],
@@ -1696,7 +1687,7 @@ def _build_reverse_dependency(
                                 _DependencyReverse(
                                     name=other_repo,
                                     version=_clean_version(other_version),
-                                    support=_support_display(other_version_data.support),
+                                    support=other_version_data.support,
                                     color=(
                                         _SUPPORTED_COLOR
                                         if _is_supported(
@@ -1729,7 +1720,7 @@ def _build_reverse_dependency(
                                 _DependencyReverse(
                                     name=other_repo,
                                     version=_clean_version(other_version),
-                                    support=_support_display(other_version_data.support),
+                                    support=other_version_data.support,
                                     color=(
                                         _SUPPORTED_COLOR
                                         if not repo_data.has_security_policy

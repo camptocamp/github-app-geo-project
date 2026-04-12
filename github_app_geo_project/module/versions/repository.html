@@ -12,7 +12,7 @@
 <!---->
 <% dependencies = dependencies_branches.by_branch[branch] %>
 <h3>${branch}</h3>
-<p style="background-color: var(${dependencies.color})">Supported: ${dependencies.support}</p>
+<p style="background-color: var(${dependencies.color})">Supported: ${dependencies.support_display}</p>
 %if dependencies.forward:
 <h4>Internal dependencies</h4>
 <table>
@@ -27,7 +27,7 @@
     <td><a href="?repository=${dependency.repo}">${dependency.name}</a></td>
     <td>${dependency.datasource}</td>
     <td>${dependency.version}</td>
-    <td style="background-color: var(${dependency.color})">${dependency.support}</td>
+    <td style="background-color: var(${dependency.color})">${dependency.support_display}</td>
   </tr>
   %endfor
 </table>
@@ -45,7 +45,7 @@
   <tr>
     <td><a href="?repository=${dependency.repo}">${dependency.name}</a></td>
     <td>${dependency.version}</td>
-    <td style="background-color: var(${dependency.color})">${dependency.support}</td>
+    <td style="background-color: var(${dependency.color})">${dependency.support_display}</td>
   </tr>
   %endfor
 </table>
