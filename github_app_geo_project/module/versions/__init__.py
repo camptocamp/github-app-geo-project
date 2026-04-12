@@ -100,7 +100,7 @@ class _TransversalStatusNamesByVersion(BaseModel):
     @model_validator(mode="after")
     def _normalize_supports(self) -> _TransversalStatusNamesByVersion:
         self.by_version = {
-            key: value if isinstance(value, _Support) else _Support(type=_SupportType(value))
+            key: value if isinstance(value, _Support) else _Support.model_validate(value)
             for key, value in self.by_version.items()
         }
         return self
@@ -160,6 +160,8 @@ class _Support(BaseModel):
             }
         if isinstance(data, dict) and "type" in data:
             raw_type = data.get("type")
+            if isinstance(raw_type, _SupportType):
+                return {**data, "type": raw_type}
             if raw_type is None:
                 return {**data, "type": _SupportType.UNKNOWN}
             if isinstance(raw_type, str):
@@ -1413,7 +1415,7 @@ async def _update_upstream_versions(
                 support_until = parsed_eol.astimezone(datetime.UTC).date()
                 eol = parsed_eol.astimezone(datetime.UTC).strftime("%d/%m/%Y")
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
-                support=_Support(type=_SupportType(eol), until=support_until),
+                support=_Support(type=_SupportType.DATE, until=support_until),
                 names_by_datasource={
                     datasource: _TransversalStatusNameByDatasource(
                         names=[package],
