@@ -23,7 +23,7 @@ import githubkit.exception
 import githubkit.versions.latest.models
 import security_md
 import yaml
-from pydantic import BaseModel, Field, model_serializer, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from github_app_geo_project import module, utils
 from github_app_geo_project.module import ProcessOutput
@@ -111,10 +111,6 @@ class _TransversalStatusNamesByVersion(BaseModel):
         }
         return self
 
-    @model_serializer(mode="plain")
-    def _to_flat(self) -> dict[str, Any]:
-        return {key: _support_display(value) for key, value in self.by_version.items()}
-
 
 class _TransversalStatusNamesByPackage(BaseModel):
     """Map package name -> versions map for one datasource."""
@@ -127,10 +123,6 @@ class _TransversalStatusNamesByPackage(BaseModel):
         if isinstance(data, dict) and "by_package" not in data:
             return {"by_package": data}
         return data
-
-    @model_serializer(mode="plain")
-    def _to_flat(self) -> dict[str, _TransversalStatusNamesByVersion]:
-        return self.by_package
 
 
 class _TransversalStatusNamesIndex(BaseModel):
@@ -145,21 +137,10 @@ class _TransversalStatusNamesIndex(BaseModel):
             return {"by_datasource": data}
         return data
 
-    @model_serializer(mode="plain")
-    def _to_flat(self) -> dict[str, _TransversalStatusNamesByPackage]:
-        return self.by_datasource
-
 
 class _Support(BaseModel):
     type: _SupportType = _SupportType.NO_SUPPORT_DEFINED
     until: datetime.date | None = None
-
-    @model_serializer(mode="plain")
-    def _to_plain(self) -> dict[str, Any]:
-        data: dict[str, Any] = {"type": self.type.value}
-        if self.until is not None:
-            data["until"] = self.until
-        return data
 
     @model_validator(mode="before")
     @classmethod

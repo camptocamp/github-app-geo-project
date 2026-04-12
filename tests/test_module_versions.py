@@ -189,17 +189,35 @@ DEBUG: Determining if we should process repository camptocamp/tilecloud, using G
             },
             "has_security_policy": False,
             "names_index": {
-                "docker": {
-                    "ghcr.io/camptocamp/github-app-geo-project:master": {"master": "Best effort"},
-                },
-                "github-release": {
-                    "camptocamp/test": {"master": "Best effort"},
-                },
-                "npm": {
-                    "ghci": {"master": "Best effort"},
-                },
-                "pypi": {
-                    "github-app-geo-project": {"master": "Best effort"},
+                "by_datasource": {
+                    "docker": {
+                        "by_package": {
+                            "ghcr.io/camptocamp/github-app-geo-project:master": {
+                                "by_version": {"master": {"type": "Best effort"}},
+                            },
+                        },
+                    },
+                    "github-release": {
+                        "by_package": {
+                            "camptocamp/test": {
+                                "by_version": {"master": {"type": "Best effort"}},
+                            },
+                        },
+                    },
+                    "npm": {
+                        "by_package": {
+                            "ghci": {
+                                "by_version": {"master": {"type": "Best effort"}},
+                            },
+                        },
+                    },
+                    "pypi": {
+                        "by_package": {
+                            "github-app-geo-project": {
+                                "by_version": {"master": {"type": "Best effort"}},
+                            },
+                        },
+                    },
                 },
             },
             "versions": {
@@ -313,9 +331,15 @@ def test_get_transversal_dashboard_repo_forward(
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
                 names_index={
-                    "pypi": {
-                        "other_package": {
-                            "2.0": other_support,
+                    "by_datasource": {
+                        "pypi": {
+                            "by_package": {
+                                "other_package": {
+                                    "by_version": {
+                                        "2.0": other_support,
+                                    },
+                                },
+                            },
                         },
                     },
                 },
@@ -376,9 +400,13 @@ def test_get_transversal_dashboard_repo_forward_docker() -> None:
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
                 names_index={
-                    "docker": {
-                        "camptocamp/other:2.0": {
-                            "2.0": "Best effort",
+                    "by_datasource": {
+                        "docker": {
+                            "by_package": {
+                                "camptocamp/other:2.0": {
+                                    "by_version": {"2.0": {"type": "Best effort"}},
+                                },
+                            },
                         },
                     },
                 },
@@ -441,12 +469,16 @@ def test_get_transversal_dashboard_repo_forward_docker_2() -> None:
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
                 names_index={
-                    "docker": {
-                        "osgeo/gdal:ubuntu-small-3.8.5": {
-                            "2.0": "Best effort",
-                        },
-                        "ghcr.io/osgeo/gdal:ubuntu-small-3.8.5": {
-                            "2.0": "Best effort",
+                    "by_datasource": {
+                        "docker": {
+                            "by_package": {
+                                "osgeo/gdal:ubuntu-small-3.8.5": {
+                                    "by_version": {"2.0": {"type": "Best effort"}},
+                                },
+                                "ghcr.io/osgeo/gdal:ubuntu-small-3.8.5": {
+                                    "by_version": {"2.0": {"type": "Best effort"}},
+                                },
+                            },
                         },
                     },
                 },
@@ -512,12 +544,16 @@ def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
                 names_index={
-                    "docker": {
-                        "camptocamp/other:1.0": {
-                            "1.0": "Best effort",
-                        },
-                        "camptocamp/other:2.0": {
-                            "2.0": "Best effort",
+                    "by_datasource": {
+                        "docker": {
+                            "by_package": {
+                                "camptocamp/other:1.0": {
+                                    "by_version": {"1.0": {"type": "Best effort"}},
+                                },
+                                "camptocamp/other:2.0": {
+                                    "by_version": {"2.0": {"type": "Best effort"}},
+                                },
+                            },
                         },
                     },
                 },
@@ -596,10 +632,16 @@ def test_get_transversal_dashboard_repo_forward_docker_multiple_statuses() -> No
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
                 names_index={
-                    "docker": {
-                        "camptocamp/other:latest": {
-                            "1.0": "Best effort",
-                            "2.0": "Unsupported",
+                    "by_datasource": {
+                        "docker": {
+                            "by_package": {
+                                "camptocamp/other:latest": {
+                                    "by_version": {
+                                        "1.0": {"type": "Best effort"},
+                                        "2.0": {"type": "Unsupported"},
+                                    },
+                                },
+                            },
                         },
                     },
                 },
@@ -674,8 +716,14 @@ def test_get_transversal_dashboard_repo_forward_docker_empty_status() -> None:
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
                 names_index={
-                    "docker": {
-                        "camptocamp/other:latest": {},
+                    "by_datasource": {
+                        "docker": {
+                            "by_package": {
+                                "camptocamp/other:latest": {
+                                    "by_version": {},
+                                },
+                            },
+                        },
                     },
                 },
             ),
@@ -727,9 +775,13 @@ def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
                 names_index={
-                    "pypi": {
-                        "other_package": {
-                            "3.0": "Best effort",
+                    "by_datasource": {
+                        "pypi": {
+                            "by_package": {
+                                "other_package": {
+                                    "by_version": {"3.0": {"type": "Best effort"}},
+                                },
+                            },
                         },
                     },
                 },
@@ -790,9 +842,13 @@ def test_get_transversal_dashboard_repo_forward_no_support() -> None:
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=False,
                 names_index={
-                    "pypi": {
-                        "other_package": {
-                            "master": "Best effort",
+                    "by_datasource": {
+                        "pypi": {
+                            "by_package": {
+                                "other_package": {
+                                    "by_version": {"master": {"type": "Best effort"}},
+                                },
+                            },
                         },
                     },
                 },
@@ -853,9 +909,15 @@ def test_get_transversal_dashboard_repo_forward_no_support_version() -> None:
             "camptocamp/other": _TransversalStatusRepo(
                 has_security_policy=True,
                 names_index={
-                    "pypi": {
-                        "other_package": {
-                            "1.0": {"type": "Date", "until": "2045-01-01"},
+                    "by_datasource": {
+                        "pypi": {
+                            "by_package": {
+                                "other_package": {
+                                    "by_version": {
+                                        "1.0": {"type": "Date", "until": "2045-01-01"},
+                                    },
+                                },
+                            },
                         },
                     },
                 },
@@ -1699,7 +1761,7 @@ def test_transversal_status_to_json():
             "package1": {
                 "dependencies_index": {"by_datasource": {}},
                 "has_security_policy": False,
-                "names_index": {},
+                "names_index": {"by_datasource": {}},
                 "url": "url1",
                 "versions": {},
             },
@@ -2102,10 +2164,16 @@ def test_apply_additional_packages_least_support():
     main_version = repo2.versions["main"]
     assert main_version.support.type.value == "Date"
     assert main_version.support.until == datetime.date(2023, 6, 1)
-    assert repo2.names_index.model_dump() == {
-        "pypi": {
-            "repo2": {
-                "main": "01/06/2023",
+    assert repo2.names_index.model_dump(mode="json") == {
+        "by_datasource": {
+            "pypi": {
+                "by_package": {
+                    "repo2": {
+                        "by_version": {
+                            "main": {"type": "Date", "until": "2023-06-01"},
+                        },
+                    },
+                },
             },
         },
     }
