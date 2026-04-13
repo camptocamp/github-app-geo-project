@@ -14,7 +14,7 @@ import tempfile
 import tomllib
 from enum import Enum, IntEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import aiohttp
 import anyio
@@ -90,46 +90,17 @@ class _TransversalStatusNamesByVersion(BaseModel):
 
     by_version: dict[str, _Support] = {}
 
-    @model_validator(mode="before")
-    @classmethod
-    def _from_flat(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "by_version" not in data:
-            return {"by_version": data}
-        return data
-
-    @model_validator(mode="after")
-    def _normalize_supports(self) -> _TransversalStatusNamesByVersion:
-        self.by_version = {
-            key: value if isinstance(value, _Support) else _Support.model_validate(value)
-            for key, value in self.by_version.items()
-        }
-        return self
-
 
 class _TransversalStatusNamesByPackage(BaseModel):
     """Map package name -> versions map for one datasource."""
 
     by_package: dict[str, _TransversalStatusNamesByVersion] = {}
 
-    @model_validator(mode="before")
-    @classmethod
-    def _from_flat(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "by_package" not in data:
-            return {"by_package": data}
-        return data
-
 
 class _TransversalStatusNamesIndex(BaseModel):
     """Map datasource -> package map."""
 
     by_datasource: dict[str, _TransversalStatusNamesByPackage] = {}
-
-    @model_validator(mode="before")
-    @classmethod
-    def _from_flat(cls, data: Any) -> Any:
-        if isinstance(data, dict) and "by_datasource" not in data:
-            return {"by_datasource": data}
-        return data
 
 
 class _Support(BaseModel):
@@ -142,47 +113,11 @@ class _Support(BaseModel):
             return self.until.strftime("%d/%m/%Y")
         return self.type.value
 
-    @model_validator(mode="before")
-    @classmethod
-    def _from_str(cls, data: Any) -> Any:
-        if isinstance(data, str):
-            parsed_date = _parse_support_date_value(data)
-            if parsed_date is not None:
-                return {"type": _SupportType.DATE, "until": parsed_date}
-            for support_type in _SupportType:
-                if support_type.value.lower() == data.lower():
-                    return {"type": support_type}
-            return {"type": _SupportType.UNKNOWN}
-        if isinstance(data, dict) and data.get("type") == "Date":
-            return {
-                "type": _SupportType.DATE,
-                "until": cast("datetime.date | None", data.get("until")),
-            }
-        if isinstance(data, dict) and "type" in data:
-            raw_type = data.get("type")
-            if isinstance(raw_type, _SupportType):
-                return {**data, "type": raw_type}
-            if raw_type is None:
-                return {**data, "type": _SupportType.UNKNOWN}
-            if isinstance(raw_type, str):
-                parsed_date = _parse_support_date_value(raw_type)
-                if parsed_date is not None:
-                    return {
-                        **data,
-                        "type": _SupportType.DATE,
-                        "until": data.get("until") or parsed_date,
-                    }
-                try:
-                    return {**data, "type": _SupportType(raw_type)}
-                except ValueError:
-                    return {**data, "type": _SupportType.UNKNOWN}
-            return {**data, "type": _SupportType.UNKNOWN}
-        return data
-
     @model_validator(mode="after")
     def _set_until_from_type(self) -> _Support:
-        if self.until is None and self.type != _SupportType.UNKNOWN:
-            self.until = _parse_support_date_value(str(self.type.value))
+        if self.type == _SupportType.DATE and self.until is None:
+            msg = "Support `until` is required when support type is `Date`."
+            raise ValueError(msg)
         return self
 
 
@@ -1401,9 +1336,9 @@ async def _update_upstream_versions(
         _LOGGER.debug(message)
         for cycle in cycles:
             eol = cycle.get("eol")
-            support_until = None
+            support: _Support
             if eol is False:
-                eol = _SupportType.BEST_EFFORT.value
+                support = _Support(type=_SupportType.BEST_EFFORT)
             else:
                 if not isinstance(eol, str):
                     continue
@@ -1412,10 +1347,12 @@ async def _update_upstream_versions(
                 )
                 if parsed_eol < datetime.datetime.now(datetime.UTC):
                     continue
-                support_until = parsed_eol.astimezone(datetime.UTC).date()
-                eol = parsed_eol.astimezone(datetime.UTC).strftime("%d/%m/%Y")
+                support = _Support(
+                    type=_SupportType.DATE,
+                    until=parsed_eol.astimezone(datetime.UTC).date(),
+                )
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
-                support=_Support(type=_SupportType.DATE, until=support_until),
+                support=support,
                 names_by_datasource={
                     datasource: _TransversalStatusNameByDatasource(
                         names=[package],
