@@ -875,7 +875,13 @@ async def create_commit_pull_request(
             cwd,
         )
         await run_timeout(
-            ["pre-commit", "run", "--all-files", "--show-diff-on-failure"],
+            [
+                "pre-commit",
+                "run",
+                "--all-files",
+                "--show-diff-on-failure",
+                "--config=.pre-commit-config.yaml",
+            ],
             env,
             600,
             "Run pre-commit",

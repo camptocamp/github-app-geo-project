@@ -144,7 +144,13 @@ async def snyk(
 
     pre_commit_config = get_pre_commit_config(audit_config, audit_local_config)
     if pre_commit_config.get("enabled", True) and (cwd / ".pre-commit-config.yaml").exists():
-        command = ["pre-commit", "run", "--all-files", "--show-diff-on-failure"]
+        command = [
+            "pre-commit",
+            "run",
+            "--all-files",
+            "--show-diff-on-failure",
+            "--config=.pre-commit-config.yaml",
+        ]
         proc = await asyncio.create_subprocess_exec(
             *command,
             stdin=asyncio.subprocess.PIPE,
