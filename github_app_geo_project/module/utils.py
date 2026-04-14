@@ -934,7 +934,7 @@ async def close_pull_request_issues(
             ref=new_branch,
         )
 
-    title = f"Pull request {message} is open for 5 days"
+    title_start = f"Pull request {message} is open for "
     issues = (
         await github_project.aio_github.rest.issues.async_list_for_repo(
             owner=github_project.owner,
@@ -945,7 +945,32 @@ async def close_pull_request_issues(
     ).parsed_data
     assert issues is not None
     for issue in issues:
-        if title == issue.title:
+        if issue.title.startswith(title_start):
+            await github_project.aio_github.rest.issues.async_update(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                issue_number=issue.number,
+                state="closed",
+            )
+
+
+async def close_pull_request_related_issues(
+    github_project: configuration.GithubProject,
+    pull_request_number: int,
+) -> None:
+    """Close all warning issues related to a pull request number."""
+    issue_body = f"See: #{pull_request_number}"
+    issues = (
+        await github_project.aio_github.rest.issues.async_list_for_repo(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            state="open",
+            creator=f"{github_project.application.slug}[bot]",
+        )
+    ).parsed_data
+    assert issues is not None
+    for issue in issues:
+        if issue.title.startswith("Pull request ") and issue.body == issue_body:
             await github_project.aio_github.rest.issues.async_update(
                 owner=github_project.owner,
                 repo=github_project.repository,

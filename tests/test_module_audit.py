@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
-from github_app_geo_project.module.audit import _EventData, _process_renovate
+from github_app_geo_project.module.audit import Audit, _EventData, _process_renovate
 
 
 @pytest.mark.asyncio
@@ -295,3 +295,45 @@ async def test_process_renovate_version_cleanup_pr_creation_failure():
 
                 # Assertions
                 assert result is False
+
+
+def test_get_actions_pull_request_closed() -> None:
+    """Test that a closed pull request triggers issue closing action."""
+    context = Mock()
+    context.module_event_name = "pull_request"
+    context.github_event_data = {"action": "closed"}
+
+    event_data = Mock()
+    event_data.action = "closed"
+
+    with patch("githubkit.webhooks.parse_obj", return_value=event_data):
+        actions = Audit().get_actions(context)
+
+    assert len(actions) == 1
+    assert actions[0].data == _EventData(type="close-pull-request-issues")
+
+
+@pytest.mark.asyncio
+async def test_process_close_pull_request_issues_action() -> None:
+    """Test processing close-pull-request-issues event data."""
+    context = Mock()
+    context.module_event_data = _EventData(type="close-pull-request-issues")
+    context.github_event_data = {"action": "closed"}
+    context.github_project = Mock()
+    context.issue_data = ""
+
+    event_data = Mock()
+    event_data.pull_request = Mock()
+    event_data.pull_request.number = 42
+
+    with (
+        patch("githubkit.webhooks.parse_obj", return_value=event_data),
+        patch(
+            "github_app_geo_project.module.audit.module_utils.close_pull_request_related_issues",
+            new=AsyncMock(),
+        ) as mock_close_related,
+    ):
+        result = await Audit().process(context)
+
+    mock_close_related.assert_awaited_once_with(context.github_project, 42)
+    assert result.success is True
