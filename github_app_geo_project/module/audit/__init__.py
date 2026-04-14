@@ -584,6 +584,20 @@ class Audit(
         Usually the only action allowed to be done in this method is to set the pull request checks status
         Note that this function is called in the web server Pod who has low resources, and this call should be fast
         """
+        if context.module_event_name == "pull_request":
+            event_data_pull_request = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
+            if event_data_pull_request.action == "closed":
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STANDARD,
+                        data=_EventData(type="close-pull-request-issues"),
+                        title="close-pull-request-issues",
+                    )
+                ]
+
         if context.module_event_name == "push":
             event_data_push = githubkit.webhooks.parse_obj(
                 "push",
@@ -684,6 +698,17 @@ class Audit(
         short_message: list[str] = []
         success = True
         intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
+
+        if context.module_event_data.type == "close-pull-request-issues":
+            event_data_pull_request = githubkit.webhooks.parse_obj(
+                "pull_request",
+                context.github_event_data,
+            )
+            await module_utils.close_pull_request_related_issues(
+                context.github_project,
+                event_data_pull_request.pull_request.number,
+            )
+            return module.ProcessOutput(success=True)
 
         # Handle cleanup when SECURITY.md is removed on default branch
         if context.module_event_data.type == "cleanup":
@@ -994,7 +1019,7 @@ class Audit(
                 "contents": "write",
                 "workflows": "write",
             },
-            {"push"},
+            {"push", "pull_request"},
         )
 
     def has_transversal_dashboard(self) -> bool:

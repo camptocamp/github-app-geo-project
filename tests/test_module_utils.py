@@ -1,5 +1,7 @@
 import datetime
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
+
+import pytest
 
 from github_app_geo_project.module import utils
 
@@ -186,3 +188,72 @@ def test_manage_updated_separated():
 
     assert "key3" not in updated
     assert "key3" not in data
+
+
+@pytest.mark.asyncio
+async def test_close_pull_request_issues_close_matching_issue() -> None:
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+    github_project.application.slug = "my-app"
+
+    github_project.aio_github.rest.pulls.async_list = AsyncMock(return_value=MagicMock(parsed_data=[]))
+    github_project.aio_github.rest.git.async_delete_ref = AsyncMock()
+
+    issue_to_close = MagicMock()
+    issue_to_close.title = "Pull request Audit Snyk check/fix 1.2 is open for 14 days"
+    issue_to_close.number = 101
+    issue_other = MagicMock()
+    issue_other.title = "Unrelated issue"
+    issue_other.number = 202
+
+    github_project.aio_github.rest.issues.async_list_for_repo = AsyncMock(
+        return_value=MagicMock(parsed_data=[issue_to_close, issue_other]),
+    )
+    github_project.aio_github.rest.issues.async_update = AsyncMock()
+
+    await utils.close_pull_request_issues("ghci/audit/snyk/1.2", "Audit Snyk check/fix 1.2", github_project)
+
+    github_project.aio_github.rest.issues.async_update.assert_awaited_once_with(
+        owner="owner",
+        repo="repo",
+        issue_number=101,
+        state="closed",
+    )
+
+
+@pytest.mark.asyncio
+async def test_close_pull_request_related_issues_close_by_pull_request_number() -> None:
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+    github_project.application.slug = "my-app"
+
+    issue_to_close = MagicMock()
+    issue_to_close.title = "Pull request Audit Dpkg 2.0 is open for 9 days"
+    issue_to_close.body = "See: #42"
+    issue_to_close.number = 303
+
+    issue_wrong_pr = MagicMock()
+    issue_wrong_pr.title = "Pull request Audit Dpkg 2.0 is open for 9 days"
+    issue_wrong_pr.body = "See: #43"
+    issue_wrong_pr.number = 404
+
+    issue_wrong_title = MagicMock()
+    issue_wrong_title.title = "Audit warning"
+    issue_wrong_title.body = "See: #42"
+    issue_wrong_title.number = 505
+
+    github_project.aio_github.rest.issues.async_list_for_repo = AsyncMock(
+        return_value=MagicMock(parsed_data=[issue_to_close, issue_wrong_pr, issue_wrong_title]),
+    )
+    github_project.aio_github.rest.issues.async_update = AsyncMock()
+
+    await utils.close_pull_request_related_issues(github_project, 42)
+
+    github_project.aio_github.rest.issues.async_update.assert_awaited_once_with(
+        owner="owner",
+        repo="repo",
+        issue_number=303,
+        state="closed",
+    )
