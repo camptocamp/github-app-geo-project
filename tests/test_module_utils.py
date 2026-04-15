@@ -6,6 +6,11 @@ import pytest
 from github_app_geo_project.module import utils
 
 
+async def _aiter(items):
+    for item in items:
+        yield item
+
+
 def test_parse_dashboard_issue() -> None:
     issue_data = "first\n- [x] <!-- comment --> title\n- [ ] title2\n\nother"
     result = utils.parse_dashboard_issue(issue_data)
@@ -207,9 +212,7 @@ async def test_close_pull_request_issues_close_matching_issue() -> None:
     issue_other.title = "Unrelated issue"
     issue_other.number = 202
 
-    github_project.aio_github.rest.issues.async_list_for_repo = AsyncMock(
-        return_value=MagicMock(parsed_data=[issue_to_close, issue_other]),
-    )
+    github_project.aio_github.paginate = MagicMock(return_value=_aiter([issue_to_close, issue_other]))
     github_project.aio_github.rest.issues.async_update = AsyncMock()
 
     await utils.close_pull_request_issues("ghci/audit/snyk/1.2", "Audit Snyk check/fix 1.2", github_project)
@@ -231,7 +234,7 @@ async def test_close_pull_request_related_issues_close_by_pull_request_number() 
 
     issue_to_close = MagicMock()
     issue_to_close.title = "Pull request Audit Dpkg 2.0 is open for 9 days"
-    issue_to_close.body = "See: #42"
+    issue_to_close.body = "See: #42\n\n[Logs](https://example.com/logs/123)"
     issue_to_close.number = 303
 
     issue_wrong_pr = MagicMock()
@@ -244,8 +247,8 @@ async def test_close_pull_request_related_issues_close_by_pull_request_number() 
     issue_wrong_title.body = "See: #42"
     issue_wrong_title.number = 505
 
-    github_project.aio_github.rest.issues.async_list_for_repo = AsyncMock(
-        return_value=MagicMock(parsed_data=[issue_to_close, issue_wrong_pr, issue_wrong_title]),
+    github_project.aio_github.paginate = MagicMock(
+        return_value=_aiter([issue_to_close, issue_wrong_pr, issue_wrong_title]),
     )
     github_project.aio_github.rest.issues.async_update = AsyncMock()
 
