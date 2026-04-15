@@ -208,10 +208,10 @@
           <!---->
           %endif
           <!---->
-          %if job.log:
-          <a href="${request.route_url('logs', id=job.id)}">Logs</a>
-          %elif job.status_enum.value in ['new', 'pending']:
+          %if job.status_enum.value in ['new', 'pending']:
           <a href="${request.route_url('logs', id=job.id)}">Status</a>
+          %else:
+          <a href="${request.route_url('logs', id=job.id)}">Logs</a>
           %endif
         </div>
         <!-- for Prettier -->
