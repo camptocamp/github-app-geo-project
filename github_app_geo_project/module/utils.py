@@ -941,16 +941,14 @@ async def close_pull_request_issues(
         )
 
     title_start = f"Pull request {message} is open for "
-    issues = (
-        await github_project.aio_github.rest.issues.async_list_for_repo(
-            owner=github_project.owner,
-            repo=github_project.repository,
-            state="open",
-            creator=f"{github_project.application.slug}[bot]",
-        )
-    ).parsed_data
-    assert issues is not None
-    for issue in issues:
+    issue: githubkit.versions.latest.models.Issue
+    async for issue in github_project.aio_github.paginate(
+        github_project.aio_github.rest.issues.async_list_for_repo,
+        owner=github_project.owner,
+        repo=github_project.repository,
+        state="open",
+        creator=f"{github_project.application.slug}[bot]",
+    ):
         if issue.title.startswith(title_start):
             await github_project.aio_github.rest.issues.async_update(
                 owner=github_project.owner,
@@ -965,18 +963,17 @@ async def close_pull_request_related_issues(
     pull_request_number: int,
 ) -> None:
     """Close all warning issues related to a pull request number."""
-    issue_body = f"See: #{pull_request_number}"
-    issues = (
-        await github_project.aio_github.rest.issues.async_list_for_repo(
-            owner=github_project.owner,
-            repo=github_project.repository,
-            state="open",
-            creator=f"{github_project.application.slug}[bot]",
-        )
-    ).parsed_data
-    assert issues is not None
-    for issue in issues:
-        if issue.title.startswith("Pull request ") and issue.body == issue_body:
+    issue: githubkit.versions.latest.models.Issue
+    async for issue in github_project.aio_github.paginate(
+        github_project.aio_github.rest.issues.async_list_for_repo,
+        owner=github_project.owner,
+        repo=github_project.repository,
+        state="open",
+        creator=f"{github_project.application.slug}[bot]",
+    ):
+        body: str = issue.body or ""
+        references = {int(match.group(1)) for match in re.finditer(r"(?m)^See:\s*#(\d+)\s*$", body)}
+        if issue.title.startswith("Pull request ") and pull_request_number in references:
             await github_project.aio_github.rest.issues.async_update(
                 owner=github_project.owner,
                 repo=github_project.repository,
