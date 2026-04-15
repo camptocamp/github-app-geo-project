@@ -71,6 +71,8 @@ DashboardIssueRaw = list[DashboardIssueItem | str]
 
 _CHECK_RE = re.compile(r"- \[([ x])\] (.*)")
 _COMMENT_RE = re.compile(r"^(.*)<!--(.*)-->(.*)$")
+_PULL_REQUEST_ISSUE_TITLE_PREFIX = "Pull request "
+_PULL_REQUEST_REFERENCE_RE = re.compile(r"(?m)^See:\s*#(\d+)\s*$")
 
 
 def parse_dashboard_issue(issue_data: str) -> DashboardIssueRaw:
@@ -971,9 +973,12 @@ async def close_pull_request_related_issues(
         state="open",
         creator=f"{github_project.application.slug}[bot]",
     ):
+        if not issue.title.startswith(_PULL_REQUEST_ISSUE_TITLE_PREFIX):
+            continue
+
         body: str = issue.body or ""
-        references = {int(match.group(1)) for match in re.finditer(r"(?m)^See:\s*#(\d+)\s*$", body)}
-        if issue.title.startswith("Pull request ") and pull_request_number in references:
+        references = {int(match.group(1)) for match in _PULL_REQUEST_REFERENCE_RE.finditer(body)}
+        if pull_request_number in references:
             await github_project.aio_github.rest.issues.async_update(
                 owner=github_project.owner,
                 repo=github_project.repository,
