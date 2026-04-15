@@ -113,6 +113,9 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
         context: module.ProcessContext[configuration.CleanConfiguration, _ActionData],
     ) -> module.ProcessOutput[_ActionData, None]:
         """Process the action."""
+        if context.module_event_data.type == "pull_request":
+            await self._delete_closed_pull_request_branch_if_bot_only(context)
+
         if context.module_config.get("docker", True):
             await self._clean_docker(context)
         for git in context.module_config.get("git", []):
@@ -120,6 +123,100 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 await self._clean_git(context, git)
 
         return module.ProcessOutput()
+
+    @staticmethod
+    def _is_bot_login(login: str | None) -> bool:
+        """Return True when the login is clearly a bot login."""
+        return bool(login and login.endswith("[bot]"))
+
+    @classmethod
+    def _looks_like_bot_identity(cls, name: str | None, email: str | None) -> bool:
+        """Return True when the name or email looks like a bot identity."""
+        if name and "[bot]" in name:
+            return True
+
+        if not email:
+            return False
+
+        if "[bot]" in email:
+            return True
+
+        email_lower = email.lower()
+        if email_lower.endswith("@users.noreply.github.com"):
+            local_part = email_lower.split("@", 1)[0]
+            return local_part.endswith("[bot]")
+
+        return False
+
+    @classmethod
+    def _is_bot_commit(cls, commit: Any) -> bool:
+        """Return True when a commit appears to be authored/committed by a bot."""
+        if cls._is_bot_login(commit.author.login if commit.author else None):
+            return True
+        if cls._is_bot_login(commit.committer.login if commit.committer else None):
+            return True
+
+        author = commit.commit.author if commit.commit else None
+        if cls._looks_like_bot_identity(
+            author.name if author else None,
+            author.email if author else None,
+        ):
+            return True
+
+        committer = commit.commit.committer if commit.commit else None
+        return cls._looks_like_bot_identity(
+            committer.name if committer else None,
+            committer.email if committer else None,
+        )
+
+    async def _delete_closed_pull_request_branch_if_bot_only(
+        self,
+        context: module.ProcessContext[configuration.CleanConfiguration, _ActionData],
+    ) -> None:
+        """Delete the source branch when a closed non-merged pull request has bot-only commits."""
+        event_data_pull_request = githubkit.webhooks.parse_obj(
+            "pull_request",
+            context.github_event_data,
+        )
+        if event_data_pull_request.action != "closed":
+            return
+        if event_data_pull_request.pull_request.merged:
+            return
+
+        head_repo = event_data_pull_request.pull_request.head.repo
+        base_repo = event_data_pull_request.pull_request.base.repo
+        if not head_repo or not base_repo or head_repo.id != base_repo.id:
+            return
+
+        branch_name = event_data_pull_request.pull_request.head.ref
+        default_branch = context.github_event_data.get("repository", {}).get("default_branch")
+        if branch_name == default_branch:
+            return
+
+        has_commits = False
+        commit: Any
+        async for commit in context.github_project.aio_github.paginate(
+            context.github_project.aio_github.rest.pulls.async_list_commits,
+            owner=context.github_project.owner,
+            repo=context.github_project.repository,
+            pull_number=event_data_pull_request.pull_request.number,
+        ):
+            has_commits = True
+            if not self._is_bot_commit(commit):
+                return
+
+        if not has_commits:
+            return
+
+        try:
+            await context.github_project.aio_github.rest.git.async_delete_ref(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                ref=f"heads/{branch_name}",
+            )
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code not in (404, 422):
+                raise
 
     async def _clean_docker(
         self,
