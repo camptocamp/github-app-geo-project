@@ -868,7 +868,7 @@ async def create_commit_pull_request(
             env["PATH"] = f"{Path(pyenv_root) / 'shims'!s}:{Path(pyenv_root) / 'bin'!s}:{env['PATH']}"
         env["SKIP"] = ",".join(skip_pre_commit_hooks)
         await run_timeout(
-            ["prek", "run", "--all-files", "--show-diff-on-failure"],
+            ["prek", "run", "--all-files", "--show-diff-on-failure", "--config=.pre-commit-config.yaml"],
             env,
             600,
             "Run prek",
