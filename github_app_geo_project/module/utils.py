@@ -963,8 +963,14 @@ async def close_pull_request_issues(
 async def close_pull_request_related_issues(
     github_project: configuration.GithubProject,
     pull_request_number: int,
+    pull_request_title: str | None = None,
 ) -> None:
-    """Close all warning issues related to a pull request number."""
+    """Close all warning issues related to a pull request."""
+    title_start = (
+        f"{_PULL_REQUEST_ISSUE_TITLE_PREFIX}{pull_request_title} is open for "
+        if pull_request_title is not None
+        else None
+    )
     issue: githubkit.versions.latest.models.Issue
     async for issue in github_project.aio_github.paginate(
         github_project.aio_github.rest.issues.async_list_for_repo,
@@ -978,7 +984,9 @@ async def close_pull_request_related_issues(
 
         body: str = issue.body or ""
         references = {int(match.group(1)) for match in _PULL_REQUEST_REFERENCE_RE.finditer(body)}
-        if pull_request_number in references:
+        if pull_request_number in references or (
+            title_start is not None and issue.title.startswith(title_start)
+        ):
             await github_project.aio_github.rest.issues.async_update(
                 owner=github_project.owner,
                 repo=github_project.repository,

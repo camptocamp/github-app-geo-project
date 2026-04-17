@@ -325,6 +325,7 @@ async def test_process_close_pull_request_issues_action() -> None:
     event_data = Mock()
     event_data.pull_request = Mock()
     event_data.pull_request.number = 42
+    event_data.pull_request.title = "Audit Snyk check/fix prod-2-9-advance"
 
     with (
         patch("githubkit.webhooks.parse_obj", return_value=event_data),
@@ -335,5 +336,5 @@ async def test_process_close_pull_request_issues_action() -> None:
     ):
         result = await Audit().process(context)
 
-    mock_close_related.assert_awaited_once_with(context.github_project, 42)
+    mock_close_related.assert_awaited_once_with(context.github_project, 42, event_data.pull_request.title)
     assert result.success is True

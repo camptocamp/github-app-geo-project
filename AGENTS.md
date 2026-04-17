@@ -76,3 +76,5 @@ Adding an `async` to a non-async function is completely possible.
 ## Technical Terms
 
 Technical terms in Markdown files, commits, and pull requests must be enclosed in backticks.
+
+Do not add a `Validation` section in pull request descriptions.

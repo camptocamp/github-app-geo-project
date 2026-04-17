@@ -260,3 +260,37 @@ async def test_close_pull_request_related_issues_close_by_pull_request_number() 
         issue_number=303,
         state="closed",
     )
+
+
+@pytest.mark.asyncio
+async def test_close_pull_request_related_issues_close_by_pull_request_title() -> None:
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+    github_project.application.slug = "my-app"
+
+    issue_to_close = MagicMock()
+    issue_to_close.title = "Pull request Audit Snyk check/fix prod-2-9-advance is open for 10 days"
+    issue_to_close.body = "No explicit pull request reference"
+    issue_to_close.number = 606
+
+    issue_other = MagicMock()
+    issue_other.title = "Pull request Audit Snyk check/fix prod-2-10 is open for 10 days"
+    issue_other.body = "No explicit pull request reference"
+    issue_other.number = 707
+
+    github_project.aio_github.paginate = MagicMock(return_value=_aiter([issue_to_close, issue_other]))
+    github_project.aio_github.rest.issues.async_update = AsyncMock()
+
+    await utils.close_pull_request_related_issues(
+        github_project,
+        42,
+        "Audit Snyk check/fix prod-2-9-advance",
+    )
+
+    github_project.aio_github.rest.issues.async_update.assert_awaited_once_with(
+        owner="owner",
+        repo="repo",
+        issue_number=606,
+        state="closed",
+    )

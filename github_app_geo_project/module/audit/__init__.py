@@ -707,6 +707,7 @@ class Audit(
             await module_utils.close_pull_request_related_issues(
                 context.github_project,
                 event_data_pull_request.pull_request.number,
+                event_data_pull_request.pull_request.title,
             )
             return module.ProcessOutput(success=True)
 
