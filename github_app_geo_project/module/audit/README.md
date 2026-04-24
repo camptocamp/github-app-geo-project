@@ -15,6 +15,9 @@ The result will be put in the dashboard issue.
 
 This module will be triggered by the `daily` event.
 
+It also reacts to `pull_request` events with action `closed` to close related issues.
+When the pull request is merged into the default branch, it also triggers the same `Renovate` workflow as the `daily` event.
+
 ### Other files used by the module
 
 - [`SECURITY.md`](https://github.com/camptocamp/c2cciutils/wiki/SECURITY.md) from the default branch to get the stabilization branches.

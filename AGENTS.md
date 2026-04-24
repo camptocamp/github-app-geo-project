@@ -66,6 +66,10 @@ If necessary, for example for a commit that concerns only one module, use the fo
 
 Before each commit ensure that `poetry run prospector --output-format=pylint --ignore-paths=scripts` and `poetry run pytest -vv tests` do not return errors.
 
+## Pull requests
+
+The pull request description should not contain a `Testing` section.
+
 ## Future
 
 The project should fully be in async mode.
