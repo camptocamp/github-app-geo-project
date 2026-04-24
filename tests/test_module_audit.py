@@ -301,10 +301,64 @@ def test_get_actions_pull_request_closed() -> None:
     """Test that a closed pull request triggers issue closing action."""
     context = Mock()
     context.module_event_name = "pull_request"
-    context.github_event_data = {"action": "closed"}
+    context.github_event_data = {
+        "action": "closed",
+        "repository": {"default_branch": "master"},
+    }
 
     event_data = Mock()
     event_data.action = "closed"
+    event_data.pull_request = Mock()
+    event_data.pull_request.merged = False
+    event_data.pull_request.base = Mock()
+    event_data.pull_request.base.ref = "master"
+
+    with patch("githubkit.webhooks.parse_obj", return_value=event_data):
+        actions = Audit().get_actions(context)
+
+    assert len(actions) == 1
+    assert actions[0].data == _EventData(type="close-pull-request-issues")
+
+
+def test_get_actions_pull_request_closed_merged_default_branch_triggers_renovate() -> None:
+    """Test that merged pull request on default branch triggers Renovate action."""
+    context = Mock()
+    context.module_event_name = "pull_request"
+    context.github_event_data = {
+        "action": "closed",
+        "repository": {"default_branch": "master"},
+    }
+
+    event_data = Mock()
+    event_data.action = "closed"
+    event_data.pull_request = Mock()
+    event_data.pull_request.merged = True
+    event_data.pull_request.base = Mock()
+    event_data.pull_request.base.ref = "master"
+
+    with patch("githubkit.webhooks.parse_obj", return_value=event_data):
+        actions = Audit().get_actions(context)
+
+    assert len(actions) == 2
+    assert actions[0].data == _EventData(type="close-pull-request-issues")
+    assert actions[1].data == _EventData(type="renovate")
+
+
+def test_get_actions_pull_request_closed_merged_non_default_branch_no_renovate() -> None:
+    """Test that merged pull request on non-default branch does not trigger Renovate."""
+    context = Mock()
+    context.module_event_name = "pull_request"
+    context.github_event_data = {
+        "action": "closed",
+        "repository": {"default_branch": "master"},
+    }
+
+    event_data = Mock()
+    event_data.action = "closed"
+    event_data.pull_request = Mock()
+    event_data.pull_request.merged = True
+    event_data.pull_request.base = Mock()
+    event_data.pull_request.base.ref = "4.0.0"
 
     with patch("githubkit.webhooks.parse_obj", return_value=event_data):
         actions = Audit().get_actions(context)
