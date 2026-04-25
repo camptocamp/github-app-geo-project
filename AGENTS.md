@@ -66,6 +66,15 @@ If necessary, for example for a commit that concerns only one module, use the fo
 
 Before each commit ensure that `poetry run prospector --output-format=pylint --ignore-paths=scripts` and `poetry run pytest -vv tests` do not return errors.
 
+## Scripts naming
+
+Don't name scripts with an extension like `.sh` suffix; it would be a breaking change if we later rewrite them in another language.
+
+### Bash
+
+Use the `-eu` flags when possible.
+Use explicit variables (`${HOME}` instead of `$HOME`).
+
 ## Pull requests
 
 The pull request description should not contain a `Testing` or `Checks` section.

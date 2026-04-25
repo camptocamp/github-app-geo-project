@@ -1,0 +1,18 @@
+#!/bin/bash -eu
+
+mkdir --parents "${HOME}/.config/pip" "${HOME}/.config/uv"
+
+export PIP_CONFIG_FILE="${HOME}/.config/pip/pip.conf"
+export UV_CONFIG_FILE="${HOME}/.config/uv/uv.toml"
+
+cat >"${PIP_CONFIG_FILE}" <<EOF
+[install]
+uploaded-prior-to = P7D
+EOF
+
+cat >"${UV_CONFIG_FILE}" <<EOF
+exclude-newer = "7 days"
+EOF
+
+
+exec "$@"
