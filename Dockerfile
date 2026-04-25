@@ -16,6 +16,9 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
 
 ENV PATH=/venv/bin:$PATH
 
+RUN --mount=type=cache,target=/root/.cache \
+    python3 -m pip install --disable-pip-version-check "pip>=26.0"
+
 # Used to convert the locked packages by poetry to pip requirements format
 # We don't directly use `poetry install` because it force to use a virtual environment.
 FROM base-all AS poetry
@@ -75,6 +78,10 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
 
 # From c2cwsgiutils
 
+COPY scripts/container-entrypoint /usr/local/bin/container-entrypoint
+RUN chmod +x /usr/local/bin/container-entrypoint
+
+ENTRYPOINT ["/usr/local/bin/container-entrypoint"]
 CMD ["gunicorn", "--paste=/app/production.ini"]
 
 ENV LOG_TYPE=console \

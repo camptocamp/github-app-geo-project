@@ -10,12 +10,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
-  packages: write
-
-  id-token: write
-env:
-  HAS_SECRETS: ${{ secrets.HAS_SECRETS }}
+  contents: read
 
 jobs:
   main:
@@ -23,6 +18,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     if: "!startsWith(github.event.head_commit.message, '[skip ci] ')"
+    outputs:
+      success: ${{ steps.success.outputs.success }}
+    permissions:
+      contents: read
 
     steps:
       - run: df -h
@@ -31,17 +30,17 @@ jobs:
       - run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet "$AGENT_TOOLSDIRECTORY"
       - run: df -h
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
 
       - run: python3 -m pip install --requirement=ci/requirements.txt
       - name: Environment
         run: c2cciutils-env
 
-      - uses: actions/cache@v5
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.cache/pre-commit
           key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -49,7 +48,7 @@ jobs:
       - run: pre-commit run --all-files --color=always
       - run: git diff --exit-code --patch > /tmp/pre-commit.patch; git diff --color; git reset --hard || true
         if: failure()
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Apply pre-commit fix.patch
           path: /tmp/pre-commit.patch
@@ -67,7 +66,7 @@ jobs:
       - run: make tests
       - run: make acceptance-tests
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Acceptance tests
           path: results
@@ -75,24 +74,43 @@ jobs:
       - run: c2cciutils-docker-logs
         if: always()
 
-      - run: git reset --hard
-        if: failure()
-      - name: Publish
-        run: tag-publish
+      - name: Mark success
+        id: success
+        run: echo "success=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    needs:
+      - main
+    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && github.ref_protected == true
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    environment:
+      name: publish
+
+    steps:
+      - name: Ensure main job succeeded
+        run: '[[ "${{ needs.main.outputs.success }}" == "true" ]]'
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+      - run: python3 -m pip install --requirement=ci/requirements.txt
+      - run: tag-publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: env.HAS_SECRETS == 'HAS_SECRETS'
       - run: git diff --exit-code --patch > /tmp/dpkg-versions.patch; git diff --color; git reset --hard || true
         if: failure()
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Update dpkg versions list.patch
           path: /tmp/dpkg-versions.patch
-          retention-days: 1
-        if: failure()
-      - uses: actions/upload-artifact@v7
-        with:
-          name: Update dpkg packages list.patch
-          path: /tmp/dpkg.patch
           retention-days: 1
         if: failure()
