@@ -590,28 +590,13 @@ class Audit(
                 context.github_event_data,
             )
             if event_data_pull_request.action == "closed":
-                actions = [
+                return [
                     module.Action(
                         priority=module.PRIORITY_STANDARD,
                         data=_EventData(type="close-pull-request-issues"),
                         title="close-pull-request-issues",
                     )
                 ]
-                default_branch = context.github_event_data.get("repository", {}).get("default_branch")
-                if (
-                    event_data_pull_request.pull_request.merged
-                    and default_branch is not None
-                    and event_data_pull_request.pull_request.base.ref == default_branch
-                ):
-                    actions.append(
-                        module.Action(
-                            priority=module.PRIORITY_CRON,
-                            data=_EventData(type="renovate"),
-                            title="renovate",
-                        )
-                    )
-
-                return actions
 
         if context.module_event_name == "push":
             event_data_push = githubkit.webhooks.parse_obj(
@@ -636,6 +621,19 @@ class Audit(
                     *(commit.modified or []),
                     *(commit.added or []),
                 ]:
+                    if event_data_push.ref == f"refs/heads/{event_data_push.repository.default_branch}":
+                        return [
+                            module.Action(
+                                priority=module.PRIORITY_CRON,
+                                data=_EventData(type="outdated"),
+                                title="outdated",
+                            ),
+                            module.Action(
+                                priority=module.PRIORITY_CRON,
+                                data=_EventData(type="renovate"),
+                                title="renovate",
+                            ),
+                        ]
                     return [
                         module.Action(
                             priority=module.PRIORITY_CRON,
