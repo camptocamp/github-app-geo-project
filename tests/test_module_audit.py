@@ -321,7 +321,7 @@ def test_get_actions_pull_request_closed() -> None:
 
 
 def test_get_actions_pull_request_closed_merged_default_branch_triggers_renovate() -> None:
-    """Test that merged pull request on default branch triggers Renovate action."""
+    """Test that merged pull request on default branch only closes related issues."""
     context = Mock()
     context.module_event_name = "pull_request"
     context.github_event_data = {
@@ -339,9 +339,8 @@ def test_get_actions_pull_request_closed_merged_default_branch_triggers_renovate
     with patch("githubkit.webhooks.parse_obj", return_value=event_data):
         actions = Audit().get_actions(context)
 
-    assert len(actions) == 2
+    assert len(actions) == 1
     assert actions[0].data == _EventData(type="close-pull-request-issues")
-    assert actions[1].data == _EventData(type="renovate")
 
 
 def test_get_actions_pull_request_closed_merged_non_default_branch_no_renovate() -> None:
@@ -392,3 +391,42 @@ async def test_process_close_pull_request_issues_action() -> None:
 
     mock_close_related.assert_awaited_once_with(context.github_project, 42, event_data.pull_request.title)
     assert result.success is True
+
+
+def test_get_actions_push_security_md_on_default_branch_triggers_renovate() -> None:
+    """Test that SECURITY.md change on default branch triggers outdated and renovate."""
+    context = Mock()
+    context.module_event_name = "push"
+    context.github_event_data = {"ref": "refs/heads/master"}
+
+    event_data = Mock()
+    event_data.commits = [Mock(modified=["SECURITY.md"], added=[], removed=[])]
+    event_data.ref = "refs/heads/master"
+    event_data.repository = Mock()
+    event_data.repository.default_branch = "master"
+
+    with patch("githubkit.webhooks.parse_obj", return_value=event_data):
+        actions = Audit().get_actions(context)
+
+    assert len(actions) == 2
+    assert actions[0].data == _EventData(type="outdated")
+    assert actions[1].data == _EventData(type="renovate")
+
+
+def test_get_actions_push_security_md_on_non_default_branch_no_renovate() -> None:
+    """Test that SECURITY.md change on non-default branch does not trigger renovate."""
+    context = Mock()
+    context.module_event_name = "push"
+    context.github_event_data = {"ref": "refs/heads/4.0.0"}
+
+    event_data = Mock()
+    event_data.commits = [Mock(modified=["SECURITY.md"], added=[], removed=[])]
+    event_data.ref = "refs/heads/4.0.0"
+    event_data.repository = Mock()
+    event_data.repository.default_branch = "master"
+
+    with patch("githubkit.webhooks.parse_obj", return_value=event_data):
+        actions = Audit().get_actions(context)
+
+    assert len(actions) == 1
+    assert actions[0].data == _EventData(type="outdated")

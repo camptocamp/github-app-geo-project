@@ -68,7 +68,7 @@ Before each commit ensure that `poetry run prospector --output-format=pylint --i
 
 ## Pull requests
 
-The pull request description should not contain a `Testing` section.
+The pull request description should not contain a `Testing` or `Checks` section.
 
 ## Future
 
