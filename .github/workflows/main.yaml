@@ -10,12 +10,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
-  packages: write
-
-  id-token: write
-env:
-  HAS_SECRETS: ${{ secrets.HAS_SECRETS }}
+  contents: read
 
 jobs:
   main:
@@ -23,6 +18,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     if: "!startsWith(github.event.head_commit.message, '[skip ci] ')"
+    outputs:
+      success: ${{ steps.success.outputs.success }}
+    permissions:
+      contents: read
 
     steps:
       - run: df -h
@@ -75,24 +74,43 @@ jobs:
       - run: c2cciutils-docker-logs
         if: always()
 
-      - run: git reset --hard
-        if: failure()
-      - name: Publish
-        run: tag-publish
+      - name: Mark success
+        id: success
+        run: echo "success=true" >> "$GITHUB_OUTPUT"
+
+  publish:
+    name: Publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    needs:
+      - main
+    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && github.ref_protected == true
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+    environment:
+      name: publish
+
+    steps:
+      - name: Ensure main job succeeded
+        run: '[[ "${{ needs.main.outputs.success }}" == "true" ]]'
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+      - run: python3 -m pip install --requirement=ci/requirements.txt
+      - run: tag-publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        if: env.HAS_SECRETS == 'HAS_SECRETS'
       - run: git diff --exit-code --patch > /tmp/dpkg-versions.patch; git diff --color; git reset --hard || true
         if: failure()
       - uses: actions/upload-artifact@v7
         with:
           name: Update dpkg versions list.patch
           path: /tmp/dpkg-versions.patch
-          retention-days: 1
-        if: failure()
-      - uses: actions/upload-artifact@v7
-        with:
-          name: Update dpkg packages list.patch
-          path: /tmp/dpkg.patch
           retention-days: 1
         if: failure()
