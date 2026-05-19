@@ -126,6 +126,28 @@ def test_html_to_markdown() -> None:
     assert utils.html_to_markdown(html) == expected
 
 
+def test_html_message_to_html_escape_on_sanitizer_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _FailingSanitizer:
+        def __init__(self, _: object) -> None:
+            pass
+
+        def sanitize(self, __: str) -> str:
+            raise ValueError("Invalid tag name")
+
+    monkeypatch.setattr(utils.html_sanitizer, "Sanitizer", _FailingSanitizer)
+    monkeypatch.setattr(utils, "_suffix", 10)
+
+    html_message = utils.HtmlMessage('<span style="color:red">broken</span> < not-a-tag', "Title <b>")
+    html = html_message.to_html(style="collapse")
+
+    assert '<div class="collapse-container">' in html
+    assert 'href="#element11"' in html
+    assert 'aria-controls="element11"' in html
+    assert '<div class="collapse" id="element11">' in html
+    assert "Title &lt;b&gt;" in html
+    assert "&lt;span style=&quot;color:red&quot;&gt;broken&lt;/span&gt; &lt; not-a-tag" in html
+
+
 def test_ansi_process_message() -> None:
     ansi_message = utils.AnsiProcessMessage(["command"], 0, "stdout\nmessage", "stderr\nmessage")
     expected_text = """Command: command
