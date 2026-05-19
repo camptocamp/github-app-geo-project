@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import html
 import logging
 import math
 import os
@@ -231,9 +232,55 @@ class HtmlMessage(Message):
         self.html = html
         self.title = title
 
+    @staticmethod
+    def _collapse_html(content: str, title: str, suffix: int) -> str:
+        """Wrap content in a collapse container."""
+        return "".join(
+            [
+                '<div class="collapse-container">',
+                '<p class="d-inline-flex gap-1">',
+                "<a",
+                '  class=""',
+                '  data-bs-toggle="collapse"',
+                f'  href="#element{suffix}"',
+                '  role="button"',
+                '  aria-expanded="false"',
+                f'  aria-controls="element{suffix}">',
+                '<em class="col-up bi bi-chevron-right">&nbsp;</em>',
+                '<em class="col-down bi bi-chevron-down">&nbsp;</em>',
+                title,
+                "</a>",
+                "</p>",
+                f'<div class="collapse" id="element{suffix}">',
+                content,
+                "</div>",
+                "</div>",
+            ],
+        )
+
+    def _get_escaped_fallback_html(self, style: str = "h3", collapse_suffix: int | None = None) -> str:
+        """Get a safe escaped fallback HTML representation."""
+        global _suffix  # noqa: PLW0603
+
+        escaped_html = html.escape(self.html.replace("{pre}", "").replace("{post}", ""))
+        escaped_title = html.escape(self.title)
+
+        body = f"<pre>{escaped_html}</pre>"
+        if style == "collapse" and self.title:
+            if collapse_suffix is None:
+                _suffix += 1
+                collapse_suffix = _suffix
+            return self._collapse_html(body, escaped_title, collapse_suffix)
+
+        if self.title and style != "no-title":
+            return "\n".join([f"<{style}>{escaped_title}</{style}>", body])
+
+        return body
+
     def to_html(self, style: str = "h3") -> str:
         """Convert the ANSI message to HTML."""
         global _suffix  # noqa: PLW0603
+        collapse_suffix: int | None = None
 
         # interpret template parameters
         html = self.html.replace(
@@ -246,28 +293,8 @@ class HtmlMessage(Message):
         if self.title and style != "no-title":
             if style == "collapse":
                 _suffix += 1
-                html = "".join(
-                    [
-                        '<div class="collapse-container">',
-                        '<p class="d-inline-flex gap-1">',
-                        "<a",
-                        '  class=""',
-                        '  data-bs-toggle="collapse"',
-                        f'  href="#element{_suffix}"',
-                        '  role="button"',
-                        '  aria-expanded="false"',
-                        '  aria-controls="collapseExample">',
-                        '<em class="col-up bi bi-chevron-right">&nbsp;</em>',
-                        '<em class="col-down bi bi-chevron-down">&nbsp;</em>',
-                        self.title,
-                        "</a>",
-                        "</p>",
-                        f'<div class="collapse" id="element{_suffix}">',
-                        html,
-                        "</div>",
-                        "</div>",
-                    ],
-                )
+                collapse_suffix = _suffix
+                html = self._collapse_html(html, self.title, collapse_suffix)
             else:
                 html = "\n".join([f"<{style}>{self.title}</{style}>", html])
 
@@ -308,7 +335,14 @@ class HtmlMessage(Message):
                 "keep_typographic_whitespace": True,
             },
         )
-        return cast("str", sanitizer.sanitize(html))
+        try:
+            return cast("str", sanitizer.sanitize(html))
+        except ValueError as exception:
+            _LOGGER.warning(
+                "Failed to sanitize HTML message, using escaped fallback: %s",
+                exception,
+            )
+            return self._get_escaped_fallback_html(style, collapse_suffix)
 
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the ANSI message to markdown."""
