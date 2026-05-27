@@ -493,10 +493,6 @@ class Backport(
             ] = list(pull_request_commits)
 
             if len(commits) != 1:
-                assert isinstance(
-                    pull_request,
-                    githubkit.versions.latest.models.PullRequestWebhook,
-                )
                 # The merge_commit_sha is no more present in the last version of the definition, get it by an other way!
                 pull_request_response = await context.github_project.aio_github.rest.pulls.async_get(
                     owner=context.github_project.owner,
