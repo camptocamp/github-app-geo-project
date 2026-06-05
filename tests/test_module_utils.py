@@ -114,6 +114,21 @@ def test_AnsiMessage() -> None:
     assert markdown == "title\nmessage"
 
 
+def test_sanitize_command_for_log() -> None:
+    command = [
+        "git",
+        "clone",
+        "https://x-access-token:ghs_secretToken123@github.com/mapfish/mapfish-print.git",
+        "github_pat_0123456789ABCDEFGHIJKLMNOP",
+    ]
+
+    sanitized = utils._sanitize_command_for_log(command)
+
+    assert "ghs_secretToken123" not in sanitized
+    assert "github_pat_0123456789ABCDEFGHIJKLMNOP" not in sanitized
+    assert "x-access-token:***" in sanitized
+
+
 def test_html_to_markdown() -> None:
     html = """<span style="font-weight: bold">bold</span>
 <span style="font-style: italic">italic</span></p>
