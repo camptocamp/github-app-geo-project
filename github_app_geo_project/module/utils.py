@@ -74,6 +74,19 @@ _CHECK_RE = re.compile(r"- \[([ x])\] (.*)")
 _COMMENT_RE = re.compile(r"^(.*)<!--(.*)-->(.*)$")
 _PULL_REQUEST_ISSUE_TITLE_PREFIX = "Pull request "
 _PULL_REQUEST_REFERENCE_RE = re.compile(r"(?m)^See:\s*#(\d+)\s*$")
+_COMMAND_CREDENTIAL_RE = re.compile(r"(https?://[^/@\s:]+:)([^@\s/]+)(@)")
+_X_ACCESS_TOKEN_RE = re.compile(r"(x-access-token:)([0-9a-zA-Z_.-]+)")
+_GITHUB_TOKEN_RE = re.compile(r"\b(ghs|ghp|github_pat)_[0-9a-zA-Z_]+\b")
+
+
+def _sanitize_command_argument(argument: str) -> str:
+    sanitized = _X_ACCESS_TOKEN_RE.sub(r"\1***", argument)
+    sanitized = _COMMAND_CREDENTIAL_RE.sub(r"\1***\3", sanitized)
+    return _GITHUB_TOKEN_RE.sub("***", sanitized)
+
+
+def _sanitize_command_for_log(command: list[str]) -> str:
+    return shlex.join([_sanitize_command_argument(str(argument)) for argument in command])
 
 
 def parse_dashboard_issue(issue_data: str) -> DashboardIssueRaw:
@@ -596,8 +609,9 @@ async def run_timeout(
     ------
     The standard output, the success, the logged message
     """
+    sanitized_command = _sanitize_command_for_log(command)
     log_message = "Run command: %s"
-    args: list[Any] = [shlex.join(command)]
+    args: list[Any] = [sanitized_command]
     if cwd:
         log_message += ", in %s"
         args.append(cwd)
@@ -619,7 +633,7 @@ async def run_timeout(
                 )
                 stdout, stderr = await async_proc.communicate()
             finally:
-                _LOGGER.debug("Command %s finished", shlex.join(command))
+                _LOGGER.debug("Command %s finished", sanitized_command)
             assert async_proc.returncode is not None
             message: Message = AnsiProcessMessage.from_async_artifacts(
                 command,
