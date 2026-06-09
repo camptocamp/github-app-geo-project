@@ -58,11 +58,15 @@ Run prospector: `poetry run prospector --output-format=pylint --ignore-paths=scr
 
 Run tests: `poetry run pytest -vv tests`.
 
+## CI
+
+Don't add `python-version` to the `actions/setup-python` actions id mest use the version from the `.python-version` file.
+
 ## Commits
 
 Do not use the conventional commit conventions.
 The commit messages should start with a capital.
-If necessary, for example for a commit that concerns only one module, use the format: 'Context: Message' (with a message that starts with an uppercase).
+If necessary, for example for a commit that concerns only one module, use the format: '<Context>: <Message>' (with a message that starts with an uppercase).
 
 Before each commit ensure that `poetry run prospector --output-format=pylint --ignore-paths=scripts` and `poetry run pytest -vv tests` do not return errors.
 

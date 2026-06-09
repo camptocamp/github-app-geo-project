@@ -750,7 +750,7 @@ def outdated_versions(
 
 
 _GENERATION_TIME = None
-_SOURCES = {}
+_SOURCES: dict[str, apt_repo.APTSources] = {}
 _PACKAGE_VERSION: dict[str, debian_inspector.version.Version] = {}
 
 
