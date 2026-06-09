@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import githubkit.exception
 import pytest
-from aioresponses import aioresponses
+from aiointercept import aiointercept
 
 from github_app_geo_project.module.versions import (
     Versions,
@@ -1395,7 +1395,7 @@ def test_canonical_minor_version(datasource, version, expected) -> None:
 
 @pytest.mark.asyncio
 async def test_update_upstream_versions() -> None:
-    with aioresponses() as responses:
+    async with aiointercept(mock_external_urls=True) as responses:
         context = Mock()
         context.transversal_status = _TransversalStatus()
         context.module_config = {
