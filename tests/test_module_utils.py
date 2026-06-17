@@ -76,13 +76,27 @@ def test_dashboard_issue() -> None:
 
 def test_ProcMessage() -> None:
     proc = Mock()
-    proc.args = ["command", "arg1", "arg2", "x-access-token:123456"]
+    proc.args = [
+        "command",
+        "arg1",
+        "arg2",
+        "x-access-token:123456",
+        "https://x-access-token:ghs_secretToken123@github.com/mapfish/mapfish-print.git",
+        "github_pat_0123456789ABCDEFGHIJKLMNOP",
+    ]
     proc.returncode = 0
     proc.stdout = "stdout\nmessage"
     proc.stderr = "stderr\nmessage"
     proc_message = utils.AnsiProcessMessage(proc.args, proc.returncode, proc.stdout, proc.stderr)
 
-    assert proc_message.args == ["command", "arg1", "arg2", "x-access-token:***"]
+    assert proc_message.args == [
+        "command",
+        "arg1",
+        "arg2",
+        "x-access-token:***",
+        "https://x-access-token:***@github.com/mapfish/mapfish-print.git",
+        "github_pat_***",
+    ]
     assert proc_message.returncode == 0
     assert "stdout\nmessage" in proc_message.stdout
     assert "stderr\nmessage" in proc_message.stderr
@@ -90,7 +104,7 @@ def test_ProcMessage() -> None:
     markdown = proc_message.to_markdown()
     assert (
         markdown
-        == """Command: command arg1 arg2 'x-access-token:***'
+        == """Command: command arg1 arg2 'x-access-token:***' 'https://x-access-token:***@github.com/mapfish/mapfish-print.git' 'github_pat_***'
 Return code: 0
 
 Output:
@@ -127,6 +141,7 @@ def test_sanitize_command_for_log() -> None:
     assert "ghs_secretToken123" not in sanitized
     assert "github_pat_0123456789ABCDEFGHIJKLMNOP" not in sanitized
     assert "x-access-token:***" in sanitized
+    assert "github_pat_***" in sanitized
 
 
 def test_html_to_markdown() -> None:
