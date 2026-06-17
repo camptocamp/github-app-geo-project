@@ -82,11 +82,15 @@ _GITHUB_TOKEN_RE = re.compile(r"\b(ghs|ghp|github_pat)_[0-9a-zA-Z_]+\b")
 def _sanitize_command_argument(argument: str) -> str:
     sanitized = _X_ACCESS_TOKEN_RE.sub(r"\1***", argument)
     sanitized = _COMMAND_CREDENTIAL_RE.sub(r"\1***\3", sanitized)
-    return _GITHUB_TOKEN_RE.sub("***", sanitized)
+    return _GITHUB_TOKEN_RE.sub(r"\1_***", sanitized)
+
+
+def _sanitize_command_arguments(command: list[str]) -> list[str]:
+    return [_sanitize_command_argument(str(argument)) for argument in command]
 
 
 def _sanitize_command_for_log(command: list[str]) -> str:
-    return shlex.join([_sanitize_command_argument(str(argument)) for argument in command])
+    return shlex.join(_sanitize_command_arguments(command))
 
 
 def parse_dashboard_issue(issue_data: str) -> DashboardIssueRaw:
@@ -449,17 +453,7 @@ class AnsiProcessMessage(AnsiMessage):
         error: str | None = None,
     ) -> None:
         """Initialize the process message."""
-        self.args: list[str] = []
-
-        args = [str(arg) for arg in args]
-
-        for arg in args:
-            if "x-access-token" in arg:
-                self.args.append(
-                    re.sub(r"x-access-token:[0-9a-zA-Z_.-]*", "x-access-token:***", arg),
-                )
-            else:
-                self.args.append(arg)
+        self.args = _sanitize_command_arguments(args)
 
         self.returncode = returncode
         if isinstance(stdout, bytes):
