@@ -1,8 +1,6 @@
 """Module to dispatch publishing event."""
 
-import json
 import logging
-import os
 import re
 from typing import Any
 
@@ -10,6 +8,7 @@ import githubkit.webhooks
 from pydantic import BaseModel
 
 from github_app_geo_project import module
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +38,7 @@ class _Config(BaseModel):
 
 
 try:
-    CONFIG = _Config(**json.loads(os.environ.get("DISPATCH_PUBLISH_CONFIG", "{}")))
+    CONFIG = _Config(**settings.dispatch_publishing.config)
 except Exception:  # pylint: disable=broad-exception-caught
     _LOGGER.exception("Error loading the configuration")
     CONFIG = _Config()

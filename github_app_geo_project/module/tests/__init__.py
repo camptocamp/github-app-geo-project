@@ -119,6 +119,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                     raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
                 message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
                 _LOGGER.info(message)
+
                 command = ["echo", "-e", r"plain \e[0;31mRED MESSAGE\e[0m reset"]
                 proc = await asyncio.create_subprocess_exec(
                     *command,
@@ -130,7 +131,21 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
                 message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
-                message.title = "Command with title"
+                message.title = "Command with color"
+                _LOGGER.info(message)
+
+                command = ["echo", "-e", r"link https://camptocamp.com mailto:info@camptocamp.com"]
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                )
+                async with asyncio.timeout(60):
+                    stdout, stderr = await proc.communicate()
+                if proc.returncode != 0:
+                    raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
+                message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
+                message.title = "Command with links"
                 _LOGGER.info(message)
 
             if type_ == "log-json":

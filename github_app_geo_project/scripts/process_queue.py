@@ -23,11 +23,10 @@ from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import aiomonitor
 import anyio
-import c2cwsgiutils.setup_process
+import c2casgiutils.config
 import githubkit.exception
 import githubkit.versions.latest.models
 import githubkit.webhooks
-import plaster
 import prometheus_client.exposition
 import sentry_sdk
 import sqlalchemy.ext.asyncio
@@ -43,6 +42,7 @@ from github_app_geo_project import (
 )
 from github_app_geo_project.module import GHCIError, modules
 from github_app_geo_project.module import utils as module_utils
+from github_app_geo_project.settings import settings
 
 if TYPE_CHECKING:
     import types
@@ -73,7 +73,7 @@ class _Handler(logging.Handler):
 
     def __init__(self, job_id: int) -> None:
         super().__init__()
-        self.results: list[logging.LogRecord] = []
+        self.results: list[tuple[logging.LogRecord, str | None]] = []
         self.last_written_index = 0
         self.job_id = job_id
         self.context_var.set(job_id)
@@ -84,25 +84,18 @@ class _Handler(logging.Handler):
                 return
         except LookupError:
             return
+        css_style = None
         if isinstance(record.msg, module_utils.Message):
+            css_style = record.msg.css_style
             record.msg = record.msg.to_html(style="collapse")
-        self.results.append(record)
+        self.results.append((record, css_style))
 
 
 class _Formatter(logging.Formatter):
     def formatMessage(self, record: logging.LogRecord) -> str:  # noqa: N802
         str_msg = super().formatMessage(record).strip()
-        styles = []
-        if record.levelname == "WARNING":
-            styles.append("color: orange")
-        elif record.levelname == "ERROR":
-            styles.append("color: red")
-        elif record.levelname == "CRITICAL":
-            styles.append("color: red")
-            styles.append("font-weight: bold")
-        elif record.levelname == "INFO":
-            styles.append("color: rgba(var(--bs-link-color-rgb)")
-        attributes = f' style="{"; ".join(styles)}"' if styles else ""
+        level_class = record.levelname.lower()
+        attributes = f' class="level-{level_class}"'
         result = f"<p{attributes}>{str_msg}</p>"
 
         str_msg = record.message.strip()
@@ -128,11 +121,12 @@ async def _flush_job_logs(
         if not new_entries:
             return
         async with session_factory() as log_session:
-            for entry in new_entries:
+            for entry, css_style in new_entries:
                 log_session.add(
                     models.JobLogEntry(
                         job_id=job_id,
                         log=handler.format(entry),
+                        css_style=css_style,
                         level_name=entry.levelname,
                         level_no=entry.levelno,
                         filename=entry.pathname,
@@ -154,13 +148,12 @@ async def _stream_job_logs(
 
 
 async def _validate_job(
-    config: dict[str, Any],
     application: str,
     event_data: dict[str, Any],
 ) -> bool:
-    if "TEST_APPLICATION" in os.environ:
+    if settings.test.app_name:
         return True
-    github_application = await configuration.get_github_application(config, application)
+    github_application = await configuration.get_github_application(application)
     installation_id = event_data.get("installation", {}).get("id", 0)
     if github_application.id == installation_id:
         _LOGGER.error(
@@ -173,7 +166,6 @@ async def _validate_job(
 
 
 async def _process_job(
-    config: dict[str, str],
     session: sqlalchemy.ext.asyncio.AsyncSession,
     root_logger: logging.Logger,
     handler: _Handler,
@@ -184,7 +176,7 @@ async def _process_job(
         _LOGGER.error("Unknown module %s", job.module)
         return False
 
-    logs_url = config["service-url"]
+    logs_url = settings.service_url
     logs_url = logs_url if logs_url.endswith("/") else logs_url + "/"
     logs_url = urllib.parse.urljoin(logs_url, "logs/")
     logs_url = urllib.parse.urljoin(logs_url, str(job.id))
@@ -195,14 +187,12 @@ async def _process_job(
     github_project: configuration.GithubProject | None = None
     check_run: githubkit.versions.latest.models.CheckRun | None = None
     tasks: list[asyncio.Task[Any]] = []
-    if "TEST_APPLICATION" not in os.environ:
+    if not settings.test.app_name:
         github_application = await configuration.get_github_application(
-            config,
             job.application,
         )
         if job.owner is not None and job.repository is not None:
             github_project = await configuration.get_github_project(
-                config,
                 github_application,
                 job.owner,
                 job.repository,
@@ -260,14 +250,14 @@ async def _process_job(
 
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
         try:
-            if "TEST_APPLICATION" not in os.environ:
+            if not settings.test.app_name:
                 if job.check_run_id is None and job.owner is not None and job.repository is not None:
                     check_run = await module_utils.create_checks(
                         job,
                         session,
                         current_module,
                         github_project,
-                        config["service-url"],
+                        settings.service_url,
                     )
 
                 if github_project is not None and github_project.aio_github is not None:
@@ -298,11 +288,13 @@ async def _process_job(
                 ),
                 issue_data=issue_data,
                 job_id=job.id,
-                service_url=config["service-url"],
+                service_url=settings.service_url,
             )
             root_logger.addHandler(handler)
+            old_level = root_logger.level
+            root_logger.setLevel(logging.DEBUG)
             log_task = None
-            log_interval = float(os.environ.get("GHCI_LOGS_STREAM_INTERVAL", "2"))
+            log_interval = settings.process_queue.logs_stream_interval.total_seconds()
             log_session_factory = sqlalchemy.ext.asyncio.async_sessionmaker(
                 bind=session.bind,
             )
@@ -318,7 +310,7 @@ async def _process_job(
             result = None
             try:
                 start = datetime.datetime.now(tz=datetime.UTC)
-                job_timeout = int(os.environ.get("GHCI_JOB_TIMEOUT", str(50 * 60)))
+                job_timeout = settings.process_queue.job_timeout.total_seconds()
                 transversal_status = None
                 async with asyncio.timeout(job_timeout):
                     task = asyncio.create_task(
@@ -354,6 +346,7 @@ async def _process_job(
                             )
                             if transversal_status is not None:
                                 root_logger.removeHandler(handler)
+                                root_logger.setLevel(old_level)
                                 _LOGGER.debug(
                                     "Update module status %s `%s` (job id: %i, type: %s, %s)\n%s",
                                     job.module,
@@ -429,13 +422,16 @@ async def _process_job(
                 root_logger.removeHandler(handler)
                 await session.refresh(job)
                 root_logger.addHandler(handler)
+                # For the logs view
                 _LOGGER.exception(
                     "Failed to process job id: %s on module: %s",
                     job.id,
                     job.module,
                 )
-                raise GHCIError(str(exception)) from exception
+                error_message = f"Failed to process job id: {job.id} on module: {job.module}"
+                raise GHCIError(error_message) from exception
             finally:
+                root_logger.setLevel(old_level)
                 root_logger.removeHandler(handler)
                 if log_task is not None:
                     log_task.cancel()
@@ -543,7 +539,7 @@ async def _process_job(
                         session,
                         current_module,
                         github_project,
-                        config["service-url"],
+                        settings.service_url,
                     )
 
             new_issue_data = result.dashboard if result is not None else None
@@ -761,7 +757,7 @@ async def _process_job(
             "on",
         ):
             issue_full_data = utils.update_dashboard_issue_module(
-                f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({config['service-url']}project/{job.owner}/{job.repository})\n\n",
+                f"This issue is the dashboard used by GHCI modules.\n\n[Project on GHCI]({settings.service_url}project/{job.owner}/{job.repository})\n\n",
                 job.module,
                 current_module,
                 new_issue_data,
@@ -800,7 +796,6 @@ async def _get_dashboard_issue(
 
 
 async def _process_dashboard_issue(
-    config: dict[str, Any],
     session: sqlalchemy.ext.asyncio.AsyncSession,
     event_data: dict[str, Any],
     application: str,
@@ -808,9 +803,8 @@ async def _process_dashboard_issue(
     repository: str,
 ) -> None:
     """Process changes on the dashboard issue."""
-    github_application = await configuration.get_github_application(config, application)
+    github_application = await configuration.get_github_application(application)
     github_project = await configuration.get_github_project(
-        config,
         github_application,
         owner,
         repository,
@@ -837,10 +831,8 @@ async def _process_dashboard_issue(
             )
             new_data = event_data_issue.issue.body or ""
 
-            for name in config.get(
-                f"application.{github_project.application.name}.modules",
-                "",
-            ).split():
+            app_config = settings.application_configs.get(github_project.application.name)
+            for name in app_config.modules if app_config is not None else []:
                 current_module = modules.MODULES.get(name)
                 if current_module is None:
                     _LOGGER.error("Unknown module %s", name)
@@ -894,7 +886,7 @@ async def _process_dashboard_issue(
                                     session,
                                     current_module,
                                     github_project,
-                                    config["service-url"],
+                                    settings.service_url,
                                 )
                             await session.commit()
                             await session.refresh(job)
@@ -908,7 +900,6 @@ async def _process_dashboard_issue(
 
 # Where 2147483647 is the PostgreSQL max int, see: https://www.postgresql.org/docs/current/datatype-numeric.html
 async def _get_process_one_job(
-    config: dict[str, Any],
     Session: sqlalchemy.ext.asyncio.async_sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
         sqlalchemy.ext.asyncio.AsyncSession
     ],
@@ -944,7 +935,7 @@ async def _get_process_one_job(
             # Very long pending job => error
             # Calculate the timestamp threshold for marking jobs as error
             error_threshold = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(
-                seconds=int(os.environ.get("GHCI_JOB_TIMEOUT_ERROR", "86400")),
+                seconds=settings.process_queue.job_timeout_error.total_seconds(),
             )
             result = await session.execute(
                 sqlalchemy.update(models.Queue)
@@ -964,7 +955,7 @@ async def _get_process_one_job(
             # Steal long pending jobs
             # Calculate the timestamp threshold for stealing long pending jobs
             steal_threshold = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(
-                seconds=int(os.environ.get("GHCI_JOB_TIMEOUT", "3600")) + 60,
+                seconds=settings.process_queue.job_timeout.total_seconds() + 60,
             )
             statement = (
                 sqlalchemy.update(models.Queue)
@@ -988,7 +979,7 @@ async def _get_process_one_job(
             await session.commit()
             return True
 
-        await _process_one_job(job, session, config, make_pending, max_priority)
+        await _process_one_job(job, session, make_pending, max_priority)
 
         return False
 
@@ -996,7 +987,6 @@ async def _get_process_one_job(
 async def _process_one_job(
     job: models.Queue,
     session: sqlalchemy.ext.asyncio.AsyncSession,
-    config: dict[str, Any],
     make_pending: bool,
     max_priority: int,
 ) -> None:
@@ -1007,6 +997,7 @@ async def _process_one_job(
 
     # Capture_logs
     root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
     handler = _Handler(job.id)
     handler.setFormatter(
         _Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"),
@@ -1055,14 +1046,12 @@ async def _process_one_job(
         if not job.module:
             if job.module_event_name == "dashboard":
                 success = await _validate_job(
-                    config,
                     job.application,
                     job.github_event_data,
                 )
                 if success:
                     _LOGGER.info("Process dashboard issue %i", job.id)
                     await _process_dashboard_issue(
-                        config,
                         session,
                         job.github_event_data,
                         job.application,
@@ -1080,13 +1069,11 @@ async def _process_one_job(
                 success = False
         else:
             success = await _validate_job(
-                config,
                 job.application,
                 job.github_event_data,
             )
             if success:
                 success = await _process_job(
-                    config,
                     session,
                     root_logger,
                     handler,
@@ -1115,21 +1102,19 @@ async def _process_one_job(
 class _Run:
     def __init__(
         self,
-        config: dict[str, Any],
         Session: sqlalchemy.ext.asyncio.async_sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
             sqlalchemy.ext.asyncio.AsyncSession
         ],
         return_when_empty: bool,
         max_priority: int,
     ) -> None:
-        self.config = config
         self.Session = Session  # pylint: disable=invalid-name
         self.end_when_empty = return_when_empty
         self.max_priority = max_priority
 
     async def __call__(self, *args: Any, **kwargs: Any) -> Any:
         del args, kwargs
-        empty_thread_sleep = int(os.environ.get("GHCI_EMPTY_THREAD_SLEEP", "10"))
+        empty_thread_sleep = settings.process_queue.empty_thread_sleep.total_seconds()
 
         while True:
             global _LAST_RUN_TIME  # noqa: PLW0603
@@ -1138,7 +1123,6 @@ class _Run:
             try:
                 task = asyncio.create_task(
                     _get_process_one_job(
-                        self.config,
                         self.Session,
                         no_steal_long_pending=self.end_when_empty,
                         max_priority=self.max_priority,
@@ -1255,7 +1239,7 @@ class _PrometheusWatch:
                         *running_task_thread,
                         *event_loop_stack,
                     ]
-                    if os.environ.get("GHCI_DEBUG", "0").lower() in ("1", "true", "on")
+                    if settings.process_queue.debug
                     else ["Prometheus watch: alive"]
                 )
                 _LOGGER.debug(
@@ -1382,23 +1366,18 @@ async def _async_main() -> None:
         action="store_true",
         help="Make one job in pending",
     )
-    c2cwsgiutils.setup_process.fill_arguments(parser)
 
     args = parser.parse_args()
-
-    c2cwsgiutils.setup_process.init(args.config_uri)
 
     loop = asyncio.get_running_loop()
     with aiomonitor.start_monitor(loop):
         loop.set_default_executor(
             concurrent.futures.ThreadPoolExecutor(
-                max_workers=int(os.environ.get("GHCI_MAX_WORKERS", "2")),
+                max_workers=settings.process_queue.max_workers,
             ),
         )
-        loop.slow_callback_duration = float(
-            os.environ.get("GHCI_SLOW_CALLBACK_DURATION", "60"),
-        )  # 1 minute by default
-        if os.environ.get("GHCI_DEBUG", "0").lower() in ("1", "true", "on"):
+        loop.slow_callback_duration = settings.process_queue.slow_callback_duration.total_seconds()
+        if settings.process_queue.debug:
             loop.set_debug(True)
 
         def do_exit(loop: asyncio.AbstractEventLoop) -> None:
@@ -1408,17 +1387,15 @@ async def _async_main() -> None:
         for signal_type in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(signal_type, functools.partial(do_exit, loop))
 
-        loader = plaster.get_loader(args.config_uri)
-        config = loader.get_settings("app:app")
-        options = {key[len("sqlalchemy.") :]: config[key] for key in config if key.startswith("sqlalchemy.")}
-        url = options.pop("url")
-        if url.startswith("postgresql://"):
-            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        for key in ("pool_recycle", "pool_size", "max_overflow"):
-            if key in options:
-                options[key] = int(options[key])
-        async_engine = sqlalchemy.ext.asyncio.create_async_engine(url, **options)
-        engine = sqlalchemy.engine_from_config(config, "sqlalchemy.")
+        options = {}
+        if settings.sqlalchemy.pool_recycle is not None:
+            options["pool_recycle"] = settings.sqlalchemy.pool_recycle
+        if settings.sqlalchemy.pool_size is not None:
+            options["pool_size"] = settings.sqlalchemy.pool_size
+        if settings.sqlalchemy.max_overflow is not None:
+            options["max_overflow"] = settings.sqlalchemy.max_overflow
+        async_engine = sqlalchemy.ext.asyncio.create_async_engine(settings.sqlalchemy.async_url, **options)
+        engine = sqlalchemy.create_engine(settings.sqlalchemy.url)
         Session = sqlalchemy.orm.sessionmaker(  # noqa: N806
             bind=engine,
         )  # pylint: disable=invalid-name
@@ -1436,7 +1413,6 @@ async def _async_main() -> None:
 
         if args.only_one:
             await _get_process_one_job(
-                config,
                 AsyncSession,
                 no_steal_long_pending=args.exit_when_empty,
                 make_pending=args.make_pending,
@@ -1444,14 +1420,13 @@ async def _async_main() -> None:
             sys.exit(0)
         if args.make_pending:
             await _get_process_one_job(
-                config,
                 AsyncSession,
                 no_steal_long_pending=args.exit_when_empty,
                 make_pending=True,
             )
             sys.exit(0)
 
-        if not args.exit_when_empty and "C2C_PROMETHEUS_PORT" in os.environ:
+        if not args.exit_when_empty and c2casgiutils.config.settings.prometheus.port:
 
             class LogHandler(
                 prometheus_client.exposition._SilentHandler,  # noqa: SLF001
@@ -1463,9 +1438,9 @@ async def _async_main() -> None:
 
             prometheus_client.exposition._SilentHandler = LogHandler  # type: ignore[misc] # pylint: disable=protected-access
 
-            prometheus_client.start_http_server(int(os.environ["C2C_PROMETHEUS_PORT"]))
+            prometheus_client.start_http_server(c2casgiutils.config.settings.prometheus.port)
 
-        priority_groups = [int(e) for e in os.environ.get("GHCI_PRIORITY_GROUPS", "2147483647").split(",")]
+        priority_groups = [int(e) for e in settings.process_queue.priority_groups.split(",")]
 
         tasks = []
         if not args.exit_when_empty:
@@ -1480,7 +1455,7 @@ async def _async_main() -> None:
         tasks.extend(
             [
                 asyncio.create_task(
-                    _Run(config, AsyncSession, args.exit_when_empty, priority)(),
+                    _Run(AsyncSession, args.exit_when_empty, priority)(),
                     name=f"Run ({priority})",
                 )
                 for priority in priority_groups
@@ -1491,7 +1466,7 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Process the jobs present in the database queue."""
-    socket.setdefaulttimeout(int(os.environ.get("GHCI_SOCKET_TIMEOUT", "120")))
+    socket.setdefaulttimeout(settings.process_queue.socket_timeout.total_seconds())
     asyncio.run(_async_main())
 
 

@@ -1,19 +1,19 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>${title}</title>
+    <title>{{ title }}</title>
     <link
       rel="icon"
       type="image/png"
       sizes="32x32"
-      href="${request.static_url('/app/github_app_geo_project/static/favicon-32x32.png')}"
+      href="{{ url_for('static', path='/favicon-32x32.png') }}"
       referrerpolicy="no-referrer"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="16x16"
-      href="${request.static_url('/app/github_app_geo_project/static/favicon-16x16.png')}"
+      href="{{ url_for('static', path='/favicon-16x16.png') }}"
       referrerpolicy="no-referrer"
     />
     <link
@@ -23,7 +23,7 @@
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     />
-    <style>
+    <style nonce="{{ nonce }}">
       a {
         text-decoration: none;
       }
@@ -37,103 +37,110 @@
       .app-buttons-group {
         margin-bottom: 1.5rem;
       }
+      .login-container {
+        position: absolute;
+        right: 3rem;
+        top: 2rem;
+      }
+      .logout-button {
+        vertical-align: baseline;
+        margin-left: 0.5rem;
+      }
     </style>
   </head>
   <body class="px-5 py-4">
-    <script>
+    <script nonce="{{ nonce }}">
       /* For dark mode */
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.documentElement.setAttribute('data-bs-theme', 'dark');
       }
     </script>
 
-    <div style="position: absolute; right: 3rem; top: 2rem">
-      %if not request.identity.is_auth:
+    <div class="login-container">
+      {% if not user.is_auth %}
       <a
         class="btn btn-primary"
-        href="${request.route_url('c2c_github_login', _query={'came_from': request.current_route_url()})}"
+        href="{{ url_for('c2c_github_login') }}?came_from={{ request.url | urlencode }}"
         >Login with GitHub</a
       >
-      %else:
+      {% else %}
       <p>
-        Logged as: <a href="${request.identity.url}">${request.identity.name}</a>
+        Logged as: <a href="{{ user.url }}">{{ user.name }}</a>
+        {% if user.auth_type == 'github_oauth' %}
         <a
-          class="btn btn-outline-primary"
-          style="vertical-align: baseline; margin-left: 0.5rem"
-          href="${request.route_url('c2c_github_logout', _query={'came_from': request.current_route_url()})}"
+          class="btn btn-outline-primary logout-button"
+          href="{{ url_for('c2c_github_logout') }}?came_from={{ request.url | urlencode }}"
           >Logout</a
         >
+        {% endif %}
       </p>
-      %endif
+      {% endif %}
     </div>
-    <h1 class="bd-title">${title}</h1>
-    ${description|markdown}
+    <h1 class="bd-title">{{ title }}</h1>
+    {{ description | markdown }}
     <!---->
-    %if documentation_url:
+    {% if documentation_url %}
     <p>
-      <a href="${documentation_url}" target="_blank" rel="noopener noreferrer">Documentation</a>
+      <a href="{{ documentation_url }}" target="_blank" rel="noopener noreferrer">Documentation</a>
     </p>
-    %endif
-    <!---->
+    {% endif %}
     <h2>Profiles</h2>
-    %for profile_name, profile in profiles.items():
+    {% for profile_name, profile in profiles.items() %}
     <div class="card my-3">
       <div class="card-header">
-        %if 'title' in profile:
-        <h3>${profile['title']} [${profile_name}]</h3>
-        %else:
-        <h3>${profile_name}</h3>
-        %endif
+        {% if 'title' in profile %}
+        <h3>{{ profile['title'] }} [{{ profile_name }}]</h3>
+        {% else %}
+        <h3>{{ profile_name }}</h3>
+        {% endif %}
       </div>
-      <div class="card-body">${profile['description']|markdown}</div>
+      <div class="card-body">{{ profile['description'] | markdown }}</div>
     </div>
-    %endfor
+    {% endfor %}
     <h2>Applications</h2>
-    %for application in applications:
+    {% for application in applications %}
     <div>
-      <h3>${application['title']} [${application['name']}]</h3>
-      ${application['description']|markdown}
+      <h3>{{ application['title'] }} [{{ application['name'] }}]</h3>
+      {{ application['description'] | markdown }}
       <!---->
-      %if application['github_app_url']:
+      {% if application['github_app_url'] %}
       <div class="btn-group app-buttons-group">
-        <a class="btn btn-primary" href="${application['github_app_url']}">Install</a>
-        %if application['github_app_admin_url']:
-        <a class="btn btn-info" href="${application['github_app_admin_url']}">Admin</a>
-        %endif
+        <a class="btn btn-primary" href="{{ application['github_app_url'] }}">Install</a>
+        {% if application['github_app_admin_url'] %}
+        <a class="btn btn-info" href="{{ application['github_app_admin_url'] }}">Admin</a>
+        {% endif %}
       </div>
       <br />
-      %endif
+      {% endif %}
       <!---->
-      %if application['errors']:
+      {% if application['errors'] %}
       <div class="alert alert-danger" role="alert">
-        %for error in application['errors']:
-        <p>${error}</p>
-        %endfor
+        {% for error in application['errors'] %}
+        <p>{{ error }}</p>
+        {% endfor %}
       </div>
-      %endif
-      <!---->
+      {% endif %}
       <h4>Modules</h4>
-      %for module in application['modules']:
+      {% for module in application['modules'] %}
       <div class="card my-3">
         <div class="card-header">
-          <h5>${module['title']} [${module['name']}]</h5>
+          <h5>{{ module['title'] }} [{{ module['name'] }}]</h5>
         </div>
         <div class="card-body">
-          ${module['description']|markdown}
+          {{ module['description'] | markdown }}
           <p>
-            <a href="${module['documentation_url']}" target="_blank" rel="noopener noreferrer"
+            <a href="{{ module['documentation_url'] }}" target="_blank" rel="noopener noreferrer"
               >Documentation</a
-            >${',' if module['has_transversal_dashboard'] else ''}
-            <!---->
-            %if module['has_transversal_dashboard']:
-            <a href="${request.route_url('dashboard', module=module['name'])}">Transversal dashboard</a>
-            %endif
+            >{{ ',' if module['has_transversal_dashboard'] else '' }} {% if
+            module['has_transversal_dashboard'] %}
+            <a href="{{ url_for('dashboard_route', module_name=module['name']) }}">Transversal dashboard</a>
+            {% endif %}
           </p>
         </div>
       </div>
-      %endfor
+      {% endfor %}
     </div>
-    %endfor
+    {% endfor %}
 
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"

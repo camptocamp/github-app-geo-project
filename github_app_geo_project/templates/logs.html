@@ -1,19 +1,19 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>${title}</title>
+    <title>{{ title }}</title>
     <link
       rel="icon"
       type="image/png"
       sizes="32x32"
-      href="${request.static_url(f'/app/github_app_geo_project/static/favicon-{favicon_postfix}-32x32.png')}"
+      href="{{ url_for('static', path='/favicon-' ~ favicon_postfix ~ '-32x32.png') }}"
       referrerpolicy="no-referrer"
     />
     <link
       rel="icon"
       type="image/png"
       sizes="16x16"
-      href="${request.static_url(f'/app/github_app_geo_project/static/favicon-{favicon_postfix}-16x16.png')}"
+      href="{{ url_for('static', path='/favicon-' ~ favicon_postfix ~ '-16x16.png') }}"
       referrerpolicy="no-referrer"
     />
     <link
@@ -30,7 +30,7 @@
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     />
-    <style>
+    <style nonce="{{ nonce }}">
       a {
         text-decoration: none;
       }
@@ -49,14 +49,13 @@
         margin-top: 0;
         margin-bottom: 0.5rem;
       }
-      /* related to aria-expanded attribute */
       [aria-expanded='true'] .col-up {
         display: none;
       }
       [aria-expanded='false'] .col-down {
         display: none;
       }
-      .collapse-container a {
+      .collapse-container .d-inline-flex a {
         text-decoration: none;
         color: var(--bs-body-color);
       }
@@ -72,47 +71,90 @@
         padding-left: 0.9rem;
         border-left: gray solid 0.2rem;
       }
+      .level-warning {
+        color: orange;
+        margin-bottom: 0.2rem;
+      }
+      .level-error {
+        color: red;
+        margin-bottom: 0.2rem;
+      }
+      .level-critical {
+        color: red;
+        font-weight: bold;
+        margin-bottom: 0.2rem;
+      }
+      .level-info {
+        color: rgb(var(--bs-link-color-rgb));
+        margin-bottom: 0.2rem;
+      }
+      .level-debug {
+        margin-bottom: 0.2rem;
+      }
+      .login-container {
+        position: absolute;
+        right: 3rem;
+        top: 2rem;
+      }
+      .logout-button {
+        vertical-align: baseline;
+        margin-left: 0.5rem;
+      }
+      /* pygments */
+      .highlight {
+        background: #0d1117;
+        padding: 0.5rem;
+      }
+      .highlight pre {
+        line-height: 125%;
+        margin-bottom: 0;
+      }
+      body pre {
+        line-height: var(--bs-body-line-height)
+      }
+      {{ styles | safe }}
     </style>
   </head>
   <body class="px-5 py-4">
-    <script>
+    <script nonce="{{ nonce }}">
       /* For dark mode */
       if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
         document.documentElement.setAttribute('data-bs-theme', 'dark');
       }
     </script>
 
-    <div style="position: absolute; right: 3rem; top: 2rem">
-      %if not request.identity.is_auth:
+    <div class="login-container">
+      {% if not user.is_auth %}
       <a
         class="btn btn-primary"
-        href="${request.route_url('c2c_github_login', _query={'came_from': request.current_route_url()})}"
+        href="{{ url_for('c2c_github_login') }}?came_from={{ request.url | urlencode }}"
         >Login with GitHub</a
       >
-      %else:
+      {% else %}
       <p>
-        Logged as: <a href="${request.identity.url}">${request.identity.name}</a>
+        Logged as: <a href="{{ user.url }}">{{ user.name }}</a>
+        {% if user.auth_type == 'github_oauth' %}
         <a
-          class="btn btn-outline-primary"
-          style="vertical-align: baseline; margin-left: 0.5rem"
-          href="${request.route_url('c2c_github_logout', _query={'came_from': request.current_route_url()})}"
+          class="btn btn-outline-primary logout-button"
+          href="{{ url_for('c2c_github_logout') }}?came_from={{ request.url | urlencode }}"
           >Logout</a
         >
+        {% endif %}
       </p>
-      %endif
+      {% endif %}
     </div>
-    <h1 class="bd-title">${title}</h1>
+    <h1 class="bd-title">{{ title }}</h1>
     <p>
-      [${job.status_enum.value}] created ${job.created_at|pprint_date}, started ${job.started_at|pprint_date},
-      finished ${job.finished_at|pprint_date},
-      <a href="${request.route_url('project', owner=job.owner, repository=job.repository)}">project</a>.
+      [{{ job.status_enum.value }}] created {{ job.created_at | pprint_date }}, started {{ job.started_at | pprint_date }},
+      finished {{ job.finished_at | pprint_date }},
+      <a href="{{ url_for('project_route', owner=job.owner, repository=job.repository) }}">project</a>.
     </p>
 
-    %if logs:
+    {% if logs %}
     <h2>Logs</h2>
-    %if error_message:
-    <div class="alert alert-danger" role="alert">${error_message}</div>
-    %endif
+    {% if error_message %}
+    <div class="alert alert-danger" role="alert">{{ error_message }}</div>
+    {% endif %}
     <form class="row gy-2 gx-3 align-items-center mb-3" method="get">
       <div class="col-auto">
         <label class="form-label" for="level-filter">Level</label>
@@ -122,11 +164,11 @@
           name="level"
         >
           <option value="">All levels</option>
-          <option value="50"${' selected' if level_filter == '50' else ''}>CRITICAL</option>
-          <option value="40"${' selected' if level_filter == '40' else ''}>ERROR</option>
-          <option value="30"${' selected' if level_filter == '30' else ''}>WARNING</option>
-          <option value="20"${' selected' if level_filter == '20' else ''}>INFO</option>
-          <option value="10"${' selected' if level_filter in ('10', '') else ''}>DEBUG</option>
+          <option value="50"{{ ' selected' if level_filter == '50' else '' }}>CRITICAL</option>
+          <option value="40"{{ ' selected' if level_filter == '40' else '' }}>ERROR</option>
+          <option value="30"{{ ' selected' if level_filter == '30' else '' }}>WARNING</option>
+          <option value="20"{{ ' selected' if level_filter == '20' else '' }}>INFO</option>
+          <option value="10"{{ ' selected' if level_filter in ('10', '') else '' }}>DEBUG</option>
         </select>
       </div>
       <div class="col-auto">
@@ -136,17 +178,17 @@
           id="filename-filter"
           name="filename"
           type="text"
-          value="${filename_filter}"
+          value="{{ filename_filter }}"
           placeholder="Regular expression apply on filename"
         />
       </div>
       <div class="col-auto align-self-end">
         <button class="btn btn-primary" type="submit">Filter</button>
-        <a class="btn btn-outline-secondary" href="${request.current_route_url()}">Reset</a>
+        <a class="btn btn-outline-secondary" href="{{ request.url.path }}">Reset</a>
       </div>
     </form>
-    <div class="logs">${logs | sanitizer, n}</div>
-    %endif
+    <div class="logs">{{ logs | sanitizer | safe }}</div>
+    {% endif %}
 
     <script
       src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
@@ -166,12 +208,12 @@
       crossorigin="anonymous"
       referrerpolicy="no-referrer"
     ></script>
-    %if reload:
-    <script>
+    {% if reload %}
+    <script nonce="{{ nonce }}">
       setTimeout(() => {
         location.reload();
       }, 30000);
     </script>
-    %endif
+    {% endif %}
   </body>
 </html>

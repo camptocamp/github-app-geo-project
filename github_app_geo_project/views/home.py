@@ -1,16 +1,14 @@
-"""Output view."""
+"""Home view."""
 
 import logging
-import os
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
-import pyramid.request
-import pyramid.security
-from pyramid.view import view_config
+from fastapi import Depends, Request
 
 from github_app_geo_project import configuration, module
 from github_app_geo_project.module import modules
-from github_app_geo_project.views import get_event_loop
+from github_app_geo_project.security import User, require_admin
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,26 +21,21 @@ def _gt_access(
     return access_number[access_1] > access_number[access_2]
 
 
-@view_config(route_name="home", renderer="github_app_geo_project.templates:home.html")  # type: ignore[untyped-decorator]
-def output(request: pyramid.request.Request) -> dict[str, Any]:
-    """Get the welcome page."""
-    repository = os.environ["C2C_AUTH_GITHUB_REPOSITORY"]
-    user_permission = request.has_permission(
-        repository,
-        {"github_repository": repository, "github_access_type": "admin"},
-    )
-    admin = isinstance(user_permission, pyramid.security.Allowed)
+async def home(
+    request: Request,
+    user: Annotated[User, Depends(require_admin)],
+) -> dict[str, Any]:
+    """Render the home page."""
+    admin = True
 
-    applications = []
-    for app in request.registry.settings["applications"].split():
-        application = {
-            "name": app,
-            "github_app_url": request.registry.settings.get(f"application.{app}.github_app_url"),
-            "github_app_admin_url": (
-                request.registry.settings.get(f"application.{app}.github_app_admin_url") if admin else None
-            ),
-            "title": request.registry.settings.get(f"application.{app}.title"),
-            "description": request.registry.settings.get(f"application.{app}.description"),
+    applications: list[dict[str, Any]] = []
+    for app_name, app_config in settings.application_configs.items():
+        application: dict[str, Any] = {
+            "name": app_name,
+            "github_app_url": app_config.github_app.url,
+            "github_app_admin_url": app_config.github_app.admin_url if admin else None,
+            "title": app_config.title,
+            "description": app_config.description,
             "modules": [],
             "repository_permissions": [],
             "organization_permissions": [],
@@ -58,9 +51,9 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
             # Used to create and update the github checks
             "checks": "write",
         }
-        events = set()
+        events: set[str] = set()
 
-        for module_name in request.registry.settings[f"application.{app}.modules"].split():
+        for module_name in app_config.modules:
             if module_name not in modules.MODULES:
                 _LOGGER.error("Unknown module %s", module_name)
                 continue
@@ -79,29 +72,23 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                 events.add("issues")
             module_permissions = module_instance.get_github_application_permissions()
             events.update(module_permissions.events)
-            for name, access in module_permissions.permissions.items():
-                if name not in permissions or _gt_access(access, permissions[name]):  # type: ignore[arg-type,literal-required]
-                    permissions[name] = access  # type: ignore[literal-required]
+            name: module.PermissionsKey
+            access: Literal["read", "write"]
+            for name, access in module_permissions.permissions.items():  # type: ignore[assignment]
+                if name not in permissions or _gt_access(access, permissions[name]):
+                    permissions[name] = access
 
         if admin:
             try:
-                if "TEST_APPLICATION" not in os.environ:
-                    github_application = (
-                        get_event_loop().run_until_complete(
-                            configuration.get_github_application(request.registry.settings, app),
-                        )
-                        if admin
-                        else None
-                    )
+                if not settings.test.app_name:
+                    github_application = await configuration.get_github_application(app_name)
 
-                    github_authenticated_response = get_event_loop().run_until_complete(
-                        github_application.aio_github.rest.apps.async_get_authenticated(),
+                    github_authenticated_response = (
+                        await github_application.aio_github.rest.apps.async_get_authenticated()
                     )
                     github_authenticated = github_authenticated_response.parsed_data
                     assert github_authenticated is not None
-                    github_events = set(
-                        github_authenticated.events,
-                    )
+                    github_events = set(github_authenticated.events)
                     # test that all events are in github_events
                     if not events.issubset(github_events):
                         application["errors"].append(
@@ -113,24 +100,25 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                             "Missing events (%s) in the GitHub application '%s', please add them in the "
                             "GitHub configuration interface.",
                             ", ".join(events - github_events),
-                            app,
+                            app_name,
                         )
                         _LOGGER.info("Current events:\n%s", "\n".join(github_events))
                     if not github_events.issubset(events):
                         _LOGGER.error(
                             "The GitHub application '%s' has more events (%s) than required, please remove "
                             "them in the GitHub configuration interface.",
-                            app,
+                            app_name,
                             ", ".join(github_events - events),
                         )
 
                     github_permissions = github_authenticated.permissions
                     github_permissions_dict = cast("module.Permissions", github_permissions.model_dump())
                     # Test that all permissions are in github_permissions
-                    for permission, access in permissions.items():
+                    permission: module.PermissionsKey
+                    for permission, access in permissions.items():  # type: ignore[assignment]
                         if permission not in github_permissions_dict or _gt_access(
-                            access,  # type: ignore[arg-type]
-                            github_permissions_dict[permission],  # type: ignore[literal-required]
+                            access,
+                            github_permissions_dict[permission],
                         ):
                             application["errors"].append(
                                 f"Missing permission ({permission}={access}) in the GitHub application, "
@@ -141,44 +129,49 @@ def output(request: pyramid.request.Request) -> dict[str, Any]:
                                 "please add it in the GitHub configuration interface.",
                                 permission,
                                 access,
-                                app,
+                                app_name,
                             )
                             _LOGGER.info(
                                 "Current permissions:\n%s",
                                 "\n".join([f"{k}={v}" for k, v in github_permissions_dict.items()]),
                             )
                         elif _gt_access(
-                            github_permissions_dict[permission],  # type: ignore[literal-required]
-                            access,  # type: ignore[arg-type]
+                            github_permissions_dict[permission],
+                            access,
                         ):
                             _LOGGER.error(
                                 "The GitHub application '%s' has more permission (%s=%s) than required, "
                                 "please remove it in the GitHub configuration interface.",
-                                app,
+                                app_name,
                                 permission,
-                                github_permissions_dict[permission],  # type: ignore[literal-required]
+                                github_permissions_dict[permission],
                             )
-                    for permission in github_permissions_dict:
-                        if permission not in permissions:
+                    for permission_str in github_permissions_dict:
+                        if permission_str not in permissions:
                             _LOGGER.error(
                                 "Unnecessary permission (%s) in the GitHub application '%s', please remove it in the "
                                 "GitHub configuration interface.",
-                                permission,
-                                app,
+                                permission_str,
+                                app_name,
                             )
                 else:
                     application["errors"].append("TEST_APPLICATION is set, no GitHub API call is made.")
                     _LOGGER.error(application["errors"][-1])
-            except Exception as exception:  # noqa: BLE001
+            except Exception as exception:
                 application["errors"].append(str(exception))
-                _LOGGER.error(application["errors"][-1], exception)  # noqa: TRY400
+                _LOGGER.exception(application["errors"][-1])
 
         applications.append(application)
 
     return {
+        "request": request,
+        "user": user,
         "title": configuration.APPLICATION_CONFIGURATION["title"],
         "description": configuration.APPLICATION_CONFIGURATION["description"],
         "documentation_url": configuration.APPLICATION_CONFIGURATION["documentation-url"],
         "profiles": configuration.APPLICATION_CONFIGURATION["profiles"],
         "applications": applications,
     }
+
+
+HomeData = Annotated[dict[str, Any], Depends(home)]

@@ -299,15 +299,15 @@ def test_get_transversal_dashboard() -> None:
 
 
 @pytest.mark.parametrize(
-    ("other_support", "expected_color"),
+    ("other_support", "expected_class"),
     [
-        ({"type": "Date", "until": "2044-01-01"}, "--bs-danger"),
-        ({"type": "Date", "until": "2046-01-01"}, "--bs-body-bg"),
+        ({"type": "Date", "until": "2044-01-01"}, "dep-unsupported"),
+        ({"type": "Date", "until": "2046-01-01"}, "dep-supported"),
     ],
 )
 def test_get_transversal_dashboard_repo_forward(
     other_support: dict[str, str],
-    expected_color: str,
+    expected_class: str,
 ) -> None:
     versions = Versions()
     context = Mock()
@@ -360,14 +360,14 @@ def test_get_transversal_dashboard_repo_forward(
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Date", "until": "2045-01-01"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[
                     _Dependency(
                         name="other_package",
                         datasource="pypi",
                         version="2.0 (2.0.1)",
                         support=other_support,
-                        color=expected_color,
+                        css_class=expected_class,
                         repo="camptocamp/other",
                     ),
                 ],
@@ -427,14 +427,14 @@ def test_get_transversal_dashboard_repo_forward_docker() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Best effort"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[
                     _Dependency(
                         name="camptocamp/other",
                         datasource="docker",
                         version="2.0",
                         support={"type": "Best effort"},
-                        color="--bs-body-bg",
+                        css_class="dep-supported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -504,14 +504,14 @@ def test_get_transversal_dashboard_repo_forward_docker_2() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Date", "until": "2027-06-27"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[
                     _Dependency(
                         name="ghcr.io/osgeo/gdal",
                         datasource="docker",
                         version="ubuntu-small-3.8.5",
                         support={"type": "Best effort"},
-                        color="--bs-danger",
+                        css_class="dep-unsupported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -580,14 +580,14 @@ def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Best effort"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[
                     _Dependency(
                         name="camptocamp/other",
                         datasource="docker",
                         version="1.0",
                         support={"type": "Best effort"},
-                        color="--bs-body-bg",
+                        css_class="dep-supported",
                         repo="camptocamp/other",
                     ),
                     _Dependency(
@@ -595,7 +595,7 @@ def test_get_transversal_dashboard_repo_forward_docker_double() -> None:
                         datasource="docker",
                         version="2.0",
                         support={"type": "Best effort"},
-                        color="--bs-body-bg",
+                        css_class="dep-supported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -672,14 +672,14 @@ def test_get_transversal_dashboard_repo_forward_docker_multiple_statuses() -> No
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Date", "until": "2027-06-27"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[
                     _Dependency(
                         name="camptocamp/other",
                         datasource="docker",
                         version="latest",
                         support={"type": "Unsupported"},
-                        color="--bs-danger",
+                        css_class="dep-unsupported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -735,14 +735,14 @@ def test_get_transversal_dashboard_repo_forward_docker_empty_status() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Date", "until": "2027-06-27"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[
                     _Dependency(
                         name="camptocamp/other",
                         datasource="docker",
                         version="latest",
                         support={"type": "No support defined"},
-                        color="--bs-body-bg",
+                        css_class="dep-supported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -802,14 +802,14 @@ def test_get_transversal_dashboard_repo_forward_inexisting() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Best effort"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[
                     _Dependency(
                         name="other_package",
                         datasource="pypi",
                         version="2.0 (2.0.1)",
                         support={"type": "Unsupported"},
-                        color="--bs-danger",
+                        css_class="dep-unsupported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -869,14 +869,14 @@ def test_get_transversal_dashboard_repo_forward_no_support() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Date", "until": "2045-01-01"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[
                     _Dependency(
                         name="other_package",
                         datasource="pypi",
                         version="2.0 (2.0.1)",
                         support={"type": "No support defined"},
-                        color="--bs-body-bg",
+                        css_class="dep-supported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -938,14 +938,14 @@ def test_get_transversal_dashboard_repo_forward_no_support_version() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Date", "until": "2045-01-01"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[
                     _Dependency(
                         name="other_package",
                         datasource="pypi",
                         version="2.0 (2.0.1)",
                         support={"type": "Unsupported"},
-                        color="--bs-danger",
+                        css_class="dep-unsupported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -983,7 +983,7 @@ def test_get_transversal_dashboard_repo_forward_no_package() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Date", "until": "2045-01-01"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[],
                 reverse=[],
             ),
@@ -992,15 +992,15 @@ def test_get_transversal_dashboard_repo_forward_no_package() -> None:
 
 
 @pytest.mark.parametrize(
-    ("other_support", "expected_color"),
+    ("other_support", "expected_class"),
     [
-        ({"type": "Date", "until": "2044-01-01"}, "--bs-body-bg"),
-        ({"type": "Date", "until": "2046-01-01"}, "--bs-danger"),
+        ({"type": "Date", "until": "2044-01-01"}, "dep-supported"),
+        ({"type": "Date", "until": "2046-01-01"}, "dep-unsupported"),
     ],
 )
 def test_get_transversal_dashboard_repo_reverse(
     other_support: dict[str, str],
-    expected_color: str,
+    expected_class: str,
 ) -> None:
     versions = Versions()
     context = Mock()
@@ -1037,14 +1037,14 @@ def test_get_transversal_dashboard_repo_reverse(
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Date", "until": "2045-01-01"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[],
                 reverse=[
                     _DependencyReverse(
                         name="camptocamp/other",
                         version="2.0",
                         support=other_support,
-                        color=expected_color,
+                        css_class=expected_class,
                         repo="camptocamp/other",
                     ),
                 ],
@@ -1093,14 +1093,14 @@ def test_get_transversal_dashboard_repo_reverse_docker() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Best effort"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[],
                 reverse=[
                     _DependencyReverse(
                         name="camptocamp/other",
                         version="2.0",
                         support={"type": "Best effort"},
-                        color="--bs-body-bg",
+                        css_class="dep-supported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -1151,14 +1151,14 @@ def test_get_transversal_dashboard_repo_reverse_docker_different() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Best effort"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[],
                 reverse=[
                     _DependencyReverse(
                         name="camptocamp/other",
                         version="2.0",
                         support={"type": "Best effort"},
-                        color="--bs-body-bg",
+                        css_class="dep-supported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -1219,14 +1219,14 @@ def test_get_transversal_dashboard_repo_reverse_docker_alternate_tag() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Best effort"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[],
                 reverse=[
                     _DependencyReverse(
                         name="camptocamp/other",
                         version="2.0",
                         support={"type": "Best effort"},
-                        color="--bs-body-bg",
+                        css_class="dep-supported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -1271,18 +1271,18 @@ def test_get_transversal_dashboard_repo_reverse_unexisting() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Best effort"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
             ),
             "2.0": _Dependencies(
                 support={"type": "Unsupported"},
-                color="--bs-danger",
+                css_class="dep-unsupported",
                 forward=[],
                 reverse=[
                     _DependencyReverse(
                         name="camptocamp/other",
                         version="2.0",
                         support={"type": "Best effort"},
-                        color="--bs-danger",
+                        css_class="dep-unsupported",
                         repo="camptocamp/other",
                     ),
                 ],
@@ -1317,7 +1317,7 @@ def test_get_transversal_dashboard_repo_external() -> None:
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Best effort"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[],
                 reverse=[],
             ),
@@ -1368,7 +1368,7 @@ def test_get_transversal_dashboard_repo_reverse_other(datasource: str, package: 
         by_branch={
             "1.0": _Dependencies(
                 support={"type": "Best effort"},
-                color="--bs-body-bg",
+                css_class="dep-supported",
                 forward=[],
                 reverse=[],
             ),
@@ -1893,7 +1893,7 @@ def test_build_reverse_dependency_uses_dependencies_index() -> None:
         name="org/dependent",
         version="main",
         support={"type": "Best effort"},
-        color="--bs-body-bg",
+        css_class="dep-supported",
         repo="org/dependent",
     )
 
@@ -1953,7 +1953,7 @@ def test_build_reverse_dependency_uses_dependencies_index_docker() -> None:
         name="org/dependent",
         version="main",
         support={"type": "Best effort"},
-        color="--bs-body-bg",
+        css_class="dep-supported",
         repo="org/dependent",
     )
 

@@ -19,21 +19,22 @@ import yaml  # nosec
 from github_app_geo_project import models, utils
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 
 # Add timeout environment variables with defaults at module level
-_TIMEOUT_SUBPROCESS = int(os.environ.get("GHCI_SUBPROCESS_TIMEOUT", "60"))
-_TIMEOUT_PIP_FREEZE = int(os.environ.get("GHCI_PIP_FREEZE_TIMEOUT", "60"))
-_TIMEOUT_PRECOMMIT = int(os.environ.get("GHCI_PRECOMMIT_TIMEOUT", "1200"))
-_TIMEOUT_GIT_DIFF = int(os.environ.get("GHCI_GIT_DIFF_TIMEOUT", "60"))
-_TIMEOUT_GRADLE = int(os.environ.get("GHCI_GRADLE_TIMEOUT", "60"))
-_TIMEOUT_GIT_LSFILES = int(os.environ.get("GHCI_GIT_LSFILES_TIMEOUT", "60"))
-_TIMEOUT_PYTHON_INSTALL = int(os.environ.get("GHCI_PYTHON_INSTALL_TIMEOUT", "600"))
-_TIMEOUT_SNYK = int(os.environ.get("GHCI_SNYK_TIMEOUT", "300"))
-_TIMEOUT_SNYK_FIX = int(os.environ.get("GHCI_SNYK_FIX_TIMEOUT", os.environ.get("GHCI_SNYK_TIMEOUT", "600")))
-_TIMEOUT_POETRY_VERSION = int(os.environ.get("GHCI_POETRY_VERSION_TIMEOUT", "10"))
-_TIMEOUT_NPM_AUDIT = int(os.environ.get("GHCI_NPM_AUDIT_TIMEOUT", "300"))
+_TIMEOUT_SUBPROCESS = settings.audit_timeouts.subprocess
+_TIMEOUT_PIP_FREEZE = settings.audit_timeouts.pip_freeze
+_TIMEOUT_PRECOMMIT = settings.audit_timeouts.precommit
+_TIMEOUT_GIT_DIFF = settings.audit_timeouts.git_diff
+_TIMEOUT_GRADLE = settings.audit_timeouts.gradle
+_TIMEOUT_GIT_LSFILES = settings.audit_timeouts.git_lsfiles
+_TIMEOUT_PYTHON_INSTALL = settings.audit_timeouts.python_install
+_TIMEOUT_SNYK = settings.audit_timeouts.snyk
+_TIMEOUT_SNYK_FIX = settings.audit_timeouts.snyk_fix
+_TIMEOUT_POETRY_VERSION = settings.audit_timeouts.poetry_version
+_TIMEOUT_NPM_AUDIT = settings.audit_timeouts.npm_audit
 
 
 def get_pre_commit_config(
@@ -92,7 +93,7 @@ async def snyk(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )  # nosec
-    async with asyncio.timeout(_TIMEOUT_PIP_FREEZE):
+    async with asyncio.timeout(_TIMEOUT_PIP_FREEZE.total_seconds()):
         stdout, stderr = await proc.communicate()
     message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
     message.title = "Pip freeze"
@@ -163,7 +164,7 @@ async def snyk(
                 ),
             },
         )
-        async with asyncio.timeout(_TIMEOUT_PRECOMMIT):
+        async with asyncio.timeout(_TIMEOUT_PRECOMMIT.total_seconds()):
             stdout, stderr = await proc.communicate()
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
         message.title = "Run pre-commit"
@@ -171,7 +172,7 @@ async def snyk(
 
     command = ["git", "diff", "--quiet"]
     diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
-    async with asyncio.timeout(_TIMEOUT_GIT_DIFF):
+    async with asyncio.timeout(_TIMEOUT_GIT_DIFF.total_seconds()):
         await diff_proc.wait()
     if diff_proc.returncode != 0:
         (
@@ -210,7 +211,7 @@ async def _select_java_version(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(_TIMEOUT_GRADLE):
+    async with asyncio.timeout(_TIMEOUT_GRADLE.total_seconds()):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         raise subprocess.CalledProcessError(
@@ -261,7 +262,7 @@ async def _install_requirements_dependencies(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(_TIMEOUT_GIT_LSFILES):
+    async with asyncio.timeout(_TIMEOUT_GIT_LSFILES.total_seconds()):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -309,7 +310,7 @@ async def _install_pipenv_dependencies(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(_TIMEOUT_GIT_LSFILES):
+    async with asyncio.timeout(_TIMEOUT_GIT_LSFILES.total_seconds()):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -355,7 +356,7 @@ async def _install_poetry_dependencies(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(_TIMEOUT_GIT_LSFILES):
+    async with asyncio.timeout(_TIMEOUT_GIT_LSFILES.total_seconds()):
         stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
@@ -805,9 +806,7 @@ async def _get_packages_version(
     global _GENERATION_TIME  # noqa: PLW0603
     if (
         _GENERATION_TIME is None
-        or datetime.datetime.now(datetime.UTC)
-        - utils.parse_duration(os.environ.get("GHCI_DPKG_CACHE_DURATION", "3h"))
-        > _GENERATION_TIME
+        or datetime.datetime.now(datetime.UTC) - settings.audit.dpkg_cache_duration > _GENERATION_TIME
     ):
         _PACKAGE_VERSION.clear()
         _SOURCES.clear()

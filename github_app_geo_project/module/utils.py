@@ -20,11 +20,44 @@ import markdownify
 import security_md
 import sqlalchemy.ext.asyncio
 from ansi2html import Ansi2HTMLConverter
+from ansi2html.style import get_styles
 
 from github_app_geo_project import configuration, models, module, utils
 
 _LOGGER = logging.getLogger(__name__)
 WORKING_DIRECTORY_LOCK = asyncio.Lock()
+
+_ANSI_CONVERTER = Ansi2HTMLConverter(linkify=True)
+_ANSI_STYLES = get_styles()
+
+_SANITIZER_SETTINGS: dict[str, Any] = {
+    "tags": html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"] | {"span", "div", "pre", "code"},
+    "attributes": {
+        "a": (
+            "id",
+            "href",
+            "name",
+            "target",
+            "title",
+            "rel",
+            "style",
+            "class",
+            "data-bs-toggle",
+            "role",
+            "aria-expanded",
+            "aria-controls",
+        ),
+        "span": ("id", "style", "class"),
+        "p": ("id", "style", "class"),
+        "div": ("id", "style", "class"),
+        "em": ("id", "style", "class"),
+    },
+    "separate": html_sanitizer.sanitizer.DEFAULT_SETTINGS["separate"] | {"pre", "code", "span", "div", "em"},
+    "empty": {"hr", "br"},
+    "keep_typographic_whitespace": True,
+    "element_preprocessors": [],
+}
+_SANITIZER = html_sanitizer.Sanitizer(_SANITIZER_SETTINGS)
 
 
 async def add_output(
@@ -227,6 +260,11 @@ class Message:
         """Convert the message to plain text."""
         raise NotImplementedError
 
+    @property
+    def css_style(self) -> str | None:
+        """The CSS style used to render this message."""
+        return None
+
 
 _suffix = 0  # pylint: disable=invalid-name
 
@@ -244,9 +282,10 @@ def html_to_markdown(html: str) -> str:
 class HtmlMessage(Message):
     """Utility class to convert HTML messages to HTML/markdown."""
 
-    def __init__(self, html: str, title: str = "") -> None:
+    def __init__(self, html: str, title: str = "", css: str | None = None) -> None:
         """Initialize the ANSI message."""
         self.html = html
+        self.css = css
         self.title = title
 
     @staticmethod
@@ -315,45 +354,8 @@ class HtmlMessage(Message):
             else:
                 html = "\n".join([f"<{style}>{self.title}</{style}>", html])
 
-        sanitizer = html_sanitizer.Sanitizer(
-            {
-                "tags": {
-                    *html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"],
-                    "span",
-                    "div",
-                    "pre",
-                    "code",
-                },
-                "attributes": {
-                    "a": (
-                        "href",
-                        "name",
-                        "target",
-                        "title",
-                        "rel",
-                        "class",
-                        "data-bs-toggle",
-                        "role",
-                        "aria-expanded",
-                        "aria-controls",
-                    ),
-                    "span": ("class", "style"),
-                    "p": ("class", "style"),
-                    "div": ("class", "style", "id"),
-                    "em": ("class", "style"),
-                },
-                "separate": {
-                    *html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"],
-                    "span",
-                    "div",
-                    "pre",
-                    "code",
-                },
-                "keep_typographic_whitespace": True,
-            },
-        )
         try:
-            return cast("str", sanitizer.sanitize(html))
+            return cast("str", _SANITIZER.sanitize(html))
         except ValueError as exception:
             _LOGGER.warning(
                 "Failed to sanitize HTML message, using escaped fallback: %s",
@@ -379,6 +381,11 @@ class HtmlMessage(Message):
         elif self.title:
             markdown = f"#### {self.title}\n{markdown}"
         return markdown
+
+    @property
+    def css_style(self) -> str | None:
+        """The CSS style used to render this message."""
+        return self.css
 
     def __str__(self) -> str:
         """Get the string representation."""
@@ -411,24 +418,34 @@ class HtmlMessage(Message):
         return message
 
 
+def _to_html_css(ansi_message_str: str) -> tuple[str, str]:
+    html = _ANSI_CONVERTER.convert(ansi_message_str.strip(), full=False)
+
+    attrs = _ANSI_CONVERTER.prepare(ansi_message_str.strip())
+    backgrounds = _ANSI_STYLES[:5]
+    used_styles = filter(lambda e: e.klass.lstrip(".") in attrs["styles"], _ANSI_STYLES)
+    css = "\n".join(list(map(str, backgrounds + list(used_styles))))
+
+    return html, css
+
+
 class AnsiMessage(HtmlMessage):
     """Convert ANSI messages to HTML/markdown."""
-
-    _ansi_converter = Ansi2HTMLConverter(inline=True)
 
     def __init__(
         self,
         ansi_message_str: str,
         title: str = "",
         _is_html: bool = False,
+        css: str | None = None,
     ) -> None:
         """Initialize the ANSI message."""
         html = ansi_message_str
         if not _is_html:
-            ansi_converter = Ansi2HTMLConverter(inline=True)
-            self.raw_html = ansi_converter.convert(ansi_message_str.strip(), full=False)
-            html = self.raw_html
-        super().__init__(html, title)
+            html, css = _to_html_css(ansi_message_str.strip())
+            self.raw_html = html
+
+        super().__init__(html, title, css)
 
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the ANSI message to markdown."""
@@ -461,13 +478,14 @@ class AnsiProcessMessage(AnsiMessage):
                 stdout = stdout.decode()
             except UnicodeDecodeError:
                 stdout = "- binary data -"
-        self.stdout = self._ansi_converter.convert(stdout or "", full=False)
+        self.stdout, stdout_css = _to_html_css(stdout or "")
+
         if isinstance(stderr, bytes):
             try:
                 stderr = stderr.decode()
             except UnicodeDecodeError:
                 stderr = "- binary data -"
-        self.stderr = self._ansi_converter.convert(stderr or "", full=False)
+        self.stderr, stderr_css = _to_html_css(stderr or "")
 
         message = [f"Command: {shlex.join(self.args)}"]
         if error:
@@ -481,7 +499,11 @@ class AnsiProcessMessage(AnsiMessage):
             message.append("Error:")
             message.append(f"{{pre}}{self.stderr}{{post}}")
 
-        super().__init__("".join([f"<p>{line}</p>" for line in message]), _is_html=True)
+        super().__init__(
+            "".join([f"<p>{line}</p>" for line in message]),
+            _is_html=True,
+            css=utils.merge_css_blocks((stdout_css, stderr_css)),
+        )
 
     def to_markdown(self, summary: bool = False) -> str:
         """Convert the process message to markdown."""
@@ -578,7 +600,7 @@ def get_cwd() -> Path | None:
 async def run_timeout(
     command: list[str],
     env: dict[str, str] | None,
-    timeout: int,  # noqa: ASYNC109
+    timeout: datetime.timedelta | int,  # noqa: ASYNC109
     success_message: str,
     error_message: str,
     timeout_message: str,
@@ -603,6 +625,7 @@ async def run_timeout(
     ------
     The standard output, the success, the logged message
     """
+    timeout_seconds = timeout.total_seconds() if isinstance(timeout, datetime.timedelta) else timeout
     sanitized_command = _sanitize_command_for_log(command)
     log_message = "Run command: %s"
     args: list[Any] = [sanitized_command]
@@ -611,12 +634,12 @@ async def run_timeout(
         args.append(cwd)
     if timeout:
         log_message += ", timeout %ds"
-        args.append(timeout)
+        args.append(int(timeout_seconds))
     _LOGGER.debug(log_message, *args)
     async_proc = None
     start = datetime.datetime.now(datetime.UTC)
     try:
-        async with asyncio.timeout(timeout):
+        async with asyncio.timeout(timeout_seconds):
             try:
                 async_proc = await asyncio.create_subprocess_exec(
                     *command,

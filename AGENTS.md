@@ -83,12 +83,39 @@ Use explicit variables (`${HOME}` instead of `$HOME`).
 
 The pull request description should not contain a `Testing` or `Checks` section.
 
-## Future
+## Async rules
 
 The project should fully be in async mode.
-`pathlib` must not be used.
-Adding an `async` to a non-async function is completely possible.
-`aiofiles` must not be used, use `anyio` instead.
+
+- `pathlib` must not be used, use `anyio.Path` instead.
+  - Exception: `pathlib.Path` can be used when opening files in a synchronous-only context where async is not possible (e.g. module-level configuration loading).
+- Adding an `async` to a non-async function is completely possible.
+- `aiofiles` must not be used, use `anyio.Path` instead.
+- All disk or network operation must be done with async API; avoid blocking calls on the event loop.
+- Don't allow sequential `await` calls in loops; use `asyncio.gather` or `asyncio.TaskGroup`.
+- Every Python file should have a module-level `_LOGGER = logging.getLogger(__name__)` even if not immediately used, for consistency and future debugging needs.
+
+### FastAPI Depends()
+
+FastAPI calls `run_in_threadpool()` on synchronous (`def`) `Depends()` functions, spawning a thread even for pure in-memory work. Always use `async def` for FastAPI dependency functions, even when there is no `await` inside. Linter warnings about `async def` without `await` are false positives in this context and should be ignored.
+
+## Environment variables
+
+The environment variable should not be accessed directly (except the ones defined by another project); they should be centralized in a `Settings` class and accessed through a `settings` object.
+
+## Branch names
+
+Branch names should not contain `/`. Use hyphens instead.
+
+## Dependencies
+
+In `pyproject.toml` the `project.dependencies` are managed automatically. When you need to touch the dependencies you should update `tool.poetry.dependencies` or `tool.poetry.group.*.dependencies` (e.g. `tool.poetry.group.dev.dependencies`) directly in the file, never use `poetry add` or `poetry remove`.
+
+## Documentation
+
+The user documentation in the `README.md` file should be updated to reflect the changes in the codebase.
+The changes in the codebase that affect the user should be documented in the `CHANGELOG.md`.
+The changelog should respect the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) rules.
 
 ## Technical Terms
 

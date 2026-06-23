@@ -23,6 +23,7 @@ from pydantic import BaseModel
 from github_app_geo_project import module, utils
 from github_app_geo_project.configuration import GithubProject
 from github_app_geo_project.module import utils as module_utils
+from github_app_geo_project.settings import settings
 
 from . import configuration
 
@@ -313,7 +314,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
             username = os.environ["DOCKERHUB_USERNAME"]
             password = os.environ["DOCKERHUB_PASSWORD"]
             async with (
-                asyncio.timeout(int(os.environ.get("C2CCIUTILS_TIMEOUT", "30"))),
+                asyncio.timeout(settings.c2cciutils.timeout.total_seconds()),
                 session.post(
                     "https://hub.docker.com/v2/users/login/",
                     headers={"Content-Type": "application/json"},
@@ -328,7 +329,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 token = (await response.json())["token"]
 
             async with (
-                asyncio.timeout(int(os.environ.get("C2CCIUTILS_TIMEOUT", "30"))),
+                asyncio.timeout(settings.c2cciutils.timeout.total_seconds()),
                 session.head(
                     f"https://hub.docker.com/v2/repositories/{image}/tags/{tag}/",
                     headers={"Authorization": "JWT " + token},
@@ -340,7 +341,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     _LOGGER.error("Error checking image: docker.io/%s:%s", image, tag)
 
             async with (
-                asyncio.timeout(int(os.environ.get("C2CCIUTILS_TIMEOUT", "30"))),
+                asyncio.timeout(settings.c2cciutils.timeout.total_seconds()),
                 session.delete(
                     f"https://hub.docker.com/v2/repositories/{image}/tags/{tag}/",
                     headers={"Authorization": "JWT " + token},

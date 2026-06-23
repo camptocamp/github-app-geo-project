@@ -1,9 +1,9 @@
-%for data in repositories:
-<h2>${data['repository']}</h2>
-%for type_name, type_ in data['data'].types.items():
+{% for data in repositories %}
+<h2>{{ data['repository'] }}</h2>
+{% for type_name, type_ in data['data'].types.items() %}
 <!---->
-<p>${type_.title | markdown, n}</p>
+<p>{{ type_.title | markdown | safe }}</p>
 <!---->
-%endfor
+{% endfor %}
 <!---->
-%endfor
+{% endfor %}
