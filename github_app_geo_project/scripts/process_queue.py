@@ -18,7 +18,6 @@ import sys
 import threading
 import time
 import urllib.parse
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import aiomonitor
@@ -1143,8 +1142,8 @@ class _Run:
 class _PrometheusWatch:
     def __init__(
         self,
-        Session: sqlalchemy.orm.sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
-            sqlalchemy.orm.Session
+        Session: sqlalchemy.ext.asyncio.async_sessionmaker[  # pylint: disable=invalid-name,unsubscriptable-object
+            sqlalchemy.ext.asyncio.AsyncSession
         ],
         loop: asyncio.AbstractEventLoop,
     ) -> None:
@@ -1157,9 +1156,9 @@ class _PrometheusWatch:
         current_task = asyncio.current_task()
         if current_task is not None:
             current_task.set_name("PrometheusWatch")
-        await asyncio.to_thread(self._watch)
+        await self._watch()
 
-    def _watch(self) -> None:
+    async def _watch(self) -> None:
         cont = 0
         while True:
             if time.time() - _LAST_RUN_TIME > 60:
@@ -1267,10 +1266,17 @@ class _PrometheusWatch:
                     _LOGGER.debug(message)
             except RuntimeError:
                 pass
-            with self.Session() as session:
+            async with self.Session() as session:
                 for status in models.JobStatus:
                     _NB_JOBS.labels(status.name).set(
-                        session.query(models.Queue).filter(models.Queue.status == status.name).count(),
+                        (
+                            await session.execute(
+                                sqlalchemy.select(sqlalchemy.func.count(models.Queue.id)).where(  # pylint: disable=not-callable
+                                    models.Queue.status == status.name
+                                ),
+                            )
+                        ).scalar()
+                        or 0,
                     )
             text = []
             for id_, job in _RUNNING_JOBS.items():
@@ -1288,8 +1294,8 @@ class _PrometheusWatch:
 
             if time.time() - self.last_run > 300:
                 error_message = ["Old Status"]
-                with Path("/var/ghci/job_info").open(encoding="utf-8") as file_:
-                    error_message.extend(file_.read().split("\n"))
+                async with await anyio.Path("/var/ghci/job_info").open(encoding="utf-8") as file_:
+                    error_message.extend((await file_.read()).split("\n"))
                 error_message.append("-" * 30)
                 error_message.append("New status")
                 error_message.extend(text)
@@ -1298,10 +1304,10 @@ class _PrometheusWatch:
                 _LOGGER.error(message)
             self.last_run = time.time()
 
-            with Path("/var/ghci/job_info").open("w", encoding="utf-8") as file_:
-                file_.write("\n".join(text))
-                file_.write("\n")
-            time.sleep(60)
+            async with await anyio.Path("/var/ghci/job_info").open("w", encoding="utf-8") as file_:
+                await file_.write("\n".join(text))
+                await file_.write("\n")
+            await asyncio.sleep(60)
 
 
 class _WatchDog:
@@ -1447,7 +1453,7 @@ async def _async_main() -> None:
             tasks.append(asyncio.create_task(_WatchDog()(), name="Watch Dog"))
             tasks.append(
                 asyncio.create_task(
-                    _PrometheusWatch(Session, loop)(),
+                    _PrometheusWatch(AsyncSession, loop)(),
                     name="Prometheus Watch",
                 ),
             )
