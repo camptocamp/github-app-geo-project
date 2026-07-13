@@ -1,50 +1,56 @@
 """Output view."""
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
-import pyramid.httpexceptions
-import pyramid.request
-import pyramid.response
-import pyramid.security
 import sqlalchemy
-from pyramid.view import view_config
+from fastapi import Depends, Request
 
 from github_app_geo_project import models
+from github_app_geo_project.security import User, get_user, has_repo_access
 
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="output", renderer="github_app_geo_project:templates/output.html")  # type: ignore[untyped-decorator]
-def output(request: pyramid.request.Request) -> dict[str, Any]:
-    """Get the output of a job."""
-    title = request.matchdict["id"]
+async def output_view(
+    request: Request,
+    output_id: int,
+    user: Annotated[User, Depends(get_user)],
+) -> dict[str, Any]:
+    """Render the output page."""
+    title = str(output_id)
     data: list[str | models.OutputData] = ["Element not found"]
     has_access = True
 
-    session_factory = request.registry["dbsession_factory"]
-    engine = session_factory.ro_engine
-    SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
-    with SessionMaker() as session:
-        out = session.query(models.Output).where(models.Output.id == request.matchdict["id"]).first()
+    async with request.app.state.async_session_factory() as session:
+        result = await session.execute(
+            sqlalchemy.select(models.Output).where(models.Output.id == output_id),
+        )
+        out = result.scalar()
         if out is not None:
-            full_repository = f"{out.owner}/{out.repository}"
-            permission = request.has_permission(
-                full_repository,
-                {"github_repository": full_repository, "github_access_type": out.access_type},
-            )
-            has_access = isinstance(permission, pyramid.security.Allowed)
+            has_access = await has_repo_access(user, out.owner, out.repository)
             if has_access:
                 title = out.title
                 data = out.data
             else:
-                request.response.status = 302
                 data = ["Access Denied"]
         else:
-            request.response.status = 404
+            has_access = False
+
+        status_code = 200
+        if not has_access and out is not None:
+            status_code = 302
+        elif out is None:
+            status_code = 404
 
         return {
+            "request": request,
+            "user": user,
             "title": title,
             "output": data,
             "enumerate": enumerate,
+            "status_code": status_code,
         }
+
+
+OutputData = Annotated[dict[str, Any], Depends(output_view)]

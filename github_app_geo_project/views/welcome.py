@@ -1,23 +1,28 @@
-"""Output view."""
+"""Welcome view."""
 
 import logging
-from typing import Any
+from typing import Annotated, Any
 
-import pyramid.request
-from pyramid.view import view_config
+from fastapi import Depends, Request
 
 from github_app_geo_project import configuration
+from github_app_geo_project.security import User, get_user
 
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="welcome", renderer="github_app_geo_project:templates/welcome.html")  # type: ignore[untyped-decorator]
-def output(request: pyramid.request.Request) -> dict[str, Any]:
-    """Get the welcome page."""
-    del request  # Unused
-
+async def welcome(
+    request: Request,
+    user: Annotated[User, Depends(get_user)],
+) -> dict[str, Any]:
+    """Render the welcome page."""
     return {
+        "request": request,
+        "user": user,
         "title": configuration.APPLICATION_CONFIGURATION["title"],
         "start_url": configuration.APPLICATION_CONFIGURATION["start-url"],
         "projects": [],
     }
+
+
+WelcomeData = Annotated[dict[str, Any], Depends(welcome)]

@@ -63,7 +63,7 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     apt-get update \
     && apt-get install --assume-yes --no-install-recommends build-essential python3-dev libpq-dev tree
 
-    RUN --mount=type=cache,target=/var/cache,sharing=locked \
+RUN --mount=type=cache,target=/var/cache,sharing=locked \
     --mount=type=cache,target=/root/.cache \
     --mount=type=bind,from=poetry,source=/tmp,target=/poetry \
     python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements.txt \
@@ -76,41 +76,14 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     && apt-get install --assume-yes --no-install-recommends libproj-dev pkgconf libcairo2-dev libgraphviz-dev unzip \
     default-jre-headless openjdk-11-jre-headless openjdk-17-jre-headless openjdk-21-jre-headless
 
-# From c2cwsgiutils
-
 COPY scripts/container-entrypoint /usr/local/bin/container-entrypoint
 RUN chmod +x /usr/local/bin/container-entrypoint
 
 ENTRYPOINT ["/usr/local/bin/container-entrypoint"]
-CMD ["gunicorn", "--paste=/app/production.ini"]
+CMD ["uvicorn", "github_app_geo_project.app:app", "--host=0.0.0.0", "--port=8080"]
 
-ENV LOG_TYPE=console \
-    DEVELOPMENT=0 \
-    PKG_CONFIG_ALLOW_SYSTEM_LIBS=OHYESPLEASE
+ENV PKG_CONFIG_ALLOW_SYSTEM_LIBS=OHYESPLEASE
 
-ENV C2C_SECRET= \
-    C2C_BASE_PATH=/c2c \
-    C2C_REDIS_URL= \
-    C2C_REDIS_SENTINELS= \
-    C2C_REDIS_TIMEOUT=3 \
-    C2C_REDIS_SERVICENAME=mymaster \
-    C2C_REDIS_DB=0 \
-    C2C_BROADCAST_PREFIX=broadcast_api_ \
-    C2C_REQUEST_ID_HEADER= \
-    C2C_REQUESTS_DEFAULT_TIMEOUT= \
-    C2C_SQL_PROFILER_ENABLED=0 \
-    C2C_PROFILER_PATH= \
-    C2C_PROFILER_MODULES= \
-    C2C_DEBUG_VIEW_ENABLED=0 \
-    C2C_ENABLE_EXCEPTION_HANDLING=0 \
-    LOG_LEVEL=INFO \
-    ASYNCIO_LOG_LEVEL=DEBUG \
-    GUNICORN_LOG_LEVEL=INFO \
-    C2CWSGIUTILS_LOG_LEVEL=INFO \
-    SQL_LOG_LEVEL=INFO \
-    OTHER_LOG_LEVEL=INFO
-
-# End from c2cwsgiutils
 
 EXPOSE 8080
 
@@ -181,8 +154,6 @@ RUN --mount=type=cache,target=/root/.cache \
     python3 -m pip install --disable-pip-version-check --no-deps --requirement=/poetry/requirements-dev.txt
 
 # hadolint ignore=DL3003
-RUN cd /venv/lib/python3.12/site-packages/c2cwsgiutils/acceptance/ && npm install
-
 COPY . ./
 RUN --mount=type=cache,target=/root/.cache \
     POETRY_DYNAMIC_VERSIONING_BYPASS=0.0.0 python3 -m pip install --disable-pip-version-check --no-deps --editable=. \
@@ -192,7 +163,6 @@ COPY scripts/* /usr/bin/
 
 RUN mkdir -p /var/ghci \
     && chmod a+rwx /var/ghci
-
 
 # Set runner as final
 FROM runner

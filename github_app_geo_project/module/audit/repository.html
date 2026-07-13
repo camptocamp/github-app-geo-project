@@ -1,6 +1,7 @@
-%for title, lines in audit.items():
-<h2>${title}</h2>
-%for line in lines:
-<p>${line|sanitizer, n}</p>
-%endfor
-%endfor
+{% for title, lines in audit.items() %}
+<h2>{{ title }}</h2>
+{% for line in lines %}
+<p>{{ line | sanitizer | safe }}</p>
+{% endfor %}
+<!---->
+{% endfor %}

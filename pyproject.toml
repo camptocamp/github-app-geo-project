@@ -4,7 +4,7 @@ line-length = 110
 
 [tool.ruff.lint]
 select = []
-ignore = ["ANN401", "C90", "COM812", "D100", "D104", "D105", "D107", "D200", "D202", "D207", "D208", "D212", "E501", "EM101", "EM102", "ERA001", "FA", "FBT001", "FBT002", "FIX002", "I001", "PERF203", "PLR09", "PLR2004", "Q000", "S101", "S113", "SIM105", "T201", "TD002", "W293"]
+ignore = ["ANN401", "C90", "COM812", "D100", "D104", "D105", "D107", "D200", "D202", "D207", "D208", "D212", "E501", "EM101", "EM102", "ERA001", "FA", "FBT001", "FBT002", "FIX002", "I001", "PERF203", "PLR09", "PLR2004", "Q000", "S101", "SIM105", "T201", "TD002", "W293"]
 extend-select = ["UP", "I", "S", "B", "ALL"]
 
 [tool.ruff.lint.pydocstyle]
@@ -18,10 +18,9 @@ convention = "numpy"
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.13"
-c2cwsgiutils = { version = "6.1.9",  extras = ["standard", "debug", "dev"] }
+c2casgiutils = { version = "0.11.0", extras = ["all"] }
 c2cciutils = "1.7.5"
 security-md = "1.0.0"
-pyramid-mako = "1.1.0"
 jsonmerge = "1.9.2"
 markdown = "3.10.2"
 pygments = "2.20.0"
@@ -36,8 +35,6 @@ cryptography = "49.0.0"
 urllib3 = "2.7.0"
 certifi = "2026.6.17"
 sentry-sdk = "2.60.0"
-webob = "1.8.10"
-waitress = "3.0.2"
 lxml-html-clean = "0.4.5"
 tag-publish = "1.1.1"
 aiohttp = "3.14.1"
@@ -46,12 +43,14 @@ deprecated = "1.3.1"
 aiomonitor = "0.7.1"
 sqlalchemy = {extras = ["asyncio"], version = "2.0.50"}
 asyncpg = "0.31.0"
+psycopg2 = "2.9.12"
 multi-repo-automation = "1.9.1"
-
 anyio = "4.13.0"
+itsdangerous = "2.2.0"
 "pre-commit" = "4.6.0"
 prek = "0.4.1"
 setuptools = "80.10.2"
+tinycss2 = "1.5.1"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.9",  extras = ["test-images"] }
@@ -94,6 +93,7 @@ version = "0.0.0"
 classifiers = [
     'Development Status :: 4 - Beta',
     'Environment :: Web Environment',
+    'Framework :: FastAPI',
     'Intended Audience :: Developers',
     'Operating System :: OS Independent',
     'Programming Language :: Python',
@@ -105,13 +105,13 @@ classifiers = [
 dynamic = ["dependencies", "version"]
 name = "github-app-geo-project"
 readme = "README.md"
-keywords = ["github", "application", "pyramid"]
+keywords = ["github", "application", "fastapi"]
 license = "BSD-2-Clause"
 authors = [{name = "Stéphane Brunner",email = "stephane.brunner@camptocamp.com"}]
 packages = [{ include = "github_app_geo_project" }]
 include = ["github_app_geo_project/py.typed"]
 requires-python = ">=3.11"
-dependencies = ["c2cwsgiutils[debug,dev,standard]", "c2cciutils", "security-md", "pyramid-mako", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aiointercept", "pytest-asyncio", "cryptography", "urllib3", "certifi", "sentry-sdk", "webob", "waitress", "lxml-html-clean", "tag-publish", "aiohttp", "aiofiles", "githubkit[auth-app]", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "multi-repo-automation", "anyio", "pre-commit", "prek", "setuptools"]
+dependencies = ["c2casgiutils[all]", "c2cciutils", "security-md", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aiointercept", "pytest-asyncio", "cryptography", "urllib3", "certifi", "sentry-sdk", "lxml-html-clean", "tag-publish", "aiohttp", "githubkit[auth-app]", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "multi-repo-automation", "anyio", "pre-commit", "prek", "setuptools", "psycopg2", "itsdangerous", "tinycss2"]
 
 [project.urls]
 repository = "https://github.com/camptocamp/github-app-geo-project"
@@ -121,9 +121,6 @@ repository = "https://github.com/camptocamp/github-app-geo-project"
 process-queue = "github_app_geo_project.scripts.process_queue:main"
 send-event = "github_app_geo_project.scripts.send_event:main"
 health-check = "github_app_geo_project.scripts.health_check:main"
-
-[project.entry-points."paste.app_factory"]
-main = "github_app_geo_project.server:main"
 
 [project.entry-points."ghci.module"]
 dispatcher = "github_app_geo_project.module.internal:Dispatcher"

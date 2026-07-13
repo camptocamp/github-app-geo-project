@@ -2,7 +2,6 @@ inherits:
   - duplicated
   - utils:base
   - utils:no-design-checks
-  - utils:c2cwsgiutils
   - utils:fix
 
 ignore-paths:

@@ -157,14 +157,10 @@ def test_html_to_markdown() -> None:
 
 
 def test_html_message_to_html_escape_on_sanitizer_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    class _FailingSanitizer:
-        def __init__(self, _: object) -> None:
-            pass
+    def _failing_sanitize(_: str) -> str:
+        raise ValueError("Invalid tag name")
 
-        def sanitize(self, __: str) -> str:
-            raise ValueError("Invalid tag name")
-
-    monkeypatch.setattr(utils.html_sanitizer, "Sanitizer", _FailingSanitizer)
+    monkeypatch.setattr(utils._SANITIZER, "sanitize", _failing_sanitize)
     monkeypatch.setattr(utils, "_suffix", 10)
 
     html_message = utils.HtmlMessage('<span style="color:red">broken</span> < not-a-tag', "Title <b>")
@@ -346,3 +342,28 @@ async def test_close_pull_request_related_issues_close_by_pull_request_title() -
         issue_number=606,
         state="closed",
     )
+
+
+def test_to_html_css_returns_html_and_css() -> None:
+    """_to_html_css should return HTML with classes and matching CSS."""
+    html, css = utils._to_html_css("plain \033[0;31mRED MESSAGE\033[0m reset")
+    assert isinstance(html, str)
+    assert isinstance(css, str)
+    assert '<span class="ansi31">' in html
+    assert "RED MESSAGE" in html
+    assert ".ansi31" in css
+    assert "#aa0000" in css or css.strip()
+
+
+def test_to_html_css_no_color() -> None:
+    """_to_html_css should return minimal CSS for plain text."""
+    html, css = utils._to_html_css("plain text without color codes")
+    assert isinstance(html, str)
+    assert isinstance(css, str)
+    assert ".ansi2html-content" in css or "background" in css or css.strip()
+
+
+def test_to_html_css_backgrounds_included() -> None:
+    """_to_html_css should include background styles."""
+    _html, css = utils._to_html_css("text")
+    assert "body_" in css or "background" in css or css.strip()

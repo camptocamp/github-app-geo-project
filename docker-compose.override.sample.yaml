@@ -1,9 +1,14 @@
 services:
   application:
     command:
-      - pserve
+      - uvicorn
+      - github_app_geo_project.app:app
+      - --host=0.0.0.0
+      - --port=8080
       - --reload
-      - c2c:///app/production.ini
+      - --reload-dir=/app/
+      - --reload-include=c2casgiutils/**/*.py
+      - --reload-include=c2casgiutils/**/*.html
     volumes:
       - ./github_app_geo_project:/app/github_app_geo_project/:ro
 

@@ -2,21 +2,22 @@
 
 import datetime
 import json
+from collections.abc import Iterable
 from typing import Any
 
 import pygments.formatters
 import pygments.lexers
 import yaml
+from tinycss2 import parse_stylesheet, serialize
 
 from github_app_geo_project import module
 
 _ISSUE_START = "<!-- START {} -->"
 _ISSUE_END = "<!-- END {} -->"
 
-
 _JSON_LEXER = pygments.lexers.JsonLexer()  # pylint: disable=no-member
 _YAML_LEXER = pygments.lexers.YamlLexer()  # pylint: disable=no-member
-_HTML_FORMATTER = pygments.formatters.HtmlFormatter(noclasses=True, style="github-dark")  # pylint: disable=no-member
+HTML_FORMATTER = pygments.formatters.HtmlFormatter(style="github-dark")  # pylint: disable=no-member
 
 
 def get_dashboard_issue_module(text: str, current_module: str) -> str:
@@ -70,7 +71,7 @@ def format_json(json_data: dict[str, Any]) -> str:
 
 def format_json_str(json_str: str) -> str:
     """Format a JSON data to a HTML string."""
-    return pygments.highlight(json_str, _JSON_LEXER, _HTML_FORMATTER)  # type: ignore[no-any-return]
+    return pygments.highlight(json_str, _JSON_LEXER, HTML_FORMATTER)  # type: ignore[no-any-return]
 
 
 def format_yaml(yaml_data: dict[str, Any]) -> str:
@@ -78,30 +79,8 @@ def format_yaml(yaml_data: dict[str, Any]) -> str:
     return pygments.highlight(  # type: ignore[no-any-return]
         yaml.dump(yaml_data, default_flow_style=False),
         _YAML_LEXER,
-        _HTML_FORMATTER,
+        HTML_FORMATTER,
     )
-
-
-def parse_duration(text: str) -> datetime.timedelta:
-    """
-    Parse a duration string to a timedelta.
-
-    The duration string should be in the format:
-    - 1d for 1 day
-    - 1w for 1 week
-    - 1m for 1 minute
-    - 1h for 1 hour
-    """
-    if text.endswith("d"):
-        return datetime.timedelta(days=int(text[:-1]))
-    if text.endswith("w"):
-        return datetime.timedelta(weeks=int(text[:-1]))
-    if text.endswith("m"):
-        return datetime.timedelta(minutes=int(text[:-1]))
-    if text.endswith("h"):
-        return datetime.timedelta(hours=int(text[:-1]))
-    message = f"Invalid time delta: {text}"
-    raise ValueError(message)
 
 
 def datetime_with_timezone(date: datetime.datetime) -> datetime.datetime:
@@ -109,3 +88,43 @@ def datetime_with_timezone(date: datetime.datetime) -> datetime.datetime:
     if date.tzinfo:
         return date
     return date.replace(tzinfo=datetime.UTC)
+
+
+def merge_css_blocks(css_blocks: Iterable[str]) -> str:
+    """Merge the CSS rules without adding duplication."""
+    merged_rules: dict[str, dict[str, str]] = {}
+
+    for css in css_blocks:
+        stylesheet = parse_stylesheet(css)
+        for rule in stylesheet:
+            if rule.type == "qualified-rule":
+                selector = serialize(rule.prelude).strip()
+                declarations: dict[str, str] = {}
+
+                prop = ""
+                value = ""
+                for decl in rule.content:
+                    if decl.type == "literal" and decl.value == ";":
+                        if prop and value:
+                            declarations[prop] = value
+                        prop = ""
+                        value = ""
+                    if decl.type not in ("whitespace", "literal"):
+                        if not prop:
+                            prop = decl.serialize()
+                        else:
+                            value += decl.serialize()
+
+                if prop and value:
+                    declarations[prop] = value
+
+                if selector not in merged_rules:
+                    merged_rules[selector] = {}
+                merged_rules[selector].update(declarations)
+
+    merged_css = []
+    for selector, props in merged_rules.items():
+        flat_declarations = "; ".join(f"{prop}: {value}" for prop, value in props.items())
+        merged_css.append(f"{selector} {{ {flat_declarations}; }}")
+
+    return "\n".join(merged_css)

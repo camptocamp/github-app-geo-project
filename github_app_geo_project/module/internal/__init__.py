@@ -1,7 +1,6 @@
 """Module to dispatch publishing event."""
 
 import logging
-import os
 from typing import Any
 
 import githubkit.webhooks
@@ -12,6 +11,7 @@ from pydantic import BaseModel
 from github_app_geo_project import models, module
 from github_app_geo_project.module import modules
 from github_app_geo_project.module import utils as module_utils
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -113,13 +113,9 @@ async def process_event(
     context: module.ProcessContext[None, _EventData],
 ) -> tuple[list[str], int]:
     """Process the event."""
-    owner = "camptocamp" if "TEST_APPLICATION" in os.environ else context.github_project.owner
-    repository = "test" if "TEST_APPLICATION" in os.environ else context.github_project.repository
-    application = (
-        os.environ["TEST_APPLICATION"]  # noqa: SIM401
-        if "TEST_APPLICATION" in os.environ
-        else context.github_project.application.name
-    )
+    owner = "camptocamp" if settings.test.app_name else context.github_project.owner
+    repository = "test" if settings.test.app_name else context.github_project.repository
+    application = settings.test.app_name or context.github_project.application.name
     _LOGGER.debug("Processing event for application %s", application)
     outputs = []
     number = 0
@@ -354,10 +350,10 @@ async def _re_requested_check_suite(
 
 
 async def _process_event(context: module.ProcessContext[None, _EventData]) -> None:
-    if "TEST_APPLICATION" in os.environ:
+    if settings.test.app_name:
         job = models.Queue()
         job.priority = 0
-        job.application = os.environ["TEST_APPLICATION"]
+        job.application = settings.test.app_name
         job.owner = "camptocamp"
         job.repository = "test"
         job.github_event_name = "repo_event"
@@ -407,10 +403,6 @@ async def _process_repo_event(context: module.ProcessContext[None, _EventData]) 
     _LOGGER.info(
         "Process the event: %s, application: %s",
         context.github_event_data.get("name"),
-        (
-            os.environ["TEST_APPLICATION"]  # noqa: SIM401
-            if "TEST_APPLICATION" in os.environ
-            else context.github_project.application.name
-        ),
+        (settings.test.app_name or context.github_project.application.name),
     )
     await process_event(context)

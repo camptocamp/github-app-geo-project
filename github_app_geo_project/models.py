@@ -2,7 +2,6 @@
 
 import enum
 import logging
-import os
 from datetime import datetime
 from typing import Any, TypedDict, Union
 
@@ -11,9 +10,11 @@ import sqlalchemy.sql.functions
 from sqlalchemy import JSON, BigInteger, DateTime, Enum, ForeignKey, Integer, Unicode
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
+from github_app_geo_project.settings import settings
+
 _LOGGER = logging.getLogger(__name__)
 
-_SCHEMA = os.environ.get("GHCI_SCHEMA", "ghci")
+_SCHEMA = settings.sqlalchemy.db_schema
 
 
 class Base(DeclarativeBase):
@@ -124,6 +125,7 @@ class JobLogEntry(Base):
     level_no: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     filename: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
     log: Mapped[str] = mapped_column(Unicode, nullable=False)
+    css_style: Mapped[str | None] = mapped_column(Unicode, nullable=True)
 
 
 class OutputStatus(enum.Enum):

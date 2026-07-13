@@ -1,18 +1,18 @@
-%for branch_name, branch_values in data_json.items():
+{% for branch_name, branch_values in data_json.items() %}
 <!---->
-%if branch_name != 'updated':
-<h2>${branch_name}</h2>
-%for workflow_name, workflow_value in branch_values.items():
-<p><a href="${workflow_value['url']}">${workflow_name}</a></p>
+{% if branch_name != 'updated' %}
+<h2>{{ branch_name }}</h2>
+{% for workflow_name, workflow_value in branch_values.items() %}
+<p><a href="{{ workflow_value['url'] }}">{{ workflow_name }}</a></p>
 <ul>
-  %for job_value in workflow_value['jobs']:
-  <li><a href="${job_value['run_url']}">${job_value['name']}</a>.</li>
-  %endfor
+  {% for job_value in workflow_value['jobs'] %}
+  <li><a href="{{ job_value['run_url'] }}">{{ job_value['name'] }}</a>.</li>
+  {% endfor %}
 </ul>
-%endfor
+{% endfor %}
 <!---->
-%endif
+{% endif %}
 <!---->
-%endfor
+{% endfor %}
 
-<p>${data|sanitizer, n}</p>
+<p>{{ data | sanitizer | safe }}</p>

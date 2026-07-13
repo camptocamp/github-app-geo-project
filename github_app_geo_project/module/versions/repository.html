@@ -5,15 +5,21 @@
   td {
     padding: 0 1em;
   }
+  .dep-unsupported {
+    background-color: var(--bs-danger);
+  }
+  .dep-supported {
+    background-color: var(--bs-body-bg);
+  }
 </style>
 
-<p><a href="${url}">Sources</a>.</p>
-%for branch in branches:
+<p><a href="{{ url }}">Sources</a>.</p>
+{% for branch in branches %}
 <!---->
-<% dependencies = dependencies_branches.by_branch[branch] %>
-<h3>${branch}</h3>
-<p style="background-color: var(${dependencies.color})">Supported: ${dependencies.support.display}</p>
-%if dependencies.forward:
+{% set dependencies = dependencies_branches.by_branch[branch] %}
+<h3>{{ branch }}</h3>
+<p class="{{ dependencies.css_class }}">Supported: {{ dependencies.support.display }}</p>
+{% if dependencies.forward %}
 <h4>Internal dependencies</h4>
 <table>
   <tr>
@@ -22,18 +28,18 @@
     <th>Version</th>
     <th>Supported</th>
   </tr>
-  %for dependency in dependencies.forward:
+  {% for dependency in dependencies.forward %}
   <tr>
-    <td><a href="?repository=${dependency.repo}">${dependency.name}</a></td>
-    <td>${dependency.datasource}</td>
-    <td>${dependency.version}</td>
-    <td style="background-color: var(${dependency.color})">${dependency.support.display}</td>
+    <td><a href="?repository={{ dependency.repo }}">{{ dependency.name }}</a></td>
+    <td>{{ dependency.datasource }}</td>
+    <td>{{ dependency.version }}</td>
+    <td class="{{ dependency.css_class }}">{{ dependency.support.display }}</td>
   </tr>
-  %endfor
+  {% endfor %}
 </table>
-%endif
+{% endif %}
 <!---->
-%if dependencies.reverse:
+{% if dependencies.reverse %}
 <h4>Reverse dependencies</h4>
 <table>
   <tr>
@@ -41,18 +47,18 @@
     <th>Version</th>
     <th>Supported</th>
   </tr>
-  %for dependency in dependencies.reverse:
+  {% for dependency in dependencies.reverse %}
   <tr>
-    <td><a href="?repository=${dependency.repo}">${dependency.name}</a></td>
-    <td>${dependency.version}</td>
-    <td style="background-color: var(${dependency.color})">${dependency.support.display}</td>
+    <td><a href="?repository={{ dependency.repo }}">{{ dependency.name }}</a></td>
+    <td>{{ dependency.version }}</td>
+    <td class="{{ dependency.css_class }}">{{ dependency.support.display }}</td>
   </tr>
-  %endfor
+  {% endfor %}
 </table>
-%endif
+{% endif %}
 <!---->
-%endfor
+{% endfor %}
 
 <h2>Data</h2>
 
-<p>${data|sanitizer, n}</p>
+<p>{{ data | sanitizer | safe }}</p>

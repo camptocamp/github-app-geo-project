@@ -1,51 +1,29 @@
 """Webhook view."""
 
 import logging
-import os
+from typing import Annotated
 
 import githubkit.webhooks
-import pyramid.httpexceptions
-import pyramid.request
-import sqlalchemy.orm
-from pyramid.view import view_config
+import sqlalchemy
+from fastapi import Depends, HTTPException, Request
 
 from github_app_geo_project import models, module
-from github_app_geo_project.views import get_event_loop
+from github_app_geo_project.security import AuthType, User, get_user
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 _APPLICATIONS_SLUG: dict[str, str] = {}
 
 
-async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
-    """Receive GitHub application webhook URL."""
-    application = request.matchdict["application"]
-    data = request.json
-
-    github_secret = request.registry.settings.get(
-        f"application.{application}.github_app_webhook_secret",
-    )
-    if github_secret:
-        dry_run = os.environ.get("GHCI_WEBHOOK_SECRET_DRY_RUN", "false").lower() in (
-            "true",
-            "1",
-            "yes",
-            "on",
-        )
-        if "X-Hub-Signature-256" not in request.headers:
-            _LOGGER.error("No signature in the request")
-            if not dry_run:
-                message = "No signature in the request"
-                raise pyramid.httpexceptions.HTTPBadRequest(message)
-
-        elif not githubkit.webhooks.verify(
-            github_secret,
-            request.body,
-            request.headers["X-Hub-Signature-256"],
-        ):
-            _LOGGER.error("Invalid signature in the request")
-            if not dry_run:
-                message = "Invalid signature in the request"
-                raise pyramid.httpexceptions.HTTPBadRequest(message)
+async def webhook(
+    request: Request,
+    application: str,
+    user: Annotated[User, Depends(get_user)],
+) -> dict[str, None]:
+    """Handle incoming webhooks."""
+    if user.auth_type != AuthType.GITHUB_WEBHOOK:
+        raise HTTPException(status_code=403, detail="Invalid webhook signature")
+    data = await request.json()
 
     event_name = request.headers.get("X-GitHub-Event", "undefined")
     _LOGGER.debug(
@@ -54,17 +32,15 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
         application,
     )
 
-    # triggering_actor can also be used to avoid infinite event loop
     if application not in _APPLICATIONS_SLUG:
+        # triggering_actor can also be used to avoid infinite event loop
+        app_config = settings.application_configs.get(application)
+        if app_config is None:
+            message = f"Application {application} not found"
+            raise ValueError(message)
         try:
-            config = request.registry.settings
-            private_key = "\n".join(
-                [
-                    e.strip()
-                    for e in config[f"application.{application}.github_app_private_key"].strip().split("\n")
-                ],
-            )
-            application_id = config[f"application.{application}.github_app_id"]
+            private_key = app_config.github_app.private_key
+            application_id = app_config.github_app.id
 
             aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
             aio_github = githubkit.GitHub(aio_auth)
@@ -78,11 +54,13 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
                 "Event from the application itself, this can be source of infinite event loop",
             )
 
-    if application in _APPLICATIONS_SLUG:  # noqa: SIM102
-        if data.get("sender", {}).get("login") == _APPLICATIONS_SLUG[application] + "[bot]":
-            _LOGGER.warning(
-                "Event from the application itself, this can be source of infinite event loop",
-            )
+    if (
+        application in _APPLICATIONS_SLUG
+        and data.get("sender", {}).get("login") == _APPLICATIONS_SLUG[application] + "[bot]"
+    ):
+        _LOGGER.warning(
+            "Event from the application itself, this can be source of infinite event loop",
+        )
 
     if "account" in data.get("installation", {}):
         if "repositories" in data:
@@ -104,22 +82,19 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
                 "\n".join([repo["full_name"] for repo in data["repositories_removed"]]),
             )
         return {}
-    owner, repository = data["repository"]["full_name"].split("/")
+    owner, repository_name = data["repository"]["full_name"].split("/")
 
-    session_factory = request.registry["dbsession_factory"]
-    engine = session_factory.rw_engine
-    SessionMaker = sqlalchemy.orm.sessionmaker(engine)  # noqa
-    with SessionMaker() as session:
+    async with request.app.state.async_session_factory() as session:
         if event_name == "issues":
             event = githubkit.webhooks.parse_obj("issues", data)
             if event.action == "edited" and event.issue and "dashboard" in event.issue.title:
-                session.execute(
+                await session.execute(
                     sqlalchemy.insert(models.Queue).values(
                         {
                             "priority": module.PRIORITY_HIGH,
                             "application": application,
                             "owner": owner,
-                            "repository": repository,
+                            "repository": repository_name,
                             "github_event_name": "dashboard",
                             "github_event_data": data,
                             "module_event_name": "dashboard",
@@ -135,23 +110,19 @@ async def async_webhook(request: pyramid.request.Request) -> dict[str, None]:
         job.priority = 0
         job.application = application
         job.owner = owner
-        job.repository = repository
+        job.repository = repository_name
         job.github_event_name = event_name
         job.github_event_data = data
         job.module = "dispatcher"
         job.module_event_name = event_name
         job.module_event_data = {
-            "modules": request.registry.settings.get(
-                f"application.{application}.modules",
-                "",
-            ).split(),
+            "modules": settings.application_configs[application].modules
+            if application in settings.application_configs
+            else [],
         }
         session.add(job)
-        session.commit()
+        await session.commit()
     return {}
 
 
-@view_config(route_name="webhook", renderer="json")  # type: ignore[untyped-decorator]
-def webhook(request: pyramid.request.Request) -> dict[str, None]:
-    """Receive GitHub application webhook URL."""
-    return get_event_loop().run_until_complete(async_webhook(request))
+WebhookData = Annotated[dict[str, None], Depends(webhook)]

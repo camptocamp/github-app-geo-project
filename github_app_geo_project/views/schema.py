@@ -1,30 +1,28 @@
-"""Output view."""
+"""Schema view."""
 
 import json
 import logging
-from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-import pyramid.request
-from pyramid.view import view_config
+import anyio
+from fastapi import Depends
 
 from github_app_geo_project.module import modules
-from github_app_geo_project.views import get_event_loop
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 
 
-@view_config(route_name="schema", renderer="json")  # type: ignore[untyped-decorator]
-def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
-    """Get the welcome page."""
-    module_names = set()
-    for app in request.registry.settings["applications"].split():
-        module_names.update(request.registry.settings[f"application.{app}.modules"].split())
+async def schema_view() -> dict[str, Any]:
+    """Return the JSON schema."""
+    module_names: set[str] = set()
+    for app_config in settings.application_configs.values():
+        module_names.update(app_config.modules)
 
+    schema_path = anyio.Path(__file__).parent.parent / "project-schema.json"
     # get project-schema-content
-    schema_path = Path(__file__).parent.parent / "project-schema.json"
-    with schema_path.open(encoding="utf-8") as schema_file:
-        schema: dict[str, Any] = json.loads(schema_file.read())
+    async with await schema_path.open(encoding="utf-8") as schema_file:
+        schema: dict[str, Any] = json.loads(await schema_file.read())
 
     del schema["properties"]["module-configuration"]
     del schema["properties"]["example"]
@@ -39,8 +37,11 @@ def schema_view(request: pyramid.request.Request) -> dict[str, Any]:
             "description": modules.MODULES[module_name].description(),
             "allOf": [
                 {"$ref": "#/$defs/module-configuration"},
-                get_event_loop().run_until_complete(modules.MODULES[module_name].get_json_schema()),
+                await modules.MODULES[module_name].get_json_schema(),
             ],
         }
 
     return schema
+
+
+SchemaData = Annotated[dict[str, Any], Depends(schema_view)]

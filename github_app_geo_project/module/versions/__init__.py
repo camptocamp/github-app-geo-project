@@ -29,14 +29,15 @@ from github_app_geo_project import module, utils
 from github_app_geo_project.module import ProcessOutput
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.versions import configuration
+from github_app_geo_project.settings import settings
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
 _LOGGER = logging.getLogger(__name__)
 
-_UNSUPPORTED_COLOR = "--bs-danger"
-_SUPPORTED_COLOR = "--bs-body-bg"
+_UNSUPPORTED_CLASS = "dep-unsupported"
+_SUPPORTED_CLASS = "dep-supported"
 
 
 class _SupportCategory(IntEnum):
@@ -185,7 +186,7 @@ class _DependencyBase(BaseModel):
     name: str
     version: str
     support: _Support
-    color: str
+    css_class: str
     repo: str
 
 
@@ -199,7 +200,7 @@ class _DependencyReverse(_DependencyBase):
 
 class _Dependencies(BaseModel):
     support: _Support = Field(default_factory=lambda: _Support(type=_SupportType.UNSUPPORTED))
-    color: str = _UNSUPPORTED_COLOR
+    css_class: str = _UNSUPPORTED_CLASS
     forward: list[_Dependency] = []
     reverse: list[_DependencyReverse] = []
 
@@ -375,9 +376,7 @@ class Versions(
                             if security is not None
                             else []
                         ),
-                        retry=int(
-                            os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_NUMBER", "10"),
-                        ),
+                        retry=settings.versions.renovate_graph_retry_number,
                         previous_jobs=[
                             *(context.module_event_data.previous_jobs or []),
                             context.job_id,
@@ -1152,7 +1151,7 @@ async def _get_dependencies(
             message.title = "Failed to get the dependencies (will retry)"
             _LOGGER.info(message)
             await asyncio.sleep(
-                int(os.environ.get("GHCI_RENOVATE_GRAPH_RETRY_DELAY", "600")),
+                settings.versions.renovate_graph_retry_delay.total_seconds(),
             )
             return True
 
@@ -1313,10 +1312,7 @@ async def _update_upstream_versions(
 
         if package_status.upstream_updated and (
             package_status.upstream_updated
-            > datetime.datetime.now(datetime.UTC)
-            - utils.parse_duration(
-                os.environ.get("GHCI_EXTERNAL_PACKAGES_UPDATE_PERIOD", "30d"),
-            )
+            > datetime.datetime.now(datetime.UTC) - settings.versions.external_packages_update_period
         ):
             return
         package_status.upstream_updated = datetime.datetime.now(datetime.UTC)
@@ -1484,7 +1480,7 @@ def _build_internal_dependencies(
     """
     dependencies_branch = dependencies_branches.by_branch.setdefault(
         version,
-        _Dependencies(support=version_data.support, color=_SUPPORTED_COLOR),
+        _Dependencies(support=version_data.support, css_class=_SUPPORTED_CLASS),
     )
     for (
         datasource_name,
@@ -1550,14 +1546,14 @@ def _build_internal_dependencies(
                             else f"{dependency_minor} ({clean_dependency_version})"
                         ),
                         support=support,
-                        color=(
-                            _SUPPORTED_COLOR
+                        css_class=(
+                            _SUPPORTED_CLASS
                             if dependency_package_data.has_security_policy is False
                             or _is_supported(
                                 version_data.support,
                                 support,
                             )
-                            else _UNSUPPORTED_COLOR
+                            else _UNSUPPORTED_CLASS
                         ),
                         repo=dependency_package_data.repo or "-",
                     ),
@@ -1621,19 +1617,19 @@ def _build_reverse_dependency(
                         if version_data is not None and match:
                             dependencies_branches.by_branch.setdefault(
                                 target_version,
-                                _Dependencies(color=_UNSUPPORTED_COLOR),
+                                _Dependencies(css_class=_UNSUPPORTED_CLASS),
                             ).reverse.append(
                                 _DependencyReverse(
                                     name=other_repo,
                                     version=_clean_version(other_version),
                                     support=other_version_data.support,
-                                    color=(
-                                        _SUPPORTED_COLOR
+                                    css_class=(
+                                        _SUPPORTED_CLASS
                                         if _is_supported(
                                             other_version_data.support,
                                             version_data.support,
                                         )
-                                        else _UNSUPPORTED_COLOR
+                                        else _UNSUPPORTED_CLASS
                                     ),
                                     repo=other_repo,
                                 ),
@@ -1649,10 +1645,10 @@ def _build_reverse_dependency(
                                             else _SupportType.NO_SUPPORT_DEFINED
                                         ),
                                     ),
-                                    color=(
-                                        _UNSUPPORTED_COLOR
+                                    css_class=(
+                                        _UNSUPPORTED_CLASS
                                         if repo_data.has_security_policy
-                                        else _SUPPORTED_COLOR
+                                        else _SUPPORTED_CLASS
                                     ),
                                 ),
                             ).reverse.append(
@@ -1660,10 +1656,10 @@ def _build_reverse_dependency(
                                     name=other_repo,
                                     version=_clean_version(other_version),
                                     support=other_version_data.support,
-                                    color=(
-                                        _SUPPORTED_COLOR
+                                    css_class=(
+                                        _SUPPORTED_CLASS
                                         if not repo_data.has_security_policy
-                                        else _UNSUPPORTED_COLOR
+                                        else _UNSUPPORTED_CLASS
                                     ),
                                     repo=other_repo,
                                 ),

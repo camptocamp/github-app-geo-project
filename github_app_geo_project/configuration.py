@@ -2,7 +2,6 @@
 
 import base64
 import logging
-import os
 from pathlib import Path
 from typing import Any, NamedTuple, cast
 
@@ -14,12 +13,13 @@ import redis.asyncio.client
 import yaml
 
 from github_app_geo_project import application_configuration, project_configuration
+from github_app_geo_project.settings import _AppConfig, settings
 
 _LOGGER = logging.getLogger(__name__)
 
 APPLICATION_CONFIGURATION: application_configuration.GithubApplicationProjectConfiguration = {}
-if "GHCI_CONFIGURATION" in os.environ:
-    with Path(os.environ["GHCI_CONFIGURATION"]).open(encoding="utf-8") as configuration_file:
+if settings.configuration:
+    with Path(settings.configuration).open(encoding="utf-8") as configuration_file:
         APPLICATION_CONFIGURATION = yaml.load(configuration_file, Loader=yaml.SafeLoader)
 
 
@@ -112,36 +112,32 @@ class GithubProject(NamedTuple):
         return default_branch
 
 
-async def get_github_application(config: dict[str, Any], application_name: str) -> GithubApplication:
+async def get_github_application(application_name: str) -> GithubApplication:
     """Get the Github Application objects by name."""
-    applications = config.get("applications", "").split()
+    applications: dict[str, _AppConfig] = settings.application_configs
     if application_name not in applications:
         message = (
             f"Application {application_name} not found, available applications: {', '.join(applications)}"
         )
         raise ValueError(message)
-    private_key = "\n".join(
-        [
-            e.strip()
-            for e in config[f"application.{application_name}.github_app_private_key"].strip().split("\n")
-        ],
-    )
-    application_id = config[f"application.{application_name}.github_app_id"]
+    app_config = applications[application_name]
+    private_key = app_config.github_app.private_key
+    application_id = app_config.github_app.id
 
     aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
     aio_cache_strategy = (
         githubkit.cache.AsyncRedisCacheStrategy(
             redis.asyncio.client.Redis(
-                host=os.environ["REDIS_HOST"],
-                port=int(os.environ.get("REDIS_PORT", "6379")),
-                db=int(os.environ.get("REDIS_DB", "0")),
-                username=os.environ.get("REDIS_USERNAME"),
-                password=os.environ.get("REDIS_PASSWORD"),
-                ssl=os.environ.get("REDIS_SSL", "false").lower() in ("true", "1", "yes"),
+                host=settings.redis.host,
+                port=settings.redis.port,
+                db=settings.redis.db,
+                username=settings.redis.username,
+                password=settings.redis.password,
+                ssl=settings.redis.ssl,
             ),
             prefix="githubkit-",
         )
-        if "REDIS_HOST" in os.environ
+        if settings.redis.host
         else None
     )
     aio_github = githubkit.GitHub(aio_auth, cache_strategy=aio_cache_strategy)
@@ -164,14 +160,13 @@ async def get_github_application(config: dict[str, Any], application_name: str) 
 
 
 async def get_github_project(
-    config: dict[str, Any],
     github_application: GithubApplication | str,
     owner: str,
     repository: str,
 ) -> GithubProject:
     """Get the Github Application by name."""
     github_application = (
-        await get_github_application(config, github_application)
+        await get_github_application(github_application)
         if isinstance(github_application, str)
         else github_application
     )

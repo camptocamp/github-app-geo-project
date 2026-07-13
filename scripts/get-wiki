@@ -33,6 +33,7 @@ def _main() -> None:
             doc_file.write(
                 requests.get(
                     f"https://raw.githubusercontent.com/wiki/camptocamp/github-app-geo-project/{page.replace(' ', '-')}.md",
+                    timeout=30,
                 ).text,
             )
 
