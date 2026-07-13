@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   main:
     name: Continuous integration
@@ -82,12 +86,8 @@ jobs:
     name: Publish
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    concurrency:
-      group: publish-${{ github.ref }}
-      cancel-in-progress: false
     needs:
       - main
-    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && github.ref_protected == true
     permissions:
       contents: write
       packages: write
@@ -106,11 +106,18 @@ jobs:
       - run: tag-publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: env.HAS_SECRETS == 'HAS_SECRETS'
       - run: git diff --exit-code --patch > /tmp/dpkg-versions.patch; git diff --color; git reset --hard || true
         if: failure()
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Update dpkg versions list.patch
           path: /tmp/dpkg-versions.patch
+          retention-days: 1
+        if: failure()
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Update dpkg packages list.patch
+          path: /tmp/dpkg.patch
           retention-days: 1
         if: failure()
