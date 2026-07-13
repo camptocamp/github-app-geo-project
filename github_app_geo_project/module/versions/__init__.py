@@ -22,6 +22,7 @@ import c2cciutils.configuration
 import githubkit.exception
 import githubkit.versions.latest.models
 import security_md
+import tag_publish.configuration
 import yaml
 from pydantic import BaseModel, Field, model_validator
 
@@ -1012,6 +1013,7 @@ async def _get_names(
                         names.append(match.group(1))
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     docker_config = {}
+    repository_default = {}
     if (cwd / ".github" / "publish.yaml").exists():
         async with await anyio.open_file(
             cwd / ".github" / "publish.yaml",
@@ -1021,12 +1023,15 @@ async def _get_names(
                 "docker",
                 {},
             )
+        repository_default = tag_publish.configuration.DOCKER_REPOSITORY_DEFAULT
     else:
         async with module_utils.WORKING_DIRECTORY_LOCK:
             os.chdir(cwd)
             data = c2cciutils.get_config()
             os.chdir("/")
         docker_config = data.get("publish", {}).get("docker", {})
+        repository_default = c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT
+
     if docker_config:
         names = names_by_datasource.setdefault(
             "docker",
@@ -1039,7 +1044,7 @@ async def _get_names(
             for tag in conf.get("tags", ["{version}"]):
                 for repository_conf in docker_config.get(
                     "repository",
-                    c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT,
+                    repository_default,
                 ).values():
                     for ver in all_versions:
                         repository_host = repository_conf.get(
