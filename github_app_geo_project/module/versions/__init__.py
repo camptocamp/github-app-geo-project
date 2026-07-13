@@ -360,9 +360,20 @@ class Versions(
                         version = raw[version_index]
                         support = raw[support_index]
                         if version in intermediate_status.version_support:
-                            intermediate_status.version_support[version] = _Support(
-                                type=_SupportType(support)
-                            )
+                            try:
+                                support_date = (
+                                    datetime.datetime.strptime(support, "%d/%m/%Y")
+                                    .astimezone(datetime.UTC)
+                                    .date()
+                                )
+                                intermediate_status.version_support[version] = _Support(
+                                    type=_SupportType.DATE,
+                                    until=support_date,
+                                )
+                            except ValueError:
+                                intermediate_status.version_support[version] = _Support(
+                                    type=_SupportType(support)
+                                )
 
             intermediate_status.stabilization_versions = stabilization_versions
 
