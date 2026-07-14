@@ -1,7 +1,7 @@
 import base64
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import githubkit.versions.latest.models
+import githubkit_schemas.latest.models
 import pytest
 
 from github_app_geo_project import module
@@ -53,7 +53,7 @@ async def test_process_discovery(mock_context):
 
     # Mocking the response object structure for async_get_content
     mock_response = MagicMock()
-    mock_response.parsed_data = MagicMock(spec=githubkit.versions.latest.models.ContentFile)
+    mock_response.parsed_data = MagicMock(spec=githubkit_schemas.latest.models.ContentFile)
     mock_response.parsed_data.content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
     mock_context.github_project.aio_github.rest.repos.async_get_content.return_value = mock_response
 

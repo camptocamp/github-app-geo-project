@@ -15,7 +15,7 @@ from github_app_geo_project.templates import pprint_duration, pprint_full_date, 
 from github_app_geo_project.utils import HTML_FORMATTER
 
 if TYPE_CHECKING:
-    import githubkit.versions.latest.models
+    import githubkit_schemas.latest.models
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ async def project(
                     )
                 ).parsed_data
                 assert isinstance(issues, list)
-                issues = cast("list[githubkit.versions.latest.models.Issue]", issues)
+                issues = cast("list[githubkit_schemas.latest.models.Issue]", issues)
                 for issue in issues:
                     if "dashboard" in issue.title.lower().split() and issue.state == "open":
                         applications[app_name]["issue_url"] = issue.html_url

@@ -5,6 +5,7 @@ import re
 from typing import Any
 
 import githubkit.webhooks
+import githubkit_schemas.latest.webhooks
 from pydantic import BaseModel
 
 from github_app_geo_project import module
@@ -91,7 +92,7 @@ class DispatchPublishing(module.Module[None, None, None, None]):
             )
             if event_data.action == "published" and isinstance(
                 event_data,
-                githubkit.versions.latest.webhooks.RepositoryDispatchEvent,
+                githubkit_schemas.latest.webhooks.RepositoryDispatchEvent,
             ):
                 return [module.Action(None)]
         return []

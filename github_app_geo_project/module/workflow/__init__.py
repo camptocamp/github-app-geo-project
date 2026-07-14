@@ -5,8 +5,8 @@ import logging
 from typing import Any
 
 import githubkit.exception
-import githubkit.versions.latest.models
 import githubkit.webhooks
+import githubkit_schemas.latest.models
 import security_md
 
 from github_app_geo_project import module, utils
@@ -97,7 +97,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             if exception.response.status_code != 404:
                 raise
         if (
-            isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+            isinstance(security_file, githubkit_schemas.latest.models.ContentFile)
             and security_file.content is not None
         ):
             security = security_md.Security(

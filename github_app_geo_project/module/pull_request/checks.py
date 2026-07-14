@@ -12,9 +12,9 @@ from typing import Any, cast
 
 import githubkit
 import githubkit.exception
-import githubkit.versions.latest.models
-import githubkit.versions.latest.webhooks
 import githubkit.webhooks
+import githubkit_schemas.latest.models
+import githubkit_schemas.latest.webhooks
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
@@ -33,7 +33,7 @@ async def _get_code_spell_command(
         checks_configuration.PullRequestChecksConfiguration,
         dict[str, Any],
     ],
-    event_data: githubkit.versions.latest.webhooks.PullRequestEvent,
+    event_data: githubkit_schemas.latest.webhooks.PullRequestEvent,
     ignore_file: NamedTemporaryFileStr,
 ) -> list[str]:
     """Get the codespell command."""
@@ -55,7 +55,7 @@ async def _get_code_spell_command(
                     path=spell_ignore_file,
                 )
             ).parsed_data
-            assert isinstance(content, githubkit.versions.latest.models.ContentFile)
+            assert isinstance(content, githubkit_schemas.latest.models.ContentFile)
             assert content.content is not None
             ignore_file.write(base64.b64decode(content.content).decode("utf-8"))
             ignore_file.flush()
@@ -80,7 +80,7 @@ async def _get_code_spell_command(
 
 def _commits_messages(
     config: checks_configuration.PullRequestChecksConfiguration,
-    commits: list[githubkit.versions.latest.models.Commit],
+    commits: list[githubkit_schemas.latest.models.Commit],
 ) -> tuple[bool, list[str]]:
     """
     Check the commits messages.
@@ -205,7 +205,7 @@ def _commits_messages(
 
 async def _commits_spell(
     config: checks_configuration.PullRequestChecksConfiguration,
-    commits: list[githubkit.versions.latest.models.Commit],
+    commits: list[githubkit_schemas.latest.models.Commit],
     spellcheck_cmd: list[str],
 ) -> tuple[bool, list[str]]:
     """Check the spelling of the commits body."""
@@ -258,7 +258,7 @@ async def _commits_spell(
 
 async def _pull_request_spell(
     config: checks_configuration.PullRequestChecksConfiguration,
-    pull_request: githubkit.versions.latest.models.PullRequest,
+    pull_request: githubkit_schemas.latest.models.PullRequest,
     spellcheck_cmd: list[str],
 ) -> tuple[bool, list[str]]:
     """Check the spelling of the pull request title and message."""

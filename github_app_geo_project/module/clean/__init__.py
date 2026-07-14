@@ -12,10 +12,10 @@ from typing import Any, cast
 
 import aiohttp
 import githubkit.exception
-import githubkit.versions
-import githubkit.versions.latest
-import githubkit.versions.latest.models
 import githubkit.webhooks
+import githubkit_schemas
+import githubkit_schemas.latest
+import githubkit_schemas.latest.models
 import tag_publish.configuration
 import yaml
 from pydantic import BaseModel
@@ -234,7 +234,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
             ).parsed_data
             if isinstance(
                 publish_configuration_content,
-                githubkit.versions.latest.models.ContentFile,
+                githubkit_schemas.latest.models.ContentFile,
             ) and isinstance(publish_configuration_content.content, str):
                 publish_config = cast(
                     "tag_publish.configuration.Configuration",

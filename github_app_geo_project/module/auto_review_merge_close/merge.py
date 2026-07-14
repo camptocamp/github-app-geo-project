@@ -3,7 +3,7 @@
 import logging
 from typing import Any
 
-import githubkit.versions.latest.models
+import githubkit_schemas.latest.models
 
 from github_app_geo_project import module
 from github_app_geo_project.module import auto_review_merge_close as auto
@@ -41,7 +41,7 @@ class AutoMerge(auto.Auto):
             configuration.AutoPullRequest,
             dict[str, Any],
         ],
-        pull_request: githubkit.versions.latest.models.PullRequest,
+        pull_request: githubkit_schemas.latest.models.PullRequest,
     ) -> None:
         """
         Process the action.
