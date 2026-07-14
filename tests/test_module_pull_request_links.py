@@ -1,7 +1,7 @@
 from unittest import mock
 from unittest.mock import AsyncMock, MagicMock
 
-import githubkit.versions.latest.models
+import githubkit_schemas.latest.models
 import pytest
 
 from github_app_geo_project import module
@@ -62,11 +62,11 @@ def create_mock_context(pull_request, module_config=None):
     return context
 
 
-def get_pull_request_mock() -> githubkit.versions.latest.models.PullRequest:
+def get_pull_request_mock() -> githubkit_schemas.latest.models.PullRequest:
     """Create a mock PullRequest for testing."""
-    pull_request = MagicMock(spec=githubkit.versions.latest.models.PullRequest)
+    pull_request = MagicMock(spec=githubkit_schemas.latest.models.PullRequest)
     pull_request.body = "Description of the pull request."
-    pull_request.head = MagicMock(spec=githubkit.versions.latest.models.PullRequestPropHead)
+    pull_request.head = MagicMock(spec=githubkit_schemas.latest.models.PullRequestPropHead)
     pull_request.head.ref = "feature/branch-name"
     pull_request.number = 1
 

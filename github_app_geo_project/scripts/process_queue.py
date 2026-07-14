@@ -24,8 +24,8 @@ import aiomonitor
 import anyio
 import c2casgiutils.config
 import githubkit.exception
-import githubkit.versions.latest.models
 import githubkit.webhooks
+import githubkit_schemas.latest.models
 import prometheus_client.exposition
 import sentry_sdk
 import sqlalchemy.ext.asyncio
@@ -184,7 +184,7 @@ async def _process_job(
     issue_data = ""
     module_config: project_configuration.ModuleConfiguration = {}
     github_project: configuration.GithubProject | None = None
-    check_run: githubkit.versions.latest.models.CheckRun | None = None
+    check_run: githubkit_schemas.latest.models.CheckRun | None = None
     tasks: list[asyncio.Task[Any]] = []
     if not settings.test.app_name:
         github_application = await configuration.get_github_application(
@@ -779,7 +779,7 @@ async def _process_job(
 
 async def _get_dashboard_issue(
     github_project: configuration.GithubProject,
-) -> githubkit.versions.latest.models.Issue | None:
+) -> githubkit_schemas.latest.models.Issue | None:
     open_issues = (
         await github_project.aio_github.rest.issues.async_list_for_repo(
             owner=github_project.owner,
@@ -812,7 +812,7 @@ async def _process_dashboard_issue(
     )
     event_data_issue = githubkit.webhooks.parse_obj("issues", event_data)
 
-    if not isinstance(event_data_issue, githubkit.versions.latest.models.WebhookIssuesEdited):
+    if not isinstance(event_data_issue, githubkit_schemas.latest.models.WebhookIssuesEdited):
         _LOGGER.debug("Dashboard issue not edited")
         return
 

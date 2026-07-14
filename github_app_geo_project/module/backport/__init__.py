@@ -10,9 +10,9 @@ from typing import Any, cast
 
 import anyio
 import githubkit.exception
-import githubkit.versions.latest.models
-import githubkit.versions.latest.webhooks
 import githubkit.webhooks
+import githubkit_schemas.latest.models
+import githubkit_schemas.latest.webhooks
 import security_md
 from pydantic import BaseModel
 
@@ -179,7 +179,7 @@ class Backport(
                     ).parsed_data
                     assert isinstance(
                         backport_todo,
-                        githubkit.versions.latest.models.ContentFile,
+                        githubkit_schemas.latest.models.ContentFile,
                     )
                     assert backport_todo.content is not None
                     return module.ProcessOutput(
@@ -213,7 +213,7 @@ class Backport(
                 has_security_md = False
                 if isinstance(
                     event_data_pull_request,
-                    githubkit.versions.latest.models.WebhookPullRequestClosed,
+                    githubkit_schemas.latest.models.WebhookPullRequestClosed,
                 ):
                     commits = (
                         await context.github_project.aio_github.rest.pulls.async_list_commits(
@@ -242,7 +242,7 @@ class Backport(
                         ).parsed_data
                         assert isinstance(
                             security_file,
-                            githubkit.versions.latest.models.ContentFile,
+                            githubkit_schemas.latest.models.ContentFile,
                         )
                         assert security_file.content is not None
                         security = security_md.Security(
@@ -273,7 +273,7 @@ class Backport(
                             )
                         ).parsed_data
                         assert isinstance(labels, list)
-                        labels_list: list[githubkit.versions.latest.models.Label] = list(labels)
+                        labels_list: list[githubkit_schemas.latest.models.Label] = list(labels)
 
                         for label in labels_list:
                             if label.name.startswith("backport "):
@@ -388,7 +388,7 @@ class Backport(
             configuration.BackportConfiguration,
             _ActionData,
         ],
-        event_data_pull_request: githubkit.versions.latest.webhooks.PullRequestEvent,
+        event_data_pull_request: githubkit_schemas.latest.webhooks.PullRequestEvent,
         target_branch: str,
     ) -> bool:
         """Backport the pull request to the target branch."""
@@ -489,7 +489,7 @@ class Backport(
                 )
             ).parsed_data
             commits: list[
-                githubkit.versions.latest.models.Commit | githubkit.versions.latest.models.GitCommit
+                githubkit_schemas.latest.models.Commit | githubkit_schemas.latest.models.GitCommit
             ] = list(pull_request_commits)
 
             if len(commits) != 1:

@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 import githubkit
-import githubkit.versions.latest.models
 import githubkit.webhooks
+import githubkit_schemas.latest.models
 
 from github_app_geo_project import module
 from github_app_geo_project.module.auto_review_merge_close import configuration
@@ -84,7 +84,7 @@ class Auto(
             configuration.AutoPullRequest,
             dict[str, Any],
         ],
-        pull_request: githubkit.versions.latest.models.PullRequest,
+        pull_request: githubkit_schemas.latest.models.PullRequest,
     ) -> None:
         """Process the action, called it the conditions match."""
 

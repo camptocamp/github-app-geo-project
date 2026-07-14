@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-import githubkit.versions.latest.models
 import githubkit.webhooks
 
 from github_app_geo_project import module

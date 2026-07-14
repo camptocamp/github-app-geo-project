@@ -7,7 +7,7 @@ from typing import Any, NamedTuple, cast
 
 import githubkit.cache
 import githubkit.exception
-import githubkit.versions.latest.models
+import githubkit_schemas.latest.models
 import jsonmerge
 import redis.asyncio.client
 import yaml
@@ -65,7 +65,7 @@ class GithubApplication(NamedTuple):
     """The authentication strategy for the application"""
     aio_github: githubkit.GitHub[githubkit.AppAuthStrategy]
     """The githubkit GitHub"""
-    aio_application: githubkit.versions.latest.models.Integration
+    aio_application: githubkit_schemas.latest.models.Integration
     """The githubkit application object"""
     aio_cache_strategy: githubkit.cache.BaseCacheStrategy | None
     """The githubkit cache strategy for the application"""
@@ -85,7 +85,7 @@ class GithubProject(NamedTuple):
     """The owner of the repository"""
     repository: str
     """The repository name"""
-    aio_installation: githubkit.versions.latest.models.Installation
+    aio_installation: githubkit_schemas.latest.models.Installation
     """The installation object for the repository"""
     aio_github: githubkit.GitHub[githubkit.AppInstallationAuthStrategy]
     """The githubkit object for the repository"""
@@ -222,7 +222,7 @@ async def get_configuration(
                 path=".github/ghci.yaml",
             )
         ).parsed_data
-        assert isinstance(project_configuration_content, githubkit.versions.latest.models.ContentFile)
+        assert isinstance(project_configuration_content, githubkit_schemas.latest.models.ContentFile)
         assert project_configuration_content is not None
         project_custom_configuration = yaml.load(
             base64.b64decode(project_configuration_content.content).decode("utf-8"),

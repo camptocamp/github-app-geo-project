@@ -7,8 +7,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 import githubkit.exception
-import githubkit.versions.latest.models
 import githubkit.webhooks
+import githubkit_schemas.latest.models
 import packaging.version
 
 from github_app_geo_project import module
@@ -50,7 +50,7 @@ class Author:
 class ChangelogItem(NamedTuple):
     """Changelog item (pull request or commit."""
 
-    github: githubkit.versions.latest.models.PullRequest | githubkit.versions.latest.models.Commit
+    github: githubkit_schemas.latest.models.PullRequest | githubkit_schemas.latest.models.Commit
     ref: str
     title: str
     author: Author | None
@@ -216,8 +216,8 @@ class Tag:
     def __init__(
         self,
         tag_str: str | None = None,
-        tag: githubkit.versions.latest.models.Tag | None = None,
-        commit: githubkit.versions.latest.models.Commit | None = None,
+        tag: githubkit_schemas.latest.models.Tag | None = None,
+        commit: githubkit_schemas.latest.models.Commit | None = None,
     ) -> None:
         """Create a tag."""
         if tag_str is None:
@@ -316,8 +316,8 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Tag | None:
 
 
 def get_release(
-    tag: githubkit.versions.latest.models.Tag,
-) -> githubkit.versions.latest.models.Repository | None:  # wrong type
+    tag: githubkit_schemas.latest.models.Tag,
+) -> githubkit_schemas.latest.models.Repository | None:  # wrong type
     """Get the release from the tag."""
     for release in tag.get_repo().get_releases():  # type: ignore[attr-defined]
         if release.tag_name == tag.name:
@@ -393,7 +393,7 @@ async def generate_changelog(
     milestones = [
         milestone
         for milestone in cast(
-            "list[githubkit.versions.latest.models.Milestone]",
+            "list[githubkit_schemas.latest.models.Milestone]",
             (
                 await github_project.aio_github.rest.issues.async_list_milestones(
                     github_project.owner,
@@ -426,7 +426,7 @@ async def generate_changelog(
         milestones = [
             milestone
             for milestone in cast(
-                "list[githubkit.versions.latest.models.Milestone]",
+                "list[githubkit_schemas.latest.models.Milestone]",
                 (
                     await github_project.aio_github.rest.issues.async_list_milestones(
                         github_project.owner,
@@ -547,7 +547,7 @@ async def generate_changelog(
                 Author(commit.author.login, commit.author.html_url)
                 if isinstance(
                     commit.author,
-                    githubkit.versions.latest.models.SimpleUser,
+                    githubkit_schemas.latest.models.SimpleUser,
                 )
                 else None
             )
@@ -713,8 +713,8 @@ class Changelog(
                 ) and (
                     isinstance(
                         event_data_pull_request,
-                        githubkit.versions.latest.models.WebhookPullRequestMilestoned
-                        | githubkit.versions.latest.models.WebhookPullRequestDemilestoned,
+                        githubkit_schemas.latest.models.WebhookPullRequestMilestoned
+                        | githubkit_schemas.latest.models.WebhookPullRequestDemilestoned,
                     )
                 ):
                     milestone_version = (
@@ -908,7 +908,7 @@ class Changelog(
             if (
                 isinstance(
                     event_data,
-                    githubkit.versions.latest.models.WebhookDiscussionEdited,
+                    githubkit_schemas.latest.models.WebhookDiscussionEdited,
                 )
                 and event_data.changes
                 and event_data.changes.title

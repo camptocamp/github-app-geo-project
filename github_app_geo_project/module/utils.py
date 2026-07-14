@@ -14,7 +14,7 @@ from typing import Any, cast
 
 import anyio
 import githubkit.exception
-import githubkit.versions.latest.models
+import githubkit_schemas.latest.models
 import html_sanitizer
 import markdownify
 import security_md
@@ -773,7 +773,7 @@ async def create_pull_request(
     github_project: configuration.GithubProject,
     cwd: Path,
     auto_merge: bool = True,
-) -> tuple[bool, githubkit.versions.latest.models.PullRequest | None]:
+) -> tuple[bool, githubkit_schemas.latest.models.PullRequest | None]:
     """Create a pull request."""
     _, success, _ = await run_timeout(
         ["git", "push", "--force", "origin", new_branch],
@@ -876,7 +876,7 @@ async def create_pull_request(
 
 async def auto_merge_pull_request(
     github_project: configuration.GithubProject,
-    pull_request: githubkit.versions.latest.models.PullRequest,
+    pull_request: githubkit_schemas.latest.models.PullRequest,
 ) -> None:
     """Enable the automerge of a pull request."""
     exception: Exception | None = None
@@ -913,7 +913,7 @@ async def create_commit_pull_request(
     cwd: Path,
     enable_pre_commit: bool = True,
     skip_pre_commit_hooks: list[str] | None = None,
-) -> tuple[bool, githubkit.versions.latest.models.PullRequest | None]:
+) -> tuple[bool, githubkit_schemas.latest.models.PullRequest | None]:
     """Do a commit, then create a pull request."""
     skip_pre_commit_hooks = skip_pre_commit_hooks or []
     if enable_pre_commit and (cwd / ".pre-commit-config.yaml").exists():
@@ -1008,7 +1008,7 @@ async def close_pull_request_issues(
         )
 
     title_start = f"Pull request {message} is open for "
-    issue: githubkit.versions.latest.models.Issue
+    issue: githubkit_schemas.latest.models.Issue
     async for issue in github_project.aio_github.paginate(
         github_project.aio_github.rest.issues.async_list_for_repo,
         owner=github_project.owner,
@@ -1036,7 +1036,7 @@ async def close_pull_request_related_issues(
         if pull_request_title is not None
         else None
     )
-    issue: githubkit.versions.latest.models.Issue
+    issue: githubkit_schemas.latest.models.Issue
     async for issue in github_project.aio_github.paginate(
         github_project.aio_github.rest.issues.async_list_for_repo,
         owner=github_project.owner,
@@ -1236,7 +1236,7 @@ async def create_checks(
     current_module: module.Module[Any, Any, Any, Any],
     github_project: configuration.GithubProject,
     service_url: str,
-) -> githubkit.versions.latest.models.CheckRun:
+) -> githubkit_schemas.latest.models.CheckRun:
     """Create the GitHub check run."""
     # Get the job id from the database
     await session.flush()

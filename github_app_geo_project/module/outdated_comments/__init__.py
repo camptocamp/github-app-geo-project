@@ -5,8 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import githubkit.versions.latest.models
 import githubkit.webhooks
+import githubkit_schemas.latest.models
 from pydantic import BaseModel
 
 from github_app_geo_project import module
@@ -94,7 +94,7 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
             )
             if event_data.action == "submitted" and isinstance(
                 event_data,
-                githubkit.versions.latest.models.WebhookPullRequestReviewSubmitted,
+                githubkit_schemas.latest.models.WebhookPullRequestReviewSubmitted,
             ):
                 return [
                     module.Action(
@@ -125,7 +125,7 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
 
             author_found = True
 
-            comment: githubkit.versions.latest.models.PullRequestReview
+            comment: githubkit_schemas.latest.models.PullRequestReview
             async for comment in context.github_project.aio_github.paginate(
                 context.github_project.aio_github.rest.pulls.async_list_reviews,
                 owner=context.github_project.owner,

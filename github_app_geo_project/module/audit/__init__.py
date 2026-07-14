@@ -16,6 +16,7 @@ from typing import Any, cast
 import anyio
 import githubkit.exception
 import githubkit.webhooks
+import githubkit_schemas.latest.models
 import security_md
 import yaml
 from multi_repo_automation import aio_editor as editor
@@ -237,7 +238,7 @@ async def _process_outdated(
                 path="SECURITY.md",
             )
         ).parsed_data
-        assert isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+        assert isinstance(security_file, githubkit_schemas.latest.models.ContentFile)
         assert security_file.content is not None
         security = security_md.Security(
             base64.b64decode(security_file.content).decode("utf-8"),
@@ -754,7 +755,7 @@ class Audit(
                                 context.github_project,
                             )
 
-            issue: githubkit.versions.latest.models.Issue
+            issue: githubkit_schemas.latest.models.Issue
             async for issue in context.github_project.aio_github.paginate(
                 context.github_project.aio_github.rest.issues.async_list_for_repo,
                 owner=context.github_project.owner,
@@ -860,7 +861,7 @@ class Audit(
                 # Creates new jobs with the versions from the SECURITY.md
                 versions = []
                 if (
-                    isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+                    isinstance(security_file, githubkit_schemas.latest.models.ContentFile)
                     and security_file.content is not None
                 ):
                     security = security_md.Security(
@@ -899,7 +900,7 @@ class Audit(
             # Creates new jobs with the versions from the SECURITY.md
             versions = []
             if (
-                isinstance(security_file, githubkit.versions.latest.models.ContentFile)
+                isinstance(security_file, githubkit_schemas.latest.models.ContentFile)
                 and security_file.content is not None
             ):
                 security = security_md.Security(

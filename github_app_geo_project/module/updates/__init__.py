@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import githubkit.exception
-import githubkit.versions.latest.models
+import githubkit_schemas.latest.models
 import multi_repo_automation as mra
 import security_md
 import yaml
@@ -128,7 +128,7 @@ class Updates(
                 )
                 if not isinstance(
                     security_file.parsed_data,
-                    githubkit.versions.latest.models.ContentFile,
+                    githubkit_schemas.latest.models.ContentFile,
                 ):
                     message = "SECURITY.md is not a file"
                     raise TypeError(message)

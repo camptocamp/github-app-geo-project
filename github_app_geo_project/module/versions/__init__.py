@@ -20,7 +20,7 @@ import aiohttp
 import anyio
 import c2cciutils.configuration
 import githubkit.exception
-import githubkit.versions.latest.models
+import githubkit_schemas.latest.models
 import security_md
 import tag_publish.configuration
 import yaml
@@ -333,7 +333,7 @@ class Versions(
             if security_file_content is not None:
                 assert isinstance(
                     security_file_content,
-                    githubkit.versions.latest.models.ContentFile,
+                    githubkit_schemas.latest.models.ContentFile,
                 )
                 security = security_md.Security(
                     base64.b64decode(security_file_content.content).decode("utf-8"),
@@ -438,7 +438,7 @@ class Versions(
                     ).parsed_data
                     assert isinstance(
                         renovate_file_content,
-                        githubkit.versions.latest.models.ContentFile,
+                        githubkit_schemas.latest.models.ContentFile,
                     )
 
                     github_path = cwd / ".github"
