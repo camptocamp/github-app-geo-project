@@ -133,7 +133,7 @@ async def get_github_application(application_name: str) -> GithubApplication:
                 db=settings.redis.db,
                 username=settings.redis.username,
                 password=settings.redis.password,
-                ssl=settings.redis.ssl,
+                **(settings.redis.options or {}),  # type: ignore[arg-type]
             ),
             prefix="githubkit-",
         )

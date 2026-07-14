@@ -60,18 +60,18 @@ Each GitHub application is configured via `GHCI__APPLICATION__<name>__<property>
 
 ### Other settings
 
-| Variable                | Default                  | Description                               |
-| ----------------------- | ------------------------ | ----------------------------------------- |
-| `GHCI__SERVICE_URL`     | `http://localhost:8080/` | Base URL of the service                   |
-| `GHCI__SESSION_SECRET`  | `change-me`              | Session secret key                        |
-| `GHCI__CONFIGURATION`   | `None`                   | Path to YAML configuration file           |
-| `GHCI__TEST__APP_NAME`  | `None`                   | Test application name (enables test mode) |
-| `GHCI__REDIS__HOST`     | `None`                   | Redis host                                |
-| `GHCI__REDIS__PORT`     | `6379`                   | Redis port                                |
-| `GHCI__REDIS__DB`       | `0`                      | Redis database number                     |
-| `GHCI__REDIS__USERNAME` | `None`                   | Redis username                            |
-| `GHCI__REDIS__PASSWORD` | `None`                   | Redis password                            |
-| `GHCI__REDIS__SSL`      | `False`                  | Redis SSL flag                            |
+| Variable                | Default                  | Description                                                          |
+| ----------------------- | ------------------------ | -------------------------------------------------------------------- |
+| `GHCI__SERVICE_URL`     | `http://localhost:8080/` | Base URL of the service                                              |
+| `GHCI__SESSION_SECRET`  | `change-me`              | Session secret key                                                   |
+| `GHCI__CONFIGURATION`   | `None`                   | Path to YAML configuration file                                      |
+| `GHCI__TEST__APP_NAME`  | `None`                   | Test application name (enables test mode)                            |
+| `GHCI__REDIS__HOST`     | `None`                   | Redis host                                                           |
+| `GHCI__REDIS__PORT`     | `6379`                   | Redis port                                                           |
+| `GHCI__REDIS__DB`       | `0`                      | Redis database number                                                |
+| `GHCI__REDIS__USERNAME` | `None`                   | Redis username                                                       |
+| `GHCI__REDIS__PASSWORD` | `None`                   | Redis password                                                       |
+| `GHCI__REDIS__OPTIONS`  | `None`                   | Redis connection options, e.g. `ssl_cert_reqs=None,socket_timeout=5` |
 
 ### Duration format
 
