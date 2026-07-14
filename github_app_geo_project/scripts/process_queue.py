@@ -563,7 +563,8 @@ async def _process_job(
                 )
             finally:
                 root_logger.removeHandler(handler)
-            assert check_run is not None
+            if check_run is None:
+                raise
             try:
                 if github_project is not None and github_project.aio_github is not None:
                     await github_project.aio_github.rest.checks.async_update(
@@ -610,7 +611,8 @@ async def _process_job(
                 _LOGGER.exception(message)
             finally:
                 root_logger.removeHandler(handler)
-            assert check_run is not None
+            if check_run is None:
+                raise
             try:
                 if github_project is not None and github_project.aio_github is not None:
                     await github_project.aio_github.rest.checks.async_update(
