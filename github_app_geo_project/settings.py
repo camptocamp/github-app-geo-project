@@ -9,6 +9,7 @@ import os
 import re
 from typing import Annotated, Any, cast
 
+import yaml
 from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -168,7 +169,20 @@ class _RedisSettings(BaseModel):
     db: Annotated[int, Field(description="Redis DB number")] = 0
     username: Annotated[str | None, Field(description="Redis username")] = None
     password: Annotated[str | None, Field(description="Redis password")] = None
-    ssl: Annotated[bool, Field(description="Redis SSL flag")] = False
+    options: Annotated[
+        dict[str, object] | None,
+        Field(description="Redis connection options, e.g. 'ssl_cert_reqs=None,socket_timeout=5'."),
+    ] = None
+
+    @field_validator("options", mode="before")
+    @classmethod
+    def parse_options(cls, value: str | dict[str, object] | None) -> dict[str, object] | None:
+        if value is None or isinstance(value, dict):
+            return value
+        parts = [e.strip() for e in value.split(",") if e.strip()]
+        if not parts:
+            return None
+        return {e[: e.index("=")]: yaml.safe_load(e[e.index("=") + 1 :]) for e in parts}
 
 
 class _WebhookSettings(BaseModel):
