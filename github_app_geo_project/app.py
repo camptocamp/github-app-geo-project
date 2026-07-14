@@ -123,11 +123,6 @@ app.add_middleware(
 )
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 
-if not c2casgiutils.config.settings.http:
-    from starlette.middleware.httpsredirect import HTTPSRedirectMiddleware
-
-    app.add_middleware(HTTPSRedirectMiddleware)
-
 _route_prefix = re.escape(c2casgiutils.config.settings.route_prefix.removeprefix("/"))
 app.add_middleware(
     c2casgiutils.headers.ArmorHeaderMiddleware,
