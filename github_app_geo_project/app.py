@@ -132,7 +132,9 @@ _route_prefix = re.escape(c2casgiutils.config.settings.route_prefix.removeprefix
 app.add_middleware(
     c2casgiutils.headers.ArmorHeaderMiddleware,
     headers_config={
-        "http": {"headers": {"Strict-Transport-Security": None}} if c2casgiutils.config.settings.http else {},
+        "http": {"headers": {"Strict-Transport-Security": None}}
+        if c2casgiutils.config.settings.http
+        else {"headers": {}},
         "ui": {
             "path_match": rf"^{_route_prefix}(?:welcome|project/.*|dashboard/.*|output/[0-9]+|logs/[0-9]+)?$",
             "headers": {
