@@ -13,7 +13,7 @@ import c2casgiutils.headers
 import sentry_sdk
 from c2casgiutils import health_checks
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from prometheus_client import start_http_server
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -123,7 +123,10 @@ app.add_middleware(
 )
 app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
 
-_route_prefix = re.escape(c2casgiutils.config.settings.route_prefix.removeprefix("/"))
+route_prefix = c2casgiutils.config.settings.route_prefix
+route_prefix_escaped = re.escape(route_prefix[1:])
+_LOGGER.info("Using route prefix: '%s'", route_prefix)
+
 app.add_middleware(
     c2casgiutils.headers.ArmorHeaderMiddleware,
     headers_config={
@@ -131,7 +134,7 @@ app.add_middleware(
         if c2casgiutils.config.settings.http
         else {"headers": {}},
         "ui": {
-            "path_match": rf"^{_route_prefix}(?:welcome|project/.*|dashboard/.*|output/[0-9]+|logs/[0-9]+)?$",
+            "path_match": rf"^{route_prefix_escaped}(?:welcome|project/.*|dashboard/.*|output/[0-9]+|logs/[0-9]+)?$",
             "headers": {
                 "Content-Security-Policy": {
                     "default-src": ["'self'"],
@@ -186,43 +189,56 @@ instrumentator = Instrumentator(should_instrument_requests_inprogress=True)
 instrumentator.instrument(app)
 
 
-@app.get("/welcome")
+@app.get(f"{route_prefix}c2c")
+async def redirect_c2c(request: Request) -> RedirectResponse:
+    """Redirect to the mounted c2c app canonical path."""
+    url = request.url
+    redirect_url = url.path + "/"
+    if url.query:
+        redirect_url += f"?{url.query}"
+    return RedirectResponse(url=redirect_url, status_code=307)
+
+
+app.mount(f"{route_prefix}c2c", c2casgiutils.app)  # C2C utility routes
+
+
+@app.get(f"{route_prefix}welcome")
 async def welcome_route(request: Request, data: WelcomeData) -> HTMLResponse:
     """Render the welcome page."""
     return templates.TemplateResponse(request, "welcome.html", data)
 
 
-@app.get("/")
+@app.get(f"{route_prefix}")
 async def home_route(request: Request, data: HomeData) -> HTMLResponse:
     """Render the home page."""
     return templates.TemplateResponse(request, "home.html", data)
 
 
-@app.get("/project/{owner}/{repository}")  # noqa: FAST003
+@app.get(f"{route_prefix}project/{{owner}}/{{repository}}")
 async def project_route(request: Request, data: ProjectData) -> HTMLResponse:
     """Render the project page."""
     return templates.TemplateResponse(request, "project.html", data)
 
 
-@app.post("/webhook/{application}")  # noqa: FAST003
+@app.post(f"{route_prefix}webhook/{{application}}")
 async def webhook_route(data: WebhookData) -> dict[str, None]:
     """Handle incoming webhooks."""
     return data
 
 
-@app.get("/dashboard/{module_name}")  # noqa: FAST003
+@app.get(f"{route_prefix}dashboard/{{module_name}}")
 async def dashboard_route(request: Request, data: DashboardData) -> HTMLResponse:
     """Render the dashboard for a module."""
     return templates.TemplateResponse(request, "dashboard.html", data)
 
 
-@app.get("/schema.json")
+@app.get(f"{route_prefix}schema.json")
 async def schema_route(data: SchemaData) -> dict[str, Any]:
     """Return the JSON schema."""
     return data
 
 
-@app.get("/output/{output_id}")  # noqa: FAST003
+@app.get(f"{route_prefix}output/{{output_id}}")
 async def output_route(request: Request, data: OutputData) -> HTMLResponse:
     """Render the output page."""
     status_code = data.pop("status_code", 200)
@@ -234,7 +250,7 @@ async def output_route(request: Request, data: OutputData) -> HTMLResponse:
     )
 
 
-@app.get("/logs/{logs_id}")  # noqa: FAST003
+@app.get(f"{route_prefix}logs/{{logs_id}}")
 async def logs_route(request: Request, data: LogsData) -> HTMLResponse:
     """Render the logs page."""
     return templates.TemplateResponse(request, "logs.html", data)
