@@ -5,8 +5,10 @@ import hashlib
 import hmac
 import logging
 
+import c2casgiutils.auth
 import c2casgiutils.config
 import githubkit
+import jwt
 from fastapi import Request
 from githubkit.utils import Unset
 
@@ -83,7 +85,32 @@ async def get_user(request: Request) -> User:
             _LOGGER.warning("Invalid GitHub signature")
             user = User(AuthType.ANONYMOUS)
     else:
-        user = User(AuthType.ANONYMOUS)
+        secret = c2casgiutils.config.settings.auth.jwt.secret
+        cookie_name = c2casgiutils.config.settings.auth.jwt.cookie.name
+        if secret and cookie_name in request.cookies:
+            try:
+                user_payload = jwt.decode(
+                    request.cookies[cookie_name],
+                    secret,
+                    algorithms=[c2casgiutils.config.settings.auth.jwt.algorithm],
+                    options={"require": ["exp", "iat"]},
+                )
+                user = User(
+                    auth_type=AuthType.GITHUB_OAUTH,
+                    login=user_payload.get("login"),
+                    name=user_payload.get("display_name"),
+                    url=user_payload.get("url"),
+                    token=user_payload.get("token"),
+                    is_auth=True,
+                )
+            except jwt.ExpiredSignatureError:
+                _LOGGER.warning("Expired JWT cookie")
+                user = User(AuthType.ANONYMOUS)
+            except jwt.InvalidTokenError:
+                _LOGGER.warning("Invalid JWT cookie")
+                user = User(AuthType.ANONYMOUS)
+        else:
+            user = User(AuthType.ANONYMOUS)
 
     return user
 
