@@ -186,6 +186,11 @@ if c2casgiutils.config.settings.proxy_headers.type != "none":
         trusted_hosts=c2casgiutils.config.settings.proxy_headers.trusted_hosts,
         headers_type=c2casgiutils.config.settings.proxy_headers.type,
     )
+    c2casgiutils.app.add_middleware(
+        c2casgiutils.headers.ForwardedHeadersMiddleware,
+        trusted_hosts=c2casgiutils.config.settings.proxy_headers.trusted_hosts,
+        headers_type=c2casgiutils.config.settings.proxy_headers.type,
+    )
 
 app.mount(
     "/static",
