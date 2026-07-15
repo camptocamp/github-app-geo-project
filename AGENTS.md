@@ -2,6 +2,8 @@
 
 The modules are stored in `github_app_geo_project/module/<name>/`.
 
+- `cache-clean` module: `github_app_geo_project/module/cache_clean/` - cleans local tool caches (pip, poetry, pyenv, prek, pre-commit, npm)
+
 If needed the module has a JSON schema configuration schema stored in `github_app_geo_project/module/<name>/schema.json`.
 
 Each modules should have a complete end user documentation in a markdown file usually `github_app_geo_project/module/<name>/README.md`.

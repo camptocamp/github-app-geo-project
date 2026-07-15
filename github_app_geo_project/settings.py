@@ -68,6 +68,39 @@ def parse_duration(text: str | datetime.timedelta) -> datetime.timedelta:
 
 Duration = Annotated[datetime.timedelta, BeforeValidator(parse_duration)]
 
+_DATA_SIZE_RE = re.compile(r"^(\d+)([kKMGT]?)([i]?[bBo]?)$")
+
+
+def parse_data_size(text: str | int) -> int:
+    """
+    Parse a data size string to bytes.
+
+    Supports units: B/o (bytes), K/KB/KiB (kibibytes), M/MB/MiB (mebibytes),
+    G/GB/GiB (gigabytes), T/TB/TiB (terabytes).
+
+    Examples: 1000, 1000M, 2G, 500MiB, 1T
+    """
+    if isinstance(text, int):
+        return text
+    match = _DATA_SIZE_RE.match(text.strip())
+    if not match:
+        message = f"Invalid data size: {text}"
+        raise ValueError(message)
+    value = int(match.group(1))
+    prefix = match.group(2)
+    unit_map: dict[str, int] = {
+        "": 1,
+        "k": 1024,
+        "K": 1024,
+        "M": 1024**2,
+        "G": 1024**3,
+        "T": 1024**4,
+    }
+    return value * unit_map[prefix]
+
+
+DataSize = Annotated[int, BeforeValidator(parse_data_size)]
+
 
 def _json_loads(value: str | dict[str, Any]) -> dict[str, Any]:
     if isinstance(value, dict):
@@ -204,6 +237,28 @@ class _VersionsSettings(BaseModel):
     )
 
 
+class _CacheCleanSettings(BaseModel):
+    """Cache clean thresholds."""
+
+    pip_max_size: Annotated[DataSize, Field(description="Max size for pip cache")] = parse_data_size("1000M")
+    poetry_artifacts_max_size: Annotated[DataSize, Field(description="Max size for poetry artifacts")] = (
+        parse_data_size("500M")
+    )
+    poetry_virtualenvs_max_size: Annotated[DataSize, Field(description="Max size for poetry virtualenvs")] = (
+        parse_data_size("500M")
+    )
+    pyenv_max_size: Annotated[DataSize, Field(description="Max size for pyenv cache")] = parse_data_size(
+        "200M"
+    )
+    prek_max_size: Annotated[DataSize, Field(description="Max size for prek cache")] = parse_data_size("200M")
+    pre_commit_max_size: Annotated[DataSize, Field(description="Max size for pre-commit cache")] = (
+        parse_data_size("500M")
+    )
+    npm_max_size: Annotated[DataSize, Field(description="Max size for npm cache")] = parse_data_size("500M")
+    log_max: Annotated[DataSize, Field(description="Max size of log file")] = parse_data_size("10M")
+    log_backup_count: Annotated[int, Field(description="Number of backup log files")] = 5
+
+
 class _AuditSettings(BaseModel):
     dpkg_cache_duration: Annotated[Duration, Field(description="DPKG cache duration")] = datetime.timedelta(
         hours=3
@@ -243,6 +298,9 @@ class ApplicationSettings(BaseSettings):
     versions: Annotated[_VersionsSettings, Field(description="Versions settings")] = _VersionsSettings()
     audit: Annotated[_AuditSettings, Field(description="Audit settings")] = _AuditSettings()
     audit_timeouts: Annotated[_AuditTimeouts, Field(description="Audit timeouts")] = _AuditTimeouts()
+    cache_clean: Annotated[_CacheCleanSettings, Field(description="Cache clean settings")] = (
+        _CacheCleanSettings()
+    )
     process_queue: Annotated[_ProcessQueueSettings, Field(description="Process queue")] = (
         _ProcessQueueSettings()
     )
