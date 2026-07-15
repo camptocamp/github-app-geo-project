@@ -1090,7 +1090,7 @@ async def _process_one_job(
         job.log = None
     finally:
         sentry_sdk.set_context("job", {})
-        if job.status_enum == models.JobStatus.PENDING:
+        if await session.run_sync(lambda _: job.status_enum == models.JobStatus.PENDING):
             _LOGGER.error("Job %s finished with pending status", job.id)
             job.status_enum = models.JobStatus.ERROR
         job.finished_at = datetime.datetime.now(tz=datetime.UTC)
