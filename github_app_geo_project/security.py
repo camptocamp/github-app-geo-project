@@ -103,6 +103,20 @@ async def get_user(request: Request) -> User:
                     token=user_payload.get("token"),
                     is_auth=True,
                 )
+                if user.token and c2casgiutils.config.settings.auth.github.repository:
+                    try:
+                        owner, repo_name = c2casgiutils.config.settings.auth.github.repository.split("/", 1)
+                        user.is_admin = await _check_repo_permission(
+                            user.token,
+                            owner,
+                            repo_name,
+                            c2casgiutils.config.settings.auth.github.access_type,
+                        )
+                    except githubkit.exception.RequestFailed:
+                        _LOGGER.warning(
+                            "Failed to check admin access for %s",
+                            c2casgiutils.config.settings.auth.github.repository,
+                        )
             except jwt.ExpiredSignatureError:
                 _LOGGER.warning("Expired JWT cookie")
                 user = User(AuthType.ANONYMOUS)
@@ -115,20 +129,31 @@ async def get_user(request: Request) -> User:
     return user
 
 
+async def _check_repo_permission(token: str, owner: str, repo: str, required_access: str) -> bool:
+    """Check if the user has the required access level on a repository."""
+    gh = githubkit.GitHub(githubkit.TokenAuthStrategy(token))
+    try:
+        repo_data = (await gh.rest.repos.async_get(owner=owner, repo=repo)).parsed_data
+    except githubkit.exception.RequestFailed as exception:
+        if exception.response.status_code == 404:
+            return False
+        _LOGGER.exception("Failed to check repository access for %s/%s", owner, repo)
+        return False
+    if repo_data.permissions is None or isinstance(repo_data.permissions, Unset):
+        return False
+    if required_access == "admin":
+        return repo_data.permissions.admin
+    if required_access == "push":
+        return repo_data.permissions.admin or repo_data.permissions.push
+    if required_access == "pull":
+        return repo_data.permissions.admin or repo_data.permissions.push or repo_data.permissions.pull
+    return False
+
+
 async def has_repo_access(user: User, owner: str | None, repository: str | None) -> bool:
     """Check if the user has admin access to the repository."""
     if user.is_admin or user.auth_type in (AuthType.GITHUB_WEBHOOK, AuthType.TEST_USER):
         return True
     if owner is None or repository is None or user.token is None:
         return False
-    gh = githubkit.GitHub(githubkit.TokenAuthStrategy(user.token))
-    try:
-        repo = (await gh.rest.repos.async_get(owner=owner, repo=repository)).parsed_data
-    except githubkit.exception.RequestFailed as exception:
-        if exception.response.status_code == 404:
-            return False
-        _LOGGER.exception("Failed to check repository access for %s/%s", owner, repository)
-        return False
-    if repo.permissions is None or isinstance(repo.permissions, Unset):
-        return False
-    return repo.permissions.admin
+    return await _check_repo_permission(user.token, owner, repository, "admin")

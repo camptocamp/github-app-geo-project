@@ -48,15 +48,16 @@ Each GitHub application is configured via `GHCI__APPLICATION__<name>__<property>
 
 ### Auth (c2casgiutils)
 
-| Variable                           | Description                             |
-| ---------------------------------- | --------------------------------------- |
-| `C2C__AUTH__GITHUB__REPOSITORY`    | GitHub repository for auth              |
-| `C2C__AUTH__GITHUB__SECRET`        | OAuth client secret                     |
-| `C2C__AUTH__GITHUB__CLIENT_ID`     | OAuth client ID                         |
-| `C2C__AUTH__GITHUB__CLIENT_SECRET` | OAuth client secret                     |
-| `C2C__AUTH__TEST__USERNAME`        | Test username (bypasses GitHub auth)    |
-| `C2C__HTTP`                        | Set to `true` to disable HTTPS redirect |
-| `C2C__PROMETHEUS__PORT`            | Prometheus metrics HTTP server port     |
+| Variable                           | Description                                                                          |
+| ---------------------------------- | ------------------------------------------------------------------------------------ |
+| `C2C__AUTH__GITHUB__REPOSITORY`    | GitHub repository for auth (also used to determine admin status)                     |
+| `C2C__AUTH__GITHUB__ACCESS_TYPE`   | Required access level for admin status: `pull`, `push`, or `admin` (default: `pull`) |
+| `C2C__AUTH__GITHUB__SECRET`        | OAuth client secret                                                                  |
+| `C2C__AUTH__GITHUB__CLIENT_ID`     | OAuth client ID                                                                      |
+| `C2C__AUTH__GITHUB__CLIENT_SECRET` | OAuth client secret                                                                  |
+| `C2C__AUTH__TEST__USERNAME`        | Test username (bypasses GitHub auth)                                                 |
+| `C2C__HTTP`                        | Set to `true` to disable HTTPS redirect                                              |
+| `C2C__PROMETHEUS__PORT`            | Prometheus metrics HTTP server port                                                  |
 
 ### Other settings
 
