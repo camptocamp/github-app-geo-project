@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.1.0 — 2026-07-08
+## 2026-07-15
+
+### Added
+
+- **Admin access**: GitHub OAuth users can now be granted admin status based on their repository permissions. Configured via `C2C__AUTH__GITHUB__REPOSITORY` and `C2C__AUTH__GITHUB__ACCESS_TYPE` (default: `pull`). Set `C2C__AUTH__GITHUB__ACCESS_TYPE=admin` to require admin permissions on the repository.
+
+## 2026-07-08
 
 ### Changed
 
