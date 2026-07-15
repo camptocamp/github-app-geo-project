@@ -398,6 +398,7 @@ async def generate_changelog(
                 await github_project.aio_github.rest.issues.async_list_milestones(
                     github_project.owner,
                     github_project.repository,
+                    state="all",
                 )
             ).parsed_data,
         )
@@ -431,6 +432,7 @@ async def generate_changelog(
                     await github_project.aio_github.rest.issues.async_list_milestones(
                         github_project.owner,
                         github_project.repository,
+                        state="all",
                     )
                 ).parsed_data,
             )
