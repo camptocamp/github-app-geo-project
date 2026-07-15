@@ -325,8 +325,8 @@ def get_release(
     return None
 
 
-def _get_discussion_url(github_project: GithubProject, tag: str) -> str | None:
-    categories = github_project.aio_github.graphql(
+async def _get_discussion_url(github_project: GithubProject, tag: str) -> str | None:
+    categories = await github_project.aio_github.graphql.arequest(
         """
         query DiscussionCategories($owner: String!, $name: String!) {
             repository(owner: $owner, name: $name) {
@@ -355,7 +355,7 @@ def _get_discussion_url(github_project: GithubProject, tag: str) -> str | None:
     ]
     if not category:
         return None
-    discussions_result = github_project.aio_github.graphql(
+    discussions_result = await github_project.aio_github.graphql.arequest(
         """
         query Discussion($owner: String!, $name: String!, $category: ID!) {
             repository(owner: $owner, name: $name) {
@@ -440,7 +440,7 @@ async def generate_changelog(
             raise
         milestone = milestones[0]
 
-    discussion_url = _get_discussion_url(github_project, tag_str)
+    discussion_url = await _get_discussion_url(github_project, tag_str)
 
     repository = f"{github_project.owner}/{github_project.repository}"
 
