@@ -4,11 +4,10 @@ import enum
 import hashlib
 import hmac
 import logging
-from typing import Annotated
 
 import c2casgiutils.config
 import githubkit
-from fastapi import Depends, HTTPException, Request
+from fastapi import Request
 from githubkit.utils import Unset
 
 from github_app_geo_project.settings import settings
@@ -106,33 +105,3 @@ async def has_repo_access(user: User, owner: str | None, repository: str | None)
     if repo.permissions is None or isinstance(repo.permissions, Unset):
         return False
     return repo.permissions.admin
-
-
-async def require_admin(
-    user: Annotated[User, Depends(get_user)],
-) -> User:
-    """Require admin access."""
-    if user.auth_type in (AuthType.GITHUB_WEBHOOK, AuthType.TEST_USER):
-        return user
-    if user.is_admin:
-        return user
-
-    raise HTTPException(status_code=403, detail="Admin access required")
-
-
-async def verify_webhook_signature(
-    user: Annotated[User, Depends(get_user)],
-) -> User:
-    """Verify the webhook signature."""
-    if user.auth_type == AuthType.GITHUB_WEBHOOK:
-        return user
-    raise HTTPException(status_code=403, detail="Invalid webhook signature")
-
-
-async def require_authenticated(
-    user: Annotated[User, Depends(get_user)],
-) -> User:
-    """Require authentication."""
-    if user.is_auth:
-        return user
-    raise HTTPException(status_code=403, detail="Authentication required")
