@@ -136,86 +136,8 @@
     <div class="alert alert-danger" role="alert">{{ error }}</div>
     {% endif %}
 
-    <h2>Last thread events</h2>
-    {% for job in jobs %}
-      {% if job.status_enum.value == 'error' %}
-    <div class="alert alert-danger event" role="alert">
-      {% else %}
-        {% if job.status_enum.value in ['new', 'pending'] %}
-    <div class="alert alert-primary event" role="alert">
-        {% else %}
-    <div class="alert alert-secondary event" role="alert">
-        {% endif %}
-      {% endif %}
-      <a
-        href="{{ request.url.include_query_params(status=job.status_enum.name) }}"
-        data-bs-toggle="tooltip"
-        data-bs-placement="top"
-        data-bs-title="Status"
-        >[{{ job.status_enum.value }}]</a
-      >
-      <a
-        href="{{ request.url.include_query_params(module_event_name=job.module_event_name) }}"
-        data-bs-toggle="tooltip"
-        data-bs-placement="top"
-        data-bs-title="Event name"
-        >{{ job.module_event_name }}</a
-      >
-      <a
-        href="{{ request.url.include_query_params(application=job.application) }}"
-        data-bs-toggle="tooltip"
-        data-bs-placement="top"
-        data-bs-title="Application"
-        >{{ job.application }}</a
-      >:<b
-        ><a
-          href="{{ request.url.include_query_params(module=job.module) }}"
-          data-bs-toggle="tooltip"
-          data-bs-placement="top"
-          data-bs-title="Module"
-          >{{ job.module or '-' }}</a
-        ></b
-      >
-      (<a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Job id">{{ job.id }}</a>)
-      -
-      {% if job.finished_at and job.started_at %}
-      <a
-        href="#"
-        data-bs-toggle="tooltip"
-        data-bs-placement="top"
-        data-bs-html="true"
-        data-bs-title="{{ date_tooltip(job) }}"
-      >
-        {{ (job.finished_at - job.started_at) | pprint_duration }}</a
-      >,
-      {% elif job.started_at %}
-      <a
-        href="#"
-        data-bs-toggle="tooltip"
-        data-bs-placement="top"
-        data-bs-html="true"
-        data-bs-title="{{ date_tooltip(job) }}"
-      >
-        started&nbsp;{{ job.started_at | pprint_date }}</a
-      >,
-      {% else %}
-      <a
-        href="#"
-        data-bs-toggle="tooltip"
-        data-bs-placement="top"
-        data-bs-html="true"
-        data-bs-title="{{ date_tooltip(job) }}"
-      >
-        created&nbsp;{{ job.created_at | pprint_date }}</a
-      >,
-      {% endif %}
-      {% if job.status_enum.value in ['new', 'pending'] %}
-      <a href="{{ url_for('logs_route', logs_id=job.id) }}">Status</a>
-      {% else %}
-      <a href="{{ url_for('logs_route', logs_id=job.id) }}">Logs</a>
-      {% endif %}
-    </div>
-    {% endfor %}
+    <h2>Jobs</h2>
+    <p><a href="{{ url_for('jobs_route') }}?owner={{ owner }}&repository={{ repository_name }}">View all jobs for this repository</a></p>
 
     <h2>Last outputs</h2>
     {% for o in output %}

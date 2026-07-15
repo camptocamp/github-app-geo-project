@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>GitHub Application: Jobs</title>
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="{{ url_for('static', path='/favicon-32x32.png') }}"
+      referrerpolicy="no-referrer"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="{{ url_for('static', path='/favicon-16x16.png') }}"
+      referrerpolicy="no-referrer"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/css/bootstrap.min.css"
+      integrity="sha512-2bBQCjcnw658Lho4nlXJcc6WkV/UxpE/sAokbXPxQNGqmNdQrWqtw26Ns9kFF/yG792pKR1Sx8/Y1Lf1XN4GKA=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <style nonce="{{ nonce }}">
+      :root .tooltip {
+        --bs-tooltip-max-width: 400px;
+        --bs-tooltip-color: var(--bs-body-color);
+        --bs-tooltip-bg: var(--bs-body-bg);
+      }
+      .tooltip {
+        filter: contrast(80%) brightness(120%)
+      }
+      a {
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      h1 {
+        margin-right: 20rem;
+      }
+      div.event.alert {
+        padding: .13rem .4rem .2rem;
+        margin: .3rem 0;
+      }
+      a[data-bs-toggle="tooltip"] {
+        text-decoration: none;
+      }
+      div.alert-primary a[data-bs-toggle="tooltip"] {
+        color: var(--bs-primary-text-emphasis);
+      }
+      div.alert-secondary a[data-bs-toggle="tooltip"] {
+        color: var(--bs-secondary-text-emphasis);
+      }
+      div.alert-warning a[data-bs-toggle="tooltip"] {
+        color: var(--bs-warning-text-emphasis);
+      }
+      div.alert-danger a[data-bs-toggle="tooltip"] {
+        color: var(--bs-danger-text-emphasis);
+      }
+      .login-container {
+        position: absolute;
+        right: 3rem;
+        top: 2rem;
+      }
+      .logout-button {
+        vertical-align: baseline;
+        margin-left: 0.5rem;
+      }
+      .filter-form {
+        margin-bottom: 1rem;
+      }
+      {{ styles | safe }}
+    </style>
+  </head>
+  <body class="px-5 py-4">
+    <script nonce="{{ nonce }}">
+      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.setAttribute('data-bs-theme', 'dark');
+      }
+    </script>
+
+    <div class="login-container">
+      {% if not user.is_auth %}
+      <a
+        class="btn btn-primary"
+        href="{{ url_for('c2c_github_login') }}?came_from={{ request.url | urlencode }}"
+        >Login with GitHub</a
+      >
+      {% else %}
+      <p>
+        Logged as: <a href="{{ user.url }}">{{ user.name }}</a>
+        {% if user.auth_type == 'github_oauth' %}
+        <a
+          class="btn btn-outline-primary logout-button"
+          href="{{ url_for('c2c_github_logout') }}?came_from={{ request.url | urlencode }}"
+          >Logout</a
+        >
+        {% endif %}
+      </p>
+      {% endif %}
+    </div>
+
+    <h1 class="bd-title">Jobs</h1>
+
+    {% if error is not none %}
+    <div class="alert alert-danger" role="alert">{{ error }}</div>
+    {% else %}
+
+    <form class="row g-3 filter-form" method="get" action="{{ url_for('jobs_route') }}">
+      <div class="col-auto">
+        <label for="owner" class="col-form-label">Owner</label>
+        <input type="text" id="owner" name="owner" class="form-control" value="{{ owner or '' }}" />
+      </div>
+      <div class="col-auto">
+        <label for="repository" class="col-form-label">Repository</label>
+        <input type="text" id="repository" name="repository" class="form-control" value="{{ repository or '' }}" />
+      </div>
+      <div class="col-auto">
+        <label for="status" class="col-form-label">Status</label>
+        <select id="status" name="status" class="form-select">
+          <option value="">All</option>
+          <option value="NEW" {% if status == 'NEW' %}selected{% endif %}>New</option>
+          <option value="PENDING" {% if status == 'PENDING' %}selected{% endif %}>Pending</option>
+          <option value="ERROR" {% if status == 'ERROR' %}selected{% endif %}>Error</option>
+          <option value="DONE" {% if status == 'DONE' %}selected{% endif %}>Done</option>
+          <option value="SKIPPED" {% if status == 'SKIPPED' %}selected{% endif %}>Skipped</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label for="application" class="col-form-label">Application</label>
+        <input type="text" id="application" name="application" class="form-control" value="{{ application or '' }}" />
+      </div>
+      <div class="col-auto">
+        <label for="module" class="col-form-label">Module</label>
+        <input type="text" id="module" name="module" class="form-control" value="{{ module or '' }}" />
+      </div>
+      <div class="col-auto">
+        <label for="limit" class="col-form-label">Limit</label>
+        <input type="number" id="limit" name="limit" class="form-control" value="{{ limit | default(50) }}" style="width: 100px" />
+      </div>
+      <div class="col-auto d-flex align-items-end">
+        <button type="submit" class="btn btn-primary">Filter</button>
+      </div>
+    </form>
+
+    <h2>Jobs</h2>
+    {% for job in jobs %}
+      {% if job.status_enum.value == 'error' %}
+    <div class="alert alert-danger event" role="alert">
+      {% else %}
+        {% if job.status_enum.value in ['new', 'pending'] %}
+    <div class="alert alert-primary event" role="alert">
+        {% else %}
+    <div class="alert alert-secondary event" role="alert">
+        {% endif %}
+      {% endif %}
+      <a
+        href="{{ url_for('jobs_route') }}?status={{ job.status_enum.name }}{% if owner %}&owner={{ owner }}{% endif %}{% if repository %}&repository={{ repository }}{% endif %}"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        data-bs-title="Status"
+        >[{{ job.status_enum.value }}]</a
+      >
+      {% if show_repository %}
+      <a
+        href="{{ url_for('project_route', owner=job.owner, repository=job.repository) }}"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        data-bs-title="Repository"
+        >{{ job.owner }}/{{ job.repository }}</a
+      >
+      -
+      {% endif %}
+      <a
+        href="{{ url_for('jobs_route') }}?module_event_name={{ job.module_event_name }}{% if owner %}&owner={{ owner }}{% endif %}{% if repository %}&repository={{ repository }}{% endif %}"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        data-bs-title="Event name"
+        >{{ job.module_event_name }}</a
+      >
+      <a
+        href="{{ url_for('jobs_route') }}?application={{ job.application }}{% if owner %}&owner={{ owner }}{% endif %}{% if repository %}&repository={{ repository }}{% endif %}"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        data-bs-title="Application"
+        >{{ job.application }}</a
+      >:<b
+        ><a
+          href="{{ url_for('jobs_route') }}?module={{ job.module }}{% if owner %}&owner={{ owner }}{% endif %}{% if repository %}&repository={{ repository }}{% endif %}"
+          data-bs-toggle="tooltip"
+          data-bs-placement="top"
+          data-bs-title="Module"
+          >{{ job.module or '-' }}</a
+        ></b
+      >
+      (<a href="#" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-title="Job id">{{ job.id }}</a>)
+      -
+      {% if job.finished_at and job.started_at %}
+      <a
+        href="#"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        data-bs-html="true"
+        data-bs-title="{{ date_tooltip(job) }}"
+      >
+        {{ (job.finished_at - job.started_at) | pprint_duration }}</a
+      >,
+      {% elif job.started_at %}
+      <a
+        href="#"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        data-bs-html="true"
+        data-bs-title="{{ date_tooltip(job) }}"
+      >
+        started&nbsp;{{ job.started_at | pprint_date }}</a
+      >,
+      {% else %}
+      <a
+        href="#"
+        data-bs-toggle="tooltip"
+        data-bs-placement="top"
+        data-bs-html="true"
+        data-bs-title="{{ date_tooltip(job) }}"
+      >
+        created&nbsp;{{ job.created_at | pprint_date }}</a
+      >,
+      {% endif %}
+      {% if job.status_enum.value in ['new', 'pending'] %}
+      <a href="{{ url_for('logs_route', logs_id=job.id) }}">Status</a>
+      {% else %}
+      <a href="{{ url_for('logs_route', logs_id=job.id) }}">Logs</a>
+      {% endif %}
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
+      integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.11.8/umd/popper.min.js"
+      integrity="sha512-TPh2Oxlg1zp+kz3nFA0C5vVC6leG/6mm1z9+mA81MI5eaUVqasPLO8Cuk4gMF4gUfP5etR73rgU/8PNMsSesoQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.min.js"
+      integrity="sha512-nKXmKvJyiGQy343jatQlzDprflyB5c+tKCzGP3Uq67v+lmzfnZUi/ZT+fc6ITZfSC5HhaBKUIvr/nTLCV+7F+Q=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    ></script>
+    <script nonce="{{ nonce }}">
+      var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+      var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+      });
+    </script>
+  </body>
+</html>

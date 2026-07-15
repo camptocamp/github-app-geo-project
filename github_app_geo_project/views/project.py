@@ -1,6 +1,5 @@
 """Project view."""
 
-import datetime
 import logging
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
@@ -11,7 +10,6 @@ from github_app_geo_project import configuration, models, project_configuration,
 from github_app_geo_project.module import modules
 from github_app_geo_project.security import User, get_user, has_repo_access
 from github_app_geo_project.settings import settings
-from github_app_geo_project.templates import pprint_duration, pprint_full_date, pprint_short_date
 from github_app_geo_project.utils import HTML_FORMATTER
 
 if TYPE_CHECKING:
@@ -20,38 +18,13 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-def _pprint_date(date: datetime.datetime) -> str:
-    short_date = pprint_short_date(date)
-    full_date = pprint_full_date(date)
-    return f"{short_date} ({full_date})"
-
-
-def _date_tooltip(job: models.Queue) -> str:
-    """Get the tooltip for the date."""
-    created = job.created_at
-    started = job.started_at
-    finished = job.finished_at
-    if started is None:
-        return f"created:&nbsp;{_pprint_date(created)}<br>not started yet"
-    if finished is None:
-        return f"created:&nbsp;{_pprint_date(created)}<br>started:&nbsp;{_pprint_date(started)}"
-
-    return f"created:&nbsp;{_pprint_date(created)}<br>started:&nbsp;{_pprint_date(started)}<br>duration:&nbsp;{pprint_duration(finished - started)}"
-
-
 async def project(
     request: Request,
     owner: str,
     repository: str,
     user: Annotated[User, Depends(get_user)],
     only_error: bool = Query(default=False, description="Filter only error outputs"),
-    status: str | None = Query(None, description="Filter jobs by status"),
-    github_event_name: str | None = Query(None, description="Filter jobs by GitHub event name"),
-    module_event_name: str | None = Query(None, description="Filter jobs by module event name"),
-    application: str | None = Query(None, description="Filter jobs by application"),
-    module: str | None = Query(None, description="Filter jobs by module"),
     limit: int = Query(10, description="Number of outputs to show"),
-    job_limit: int = Query(20, description="Number of jobs to show"),
 ) -> dict[str, Any]:
     """Render the project page."""
     if not await has_repo_access(user, owner, repository):
@@ -61,11 +34,11 @@ async def project(
             "styles": HTML_FORMATTER.get_style_defs(),
             "repository": f"{owner}/{repository}",
             "output": [],
-            "jobs": [],
             "error": "Access Denied",
             "applications": {},
             "module_configuration": [],
-            "date_tooltip": _date_tooltip,
+            "owner": owner,
+            "repository_name": repository,
         }
     config: project_configuration.GithubApplicationProjectConfiguration = {}
 
@@ -129,20 +102,15 @@ async def project(
 
     async with request.app.state.async_session_factory() as session:
         select_output = sqlalchemy.select(models.Output.id, models.Output.title)
-        select_job = sqlalchemy.select(models.Queue)
 
         if owner == "none":
-            select_job = select_job.where(models.Queue.owner.is_(None))
             select_output = select_output.where(models.Output.owner.is_(None))
         elif owner != "all":
-            select_job = select_job.where(models.Queue.owner == owner)
             select_output = select_output.where(models.Output.owner == owner)
 
         if repository == "none":
-            select_job = select_job.where(models.Queue.repository.is_(None))
             select_output = select_output.where(models.Output.repository.is_(None))
         elif repository != "all":
-            select_job = select_job.where(models.Queue.repository == repository)
             select_output = select_output.where(models.Output.repository == repository)
 
         if only_error:
@@ -150,25 +118,10 @@ async def project(
                 models.Output.status == models.OutputStatus.ERROR,
             )
 
-        if status is not None:
-            select_job = select_job.where(models.Queue.status == status)
-        if github_event_name is not None:
-            select_job = select_job.where(models.Queue.github_event_name == github_event_name)
-        if module_event_name is not None:
-            select_job = select_job.where(models.Queue.module_event_name == module_event_name)
-        if application is not None:
-            select_job = select_job.where(models.Queue.application == application)
-        if module is not None:
-            select_job = select_job.where(models.Queue.module == module)
-
         select_output = select_output.order_by(models.Output.created_at.desc())
         select_output = select_output.limit(limit)
 
-        select_job = select_job.order_by(models.Queue.created_at.desc())
-        select_job = select_job.limit(job_limit)
-
         output_result = (await session.execute(select_output)).all()
-        jobs_result = (await session.execute(select_job)).scalars().all()
 
         return {
             "request": request,
@@ -176,11 +129,11 @@ async def project(
             "styles": HTML_FORMATTER.get_style_defs(),
             "repository": f"{owner}/{repository}",
             "output": output_result,
-            "jobs": jobs_result,
             "error": None,
             "applications": applications,
             "module_configuration": module_config_list,
-            "date_tooltip": _date_tooltip,
+            "owner": owner,
+            "repository_name": repository,
         }
 
 

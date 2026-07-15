@@ -35,6 +35,7 @@ from github_app_geo_project.templates import (
 )
 from github_app_geo_project.views.dashboard import DashboardData
 from github_app_geo_project.views.home import HomeData
+from github_app_geo_project.views.jobs import JobsData
 from github_app_geo_project.views.logs import LogsData
 from github_app_geo_project.views.output import OutputData
 from github_app_geo_project.views.project import ProjectData
@@ -159,7 +160,9 @@ _ui_csp_headers: dict[str, _Header] = {
     },
 }
 
-_ui_path_match = rf"^{route_prefix_escaped}(?:welcome|project/.*|dashboard/.*|output/[0-9]+|logs/[0-9]+)?$"
+_ui_path_match = (
+    rf"^{route_prefix_escaped}(?:welcome|project/.*|dashboard/.*|output/[0-9]+|logs/[0-9]+|jobs)?$"
+)
 
 app.add_middleware(
     c2casgiutils.headers.ArmorHeaderMiddleware,
@@ -226,6 +229,12 @@ async def home_route(request: Request, data: HomeData) -> HTMLResponse:
 async def project_route(request: Request, data: ProjectData) -> HTMLResponse:
     """Render the project page."""
     return templates.TemplateResponse(request, "project.html", data)
+
+
+@app.get(f"{route_prefix}jobs")
+async def jobs_route(request: Request, data: JobsData) -> HTMLResponse:
+    """Render the jobs page."""
+    return templates.TemplateResponse(request, "jobs.html", data)
 
 
 @app.post(f"{route_prefix}webhook/{{application}}")
