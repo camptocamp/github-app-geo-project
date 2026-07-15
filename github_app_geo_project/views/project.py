@@ -5,7 +5,7 @@ import logging
 from typing import TYPE_CHECKING, Annotated, Any, cast
 
 import sqlalchemy
-from fastapi import Depends, HTTPException, Query, Request
+from fastapi import Depends, Query, Request
 
 from github_app_geo_project import configuration, models, project_configuration, utils
 from github_app_geo_project.module import modules
@@ -55,7 +55,18 @@ async def project(
 ) -> dict[str, Any]:
     """Render the project page."""
     if not await has_repo_access(user, owner, repository):
-        raise HTTPException(status_code=403, detail="Access denied")
+        return {
+            "request": request,
+            "user": user,
+            "styles": HTML_FORMATTER.get_style_defs(),
+            "repository": f"{owner}/{repository}",
+            "output": [],
+            "jobs": [],
+            "error": "Access Denied",
+            "applications": {},
+            "module_configuration": [],
+            "date_tooltip": _date_tooltip,
+        }
     config: project_configuration.GithubApplicationProjectConfiguration = {}
 
     _LOGGER.debug("Configuration: %s", config)

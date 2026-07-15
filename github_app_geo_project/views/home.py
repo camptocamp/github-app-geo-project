@@ -7,7 +7,7 @@ from fastapi import Depends, Request
 
 from github_app_geo_project import configuration, module
 from github_app_geo_project.module import modules
-from github_app_geo_project.security import User, require_admin
+from github_app_geo_project.security import User, get_user
 from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
@@ -23,10 +23,10 @@ def _gt_access(
 
 async def home(
     request: Request,
-    user: Annotated[User, Depends(require_admin)],
+    user: Annotated[User, Depends(get_user)],
 ) -> dict[str, Any]:
     """Render the home page."""
-    admin = True
+    admin = user.is_admin
 
     applications: list[dict[str, Any]] = []
     for app_name, app_config in settings.application_configs.items():

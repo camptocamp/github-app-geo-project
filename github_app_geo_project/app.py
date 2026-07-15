@@ -110,8 +110,6 @@ async def _lifespan(main_app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(title="GitHub App Geo Project", lifespan=_lifespan)
 
-app.mount("/c2c", c2casgiutils.app)
-
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=["*"])
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
@@ -127,6 +125,42 @@ route_prefix = c2casgiutils.config.settings.route_prefix
 route_prefix_escaped = re.escape(route_prefix[1:])
 _LOGGER.info("Using route prefix: '%s'", route_prefix)
 
+_Header = str | list[str] | dict[str, str] | dict[str, list[str]] | None
+_ui_csp_headers: dict[str, _Header] = {
+    "Content-Security-Policy": {
+        "default-src": ["'self'"],
+        "script-src-elem": [
+            "'self'",
+            c2casgiutils.headers.CSP_NONCE,
+            "https://cdnjs.cloudflare.com/ajax/libs/bootstrap/",
+            "https://cdnjs.cloudflare.com/ajax/libs/jquery/",
+            "https://cdnjs.cloudflare.com/ajax/libs/popper.js/",
+        ],
+        "style-src-elem": [
+            "'self'",
+            c2casgiutils.headers.CSP_NONCE,
+            "https://cdnjs.cloudflare.com/ajax/libs/bootstrap/",
+            "https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/",
+        ],
+        "font-src": [
+            "'self'",
+            "https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/",
+        ],
+        "img-src": [
+            "'self'",
+            "data:",
+        ],
+        "connect-src": [
+            "'self'",
+            "https://cdnjs.cloudflare.com/ajax/libs/bootstrap/",
+            "https://cdnjs.cloudflare.com/ajax/libs/jquery/",
+            "https://cdnjs.cloudflare.com/ajax/libs/popper.js/",
+        ],
+    },
+}
+
+_ui_path_match = rf"^{route_prefix_escaped}(?:welcome|project/.*|dashboard/.*|output/[0-9]+|logs/[0-9]+)?$"
+
 app.add_middleware(
     c2casgiutils.headers.ArmorHeaderMiddleware,
     headers_config={
@@ -134,40 +168,14 @@ app.add_middleware(
         if c2casgiutils.config.settings.http
         else {"headers": {}},
         "ui": {
-            "path_match": rf"^{route_prefix_escaped}(?:welcome|project/.*|dashboard/.*|output/[0-9]+|logs/[0-9]+)?$",
-            "headers": {
-                "Content-Security-Policy": {
-                    "default-src": ["'self'"],
-                    "script-src-elem": [
-                        "'self'",
-                        c2casgiutils.headers.CSP_NONCE,
-                        "https://cdnjs.cloudflare.com/ajax/libs/bootstrap/",
-                        "https://cdnjs.cloudflare.com/ajax/libs/jquery/",
-                        "https://cdnjs.cloudflare.com/ajax/libs/popper.js/",
-                    ],
-                    "style-src-elem": [
-                        "'self'",
-                        c2casgiutils.headers.CSP_NONCE,
-                        "https://cdnjs.cloudflare.com/ajax/libs/bootstrap/",
-                        "https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/",
-                    ],
-                    "font-src": [
-                        "'self'",
-                        "https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/",
-                    ],
-                    "img-src": [
-                        "'self'",
-                        "data:",
-                    ],
-                    "connect-src": [
-                        "'self'",
-                        "https://cdnjs.cloudflare.com/ajax/libs/bootstrap/",
-                        "https://cdnjs.cloudflare.com/ajax/libs/jquery/",
-                        "https://cdnjs.cloudflare.com/ajax/libs/popper.js/",
-                    ],
-                },
-            },
+            "path_match": _ui_path_match,
+            "headers": _ui_csp_headers,
             "status_code": 200,
+        },
+        "ui_302": {
+            "path_match": _ui_path_match,
+            "headers": _ui_csp_headers,
+            "status_code": 302,
         },
     },
 )
