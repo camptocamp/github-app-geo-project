@@ -942,7 +942,7 @@ async def _get_process_one_job(
                 sqlalchemy.update(models.Queue)
                 .where(
                     models.Queue.status == models.JobStatus.PENDING.name,
-                    models.Queue.created_at < error_threshold,
+                    models.Queue.started_at < error_threshold,
                 )
                 .values(status=models.JobStatus.ERROR.name),
             )
