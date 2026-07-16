@@ -17,7 +17,7 @@ from github_app_geo_project.module import utils
 from github_app_geo_project.module.changelog import configuration
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import AsyncIterable, Callable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -390,17 +390,16 @@ async def generate_changelog(
     tags: dict[Tag, Tag],
 ) -> str:
     """Generate the changelog for a tag."""
-    milestones = [
+    milestones: list[githubkit_schemas.latest.models.Milestone] = [
         milestone
-        for milestone in cast(
-            "list[githubkit_schemas.latest.models.Milestone]",
-            (
-                await github_project.aio_github.rest.issues.async_list_milestones(
-                    github_project.owner,
-                    github_project.repository,
-                    state="all",
-                )
-            ).parsed_data,
+        async for milestone in cast(
+            "AsyncIterable[githubkit_schemas.latest.models.Milestone]",
+            github_project.aio_github.rest.paginate(
+                github_project.aio_github.rest.issues.async_list_milestones,
+                owner=github_project.owner,
+                repo=github_project.repository,
+                state="all",
+            ),
         )
         if milestone.title == tag_str
     ]
@@ -426,15 +425,14 @@ async def generate_changelog(
         )
         milestones = [
             milestone
-            for milestone in cast(
-                "list[githubkit_schemas.latest.models.Milestone]",
-                (
-                    await github_project.aio_github.rest.issues.async_list_milestones(
-                        github_project.owner,
-                        github_project.repository,
-                        state="all",
-                    )
-                ).parsed_data,
+            async for milestone in cast(
+                "AsyncIterable[githubkit_schemas.latest.models.Milestone]",
+                github_project.aio_github.rest.paginate(
+                    github_project.aio_github.rest.issues.async_list_milestones,
+                    owner=github_project.owner,
+                    repo=github_project.repository,
+                    state="all",
+                ),
             )
             if milestone.title == tag_str
         ]
