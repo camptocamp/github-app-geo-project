@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <title>GitHub Application: Jobs</title>
+    <title>GHCI: Jobs</title>
     <link
       rel="icon"
       type="image/png"
@@ -206,7 +206,7 @@
         data-bs-html="true"
         data-bs-title="{{ date_tooltip(job) }}"
       >
-        {{ (job.finished_at - job.started_at) | pprint_duration }}</a
+        {{ job.started_at | pprint_short_date }}</a
       >,
       {% elif job.started_at %}
       <a
