@@ -1715,69 +1715,104 @@ def _apply_additional_packages(
                         (other_datasource_name, name, normalized_other_version), []
                     ).append(other_version_data.support)
 
-    for repo, data in context.module_config.get("additional-packages", {}).items():
+    for repo, raw_data in context.module_config.get("additional-packages", {}).items():
         module_utils.manage_updated_separated(
             transversal_status.updated,
             transversal_status.repositories,
             repo,
             days_old=10,
         )
-        if not isinstance(data, dict):
+        if not isinstance(raw_data, dict):
             continue
-        versions = data.get("versions")
-        if isinstance(versions, dict):
-            for version_data in versions.values():
-                if not isinstance(version_data, dict) or "support" in version_data:
+        versions: dict[str, _TransversalStatusVersion] = {}
+        repo_versions = raw_data.get("versions", {})
+        if isinstance(repo_versions, dict):
+            for version_name, version_dict in repo_versions.items():
+                if not isinstance(version_dict, dict):
                     continue
-                deps_by_datasource = version_data.get("dependencies_by_datasource")
-                if not isinstance(deps_by_datasource, dict):
-                    version_data["support"] = _Support(type=_SupportType.NO_SUPPORT_DEFINED)
-                    continue
-                # Gather all dependency supports using the pre-built index
-                supports: list[_Support] = []
-                for dep_datasource_name, dep_datasource in deps_by_datasource.items():
-                    if not isinstance(dep_datasource, dict):
-                        continue
-                    for dep_name, dep_versions in dep_datasource.get("versions_by_names", {}).items():
-                        if not isinstance(dep_versions, dict):
-                            continue
-                        for dep_version in dep_versions.get("versions", []):
-                            # Normalize the dependency version (datasource-aware) to align with lookups
-                            normalized_dep_version = _canonical_minor_version(
-                                dep_datasource_name,
-                                _clean_version(dep_version),
-                            )
-                            # Build possible dependency name representations (e.g., for docker name:tag)
-                            dep_name_candidates = {dep_name}
-                            if dep_version:
-                                dep_name_candidates.add(f"{dep_name}:{dep_version}")
-                            if normalized_dep_version and normalized_dep_version != dep_version:
-                                dep_name_candidates.add(f"{dep_name}:{normalized_dep_version}")
-                            # Use support_index for O(1) lookup
-                            for candidate in dep_name_candidates:
-                                supports.extend(
-                                    support_index.get(
-                                        (dep_datasource_name, candidate, normalized_dep_version), []
-                                    )
+                support = version_dict.get("support")
+                if not isinstance(support, _Support):
+                    if isinstance(support, str):
+                        if support == "Best effort":
+                            support = _Support(type=_SupportType.BEST_EFFORT)
+                        elif support in (
+                            "Unsupported",
+                            "Unsu" + "ported",
+                        ):
+                            support = _Support(type=_SupportType.UNSUPPORTED)
+                        elif support == "No support defined":
+                            support = _Support(type=_SupportType.NO_SUPPORT_DEFINED)
+                        elif support == "To be defined":
+                            support = _Support(type=_SupportType.TO_BE_DEFINED)
+                        elif support == "Unknown":
+                            support = _Support(type=_SupportType.UNKNOWN)
+                        else:
+                            try:
+                                parsed_date = (
+                                    datetime.datetime.strptime(support, "%d/%m/%Y")
+                                    .replace(tzinfo=datetime.UTC)
+                                    .date()
                                 )
-                if supports:
-                    # Choose the "least" support (most restrictive)
-                    min_support = supports[0]
-                    for s in supports[1:]:
-                        if _support_cmp(s, min_support) < 0:
-                            min_support = s
-                    version_data["support"] = min_support
-                else:
-                    version_data["support"] = _Support(type=_SupportType.UNSUPPORTED)
-
-        if isinstance(data, dict):
-            versions = data.get("versions")
-            if isinstance(versions, dict):
-                for version_data in versions.values():
-                    if isinstance(version_data, dict) and "support" not in version_data:
-                        version_data["support"] = _Support(type=_SupportType.NO_SUPPORT_DEFINED)
-
-        pydentic_data = _TransversalStatusRepo(**data)
-        _rebuild_repo_names(pydentic_data)
-        _rebuild_repo_dependencies(pydentic_data)
-        transversal_status.repositories[repo] = pydentic_data
+                                support = _Support(type=_SupportType.DATE, until=parsed_date)
+                            except ValueError:
+                                pass
+                    if not isinstance(support, _Support):
+                        # Compute support from dependencies if possible
+                        deps_by_datasource = version_dict.get("dependencies_by_datasource")
+                        if isinstance(deps_by_datasource, dict):
+                            dep_supports: list[_Support] = []
+                            for (
+                                dep_datasource_name,
+                                dep_datasource,
+                            ) in deps_by_datasource.items():
+                                if not isinstance(dep_datasource, dict):
+                                    continue
+                                for dep_name, dep_versions in dep_datasource.get(
+                                    "versions_by_names", {}
+                                ).items():
+                                    if not isinstance(dep_versions, dict):
+                                        continue
+                                    for dep_version in dep_versions.get("versions", []):
+                                        normalized_dep_version = _canonical_minor_version(
+                                            dep_datasource_name,
+                                            _clean_version(dep_version),
+                                        )
+                                        dep_name_candidates = {dep_name}
+                                        if dep_version:
+                                            dep_name_candidates.add(f"{dep_name}:{dep_version}")
+                                        if normalized_dep_version and normalized_dep_version != dep_version:
+                                            dep_name_candidates.add(f"{dep_name}:{normalized_dep_version}")
+                                        for candidate in dep_name_candidates:
+                                            dep_supports.extend(
+                                                support_index.get(
+                                                    (
+                                                        dep_datasource_name,
+                                                        candidate,
+                                                        normalized_dep_version,
+                                                    ),
+                                                    [],
+                                                )
+                                            )
+                            if dep_supports:
+                                min_support = dep_supports[0]
+                                for s in dep_supports[1:]:
+                                    if _support_cmp(s, min_support) < 0:
+                                        min_support = s
+                                support = min_support
+                            else:
+                                support = _Support(type=_SupportType.UNSUPPORTED)
+                        else:
+                            support = _Support(type=_SupportType.NO_SUPPORT_DEFINED)
+                versions[version_name] = _TransversalStatusVersion(
+                    support=support,
+                    names_by_datasource=version_dict.get("names_by_datasource", {}),
+                    dependencies_by_datasource=version_dict.get("dependencies_by_datasource", {}),
+                )
+        repo_data = _TransversalStatusRepo(
+            versions=versions,
+            url=raw_data.get("url"),
+            has_security_policy=raw_data.get("has_security_policy", False),
+        )
+        _rebuild_repo_names(repo_data)
+        _rebuild_repo_dependencies(repo_data)
+        transversal_status.repositories[repo] = repo_data
