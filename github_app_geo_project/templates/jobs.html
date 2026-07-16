@@ -158,7 +158,7 @@
         {% endif %}
       {% endif %}
       <a
-        href="{{ url_for('jobs_route') }}?status={{ job.status_enum.name }}{% if owner %}&owner={{ owner }}{% endif %}{% if repository %}&repository={{ repository }}{% endif %}"
+        href="{{ build_filter_url(status=job.status_enum.name) }}"
         data-bs-toggle="tooltip"
         data-bs-placement="top"
         data-bs-title="Status"
@@ -166,30 +166,30 @@
       >
       {% if show_repository %}
       <a
-        href="{{ url_for('project_route', owner=job.owner, repository=job.repository) }}"
+        href="{{ build_filter_url(owner=job.owner, repository=job.repository) }}"
         data-bs-toggle="tooltip"
         data-bs-placement="top"
-        data-bs-title="Repository"
+        data-bs-title="Filter by repository"
         >{{ job.owner }}/{{ job.repository }}</a
       >
       -
       {% endif %}
       <a
-        href="{{ url_for('jobs_route') }}?module_event_name={{ job.module_event_name }}{% if owner %}&owner={{ owner }}{% endif %}{% if repository %}&repository={{ repository }}{% endif %}"
+        href="{{ build_filter_url(module_event_name=job.module_event_name) }}"
         data-bs-toggle="tooltip"
         data-bs-placement="top"
         data-bs-title="Event name"
         >{{ job.module_event_name }}</a
       >
       <a
-        href="{{ url_for('jobs_route') }}?application={{ job.application }}{% if owner %}&owner={{ owner }}{% endif %}{% if repository %}&repository={{ repository }}{% endif %}"
+        href="{{ build_filter_url(application=job.application) }}"
         data-bs-toggle="tooltip"
         data-bs-placement="top"
         data-bs-title="Application"
         >{{ job.application }}</a
       >:<b
         ><a
-          href="{{ url_for('jobs_route') }}?module={{ job.module }}{% if owner %}&owner={{ owner }}{% endif %}{% if repository %}&repository={{ repository }}{% endif %}"
+          href="{{ build_filter_url(module=job.module) }}"
           data-bs-toggle="tooltip"
           data-bs-placement="top"
           data-bs-title="Module"
