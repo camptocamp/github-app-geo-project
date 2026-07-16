@@ -37,6 +37,52 @@ def _date_tooltip(job: models.Queue) -> str:
     )
 
 
+def _build_filter_url(
+    request: Request,
+    active_filters: dict[str, str],
+    **extra: str | None,
+) -> str:
+    """Build a job filter URL preserving all active filters and adding/replacing the given extra params."""
+    params: dict[str, str] = {}
+    params.update({k: v for k, v in active_filters.items() if v})
+    params.update({k: v for k, v in extra.items() if v})
+    base_url = str(request.url_for("jobs_route"))
+    if params:
+        return base_url + "?" + "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+    return base_url
+
+
+def _active_filters(
+    owner: str | None,
+    repository: str | None,
+    status: str | None,
+    github_event_name: str | None,
+    module_event_name: str | None,
+    application: str | None,
+    module: str | None,
+    limit: int,
+) -> dict[str, str]:
+    """Collect the active filters into a dict, excluding None/empty values."""
+    filters: dict[str, str] = {}
+    if owner:
+        filters["owner"] = owner
+    if repository:
+        filters["repository"] = repository
+    if status:
+        filters["status"] = status
+    if github_event_name:
+        filters["github_event_name"] = github_event_name
+    if module_event_name:
+        filters["module_event_name"] = module_event_name
+    if application:
+        filters["application"] = application
+    if module:
+        filters["module"] = module
+    if limit != 50:
+        filters["limit"] = str(limit)
+    return filters
+
+
 async def jobs_view(
     request: Request,
     user: Annotated[User, Depends(get_user)],
@@ -50,6 +96,10 @@ async def jobs_view(
     limit: int = Query(50, description="Number of jobs to show"),
 ) -> dict[str, Any]:
     """Render the jobs page listing jobs across repositories."""
+    context_filters = _active_filters(
+        owner, repository, status, github_event_name, module_event_name, application, module, limit
+    )
+
     if owner and repository:
         if not await has_repo_access(user, owner, repository):
             return {
@@ -59,8 +109,13 @@ async def jobs_view(
                 "jobs": [],
                 "owner": owner,
                 "repository": repository,
+                "status": status,
+                "application": application,
+                "module": module,
+                "limit": limit,
                 "error": "Access Denied",
                 "date_tooltip": _date_tooltip,
+                "build_filter_url": lambda **kw: _build_filter_url(request, context_filters, **kw),
                 "show_repository": False,
             }
     elif not user.is_admin:
@@ -69,10 +124,15 @@ async def jobs_view(
             "user": user,
             "styles": HTML_FORMATTER.get_style_defs(),
             "jobs": [],
-            "owner": None,
-            "repository": None,
+            "owner": owner,
+            "repository": repository,
+            "status": status,
+            "application": application,
+            "module": module,
+            "limit": limit,
             "error": "Access Denied",
             "date_tooltip": _date_tooltip,
+            "build_filter_url": lambda **kw: _build_filter_url(request, context_filters, **kw),
             "show_repository": True,
         }
 
@@ -87,13 +147,13 @@ async def jobs_view(
             select_job = select_job.where(models.Queue.repository == repository)
         if status:
             select_job = select_job.where(models.Queue.status == status)
-        if github_event_name is not None:
+        if github_event_name:
             select_job = select_job.where(models.Queue.github_event_name == github_event_name)
-        if module_event_name is not None:
+        if module_event_name:
             select_job = select_job.where(models.Queue.module_event_name == module_event_name)
-        if application is not None:
+        if application:
             select_job = select_job.where(models.Queue.application == application)
-        if module is not None:
+        if module:
             select_job = select_job.where(models.Queue.module == module)
 
         select_job = select_job.order_by(models.Queue.created_at.desc())
@@ -108,8 +168,13 @@ async def jobs_view(
             "jobs": jobs_result,
             "owner": owner,
             "repository": repository,
+            "status": status,
+            "application": application,
+            "module": module,
+            "limit": limit,
             "error": None,
             "date_tooltip": _date_tooltip,
+            "build_filter_url": lambda **kw: _build_filter_url(request, context_filters, **kw),
             "show_repository": show_repository,
         }
 
