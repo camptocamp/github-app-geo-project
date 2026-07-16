@@ -139,9 +139,10 @@ async def snyk(
         if npm_audit_fix_message:
             assert isinstance(fix_message, module_utils.HtmlMessage)
             fix_message.html = f"{fix_message.html}<br>\n<br>\n{npm_audit_fix_message}"
-    fix_success = (
-        True if len(fixable_vulnerabilities_summary) == 0 else (snyk_fix_success and npm_audit_fix_success)
+    fix_has_errors = len(fixable_vulnerabilities_summary) > 0 and not (
+        snyk_fix_success and npm_audit_fix_success
     )
+    fix_success = True
 
     pre_commit_config = get_pre_commit_config(audit_config, audit_local_config)
     if pre_commit_config.get("enabled", True) and (cwd / ".pre-commit-config.yaml").exists():
@@ -189,7 +190,7 @@ async def snyk(
             f"{number} {severity} vulnerabilities can be fixed"
             for severity, number in fixable_vulnerabilities.items()
         ],
-        *([] if fix_success else ["Error while fixing the vulnerabilities"]),
+        *([] if not fix_has_errors else ["Error while fixing the vulnerabilities"]),
     ]
 
     return result, fix_message, return_message, fix_success
@@ -553,7 +554,7 @@ async def _snyk_test(
                 [
                     f"[{vuln['severity'].upper()}]",
                     f"{vuln['packageName']}@{vuln['version']}:",
-                    vuln["id"],
+                    f"[{vuln['id']}](https://security.snyk.io/vuln/{vuln['id']})",
                     *(vuln.get("identifiers", {}).get("CWE", [])),
                 ],
             )
@@ -684,6 +685,7 @@ async def _snyk_fix(
             )
             message.title = f"Unable to fix {len(fixable_vulnerabilities_summary)} vulnerabilities"
             _LOGGER.warning(message)
+            result.append(message)
 
     return snyk_fix_success, snyk_fix_message
 

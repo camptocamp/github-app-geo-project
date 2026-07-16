@@ -362,6 +362,26 @@ async def _process_snyk_dpkg(
                         body_md += "\n\n"
                     body_md += f"[Output]({output_url})" if output_url is not None else ""
 
+                vuln_section_start = f"<!-- vulns-{branch} -->"
+                vuln_section_end = f"<!-- /vulns-{branch} -->"
+                found_start = None
+                found_end = None
+                for i, item in enumerate(issue_check.issue):
+                    if isinstance(item, str) and item == vuln_section_start:
+                        found_start = i
+                    if isinstance(item, str) and item == vuln_section_end:
+                        found_end = i
+                        break
+                if found_start is not None and found_end is not None:
+                    del issue_check.issue[found_start : found_end + 1]
+
+                vuln_items = [m for m in result if m.title and m.title.startswith("[")]
+                if vuln_items:
+                    issue_check.issue.append(vuln_section_start)
+                    for vuln_item in vuln_items:
+                        issue_check.issue.append(f"  - {vuln_item.title}")
+                    issue_check.issue.append(vuln_section_end)
+
             if context.module_event_data.type == "dpkg":
                 body_md = "Update dpkg packages"
 
@@ -954,6 +974,19 @@ class Audit(
             for key in list(intermediate_status.status.types.keys()):
                 if key not in all_key_starts:
                     intermediate_status.status.types.pop(key)
+                    version = key.split(" ")[-1]
+                    vuln_section_start = f"<!-- vulns-{version} -->"
+                    vuln_section_end = f"<!-- /vulns-{version} -->"
+                    found_start = None
+                    found_end = None
+                    for i, item in enumerate(issue_check.issue):
+                        if isinstance(item, str) and item == vuln_section_start:
+                            found_start = i
+                        if isinstance(item, str) and item == vuln_section_end:
+                            found_end = i
+                            break
+                    if found_start is not None and found_end is not None:
+                        del issue_check.issue[found_start : found_end + 1]
 
             # Audit is relay slow than add 15 to the cron priority
             priority = (
