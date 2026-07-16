@@ -30,6 +30,9 @@ from github_app_geo_project.module.audit import utils as audit_utils
 
 _LOGGER = logging.getLogger(__name__)
 
+# Don't run Snyk in parallel
+_SNYK_LOCK = asyncio.Lock()
+
 _OUTDATED = "Outdated version"
 
 
@@ -310,29 +313,34 @@ async def _process_snyk_dpkg(
                 f"logs/{context.job_id}",
             )
             if context.module_event_data.type == "snyk":
-                python_version = ""
-                tool_versions = cwd / ".tool-versions"
-                if tool_versions.exists():
-                    async with await anyio.Path(tool_versions).open("r", encoding="utf-8") as file:
-                        for line in (await file.read()).splitlines():
-                            if line.startswith("python "):
-                                python_version = ".".join(
-                                    line.split(" ")[1].split(".")[0:2],
-                                ).strip()
-                                break
+                async with _SNYK_LOCK:
+                    python_version = ""
+                    tool_versions = cwd / ".tool-versions"
+                    if tool_versions.exists():
+                        async with await anyio.Path(tool_versions).open("r", encoding="utf-8") as file:
+                            for line in (await file.read()).splitlines():
+                                if line.startswith("python "):
+                                    python_version = ".".join(
+                                        line.split(" ")[1].split(".")[0:2],
+                                    ).strip()
+                                    break
 
-                env = await _use_python_version(python_version, cwd) if python_version else os.environ.copy()
+                    env = (
+                        await _use_python_version(python_version, cwd)
+                        if python_version
+                        else os.environ.copy()
+                    )
 
-                result, body, short_message, new_success = await audit_utils.snyk(
-                    branch,
-                    context.module_config,
-                    local_config,
-                    context.module_config.get("snyk", {}),
-                    local_config.get("snyk", {}),
-                    logs_url,
-                    env,
-                    cwd,
-                )
+                    result, body, short_message, new_success = await audit_utils.snyk(
+                        branch,
+                        context.module_config,
+                        local_config,
+                        context.module_config.get("snyk", {}),
+                        local_config.get("snyk", {}),
+                        logs_url,
+                        env,
+                        cwd,
+                    )
                 body_md = body.to_markdown() if body is not None else ""
                 del body
                 success &= new_success
@@ -453,6 +461,18 @@ async def _use_python_version(python_version: str, cwd: Path) -> dict[str, str]:
 
     # Cleanup the packages
     shutil.rmtree(f"/var/www/.local/lib/python{python_version}", ignore_errors=True)
+
+    # Cleanup poetry virtual environments
+    await module_utils.run_timeout(
+        ["poetry", "env", "remove", "--all"],
+        env,
+        120,
+        success_message="Poetry virtual environments removed",
+        error_message="Failed to remove poetry virtual environments",
+        timeout_message="Poetry virtual environments removal timed out",
+        cwd=cwd,
+        error=False,
+    )
 
     return env
 
