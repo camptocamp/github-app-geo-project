@@ -216,6 +216,21 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         with tempfile.TemporaryDirectory() as tmpdirname:
             cwd = Path(tmpdirname)
             if not is_clone:
+                # Check if the branch exists before attempting to clone
+                try:
+                    await context.github_project.aio_github.rest.repos.async_get_branch(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                        branch=head_branch,
+                    )
+                except githubkit.exception.RequestFailed as exception:
+                    if exception.response.status_code == 404:
+                        _LOGGER.info(
+                            "Branch '%s' no longer exists — skipping patch application",
+                            head_branch,
+                        )
+                        return module.ProcessOutput()
+                    raise
                 new_cwd = await module_utils.git_clone(
                     context.github_project,
                     head_branch,
