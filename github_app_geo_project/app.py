@@ -191,7 +191,7 @@ if c2casgiutils.config.settings.proxy_headers.type != "none":
     )
 
 app.mount(
-    "/static",
+    f"{route_prefix}static",
     StaticFiles(directory="/app/github_app_geo_project/static"),
     name="static",
 )
