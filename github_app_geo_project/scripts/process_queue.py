@@ -996,6 +996,11 @@ async def _process_one_job(
         {"id": job.id, "event": job.module_event_name, "module": job.module or "-"},
     )
 
+    # Delete old log entries
+    await session.execute(
+        sqlalchemy.delete(models.JobLogEntry).where(models.JobLogEntry.job_id == job.id),
+    )
+
     # Capture_logs
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
@@ -1353,6 +1358,7 @@ class HandleSigint:
             ):
                 job.status_enum = models.JobStatus.NEW
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+            session.commit()
         sys.exit()
 
 
