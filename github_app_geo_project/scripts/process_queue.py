@@ -910,20 +910,28 @@ async def _get_process_one_job(
 ) -> bool:
     _LOGGER.debug("Process one job (max priority: %i): Start", max_priority)
     async with Session() as session:
-        job = (
-            await session.execute(
-                sqlalchemy.select(models.Queue)
-                .where(
-                    models.Queue.status == models.JobStatus.NEW.name,
-                    models.Queue.priority <= max_priority,
+        # Two-step selection to ensure priority ordering:
+        # 1. Find the highest priority (lowest number) among NEW jobs
+        # 2. Select the oldest job at that priority level
+        min_priority = await session.scalar(
+            sqlalchemy.select(sqlalchemy.func.min(models.Queue.priority)).where(
+                models.Queue.status == models.JobStatus.NEW.name,
+                models.Queue.priority <= max_priority,
+            ),
+        )
+        job = None
+        if min_priority is not None:
+            job = (
+                await session.execute(
+                    sqlalchemy.select(models.Queue)
+                    .where(
+                        models.Queue.status == models.JobStatus.NEW.name,
+                        models.Queue.priority == min_priority,
+                    )
+                    .order_by(models.Queue.created_at.asc())
+                    .with_for_update(skip_locked=True),
                 )
-                .order_by(
-                    models.Queue.priority.asc(),
-                    models.Queue.created_at.asc(),
-                )
-                .with_for_update(skip_locked=True),
-            )
-        ).scalar()
+            ).scalar()
 
         if job is None:
             if no_steal_long_pending:
