@@ -91,6 +91,18 @@
       .level-debug {
         margin-bottom: 0.2rem;
       }
+      .log-entry {
+        display: flex;
+        gap: 0.5rem;
+      }
+      .log-timestamp {
+        color: #888;
+        font-size: 0.8em;
+        font-family: monospace;
+        white-space: nowrap;
+        flex-shrink: 0;
+        padding-top: 0.1rem;
+      }
       .login-container {
         position: absolute;
         right: 3rem;
@@ -187,7 +199,18 @@
         <a class="btn btn-outline-secondary" href="{{ request.url.path }}">Reset</a>
       </div>
     </form>
-    <div class="logs">{{ logs | sanitizer | safe }}</div>
+    <div class="logs">
+      {% if log_entries %}
+        {% for entry in log_entries %}
+        <div class="log-entry">
+          <span class="log-timestamp">{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+          <div>{{ entry.log | sanitizer | safe }}</div>
+        </div>
+        {% endfor %}
+      {% else %}
+        {{ logs | sanitizer | safe }}
+      {% endif %}
+    </div>
     {% endif %}
 
     <script

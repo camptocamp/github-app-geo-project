@@ -86,7 +86,6 @@ async def logs_view(
                     if entry.css_style:
                         css_style_set.add(entry.css_style)
                 css_style = utils.merge_css_blocks(css_style_set)
-                logs = "\n".join(entry.log for entry in log_entries)
             elif level or filename:
                 # Explicit message when filters exclude all entries.
                 logs = "No logs match the current filters."
@@ -103,6 +102,7 @@ async def logs_view(
                 "styles": HTML_FORMATTER.get_style_defs()
                 + (f"\n\n/* styles form log lines */\n{css_style}" if css_style else ""),
                 "title": title,
+                "log_entries": log_entries or [],
                 "logs": logs,
                 "job": job,
                 "error_message": "<br />".join(error_messages),
