@@ -11,6 +11,14 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 from github_app_geo_project import models, module
 from github_app_geo_project.module import modules
 from github_app_geo_project.security import User, get_user
+from github_app_geo_project.templates import (
+    markdown,
+    pprint_date,
+    pprint_duration,
+    pprint_full_date,
+    pprint_short_date,
+    sanitizer,
+)
 from github_app_geo_project.utils import HTML_FORMATTER
 
 _LOGGER = logging.getLogger(__name__)
@@ -24,6 +32,12 @@ async def _render_template(renderer: str, data: dict[str, Any]) -> str:
         loader=FileSystemLoader(str(template_path.parent)),
         autoescape=select_autoescape(),
     )
+    env.filters["markdown"] = markdown
+    env.filters["sanitizer"] = sanitizer
+    env.filters["pprint_date"] = pprint_date
+    env.filters["pprint_short_date"] = pprint_short_date
+    env.filters["pprint_full_date"] = pprint_full_date
+    env.filters["pprint_duration"] = pprint_duration
     template = env.get_template(template_path.name)
     return template.render(data)
 
