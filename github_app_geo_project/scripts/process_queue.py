@@ -259,8 +259,11 @@ async def _process_job(
                         settings.service_url,
                     )
 
-                if github_project is not None and github_project.aio_github is not None:
-                    assert check_run is not None
+                if (
+                    github_project is not None
+                    and github_project.aio_github is not None
+                    and check_run is not None
+                ):
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,
@@ -438,7 +441,7 @@ async def _process_job(
                         await log_task
                 await _flush_job_logs(log_session_factory, handler, job.id)
 
-            if github_project is not None and github_project.aio_github is not None:
+            if github_project is not None and github_project.aio_github is not None and check_run is not None:
                 check_output = {
                     "summary": (
                         "Module executed successfully"
@@ -450,7 +453,6 @@ async def _process_job(
                     check_output["text"] = f"[See logs for more details]({logs_url})"
                 if result is not None and result.output:
                     check_output.update(result.output)
-                assert check_run is not None
                 if len(check_output.get("summary", "")) > 65535:
                     check_output["summary"] = check_output["summary"][:65532] + "..."
                 if len(check_output.get("text", "")) > 65535:
@@ -563,38 +565,37 @@ async def _process_job(
                 )
             finally:
                 root_logger.removeHandler(handler)
-            if check_run is None:
-                raise
-            try:
-                if github_project is not None and github_project.aio_github is not None:
-                    await github_project.aio_github.rest.checks.async_update(
-                        owner=job.owner,
-                        repo=job.repository,
-                        check_run_id=check_run.id,
-                        status="completed",
-                        conclusion="failure",
-                        output={
-                            "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url})",
-                        },
-                    )
-            except githubkit.exception.RequestFailed as github_exception:
-                root_logger.addHandler(handler)
+            if check_run is not None:
                 try:
-                    _LOGGER.exception(
-                        "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
-                        job.check_run_id,
-                        github_exception.response.text,
-                        (
-                            "\n".join(f"{k}: {v}" for k, v in github_exception.response.headers.items())
-                            if github_exception.response.headers
-                            else ""
-                        ),
-                        github_exception.response.reason_phrase,
-                        github_exception.response.status_code,
-                    )
-                finally:
-                    root_logger.removeHandler(handler)
-            raise
+                    if github_project is not None and github_project.aio_github is not None:
+                        await github_project.aio_github.rest.checks.async_update(
+                            owner=job.owner,
+                            repo=job.repository,
+                            check_run_id=check_run.id,
+                            status="completed",
+                            conclusion="failure",
+                            output={
+                                "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url})",
+                            },
+                        )
+                except githubkit.exception.RequestFailed as github_exception:
+                    root_logger.addHandler(handler)
+                    try:
+                        _LOGGER.exception(
+                            "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                            job.check_run_id,
+                            github_exception.response.text,
+                            (
+                                "\n".join(f"{k}: {v}" for k, v in github_exception.response.headers.items())
+                                if github_exception.response.headers
+                                else ""
+                            ),
+                            github_exception.response.reason_phrase,
+                            github_exception.response.status_code,
+                        )
+                    finally:
+                        root_logger.removeHandler(handler)
+                raise
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
             job.status_enum = models.JobStatus.ERROR
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
@@ -611,33 +612,32 @@ async def _process_job(
                 _LOGGER.exception(message)
             finally:
                 root_logger.removeHandler(handler)
-            if check_run is None:
-                raise
-            try:
-                if github_project is not None and github_project.aio_github is not None:
-                    await github_project.aio_github.rest.checks.async_update(
-                        owner=job.owner,
-                        repo=job.repository,
-                        check_run_id=check_run.id,
-                        status="completed",
-                        conclusion="failure",
-                        output={
-                            "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url})",
-                        },
+            if check_run is not None:
+                try:
+                    if github_project is not None and github_project.aio_github is not None:
+                        await github_project.aio_github.rest.checks.async_update(
+                            owner=job.owner,
+                            repo=job.repository,
+                            check_run_id=check_run.id,
+                            status="completed",
+                            conclusion="failure",
+                            output={
+                                "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url})",
+                            },
+                        )
+                except githubkit.exception.RequestFailed as exception:
+                    _LOGGER.exception(
+                        "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
+                        job.check_run_id,
+                        exception.response.text,
+                        (
+                            "\n".join(f"{k}: {v}" for k, v in exception.response.headers.items())
+                            if exception.response.headers
+                            else ""
+                        ),
+                        exception.response.reason_phrase,
+                        exception.response.status_code,
                     )
-            except githubkit.exception.RequestFailed as exception:
-                _LOGGER.exception(
-                    "Failed to update check run %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
-                    job.check_run_id,
-                    exception.response.text,
-                    (
-                        "\n".join(f"{k}: {v}" for k, v in exception.response.headers.items())
-                        if exception.response.headers
-                        else ""
-                    ),
-                    exception.response.reason_phrase,
-                    exception.response.status_code,
-                )
             raise
         except Exception as exception:
             job.status_enum = models.JobStatus.ERROR

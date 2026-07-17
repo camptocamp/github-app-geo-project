@@ -1236,7 +1236,7 @@ async def create_checks(
     current_module: module.Module[Any, Any, Any, Any],
     github_project: configuration.GithubProject,
     service_url: str,
-) -> githubkit_schemas.latest.models.CheckRun:
+) -> githubkit_schemas.latest.models.CheckRun | None:
     """Create the GitHub check run."""
     # Get the job id from the database
     await session.flush()
@@ -1287,16 +1287,26 @@ async def create_checks(
         raise ValueError(message)
 
     name = f"{current_module.title()}: {job.github_event_name}"
-    check_run = (
-        await github_project.aio_github.rest.checks.async_create(
-            owner=github_project.owner,
-            repo=github_project.repository,
-            name=name,
-            head_sha=sha,
-            details_url=service_url,
-            external_id=str(job.id),
+    try:
+        check_run = (
+            await github_project.aio_github.rest.checks.async_create(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                name=name,
+                head_sha=sha,
+                details_url=service_url,
+                external_id=str(job.id),
+            )
+        ).parsed_data
+    except githubkit.exception.RequestFailed as exception:
+        _LOGGER.warning(
+            "Failed to create check run for job %s: %s - %s\n%s",
+            job.id,
+            exception.response.status_code,
+            exception.response.reason_phrase,
+            exception.response.text,
         )
-    ).parsed_data
+        return None
     job.check_run_id = check_run.id
     await session.commit()
     await session.refresh(job)
