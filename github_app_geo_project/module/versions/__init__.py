@@ -470,10 +470,13 @@ class Versions(
                 )
                 message.title = "Names:"
                 _LOGGER.debug(message)
+                out_dir = Path(tmpdirname) / "renovate-graph-out"
+                out_dir.mkdir(parents=True, exist_ok=True)
                 if await _get_dependencies(
                     context,
                     intermediate_status.version_dependencies_by_datasource,
                     cwd,
+                    out_dir,
                 ):
                     assert context.module_event_data.retry is not None
                     # Retry
@@ -1109,18 +1112,20 @@ async def _get_dependencies(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     result: dict[str, _TransversalStatusNameInDatasource],
     cwd: Path,
+    out_dir: Path,
 ) -> bool:
     """
     Extract dependencies using renovate-graph.
 
     This function runs renovate-graph to analyze the repository dependencies,
-    parsing its output to build a dependency graph.
+    parsing its output file to build a dependency graph.
 
     Arguments:
     ---------
         context: The process context
         result: Output dictionary to store dependency information
         cwd: The current working directory (repository root)
+        out_dir: The directory where renovate-graph will write its output file
 
     Returns
     -------
@@ -1139,13 +1144,11 @@ async def _get_dependencies(
                 "RG_LOCAL_PLATFORM": "github",
                 "RG_LOCAL_ORGANISATION": github_project.owner,
                 "RG_LOCAL_REPO": github_project.repository,
-                "RG_GITHUB_APP_ID": str(application.id),
-                "RG_GITHUB_APP_KEY": application.private_key,
                 "RENOVATE_USERNAME": username,
                 "RENOVATE_GIT_AUTHOR": f"{username} <{user.id}+{username}@users.noreply.github.com>",
-                "RG_GITHUB_APP_INSTALLATION_ID": str(user.id),
                 "GITHUB_COM_TOKEN": github_project.token,
                 "RENOVATE_REPOSITORIES": f"{github_project.owner}/{github_project.repository}",
+                "OUT_DIR": str(out_dir),
             },
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
@@ -1178,32 +1181,21 @@ async def _get_dependencies(
         message.title = "Got the dependencies"
         _LOGGER.debug(message)
 
-        lines = stdout.decode().splitlines() if stdout else []
+        output_file = out_dir / f"github-{github_project.owner}-{github_project.repository}.json"
+        if not output_file.exists():
+            message.title = "No output file found from renovate-graph"
+            _LOGGER.error(message)
+            raise VersionError(message.title)
+        async with await anyio.open_file(output_file, encoding="utf-8") as file:
+            content = await file.read()
     else:
-        lines = os.environ["RENOVATE_GRAPH"].splitlines()
+        content = os.environ["RENOVATE_GRAPH"]
 
-    index = -1
-    for i, line in enumerate(lines):
-        if line == "DEBUG: packageFiles with updates":
-            index = i + 1
-            break
-    if index != -1:
-        lines = lines[index:]
-
-    index = -1
-    for i, line in enumerate(lines):
-        if not line.startswith("       "):
-            index = i
-            break
-    if index != -1:
-        lines = lines[:index]
-
-    json_str = "{\n" + "\n".join(lines) + "\n}"
-    message = module_utils.HtmlMessage(utils.format_json_str(json_str))
+    message = module_utils.HtmlMessage(utils.format_json_str(content))
     message.title = "Read dependencies from"
     _LOGGER.debug(message)
-    data = json.loads(json_str)
-    _read_dependencies(context, data, result)
+    data = json.loads(content)
+    _read_dependencies(context, {"config": data.get("packageData", {})}, result)
     return False
 
 

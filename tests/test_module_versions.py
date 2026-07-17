@@ -69,43 +69,39 @@ async def test_process_step_2() -> None:
     repos.async_get_content.side_effect = githubkit.exception.RequestFailed(response)
 
     os.environ["TEST"] = "TRUE"
-    os.environ["RENOVATE_GRAPH"] = """
-DEBUG: Found sourceUrl with multiple branches that should probably be combined into a group
-       "sourceUrl": "https://github.com/eslint/eslint",
-       "newVersion": "9.26.0",
-       "branches": {"renovate/eslint-js-9.x": "@eslint/js", "renovate/eslint-9.x": "eslint"}
-DEBUG: packageFiles with updates
-       "config": {
-         "docker-compose": [
-           {
-             "deps": [
-               {
-                 "depName": "actions/checkout",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "datasource": "github-tags",
-                 "versioning": "docker",
-                 "depType": "action",
-                 "replaceString": "actions/checkout@v4",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v4",
-                 "skipReason": "github-token-required"
-               }
-             ],
-             "packageFile": "docker-compose.yaml"
-           }
-         ]
+    os.environ["RENOVATE_GRAPH"] = json.dumps(
+        {
+            "repo": "test",
+            "organisation": "camptocamp",
+            "packageData": {
+                "docker-compose": [
+                    {
+                        "deps": [
+                            {
+                                "depName": "actions/checkout",
+                                "commitMessageTopic": "{{{depName}}} action",
+                                "datasource": "github-tags",
+                                "versioning": "docker",
+                                "depType": "action",
+                                "replaceString": "actions/checkout@v4",
+                                "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
+                                "currentValue": "v4",
+                                "skipReason": "github-token-required",
+                            }
+                        ],
+                        "packageFile": "docker-compose.yaml",
+                    }
+                ]
+            },
+            "metadata": {
+                "renovate": {
+                    "platform": "github",
+                    "version": "42.92.5",
+                    "major": 42,
+                }
+            },
         }
- WARN: The repository name for {"mode":"full","allowedHeaders":["X-*"],"autodiscoverRepoOrder":null, ...,"regex":{"pinDigests":false},"jsonata":{"pinDigests":false}} was not defined, skipping
-DEBUG: defaultWritePackageDataCallback called for local/camptocamp/c2cgeoportal
-       "key": {"platform": "local", "organisation": "camptocamp", "repo": "c2cgeoportal"}
-DEBUG: writePackageDataToFile called for local/camptocamp/c2cgeoportal
-       "key": {"platform": "local", "organisation": "camptocamp", "repo": "c2cgeoportal"},
-       "outDir": "out"
- WARN: writePackageDataToFile called for local/camptocamp/c2cgeoportal, but there was no `packageDataDump` provided, likely because the repository failed to scan. Check the logs
-       "key": {"platform": "local", "organisation": "camptocamp", "repo": "c2cgeoportal"},
-       "outDir": "out"
-DEBUG: Determining if we should process repository camptocamp/tilecloud, using GitHub App authentication (repository=camptocamp/tilecloud)
-"""
+    )
     output = await versions.process(context)
     assert output.updated_transversal_status is True
     assert isinstance(output.intermediate_status, _IntermediateStatus)
