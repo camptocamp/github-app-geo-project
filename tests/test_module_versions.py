@@ -69,37 +69,39 @@ async def test_process_step_2() -> None:
     repos.async_get_content.side_effect = githubkit.exception.RequestFailed(response)
 
     os.environ["TEST"] = "TRUE"
-    os.environ["RENOVATE_GRAPH"] = json.dumps({
-        "repo": "test",
-        "organisation": "camptocamp",
-        "packageData": {
-            "docker-compose": [
-                {
-                    "deps": [
-                        {
-                            "depName": "actions/checkout",
-                            "commitMessageTopic": "{{{depName}}} action",
-                            "datasource": "github-tags",
-                            "versioning": "docker",
-                            "depType": "action",
-                            "replaceString": "actions/checkout@v4",
-                            "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                            "currentValue": "v4",
-                            "skipReason": "github-token-required",
-                        }
-                    ],
-                    "packageFile": "docker-compose.yaml",
+    os.environ["RENOVATE_GRAPH"] = json.dumps(
+        {
+            "repo": "test",
+            "organisation": "camptocamp",
+            "packageData": {
+                "docker-compose": [
+                    {
+                        "deps": [
+                            {
+                                "depName": "actions/checkout",
+                                "commitMessageTopic": "{{{depName}}} action",
+                                "datasource": "github-tags",
+                                "versioning": "docker",
+                                "depType": "action",
+                                "replaceString": "actions/checkout@v4",
+                                "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
+                                "currentValue": "v4",
+                                "skipReason": "github-token-required",
+                            }
+                        ],
+                        "packageFile": "docker-compose.yaml",
+                    }
+                ]
+            },
+            "metadata": {
+                "renovate": {
+                    "platform": "github",
+                    "version": "42.92.5",
+                    "major": 42,
                 }
-            ]
-        },
-        "metadata": {
-            "renovate": {
-                "platform": "github",
-                "version": "42.92.5",
-                "major": 42,
-            }
-        },
-    })
+            },
+        }
+    )
     output = await versions.process(context)
     assert output.updated_transversal_status is True
     assert isinstance(output.intermediate_status, _IntermediateStatus)
