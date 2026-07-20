@@ -70,11 +70,13 @@ _FLUSH_LOCK = asyncio.Lock()
 class _Handler(logging.Handler):
     context_var: contextvars.ContextVar[int] = contextvars.ContextVar("job_id")
 
-    def __init__(self, job_id: int) -> None:
+    def __init__(self, job_id: int, suppressed_logger_names: list[str], suppressed_logger_level: str) -> None:
         super().__init__()
         self.results: list[tuple[logging.LogRecord, str | None]] = []
         self.last_written_index = 0
         self.job_id = job_id
+        self.suppressed_logger_names = suppressed_logger_names
+        self.suppressed_logger_level = logging.getLevelName(suppressed_logger_level)
         self.context_var.set(job_id)
 
     def emit(self, record: logging.LogRecord) -> None:
@@ -82,6 +84,11 @@ class _Handler(logging.Handler):
             if self.context_var.get() != self.job_id:
                 return
         except LookupError:
+            return
+        if (
+            record.levelno <= self.suppressed_logger_level
+            and any(record.name.startswith(prefix) for prefix in self.suppressed_logger_names)
+        ):
             return
         css_style = None
         if isinstance(record.msg, module_utils.Message):
@@ -1012,7 +1019,11 @@ async def _process_one_job(
     # Capture_logs
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
-    handler = _Handler(job.id)
+    handler = _Handler(
+        job.id,
+        settings.process_queue.suppressed_logger_names,
+        settings.process_queue.suppressed_logger_level,
+    )
     handler.setFormatter(
         _Formatter("%(levelname)-5.5s %(pathname)s:%(lineno)d %(funcName)s()"),
     )

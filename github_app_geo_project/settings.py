@@ -152,6 +152,15 @@ class _ProcessQueueSettings(BaseModel):
     )
     priority_groups: Annotated[str, Field(description="Priority groups")] = "2147483647"
     socket_timeout: Annotated[Duration, Field(description="Socket timeout")] = datetime.timedelta(minutes=2)
+    suppressed_logger_names: Annotated[
+        list[str], Field(description="Logger names to suppress from DB logs")
+    ] = ["asyncio", "hishel", "httpcore"]
+    suppressed_logger_level: Annotated[
+        str,
+        Field(
+            description="Log level name to suppress and below (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+        ),
+    ] = "DEBUG"
 
 
 class _C2cciutilsSettings(BaseModel):
