@@ -1147,7 +1147,6 @@ async def _get_dependencies(
                 "RENOVATE_USERNAME": username,
                 "RENOVATE_GIT_AUTHOR": f"{username} <{user.id}+{username}@users.noreply.github.com>",
                 "GITHUB_COM_TOKEN": github_project.token,
-                "RENOVATE_REPOSITORIES": f"{github_project.owner}/{github_project.repository}",
                 "OUT_DIR": str(out_dir),
             },
             stdin=asyncio.subprocess.PIPE,
