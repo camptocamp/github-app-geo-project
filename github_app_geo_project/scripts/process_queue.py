@@ -85,9 +85,8 @@ class _Handler(logging.Handler):
                 return
         except LookupError:
             return
-        if (
-            record.levelno <= self.suppressed_logger_level
-            and any(record.name.startswith(prefix) for prefix in self.suppressed_logger_names)
+        if record.levelno <= self.suppressed_logger_level and any(
+            record.name.startswith(prefix) for prefix in self.suppressed_logger_names
         ):
             return
         css_style = None
