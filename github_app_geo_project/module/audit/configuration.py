@@ -6,6 +6,30 @@ Automatically generated file from a JSON schema.
 from typing import Any, Literal, TypedDict
 
 
+ADVISORY_SEVERITY_THRESHOLD_DEFAULT = 'high'
+r""" Default value of the field path 'Snyk configuration advisory-severity-threshold' """
+
+
+
+AdvisorySeverityThreshold = Literal['low'] | Literal['medium'] | Literal['high'] | Literal['critical']
+r"""
+Advisory severity threshold.
+
+Minimum severity level to create a GitHub Security Advisory (low, medium, high, critical)
+
+default: high
+"""
+ADVISORYSEVERITYTHRESHOLD_LOW: Literal['low'] = "low"
+r"""The values for the 'Advisory severity threshold' enum"""
+ADVISORYSEVERITYTHRESHOLD_MEDIUM: Literal['medium'] = "medium"
+r"""The values for the 'Advisory severity threshold' enum"""
+ADVISORYSEVERITYTHRESHOLD_HIGH: Literal['high'] = "high"
+r"""The values for the 'Advisory severity threshold' enum"""
+ADVISORYSEVERITYTHRESHOLD_CRITICAL: Literal['critical'] = "critical"
+r"""The values for the 'Advisory severity threshold' enum"""
+
+
+
 # | Audit configuration.
 AuditConfiguration = TypedDict('AuditConfiguration', {
     # | Enable audit.
@@ -38,8 +62,32 @@ class AuditModulesConfiguration(TypedDict, total=False):
 
 
 
+DASHBOARD_SEVERITY_THRESHOLD_DEFAULT = 'medium'
+r""" Default value of the field path 'Snyk configuration dashboard-severity-threshold' """
+
+
+
 DPKG_SOURCES_DEFAULT = {'ubuntu_22_04': [{'url': 'http://archive.ubuntu.com/ubuntu', 'distribution': 'jammy', 'components': ['main', 'restricted', 'universe', 'multiverse']}, {'url': 'http://security.ubuntu.com/ubuntu', 'distribution': 'jammy-security', 'components': ['main', 'restricted', 'universe', 'multiverse']}, {'url': 'http://security.ubuntu.com/ubuntu', 'distribution': 'jammy-updates', 'components': ['main', 'restricted', 'universe', 'multiverse']}], 'ubuntu_24_04': [{'url': 'http://archive.ubuntu.com/ubuntu', 'distribution': 'noble', 'components': ['main', 'restricted', 'universe', 'multiverse']}, {'url': 'http://security.ubuntu.com/ubuntu', 'distribution': 'noble-security', 'components': ['main', 'restricted', 'universe', 'multiverse']}, {'url': 'http://security.ubuntu.com/ubuntu', 'distribution': 'noble-updates', 'components': ['main', 'restricted', 'universe', 'multiverse']}], 'debian_11': [{'url': 'http://deb.debian.org/debian', 'distribution': 'bullseye', 'components': ['main', 'contrib', 'non-free']}, {'url': 'http://deb.debian.org/debian', 'distribution': 'bullseye-updates', 'components': ['main', 'contrib', 'non-free']}, {'url': 'http://security.debian.org/debian-security', 'distribution': 'bullseye-security', 'components': ['main', 'contrib', 'non-free']}], 'debian_12': [{'url': 'http://deb.debian.org/debian', 'distribution': 'bookworm', 'components': ['main', 'contrib', 'non-free']}, {'url': 'http://deb.debian.org/debian', 'distribution': 'bookworm-updates', 'components': ['main', 'contrib', 'non-free']}, {'url': 'http://security.debian.org/debian-security', 'distribution': 'bookworm-security', 'components': ['main', 'contrib', 'non-free']}]}
 r""" Default value of the field path 'Dpkg configuration sources' """
+
+
+
+DashboardSeverityThreshold = Literal['low'] | Literal['medium'] | Literal['high'] | Literal['critical']
+r"""
+Dashboard severity threshold.
+
+Minimum severity level to display on the dashboard (low, medium, high, critical)
+
+default: medium
+"""
+DASHBOARDSEVERITYTHRESHOLD_LOW: Literal['low'] = "low"
+r"""The values for the 'Dashboard severity threshold' enum"""
+DASHBOARDSEVERITYTHRESHOLD_MEDIUM: Literal['medium'] = "medium"
+r"""The values for the 'Dashboard severity threshold' enum"""
+DASHBOARDSEVERITYTHRESHOLD_HIGH: Literal['high'] = "high"
+r"""The values for the 'Dashboard severity threshold' enum"""
+DASHBOARDSEVERITYTHRESHOLD_CRITICAL: Literal['critical'] = "critical"
+r"""The values for the 'Dashboard severity threshold' enum"""
 
 
 
@@ -171,6 +219,11 @@ r""" Default value of the field path 'Snyk configuration enabled' """
 
 
 
+EXCLUDED_FILES_DEFAULT: list[Any] = []
+r""" Default value of the field path 'Snyk configuration excluded-files' """
+
+
+
 FILES_NOT_TO_INSTALL_DEFAULT: list[Any] = []
 r""" Default value of the field path 'Snyk configuration files-no-install' """
 
@@ -263,6 +316,25 @@ SnykConfiguration = TypedDict('SnykConfiguration', {
     # | default:
     # |   []
     'files-no-install': list[str],
+    # | Excluded files.
+    # | 
+    # | List of regex patterns for file names to exclude from the dashboard and security advisories
+    # | 
+    # | default:
+    # |   []
+    'excluded-files': list[str],
+    # | Dashboard severity threshold.
+    # | 
+    # | Minimum severity level to display on the dashboard (low, medium, high, critical)
+    # | 
+    # | default: medium
+    'dashboard-severity-threshold': "DashboardSeverityThreshold",
+    # | Advisory severity threshold.
+    # | 
+    # | Minimum severity level to create a GitHub Security Advisory (low, medium, high, critical)
+    # | 
+    # | default: high
+    'advisory-severity-threshold': "AdvisorySeverityThreshold",
     # | Pip install arguments.
     # | 
     # | Arguments to pass to pip install

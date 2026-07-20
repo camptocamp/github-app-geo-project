@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-07-20
+
+### Added
+
+- **Audit module**: Added configurable `dashboard-severity-threshold` (default: `medium`) and `advisory-severity-threshold` (default: `high`) to `snyk` configuration.
+- **Audit module**: Added `excluded-files` configuration option to exclude specific files (regex patterns) from the dashboard and advisory creation.
+- **Audit module**: Vulnerabilities in the issue dashboard are now grouped by file with `==== <file_name>` headers under `=== <version>` section titles.
+- **Audit module**: The module now automatically creates GitHub Security Advisories for vulnerabilities meeting the `advisory-severity-threshold` (requires `security_advisories: write` permission).
+- **Audit module**: Added `_VulnerabilityData` structured data class and `SEVERITY_ORDER` ordering, `ECOSYSTEM_MAP` for Snyk-to-GitHub ecosystem mapping.
+
 ## 2026-07-15
 
 ### Added

@@ -47,3 +47,24 @@ If errors occur during the scanning or PR creation process, or if pull requests 
 You can configure the audit module behavior through the `.github/ghci.yaml` file.
 
 [Configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/AUDIT-CONFIG.md).
+
+#### Dashboard Display
+
+The vulnerability dashboard uses the following format:
+
+- `=== <branch>` — section header for each stabilization branch
+- `==== <file_name>` — sub-header for each dependency file (e.g., `requirements.txt`, `package-lock.json`)
+
+You can control which vulnerabilities appear on the dashboard with:
+
+- `snyk.dashboard-severity-threshold` — minimum severity level to display (default: `medium`)
+- `snyk.excluded-files` — list of regex patterns for file names to exclude from the dashboard
+
+#### Security Advisories
+
+When vulnerabilities with a severity at or above the configurable threshold are detected, the module automatically creates GitHub Security Advisories. This feature requires the `security_advisories: write` permission.
+
+You can control advisory creation with:
+
+- `snyk.advisory-severity-threshold` — minimum severity level to create a Security Advisory (default: `high`)
+- `snyk.excluded-files` — list of regex patterns for file names to exclude from advisory creation
