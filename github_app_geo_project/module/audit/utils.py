@@ -37,6 +37,80 @@ _TIMEOUT_POETRY_VERSION = settings.audit_timeouts.poetry_version
 _TIMEOUT_NPM_AUDIT = settings.audit_timeouts.npm_audit
 
 
+class VulnerabilityData(NamedTuple):
+    """Structured data for a single vulnerability from Snyk."""
+
+    file: str
+    """The target file path (displayTargetFile)"""
+    package_name: str
+    """The vulnerable package name"""
+    package_version: str
+    """The vulnerable package version"""
+    package_manager: str
+    """The package manager (pip, npm, etc.)"""
+    severity: str
+    """The severity level (low, medium, high, critical)"""
+    snyk_id: str
+    """The Snyk vulnerability ID"""
+    cve_ids: list[str]
+    """List of CVE identifiers"""
+    cwe_ids: list[str]
+    """List of CWE identifiers"""
+    title: str
+    """The formatted title for dashboard display"""
+    fixed_in: list[str]
+    """List of versions that fix this vulnerability"""
+    is_upgradable: bool
+    """Whether the vulnerability is upgradable"""
+    is_patchable: bool
+    """Whether the vulnerability is patchable"""
+
+
+# Map Snyk package managers to GitHub advisory ecosystems
+ECOSYSTEM_MAP: dict[str, str] = {
+    "pip": "pip",
+    "npm": "npm",
+    "maven": "maven",
+    "nuget": "nuget",
+    "composer": "composer",
+    "gomodules": "go",
+    "rubygems": "rubygems",
+    "cargo": "rust",
+    "cocoapods": "other",
+    "hex": "other",
+    "linux": "other",
+    "deb": "other",
+    "docker": "other",
+    "apk": "other",
+}
+
+
+SEVERITY_ORDER: dict[str, int] = {
+    "low": 0,
+    "medium": 1,
+    "high": 2,
+    "critical": 3,
+}
+
+
+def get_severity_config(
+    config: configuration.SnykConfiguration,
+    local_config: configuration.SnykConfiguration,
+    key: str,
+    default: str,
+) -> str:
+    """Get a severity threshold configuration value."""
+    return local_config.get(key, config.get(key, default))  # type: ignore[return-value]
+
+
+def get_excluded_files(
+    config: configuration.SnykConfiguration,
+    local_config: configuration.SnykConfiguration,
+) -> list[str]:
+    """Get the list of excluded file regex patterns."""
+    return local_config.get("excluded-files", config.get("excluded-files", []))
+
+
 def get_pre_commit_config(
     config: configuration.AuditConfiguration,
     local_config: configuration.AuditConfiguration,
@@ -65,7 +139,13 @@ async def snyk(
     logs_url: str,
     env: dict[str, str],
     cwd: Path,
-) -> tuple[list[module_utils.Message], module_utils.HtmlMessage | None, list[str], bool]:
+) -> tuple[
+    list[module_utils.Message],
+    module_utils.HtmlMessage | None,
+    list[str],
+    bool,
+    dict[str, list[VulnerabilityData]],
+]:
     """
     Audit the code with Snyk.
 
@@ -75,6 +155,7 @@ async def snyk(
         the message of the fix commit,
         the dashboard's message (with resume of the vulnerabilities),
         is on success (errors: vulnerability that can be fixed by upgrading the dependency).
+        the file-grouped vulnerability data for dashboard display and advisory creation.
     """
     result: list[module_utils.Message] = []
 
@@ -114,6 +195,7 @@ async def snyk(
         fixable_vulnerabilities_summary,
         fixable_files_npm,
         vulnerabilities_in_requirements,
+        file_vulnerabilities,
     ) = await _snyk_test(branch, config, local_config, result, env_no_debug, cwd)
 
     snyk_fix_success, snyk_fix_message = await _snyk_fix(
@@ -182,6 +264,7 @@ async def snyk(
             fixable_vulnerabilities_summary,
             fixable_files_npm,
             vulnerabilities_in_requirements,
+            file_vulnerabilities,
         ) = await _snyk_test(branch, config, local_config, result, env_no_debug, cwd)
 
     return_message = [
@@ -193,7 +276,7 @@ async def snyk(
         *([] if not fix_has_errors else ["Error while fixing the vulnerabilities"]),
     ]
 
-    return result, fix_message, return_message, fix_success
+    return result, fix_message, return_message, fix_success, file_vulnerabilities
 
 
 async def _select_java_version(
@@ -447,7 +530,14 @@ async def _snyk_test(
     result: list[module_utils.Message],
     env_no_debug: dict[str, str],
     cwd: Path,
-) -> tuple[dict[str, int], dict[str, int], dict[str, str], dict[str, set[str]], bool]:
+) -> tuple[
+    dict[str, int],
+    dict[str, int],
+    dict[str, str],
+    dict[str, set[str]],
+    bool,
+    dict[str, list[VulnerabilityData]],
+]:
     # Test with human output
     command = [
         "snyk",
@@ -510,6 +600,7 @@ async def _snyk_test(
     fixable_vulnerabilities_summary: dict[str, str] = {}
     fixable_files_npm: dict[str, set[str]] = {}
     vulnerabilities_in_requirements = False
+    file_vulnerabilities: dict[str, list[VulnerabilityData]] = {}
     for row in test_json:
         if "error" in row:
             _LOGGER.error(row["error"])
@@ -587,6 +678,25 @@ async def _snyk_test(
                 " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]]),
             )
 
+            target_file = row.get("displayTargetFile", "-")
+            cve_ids = vuln.get("identifiers", {}).get("CVE", [])
+            cwe_ids = vuln.get("identifiers", {}).get("CWE", [])
+            vuln_data = VulnerabilityData(
+                file=target_file,
+                package_name=vuln["packageName"],
+                package_version=vuln["version"],
+                package_manager=vuln.get("packageManager", ""),
+                severity=vuln["severity"],
+                snyk_id=vuln["id"],
+                cve_ids=cve_ids,
+                cwe_ids=cwe_ids,
+                title=title,
+                fixed_in=vuln.get("fixedIn", []),
+                is_upgradable=vuln.get("isUpgradable", False),
+                is_patchable=vuln.get("isPatchable", False),
+            )
+            file_vulnerabilities.setdefault(target_file, []).append(vuln_data)
+
         for title, vulnerability in vulnerabilities.items():
             message = module_utils.HtmlMessage(
                 "<br>".join(
@@ -608,6 +718,7 @@ async def _snyk_test(
         fixable_vulnerabilities_summary,
         fixable_files_npm,
         vulnerabilities_in_requirements,
+        file_vulnerabilities,
     )
 
 

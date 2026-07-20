@@ -6,12 +6,13 @@ import datetime
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess  # nosec
 import tempfile
 import urllib.parse
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 import anyio
 import githubkit.exception
@@ -19,6 +20,11 @@ import githubkit.webhooks
 import githubkit_schemas.latest.models
 import security_md
 import yaml
+from githubkit_schemas.v2026_03_10.types import (
+    RepositoryAdvisoryCreatePropVulnerabilitiesItemsPropPackageType,
+    RepositoryAdvisoryCreatePropVulnerabilitiesItemsType,
+    RepositoryAdvisoryCreateType,
+)
 from multi_repo_automation import aio_editor as editor
 from pydantic import BaseModel
 
@@ -331,7 +337,7 @@ async def _process_snyk_dpkg(
                         else os.environ.copy()
                     )
 
-                    result, body, short_message, new_success = await audit_utils.snyk(
+                    result, body, short_message, new_success, file_vulnerabilities = await audit_utils.snyk(
                         branch,
                         context.module_config,
                         local_config,
@@ -362,25 +368,73 @@ async def _process_snyk_dpkg(
                         body_md += "\n\n"
                     body_md += f"[Output]({output_url})" if output_url is not None else ""
 
+                # Remove old vulnerability section (both old comment format and new format)
                 vuln_section_start = f"<!-- vulns-{branch} -->"
                 vuln_section_end = f"<!-- /vulns-{branch} -->"
+                vuln_title = f"=== {branch}"
                 found_start = None
                 found_end = None
                 for i, item in enumerate(issue_check.issue):
-                    if isinstance(item, str) and item == vuln_section_start:
+                    if isinstance(item, str) and item in {vuln_section_start, vuln_title}:
                         found_start = i
                     if isinstance(item, str) and item == vuln_section_end:
                         found_end = i
                         break
                 if found_start is not None and found_end is not None:
                     del issue_check.issue[found_start : found_end + 1]
+                elif found_start is not None:
+                    # New format: remove from the title to the end or next ===
+                    section_end = len(issue_check.issue)
+                    for j in range(found_start + 1, len(issue_check.issue)):
+                        item = issue_check.issue[j]
+                        if isinstance(item, str) and item.startswith("==="):
+                            section_end = j
+                            break
+                    del issue_check.issue[found_start:section_end]
 
-                vuln_items = [m for m in result if m.title and m.title.startswith("[")]
-                if vuln_items:
-                    issue_check.issue.append(vuln_section_start)
-                    for vuln_item in vuln_items:
-                        issue_check.issue.append(f"  - {vuln_item.title}")
-                    issue_check.issue.append(vuln_section_end)
+                # Apply filtering and build new dashboard section
+                snyk_config = context.module_config.get("snyk", {})
+                local_snyk_config = local_config.get("snyk", {})
+                excluded_files = audit_utils.get_excluded_files(snyk_config, local_snyk_config)
+                excluded_patterns = [re.compile(p) for p in excluded_files]
+                dashboard_threshold = audit_utils.get_severity_config(
+                    snyk_config,
+                    local_snyk_config,
+                    "dashboard-severity-threshold",
+                    configuration.DASHBOARD_SEVERITY_THRESHOLD_DEFAULT,
+                )
+                advisory_threshold = audit_utils.get_severity_config(
+                    snyk_config,
+                    local_snyk_config,
+                    "advisory-severity-threshold",
+                    configuration.ADVISORY_SEVERITY_THRESHOLD_DEFAULT,
+                )
+                min_dashboard_severity = audit_utils.SEVERITY_ORDER.get(dashboard_threshold, 1)
+                min_advisory_severity = audit_utils.SEVERITY_ORDER.get(advisory_threshold, 2)
+
+                # Filter vulnerabilities by excluded files and dashboard threshold
+                filtered_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
+                high_critical_vulns: list[audit_utils.VulnerabilityData] = []
+                for file_name, vulns in file_vulnerabilities.items():
+                    if any(p.search(file_name) for p in excluded_patterns):
+                        continue
+                    for vuln in vulns:
+                        vuln_severity = audit_utils.SEVERITY_ORDER.get(vuln.severity, 0)
+                        if vuln_severity >= min_dashboard_severity:
+                            filtered_vulns.setdefault(file_name, []).append(vuln)
+                        if vuln_severity >= min_advisory_severity:
+                            high_critical_vulns.append(vuln)
+
+                if filtered_vulns:
+                    issue_check.issue.append(vuln_title)
+                    for file_name, vulns in sorted(filtered_vulns.items()):
+                        issue_check.issue.append(f"==== {file_name}")
+                        for vuln in vulns:
+                            issue_check.issue.append(f"  - {vuln.title}")
+
+                # Create security advisories for HIGH and CRITICAL CVEs
+                if high_critical_vulns:
+                    await _create_security_advisories(context, high_critical_vulns)
 
             if context.module_event_data.type == "dpkg":
                 body_md = "Update dpkg packages"
@@ -587,6 +641,93 @@ async def _create_pull_request_if_changes(
         raise
 
     return success, short_message
+
+
+async def _create_security_advisories(
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
+    vulnerabilities: list[audit_utils.VulnerabilityData],
+) -> None:
+    """Create GitHub Security Advisories for the given vulnerabilities."""
+    try:
+        # List existing advisories to avoid duplicates
+        existing_advisory_ids: set[str] = set()
+        try:
+            async for advisory in context.github_project.aio_github.paginate(
+                context.github_project.aio_github.rest.security_advisories.async_list_repository_advisories,
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                state="published",
+            ):
+                if advisory.identifiers:
+                    for identifier in advisory.identifiers:
+                        if identifier.type == "CVE":
+                            existing_advisory_ids.add(identifier.value)
+                            break
+        except githubkit.exception.RequestFailed:
+            _LOGGER.warning(
+                "Failed to list existing security advisories, will attempt to create without deduplication"
+            )
+
+        for vuln in vulnerabilities:
+            cve_id = vuln.cve_ids[0] if vuln.cve_ids else None
+            if cve_id and cve_id in existing_advisory_ids:
+                _LOGGER.debug("Security advisory already exists for %s", cve_id)
+                continue
+
+            try:
+                ecosystem = cast(
+                    "Literal['rubygems', 'npm', 'pip', 'maven', 'nuget', 'composer', 'go', 'rust', 'erlang', 'actions', 'pub', 'other', 'swift']",
+                    audit_utils.ECOSYSTEM_MAP.get(vuln.package_manager, "other"),
+                )
+
+                vulnerability_package = RepositoryAdvisoryCreatePropVulnerabilitiesItemsPropPackageType(
+                    ecosystem=ecosystem,
+                    name=vuln.package_name,
+                )
+                vuln_version_range = f">= {vuln.package_version}"
+                patched_versions = ", ".join(vuln.fixed_in) if vuln.fixed_in else None
+                vulnerability_item = RepositoryAdvisoryCreatePropVulnerabilitiesItemsType(
+                    package=vulnerability_package,
+                    vulnerable_version_range=vuln_version_range,
+                    patched_versions=patched_versions,
+                )
+
+                severity = vuln.severity if vuln.severity in ("critical", "high", "medium", "low") else "high"
+                cwe_ids = [cwe for cwe in vuln.cwe_ids if cwe.startswith("CWE-")] or None
+
+                data: RepositoryAdvisoryCreateType = {
+                    "summary": vuln.package_name if cve_id is None else f"{cve_id} in {vuln.package_name}",
+                    "description": (
+                        f"Vulnerability detected in {vuln.file}:\n\n"
+                        f"Package: {vuln.package_name}@{vuln.package_version}\n"
+                        f"Snyk ID: {vuln.snyk_id}\n"
+                        f"Severity: {vuln.severity}\n"
+                        f"File: {vuln.file}"
+                    ),
+                    "vulnerabilities": [vulnerability_item],
+                    "severity": cast(
+                        "Literal['critical', 'high', 'medium', 'low'] | None",
+                        severity,
+                    ),
+                    "cve_id": cve_id,
+                    "cwe_ids": cwe_ids,
+                }
+                await context.github_project.aio_github.rest.security_advisories.async_create_repository_advisory(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                    data=data,
+                )
+                if cve_id:
+                    existing_advisory_ids.add(cve_id)
+                _LOGGER.info("Created security advisory for %s", vuln.snyk_id)
+            except githubkit.exception.RequestFailed as exception:
+                _LOGGER.warning(
+                    "Failed to create security advisory for %s: %s",
+                    vuln.snyk_id,
+                    exception.response.text if exception.response else str(exception),
+                )
+    except Exception:  # pylint: disable=broad-except
+        _LOGGER.exception("Error while creating security advisories")
 
 
 class Audit(
@@ -975,18 +1116,27 @@ class Audit(
                 if key not in all_key_starts:
                     intermediate_status.status.types.pop(key)
                     version = key.split(" ")[-1]
+                    vuln_title = f"=== {version}"
                     vuln_section_start = f"<!-- vulns-{version} -->"
                     vuln_section_end = f"<!-- /vulns-{version} -->"
                     found_start = None
                     found_end = None
                     for i, item in enumerate(issue_check.issue):
-                        if isinstance(item, str) and item == vuln_section_start:
+                        if isinstance(item, str) and item in {vuln_section_start, vuln_title}:
                             found_start = i
                         if isinstance(item, str) and item == vuln_section_end:
                             found_end = i
                             break
                     if found_start is not None and found_end is not None:
                         del issue_check.issue[found_start : found_end + 1]
+                    elif found_start is not None:
+                        section_end = len(issue_check.issue)
+                        for j in range(found_start + 1, len(issue_check.issue)):
+                            item = issue_check.issue[j]
+                            if isinstance(item, str) and item.startswith("==="):
+                                section_end = j
+                                break
+                        del issue_check.issue[found_start:section_end]
 
             # Audit is relay slow than add 15 to the cron priority
             priority = (
@@ -1086,6 +1236,7 @@ class Audit(
                 "issues": "write",
                 "contents": "write",
                 "workflows": "write",
+                "repository_security_advisories": "write",
             },
             {"push", "pull_request"},
         )

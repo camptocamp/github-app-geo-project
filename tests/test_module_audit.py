@@ -430,3 +430,91 @@ def test_get_actions_push_security_md_on_non_default_branch_no_renovate() -> Non
 
     assert len(actions) == 1
     assert actions[0].data == _EventData(type="outdated")
+
+
+def test_vulnerability_data_structure() -> None:
+    """Test VulnerabilityData creation."""
+    from github_app_geo_project.module.audit.utils import VulnerabilityData
+
+    vuln = VulnerabilityData(
+        file="requirements.txt",
+        package_name="django",
+        package_version="3.2.0",
+        package_manager="pip",
+        severity="high",
+        snyk_id="SNYK-PYTHON-DJANGO-123456",
+        cve_ids=["CVE-2024-12345"],
+        cwe_ids=["CWE-79"],
+        title="[HIGH] django@3.2.0: [CVE-2024-12345]",
+        fixed_in=["3.2.1"],
+        is_upgradable=True,
+        is_patchable=False,
+    )
+    assert vuln.file == "requirements.txt"
+    assert vuln.severity == "high"
+    assert vuln.cve_ids == ["CVE-2024-12345"]
+    assert vuln.cwe_ids == ["CWE-79"]
+
+
+def test_severity_order() -> None:
+    """Test severity ordering."""
+    from github_app_geo_project.module.audit.utils import SEVERITY_ORDER
+
+    assert SEVERITY_ORDER["low"] < SEVERITY_ORDER["medium"]
+    assert SEVERITY_ORDER["medium"] < SEVERITY_ORDER["high"]
+    assert SEVERITY_ORDER["high"] < SEVERITY_ORDER["critical"]
+
+
+def test_ecosystem_map() -> None:
+    """Test GitHub ecosystem mapping."""
+    from github_app_geo_project.module.audit.utils import ECOSYSTEM_MAP
+
+    assert ECOSYSTEM_MAP["pip"] == "pip"
+    assert ECOSYSTEM_MAP["npm"] == "npm"
+    assert ECOSYSTEM_MAP["gomodules"] == "go"
+    assert ECOSYSTEM_MAP["cargo"] == "rust"
+    assert ECOSYSTEM_MAP.get("unknown", "other") == "other"
+
+
+def test_get_severity_config() -> None:
+    """Test severity config retrieval with fallback."""
+    from github_app_geo_project.module.audit.utils import get_severity_config
+
+    config: dict = {}
+    local_config: dict = {}
+
+    # Default value when no config is set
+    result = get_severity_config(config, local_config, "dashboard-severity-threshold", "medium")
+    assert result == "medium"
+
+    # Value from global config
+    config["dashboard-severity-threshold"] = "high"
+    result = get_severity_config(config, local_config, "dashboard-severity-threshold", "medium")
+    assert result == "high"
+
+    # Local config overrides global
+    local_config["dashboard-severity-threshold"] = "critical"
+    result = get_severity_config(config, local_config, "dashboard-severity-threshold", "medium")
+    assert result == "critical"
+
+
+def test_get_excluded_files() -> None:
+    """Test excluded files config retrieval."""
+    from github_app_geo_project.module.audit.utils import get_excluded_files
+
+    config: dict = {}
+    local_config: dict = {}
+
+    # Default empty
+    result = get_excluded_files(config, local_config)
+    assert result == []
+
+    # Global config
+    config["excluded-files"] = [r"dev-.*\.txt"]
+    result = get_excluded_files(config, local_config)
+    assert result == [r"dev-.*\.txt"]
+
+    # Local overrides global
+    local_config["excluded-files"] = [r"test-.*\.txt"]
+    result = get_excluded_files(config, local_config)
+    assert result == [r"test-.*\.txt"]
