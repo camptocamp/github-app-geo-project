@@ -24,6 +24,7 @@ class AuthType(enum.StrEnum):
     GITHUB_WEBHOOK = "github_webhook"
     TEST_USER = "test_user"
     GITHUB_OAUTH = "github_oauth"
+    GITHUB_TOKEN = "github_token"  # noqa: S105
 
 
 class User:
@@ -83,6 +84,40 @@ async def get_user(request: Request) -> User:
             user = User(AuthType.GITHUB_WEBHOOK, is_auth=True)
         else:
             _LOGGER.warning("Invalid GitHub signature")
+            user = User(AuthType.ANONYMOUS)
+    elif "authorization" in request.headers:
+        auth_header = request.headers["authorization"]
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            login, name = await _validate_github_token(token)
+            if login:
+                user = User(
+                    auth_type=AuthType.GITHUB_TOKEN,
+                    login=login,
+                    name=name,
+                    url=f"https://github.com/{login}",
+                    token=token,
+                    is_auth=True,
+                )
+                if user.token and c2casgiutils.config.settings.auth.github.repository:
+                    try:
+                        owner, repo_name = c2casgiutils.config.settings.auth.github.repository.split("/", 1)
+                        user.is_admin = await _check_repo_permission(
+                            user.token,
+                            owner,
+                            repo_name,
+                            c2casgiutils.config.settings.auth.github.access_type,
+                        )
+                    except githubkit.exception.RequestFailed:
+                        _LOGGER.warning(
+                            "Failed to check admin access for %s",
+                            c2casgiutils.config.settings.auth.github.repository,
+                        )
+            else:
+                _LOGGER.warning("Invalid GitHub token")
+                user = User(AuthType.ANONYMOUS)
+        else:
+            _LOGGER.warning("Unsupported authorization type: %s", auth_header.split(" ", 1)[0])
             user = User(AuthType.ANONYMOUS)
     else:
         secret = c2casgiutils.config.settings.auth.jwt.secret
@@ -148,6 +183,17 @@ async def _check_repo_permission(token: str, owner: str, repo: str, required_acc
     if required_access == "pull":
         return repo_data.permissions.admin or repo_data.permissions.push or repo_data.permissions.pull
     return False
+
+
+async def _validate_github_token(token: str) -> tuple[str | None, str | None]:
+    """Validate a GitHub token and return (login, name) or (None, None)."""
+    gh = githubkit.GitHub(githubkit.TokenAuthStrategy(token))
+    try:
+        user_data = (await gh.rest.users.async_get_authenticated()).parsed_data
+    except githubkit.exception.RequestFailed:
+        return None, None
+    else:
+        return user_data.login, user_data.name
 
 
 async def has_repo_access(user: User, owner: str | None, repository: str | None) -> bool:
