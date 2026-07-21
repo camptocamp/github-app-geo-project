@@ -58,7 +58,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
                 context.github_event_data,
             )
             if event_data.action == "completed" and event_data.workflow_run.event != "pull_request":
-                return [module.Action({}, priority=module.PRIORITY_STATUS + 2)]
+                return [module.Action({}, priority=module.PRIORITY_STANDARD)]
         return []
 
     async def process(
