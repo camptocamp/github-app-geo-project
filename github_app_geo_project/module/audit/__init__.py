@@ -652,7 +652,7 @@ async def _create_security_advisories(
         # List existing advisories to avoid duplicates
         existing_advisory_ids: set[str] = set()
         try:
-            async for advisory in context.github_project.aio_github.paginate(
+            async for advisory in context.github_project.aio_github.rest.paginate(
                 context.github_project.aio_github.rest.security_advisories.async_list_repository_advisories,
                 owner=context.github_project.owner,
                 repo=context.github_project.repository,
