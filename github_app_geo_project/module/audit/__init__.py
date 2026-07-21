@@ -648,86 +648,79 @@ async def _create_security_advisories(
     vulnerabilities: list[audit_utils.VulnerabilityData],
 ) -> None:
     """Create GitHub Security Advisories for the given vulnerabilities."""
-    try:
-        # List existing advisories to avoid duplicates
-        existing_advisory_ids: set[str] = set()
+    # List existing advisories to avoid duplicates
+    existing_advisory_ids: set[str] = set()
+    async for advisory in context.github_project.aio_github.rest.paginate(
+        context.github_project.aio_github.rest.security_advisories.async_list_repository_advisories,
+        owner=context.github_project.owner,
+        repo=context.github_project.repository,
+        state="published",
+    ):
+        if advisory.identifiers:
+            for identifier in advisory.identifiers:
+                if identifier.type == "CVE":
+                    existing_advisory_ids.add(identifier.value)
+                    break
+
+    for vuln in vulnerabilities:
+        cve_id = vuln.cve_ids[0] if vuln.cve_ids else None
+        if cve_id and cve_id in existing_advisory_ids:
+            _LOGGER.debug("Security advisory already exists for %s", cve_id)
+            continue
+
         try:
-            async for advisory in context.github_project.aio_github.rest.paginate(
-                context.github_project.aio_github.rest.security_advisories.async_list_repository_advisories,
-                owner=context.github_project.owner,
-                repo=context.github_project.repository,
-                state="published",
-            ):
-                if advisory.identifiers:
-                    for identifier in advisory.identifiers:
-                        if identifier.type == "CVE":
-                            existing_advisory_ids.add(identifier.value)
-                            break
-        except githubkit.exception.RequestFailed:
-            _LOGGER.warning(
-                "Failed to list existing security advisories, will attempt to create without deduplication"
+            ecosystem = cast(
+                "Literal['rubygems', 'npm', 'pip', 'maven', 'nuget', 'composer', 'go', 'rust', 'erlang', 'actions', 'pub', 'other', 'swift']",
+                audit_utils.ECOSYSTEM_MAP.get(vuln.package_manager, "other"),
             )
 
-        for vuln in vulnerabilities:
-            cve_id = vuln.cve_ids[0] if vuln.cve_ids else None
-            if cve_id and cve_id in existing_advisory_ids:
-                _LOGGER.debug("Security advisory already exists for %s", cve_id)
-                continue
+            vulnerability_package = RepositoryAdvisoryCreatePropVulnerabilitiesItemsPropPackageType(
+                ecosystem=ecosystem,
+                name=vuln.package_name,
+            )
+            vuln_version_range = f">= {vuln.package_version}"
+            patched_versions = ", ".join(vuln.fixed_in) if vuln.fixed_in else None
+            vulnerability_item = RepositoryAdvisoryCreatePropVulnerabilitiesItemsType(
+                package=vulnerability_package,
+                vulnerable_version_range=vuln_version_range,
+                patched_versions=patched_versions,
+            )
 
-            try:
-                ecosystem = cast(
-                    "Literal['rubygems', 'npm', 'pip', 'maven', 'nuget', 'composer', 'go', 'rust', 'erlang', 'actions', 'pub', 'other', 'swift']",
-                    audit_utils.ECOSYSTEM_MAP.get(vuln.package_manager, "other"),
-                )
+            severity = vuln.severity if vuln.severity in ("critical", "high", "medium", "low") else "high"
+            cwe_ids = [cwe for cwe in vuln.cwe_ids if cwe.startswith("CWE-")] or None
 
-                vulnerability_package = RepositoryAdvisoryCreatePropVulnerabilitiesItemsPropPackageType(
-                    ecosystem=ecosystem,
-                    name=vuln.package_name,
-                )
-                vuln_version_range = f">= {vuln.package_version}"
-                patched_versions = ", ".join(vuln.fixed_in) if vuln.fixed_in else None
-                vulnerability_item = RepositoryAdvisoryCreatePropVulnerabilitiesItemsType(
-                    package=vulnerability_package,
-                    vulnerable_version_range=vuln_version_range,
-                    patched_versions=patched_versions,
-                )
-
-                severity = vuln.severity if vuln.severity in ("critical", "high", "medium", "low") else "high"
-                cwe_ids = [cwe for cwe in vuln.cwe_ids if cwe.startswith("CWE-")] or None
-
-                data: RepositoryAdvisoryCreateType = {
-                    "summary": vuln.package_name if cve_id is None else f"{cve_id} in {vuln.package_name}",
-                    "description": (
-                        f"Vulnerability detected in {vuln.file}:\n\n"
-                        f"Package: {vuln.package_name}@{vuln.package_version}\n"
-                        f"Snyk ID: {vuln.snyk_id}\n"
-                        f"Severity: {vuln.severity}\n"
-                        f"File: {vuln.file}"
-                    ),
-                    "vulnerabilities": [vulnerability_item],
-                    "severity": cast(
-                        "Literal['critical', 'high', 'medium', 'low'] | None",
-                        severity,
-                    ),
-                    "cve_id": cve_id,
-                    "cwe_ids": cwe_ids,
-                }
-                await context.github_project.aio_github.rest.security_advisories.async_create_repository_advisory(
-                    owner=context.github_project.owner,
-                    repo=context.github_project.repository,
-                    data=data,
-                )
-                if cve_id:
-                    existing_advisory_ids.add(cve_id)
-                _LOGGER.info("Created security advisory for %s", vuln.snyk_id)
-            except githubkit.exception.RequestFailed as exception:
-                _LOGGER.warning(
-                    "Failed to create security advisory for %s: %s",
-                    vuln.snyk_id,
-                    exception.response.text if exception.response else str(exception),
-                )
-    except Exception:  # pylint: disable=broad-except
-        _LOGGER.exception("Error while creating security advisories")
+            data: RepositoryAdvisoryCreateType = {
+                "summary": vuln.package_name if cve_id is None else f"{cve_id} in {vuln.package_name}",
+                "description": (
+                    f"Vulnerability detected in {vuln.file}:\n\n"
+                    f"Package: {vuln.package_name}@{vuln.package_version}\n"
+                    f"Snyk ID: {vuln.snyk_id}\n"
+                    f"Severity: {vuln.severity}\n"
+                    f"File: {vuln.file}"
+                ),
+                "vulnerabilities": [vulnerability_item],
+                "severity": cast(
+                    "Literal['critical', 'high', 'medium', 'low'] | None",
+                    severity,
+                ),
+                "cve_id": cve_id,
+                "cwe_ids": cwe_ids,
+            }
+            await context.github_project.aio_github.rest.security_advisories.async_create_repository_advisory(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                data=data,
+            )
+            if cve_id:
+                existing_advisory_ids.add(cve_id)
+            _LOGGER.info("Created security advisory for %s", vuln.snyk_id)
+        except githubkit.exception.RequestFailed as exception:
+            _LOGGER.warning(
+                "Failed to create security advisory for %s: %s",
+                vuln.snyk_id,
+                exception.response.text if exception.response else str(exception),
+            )
+            raise
 
 
 class Audit(
