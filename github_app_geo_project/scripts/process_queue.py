@@ -134,6 +134,7 @@ async def _flush_job_logs(
                         css_style=css_style,
                         level_name=entry.levelname,
                         level_no=entry.levelno,
+                        logger_name=entry.name,
                         filename=entry.pathname,
                     )
                 )

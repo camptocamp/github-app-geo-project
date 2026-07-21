@@ -123,6 +123,7 @@ class JobLogEntry(Base):
     job: Mapped[Queue] = relationship("Queue", back_populates="logs")
     level_name: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
     level_no: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    logger_name: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
     filename: Mapped[str] = mapped_column(Unicode, nullable=False, index=True)
     log: Mapped[str] = mapped_column(Unicode, nullable=False)
     css_style: Mapped[str | None] = mapped_column(Unicode, nullable=True)
