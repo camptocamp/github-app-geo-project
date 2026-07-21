@@ -76,7 +76,7 @@ DashboardSeverityThreshold = Literal['low'] | Literal['medium'] | Literal['high'
 r"""
 Dashboard severity threshold.
 
-Minimum severity level to display on the dashboard (low, medium, high, critical)
+Minimum severity level to display on the transversal dashboard (low, medium, high, critical)
 
 default: medium
 """
@@ -318,14 +318,14 @@ SnykConfiguration = TypedDict('SnykConfiguration', {
     'files-no-install': list[str],
     # | Excluded files.
     # | 
-    # | List of regex patterns for file names to exclude from the dashboard and security advisories
+    # | List of regex patterns for file names to exclude from the transversal dashboard and security advisories
     # | 
     # | default:
     # |   []
     'excluded-files': list[str],
     # | Dashboard severity threshold.
     # | 
-    # | Minimum severity level to display on the dashboard (low, medium, high, critical)
+    # | Minimum severity level to display on the transversal dashboard (low, medium, high, critical)
     # | 
     # | default: medium
     'dashboard-severity-threshold': "DashboardSeverityThreshold",
