@@ -1,3 +1,14 @@
 github_app_geo_project/templates/project.html
 github_app_geo_project/templates/jobs.html
 github_app_geo_project/templates/logs.html
+PROJECT-CONFIG.md
+APPLICATION-CONFIG.md
+CHANGELOG-CONFIG.md
+AUTO-CONFIG.md
+AUDIT-CONFIG.md
+PULL-REQUEST-CHECKS-CONFIG.md
+PULL-REQUEST-LINKS-CONFIG.md
+DELETE-OLD-WORKFLOW-RUN-CONFIG.md
+VERSIONS-CONFIG.md
+CLEAN-CONFIG.md
+BACKPORT-CONFIG.md
