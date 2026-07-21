@@ -9,7 +9,7 @@ A module that does some audit stuff on the project:
 
 Currently, the module checks the CVEs on the dependencies, but it does not check the code neither the generated Docker images.
 
-The result will be put in the dashboard issue.
+The result will be put in the transversal dashboard.
 
 ### Events
 
@@ -28,7 +28,7 @@ When `SECURITY.md` is changed on a `push` to the default branch, it also trigger
 
 #### Vulnerability Scanning
 
-The module uses Snyk to scan for vulnerabilities in project dependencies. It focuses on identifying critical security issues that need immediate attention. The scan results are aggregated and reported in the dashboard issue.
+The module uses Snyk to scan for vulnerabilities in project dependencies. It focuses on identifying critical security issues that need immediate attention. The scan results are aggregated and reported in the transversal dashboard.
 
 #### Automatic Fix Pull Requests
 
@@ -48,17 +48,14 @@ You can configure the audit module behavior through the `.github/ghci.yaml` file
 
 [Configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/AUDIT-CONFIG.md).
 
-#### Dashboard Display
+#### Transversal Dashboard
 
-The vulnerability dashboard uses the following format:
-
-- `=== <branch>` — section header for each stabilization branch
-- `==== <file_name>` — sub-header for each dependency file (e.g., `requirements.txt`, `package-lock.json`)
+The vulnerability dashboard is displayed on the web UI at `/dashboard/audit` (the transversal dashboard).
 
 You can control which vulnerabilities appear on the dashboard with:
 
-- `snyk.dashboard-severity-threshold` — minimum severity level to display (default: `medium`)
-- `snyk.excluded-files` — list of regex patterns for file names to exclude from the dashboard
+- `snyk.dashboard-severity-threshold` — minimum severity level to display on the transversal dashboard (default: `medium`)
+- `snyk.excluded-files` — list of regex patterns for file names to exclude from the transversal dashboard
 
 #### Security Advisories
 

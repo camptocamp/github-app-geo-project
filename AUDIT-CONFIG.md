@@ -8,9 +8,9 @@
     - <a id="properties/audit/properties/snyk/properties/enabled"></a>**`enabled`** *(boolean)*: Enable Snyk audit. Default: `true`.
     - <a id="properties/audit/properties/snyk/properties/files-no-install"></a>**`files-no-install`** *(array)*: Dependency files that will not be installed. Default: `[]`.
       - <a id="properties/audit/properties/snyk/properties/files-no-install/items"></a>**Items** *(string)*
-    - <a id="properties/audit/properties/snyk/properties/excluded-files"></a>**`excluded-files`** *(array)*: List of regex patterns for file names to exclude from the dashboard and security advisories. Default: `[]`.
+    - <a id="properties/audit/properties/snyk/properties/excluded-files"></a>**`excluded-files`** *(array)*: List of regex patterns for file names to exclude from the transversal dashboard and security advisories. Default: `[]`.
       - <a id="properties/audit/properties/snyk/properties/excluded-files/items"></a>**Items** *(string)*
-    - <a id="properties/audit/properties/snyk/properties/dashboard-severity-threshold"></a>**`dashboard-severity-threshold`** *(string)*: Minimum severity level to display on the dashboard (low, medium, high, critical). Must be one of: "low", "medium", "high", or "critical". Default: `"medium"`.
+    - <a id="properties/audit/properties/snyk/properties/dashboard-severity-threshold"></a>**`dashboard-severity-threshold`** *(string)*: Minimum severity level to display on the transversal dashboard (low, medium, high, critical). Must be one of: "low", "medium", "high", or "critical". Default: `"medium"`.
     - <a id="properties/audit/properties/snyk/properties/advisory-severity-threshold"></a>**`advisory-severity-threshold`** *(string)*: Minimum severity level to create a GitHub Security Advisory (low, medium, high, critical). Must be one of: "low", "medium", "high", or "critical". Default: `"high"`.
     - <a id="properties/audit/properties/snyk/properties/pip-install-arguments"></a>**`pip-install-arguments`** *(array)*: Arguments to pass to pip install. Default: `[]`.
       - <a id="properties/audit/properties/snyk/properties/pip-install-arguments/items"></a>**Items** *(string)*

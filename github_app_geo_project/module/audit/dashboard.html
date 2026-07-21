@@ -6,4 +6,21 @@
 <!---->
 {% endfor %}
 <!---->
+{% if data['data'].vulnerabilities %}
+<h3>Vulnerabilities</h3>
+{% for branch_name, files in data['data'].vulnerabilities.items() %}
+<h4>{{ branch_name }}</h4>
+{% for file_name, vulns in files.items() %}
+<h5>{{ file_name }}</h5>
+<ul>
+  {% for vuln in vulns %}
+  <li>{{ vuln.title }}</li>
+  {% endfor %}
+</ul>
+{% endfor %}
+<!---->
+{% endfor %}
+<!---->
+{% endif %}
+<!---->
 {% endfor %}

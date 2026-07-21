@@ -46,8 +46,27 @@ class _TransversalStatusTool(BaseModel):
     title: str
 
 
+class _VulnerabilityStatus(BaseModel):
+    """Vulnerability data stored in transversal status."""
+
+    file: str
+    package_name: str
+    package_version: str
+    package_manager: str
+    severity: str
+    snyk_id: str
+    cve_ids: list[str] = []
+    cwe_ids: list[str] = []
+    title: str
+    fixed_in: list[str] = []
+    is_upgradable: bool = False
+    is_patchable: bool = False
+
+
 class _TransversalStatusRepo(BaseModel):
     types: dict[str, _TransversalStatusTool] = {}
+    vulnerabilities: dict[str, dict[str, list[_VulnerabilityStatus]]] = {}
+    """Branch -> file_name -> list of vulnerability data"""
 
 
 class _TransversalStatus(BaseModel):
@@ -412,7 +431,7 @@ async def _process_snyk_dpkg(
                 min_dashboard_severity = audit_utils.SEVERITY_ORDER.get(dashboard_threshold, 1)
                 min_advisory_severity = audit_utils.SEVERITY_ORDER.get(advisory_threshold, 2)
 
-                # Filter vulnerabilities by excluded files and dashboard threshold
+                # Filter vulnerabilities by excluded files and thresholds
                 filtered_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
                 high_critical_vulns: list[audit_utils.VulnerabilityData] = []
                 for file_name, vulns in file_vulnerabilities.items():
@@ -426,11 +445,10 @@ async def _process_snyk_dpkg(
                             high_critical_vulns.append(vuln)
 
                 if filtered_vulns:
-                    issue_check.issue.append(vuln_title)
-                    for file_name, vulns in sorted(filtered_vulns.items()):
-                        issue_check.issue.append(f"==== {file_name}")
-                        for vuln in vulns:
-                            issue_check.issue.append(f"  - {vuln.title}")
+                    intermediate_status.status.vulnerabilities[branch] = {
+                        file_name: [_VulnerabilityStatus(**vuln._asdict()) for vuln in vulns]
+                        for file_name, vulns in sorted(filtered_vulns.items())
+                    }
 
                 # Create security advisories for HIGH and CRITICAL CVEs
                 if high_critical_vulns:

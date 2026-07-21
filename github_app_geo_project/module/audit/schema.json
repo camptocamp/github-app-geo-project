@@ -38,7 +38,7 @@
             "excluded-files": {
               "type": "array",
               "title": "Excluded files",
-              "description": "List of regex patterns for file names to exclude from the dashboard and security advisories",
+              "description": "List of regex patterns for file names to exclude from the transversal dashboard and security advisories",
               "default": [],
               "items": {
                 "type": "string"
@@ -47,7 +47,7 @@
             "dashboard-severity-threshold": {
               "type": "string",
               "title": "Dashboard severity threshold",
-              "description": "Minimum severity level to display on the dashboard (low, medium, high, critical)",
+              "description": "Minimum severity level to display on the transversal dashboard (low, medium, high, critical)",
               "default": "medium",
               "enum": ["low", "medium", "high", "critical"]
             },
