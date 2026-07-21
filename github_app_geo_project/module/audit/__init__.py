@@ -20,6 +20,8 @@ import githubkit.webhooks
 import githubkit_schemas.latest.models
 import security_md
 import yaml
+from githubkit.compat import type_validate_python
+from githubkit_schemas.v2026_03_10.models import RepositoryAdvisory
 from githubkit_schemas.v2026_03_10.types import (
     RepositoryAdvisoryCreatePropVulnerabilitiesItemsPropPackageType,
     RepositoryAdvisoryCreatePropVulnerabilitiesItemsType,
@@ -650,12 +652,20 @@ async def _create_security_advisories(
     """Create GitHub Security Advisories for the given vulnerabilities."""
     # List existing advisories to avoid duplicates
     existing_advisory_ids: set[str] = set()
-    async for advisory in context.github_project.aio_github.rest.paginate(
+    paginator = context.github_project.aio_github.rest.paginate(
         context.github_project.aio_github.rest.security_advisories.async_list_repository_advisories,
+        map_func=lambda response: type_validate_python(
+            list[RepositoryAdvisory],
+            [
+                {**item, "publisher": None} if item.get("publisher") is not None else item
+                for item in response.json()
+            ],
+        ),
         owner=context.github_project.owner,
         repo=context.github_project.repository,
         state="published",
-    ):
+    )
+    async for advisory in paginator:
         if advisory.identifiers:
             for identifier in advisory.identifiers:
                 if identifier.type == "CVE":
