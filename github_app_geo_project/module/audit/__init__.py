@@ -1273,13 +1273,32 @@ class Audit(
         """Get the transversal dashboard content."""
         repositories = []
         for repository, data in context.status.repositories.items():
-            if data:
-                repositories.append(
-                    {
-                        "repository": repository,
-                        "data": data,
-                    },
-                )
+            if not (data.types or data.vulnerabilities):
+                continue
+
+            global_types = []
+            branches: dict[str, Any] = {}
+            for type_key, type_data in data.types.items():
+                if type_key == _OUTDATED:
+                    global_types.append({"name": type_key, "title": type_data.title})
+                else:
+                    parts = type_key.rsplit(" ", 1)
+                    if len(parts) > 1:
+                        branch_name = parts[-1]
+                        branch = branches.setdefault(branch_name, {"types": [], "vulnerabilities": {}})
+                        branch["types"].append({"name": type_key, "title": type_data.title})
+
+            for branch_name, vulns in data.vulnerabilities.items():
+                branch = branches.setdefault(branch_name, {"types": [], "vulnerabilities": {}})
+                branch["vulnerabilities"] = vulns
+
+            repositories.append(
+                {
+                    "repository": repository,
+                    "global_types": global_types,
+                    "branches": [{"name": b, **branches[b]} for b in sorted(branches.keys())],
+                },
+            )
         return module.TransversalDashboardOutput(
             renderer="github_app_geo_project:module/audit/dashboard.html",
             data={"repositories": repositories},
