@@ -1,26 +1,44 @@
-{% for data in repositories %}
-<h2>{{ data['repository'] }}</h2>
-{% for type_name, type_ in data['data'].types.items() %}
-<!---->
-<p>{{ type_.title | markdown | safe }}</p>
-<!---->
+<style>
+  .audit-severity-high {
+    color: #d33;
+    font-weight: bold;
+  }
+  .audit-severity-critical {
+    color: #800;
+    font-weight: bold;
+  }
+  .audit-fixed-in,
+  .audit-upgradable,
+  .audit-patchable {
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+</style>
+{% for repo in repositories %}
+<h2>{{ repo['repository'] }}</h2>
+{% for type_ in repo['global_types'] %}
+<p>{{ type_['title'] | markdown | safe }}</p>
 {% endfor %}
 <!---->
-{% if data['data'].vulnerabilities %}
-<h3>Vulnerabilities</h3>
-{% for branch_name, files in data['data'].vulnerabilities.items() %}
-<h4>{{ branch_name }}</h4>
-{% for file_name, vulns in files.items() %}
+{% for branch in repo['branches'] %}
+<h3>{{ branch['name'] }}</h3>
+{% for type_ in branch['types'] %}
+<p>{{ type_['title'] | markdown | safe }}</p>
+{% endfor %}
+<!---->
+{% if branch['vulnerabilities'] %}
+<h4>Vulnerabilities</h4>
+{% for file_name, vulns in branch['vulnerabilities'].items() %}
 <h5>{{ file_name }}</h5>
 <ul>
   {% for vuln in vulns %}
-  <li>{{ vuln.title }}</li>
+  <li>{{ vuln.title | safe }}</li>
   {% endfor %}
 </ul>
 {% endfor %}
 <!---->
-{% endfor %}
-<!---->
 {% endif %}
+<!---->
+{% endfor %}
 <!---->
 {% endfor %}

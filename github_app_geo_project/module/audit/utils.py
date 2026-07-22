@@ -641,20 +641,24 @@ async def _snyk_test(
                 display = True
             if not display:
                 continue
+            severity = vuln["severity"]
+            severity_class = f' class="audit-severity-{severity}"'
             title = " ".join(
                 [
-                    f"[{vuln['severity'].upper()}]",
+                    f"<span{severity_class}>[{severity.upper()}]</span>",
                     f"{vuln['packageName']}@{vuln['version']}:",
-                    f"[{vuln['id']}](https://security.snyk.io/vuln/{vuln['id']})",
+                    f'<a href="https://security.snyk.io/vuln/{vuln["id"]}">{vuln["id"]}</a>',
                     *(vuln.get("identifiers", {}).get("CWE", [])),
                 ],
             )
             if vuln.get("fixedIn", []):
-                title += " [Fixed in: " + ", ".join(vuln["fixedIn"]) + "]."
+                title += (
+                    ' <span class="audit-fixed-in">[Fixed in: ' + ", ".join(vuln["fixedIn"]) + "]</span>."
+                )
             elif vuln.get("isUpgradable", False):
-                title += " [Upgradable]."
+                title += ' <span class="audit-upgradable">[Upgradable]</span>.'
             elif vuln.get("isPatchable", False):
-                title += " [Patch available]."
+                title += ' <span class="audit-patchable">[Patch available]</span>.'
             else:
                 title += "."
             if vuln.get("fixedIn", []) or vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):

@@ -85,6 +85,10 @@ Use explicit variables (`${HOME}` instead of `$HOME`).
 
 The pull request description should not contain a `Testing` or `Checks` section.
 
+## Jinja templates
+
+In Jinja templates, add `<!---->` between two Jinja directives (`{% ... %}`) to ensure they are on separate lines despite Prettier formatting.
+
 ## Async rules
 
 The project should fully be in async mode.
