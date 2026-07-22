@@ -664,10 +664,7 @@ async def _create_pull_request_if_changes(
 
 
 def _add_missing_fields(item: dict[str, Any]) -> dict[str, Any]:
-    item = {**item}
-    item.setdefault("publisher", None)
-    item.setdefault("author", None)
-    return item
+    return {**item, "publisher": None, "author": None}
 
 
 async def _create_security_advisories(
