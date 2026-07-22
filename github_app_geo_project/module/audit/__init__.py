@@ -663,6 +663,13 @@ async def _create_pull_request_if_changes(
     return success, short_message
 
 
+def _add_missing_fields(item: dict[str, Any]) -> dict[str, Any]:
+    item = {**item}
+    item.setdefault("publisher", None)
+    item.setdefault("author", None)
+    return item
+
+
 async def _create_security_advisories(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     vulnerabilities: list[audit_utils.VulnerabilityData],
@@ -674,10 +681,7 @@ async def _create_security_advisories(
         context.github_project.aio_github.rest.security_advisories.async_list_repository_advisories,
         map_func=lambda response: type_validate_python(
             list[RepositoryAdvisory],
-            [
-                {**item, "publisher": None} if item.get("publisher") is not None else item
-                for item in response.json()
-            ],
+            [_add_missing_fields(item) for item in response.json()],
         ),
         owner=context.github_project.owner,
         repo=context.github_project.repository,
