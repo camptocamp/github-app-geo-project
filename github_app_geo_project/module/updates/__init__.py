@@ -6,7 +6,6 @@ import base64
 import json
 import logging
 import os
-import tempfile
 from enum import Enum
 from pathlib import Path
 from typing import Any, cast
@@ -167,23 +166,15 @@ class Updates(
         with (Path(__file__).parent / "versions.yaml").open(encoding="utf-8") as versions_file:
             versions = yaml.safe_load(versions_file)
 
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            cwd = Path(tmpdirname)
-            # Clone the repository
-            if os.environ.get("TEST") == "TRUE":
-                # In test mode, we don't clone
-                pass
-            else:
-                cloned_cwd = await module_utils.git_clone(context.github_project, branch, cwd)
-                if cloned_cwd is None:
-                    _LOGGER.error(
-                        "Failed to clone repository %s on branch %s",
-                        context.github_project.repository,
-                        branch,
-                    )
-                    return
-                cwd = cloned_cwd
+        if os.environ.get("TEST") == "TRUE":
+            # In test mode, we don't create a worktree
+            _LOGGER.debug("Test mode, skipping worktree creation for branch %s", branch)
+            return
 
+        async with module_utils.GIT_WORKTREE_CACHE.working_tree(
+            context.github_project,
+            branch,
+        ) as cwd:
             updated = False
 
             config_file = cwd / ".pre-commit-config.yaml"

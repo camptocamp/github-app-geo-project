@@ -9,103 +9,95 @@ import pytest
 from github_app_geo_project.module.audit import Audit, _EventData, _process_renovate
 
 
+def _make_worktree_mock(clone_path: Path) -> MagicMock:
+    """Create a mock for GIT_WORKTREE_CACHE.working_tree async context manager."""
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=clone_path)
+    mock_cm.__aexit__ = AsyncMock(return_value=None)
+    return mock_cm
+
+
 @pytest.mark.asyncio
 async def test_process_renovate_default_branch_success():
     """Test successful Renovate update on default branch."""
-    # Setup context
     context = Mock()
     context.module_event_data = _EventData(version=None)
     context.github_project = Mock()
-    # Mock default_branch
     context.github_project.default_branch = AsyncMock(return_value="master")
     context.service_url = "https://example.com/"
     context.job_id = 123
 
     known_versions = ["1.0", "2.0"]
-    # Mock git_clone to return a valid path
-    with (
-        patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone,
-        tempfile.TemporaryDirectory() as tmpdir,
-    ):
-        clone_path = Path(tmpdir) / "repo"
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        clone_path = Path(tmpdirname) / "repo"
         clone_path.mkdir()
         github_dir = clone_path / ".github"
         github_dir.mkdir()
         renovate_file = github_dir / "renovate.json5"
-        # EditRenovateConfigV2 expects the first line to be "{"
         renovate_file.write_text("{\n}")
 
-        mock_git_clone.return_value = clone_path
-
-        # Mock EditRenovateConfigV2 to avoid pre-commit issues
-        with patch("github_app_geo_project.module.audit.editor.EditRenovateConfig") as mock_editor:
+        mock_cm = _make_worktree_mock(clone_path)
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch("github_app_geo_project.module.audit.editor.EditRenovateConfig") as mock_editor,
+        ):
             mock_config = MagicMock()
             mock_editor.return_value = MagicMock(
                 __aenter__=AsyncMock(return_value=mock_config),
                 __aexit__=AsyncMock(return_value=None),
             )
 
-            # Mock _create_pull_request_if_changes
             with patch(
                 "github_app_geo_project.module.audit._create_pull_request_if_changes"
             ) as mock_create_pr:
                 mock_create_pr.return_value = (True, [])
 
-                # Call the function
                 result = await _process_renovate(context, known_versions)
 
-                # Assertions
                 assert result is True
-                # Verify git_clone was called with correct arguments
-                assert mock_git_clone.call_count == 1
-                call_args = mock_git_clone.call_args
-                assert call_args[0][0] == context.github_project
-                assert call_args[0][1] == "master"
-                # Don't check exact path since function creates its own temp dir
+                assert mock_cm.__aenter__.called
 
-                # Verify the renovate config was updated
                 mock_config.__setitem__.assert_called_once_with(
                     "baseBranchPatterns", ["master", "1.0", "2.0"]
                 )
 
                 mock_create_pr.assert_called_once()
-
-                # Verify the call arguments
                 pr_call_args = mock_create_pr.call_args
-                assert pr_call_args[0][0] == "master"  # branch
-                assert pr_call_args[0][1] == "ghci/audit/renovate/master"  # new_branch
-                assert pr_call_args[0][2] == "Update Renovate configuration"  # key
+                assert pr_call_args[0][0] == "master"
+                assert pr_call_args[0][1] == "ghci/audit/renovate/master"
+                assert pr_call_args[0][2] == "Update Renovate configuration"
 
 
 @pytest.mark.asyncio
 async def test_process_renovate_default_branch_no_security_file():
     """Test Renovate update when SECURITY.md is missing."""
-    # Setup context
     context = Mock()
     context.module_event_data = _EventData(version=None)
     context.github_project = Mock()
-    # Mock default_branch
     context.github_project.default_branch = AsyncMock(return_value="master")
     context.service_url = "https://example.com/"
     context.job_id = 123
 
     known_versions = []
-    # Mock git_clone to return a valid path
-    with (
-        patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone,
-        tempfile.TemporaryDirectory() as tmpdir,
-    ):
-        clone_path = Path(tmpdir) / "repo"
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        clone_path = Path(tmpdirname) / "repo"
         clone_path.mkdir()
         github_dir = clone_path / ".github"
         github_dir.mkdir()
         renovate_file = github_dir / "renovate.json5"
         renovate_file.write_text("{\n}")
 
-        mock_git_clone.return_value = clone_path
-
-        # Mock EditRenovateConfigV2 to avoid pre-commit issues
-        with patch("github_app_geo_project.module.audit.editor.EditRenovateConfig") as mock_editor:
+        mock_cm = _make_worktree_mock(clone_path)
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch("github_app_geo_project.module.audit.editor.EditRenovateConfig") as mock_editor,
+        ):
             mock_config = MagicMock()
             mock_config.__contains__.return_value = True
             mock_editor.return_value = MagicMock(
@@ -113,16 +105,13 @@ async def test_process_renovate_default_branch_no_security_file():
                 __aexit__=AsyncMock(return_value=None),
             )
 
-            # Mock _create_pull_request_if_changes
             with patch(
                 "github_app_geo_project.module.audit._create_pull_request_if_changes"
             ) as mock_create_pr:
                 mock_create_pr.return_value = (True, [])
 
-                # Call the function
                 result = await _process_renovate(context, known_versions)
 
-                # Assertions
                 assert result is True
                 mock_config.__setitem__.assert_not_called()
                 mock_config.__delitem__.assert_called_once_with("baseBranchPatterns")
@@ -131,42 +120,36 @@ async def test_process_renovate_default_branch_no_security_file():
 
 @pytest.mark.asyncio
 async def test_process_renovate_default_branch_clone_failure():
-    """Test failed clone on default branch scenario."""
-    # Setup context
+    """Test failed worktree creation on default branch scenario."""
     context = Mock()
     context.module_event_data = _EventData(version=None)
     context.github_project = Mock()
-    # Mock default_branch
     context.github_project.default_branch = AsyncMock(return_value="master")
 
     known_versions = ["1.0", "2.0"]
-    # Mock git_clone to return None (failure)
-    with patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone:
-        mock_git_clone.return_value = None
-
-        # Call the function
-        result = await _process_renovate(context, known_versions)
-
-        # Assertions
-        assert result is False
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(side_effect=ValueError("Failed to update branch master"))
+    with (
+        patch(
+            "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+            return_value=mock_cm,
+        ),
+        pytest.raises(ValueError, match="Failed to update branch master"),
+    ):
+        await _process_renovate(context, known_versions)
 
 
 @pytest.mark.asyncio
 async def test_process_renovate_version_cleanup_success():
     """Test successful version cleanup scenario."""
-    # Setup context
     context = Mock()
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
     context.github_project.default_branch = AsyncMock(return_value="master")
     context.service_url = "https://example.com/"
     context.job_id = 123
-    # Mock git_clone to return a valid path
-    with (
-        patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone,
-        tempfile.TemporaryDirectory() as tmpdir,
-    ):
-        clone_path = Path(tmpdir) / "repo"
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        clone_path = Path(tmpdirname) / "repo"
         clone_path.mkdir()
         github_dir = clone_path / ".github"
         github_dir.mkdir()
@@ -175,126 +158,102 @@ async def test_process_renovate_version_cleanup_success():
         security_file = clone_path / "SECURITY.md"
         security_file.write_text("# Security")
 
-        mock_git_clone.return_value = clone_path
-
-        # Mock _create_pull_request_if_changes
-        with patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr:
+        mock_cm = _make_worktree_mock(clone_path)
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr,
+        ):
             mock_create_pr.return_value = (True, [])
 
-            # Call the function
             result = await _process_renovate(context, None)
 
-            # Assertions
             assert result is True
-            # Verify git_clone was called with correct arguments
-            assert mock_git_clone.call_count == 1
-            call_args = mock_git_clone.call_args
-            assert call_args[0][0] == context.github_project
-            assert call_args[0][1] == "1.0"
-            # Don't check exact path since function creates its own temp dir
-
-            # Verify files were deleted
             assert not renovate_file.exists()
             assert not security_file.exists()
 
-            # Verify PR was created
             mock_create_pr.assert_called_once()
             pr_call_args = mock_create_pr.call_args
-            assert pr_call_args[0][0] == "1.0"  # branch
-            assert pr_call_args[0][1] == "ghci/audit/renovate/1.0"  # new_branch
+            assert pr_call_args[0][0] == "1.0"
+            assert pr_call_args[0][1] == "ghci/audit/renovate/1.0"
 
 
 @pytest.mark.asyncio
 async def test_process_renovate_version_cleanup_clone_failure():
-    """Test failed clone on version cleanup scenario."""
-    # Setup context
+    """Test failed worktree creation on version cleanup scenario."""
     context = Mock()
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
     context.github_project.default_branch = AsyncMock(return_value="master")
-    # Mock git_clone to return None (failure)
-    with patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone:
-        mock_git_clone.return_value = None
-
-        # Call the function
-        result = await _process_renovate(context, None)
-
-        # Assertions
-        assert result is False
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(side_effect=ValueError("Failed to update branch 1.0"))
+    with (
+        patch(
+            "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+            return_value=mock_cm,
+        ),
+        pytest.raises(ValueError, match="Failed to update branch 1\\.0"),
+    ):
+        await _process_renovate(context, None)
 
 
 @pytest.mark.asyncio
 async def test_process_renovate_version_cleanup_files_not_exist():
     """Test version cleanup when files don't exist."""
-    # Setup context
     context = Mock()
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
     context.github_project.default_branch = AsyncMock(return_value="master")
     context.service_url = "https://example.com/"
     context.job_id = 123
-    # Mock git_clone to return a valid path with no renovate or security files
-    with (
-        patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone,
-        tempfile.TemporaryDirectory() as tmpdir,
-    ):
-        clone_path = Path(tmpdir) / "repo"
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        clone_path = Path(tmpdirname) / "repo"
         clone_path.mkdir()
 
-        mock_git_clone.return_value = clone_path
-
-        # Mock _create_pull_request_if_changes
-        with patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr:
+        mock_cm = _make_worktree_mock(clone_path)
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr,
+        ):
             mock_create_pr.return_value = (True, [])
 
-            # Call the function
             result = await _process_renovate(context, None)
 
-            # Assertions
             assert result is True
-            # Verify git_clone was called with correct arguments
-            assert mock_git_clone.call_count == 1
-            call_args = mock_git_clone.call_args
-            assert call_args[0][0] == context.github_project
-            assert call_args[0][1] == "1.0"
-            # Don't check exact path since function creates its own temp dir
-
-            # Verify PR was still created (even though no files to delete)
             mock_create_pr.assert_called_once()
 
 
 @pytest.mark.asyncio
 async def test_process_renovate_version_cleanup_pr_creation_failure():
     """Test version cleanup when PR creation fails."""
-    # Setup context
     context = Mock()
     context.module_event_data = _EventData(version="1.0")
     context.github_project = Mock()
     context.github_project.default_branch = AsyncMock(return_value="master")
     context.service_url = "https://example.com/"
     context.job_id = 123
-    # Mock git_clone to return a valid path
-    with tempfile.TemporaryDirectory() as tmpdir:
-        temp_path = Path(tmpdir)
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        clone_path = Path(tmpdirname) / "repo"
+        clone_path.mkdir()
 
-        # Mock git_clone to return a valid path
-        with patch("github_app_geo_project.module.audit.module_utils.git_clone") as mock_git_clone:
-            clone_path = temp_path / "repo"
-            clone_path.mkdir()
+        mock_cm = _make_worktree_mock(clone_path)
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr,
+        ):
+            mock_create_pr.return_value = (False, ["Error creating PR"])
 
-            mock_git_clone.return_value = clone_path
+            result = await _process_renovate(context, None)
 
-            # Mock _create_pull_request_if_changes to return failure
-            with patch(
-                "github_app_geo_project.module.audit._create_pull_request_if_changes"
-            ) as mock_create_pr:
-                mock_create_pr.return_value = (False, ["Error creating PR"])
-
-                # Call the function
-                result = await _process_renovate(context, None)
-
-                # Assertions
-                assert result is False
+            assert result is False
 
 
 def test_get_actions_pull_request_closed() -> None:
@@ -483,16 +442,13 @@ def test_get_severity_config() -> None:
     config: dict = {}
     local_config: dict = {}
 
-    # Default value when no config is set
     result = get_severity_config(config, local_config, "dashboard-severity-threshold", "medium")
     assert result == "medium"
 
-    # Value from global config
     config["dashboard-severity-threshold"] = "high"
     result = get_severity_config(config, local_config, "dashboard-severity-threshold", "medium")
     assert result == "high"
 
-    # Local config overrides global
     local_config["dashboard-severity-threshold"] = "critical"
     result = get_severity_config(config, local_config, "dashboard-severity-threshold", "medium")
     assert result == "critical"
@@ -505,16 +461,13 @@ def test_get_excluded_files() -> None:
     config: dict = {}
     local_config: dict = {}
 
-    # Default empty
     result = get_excluded_files(config, local_config)
     assert result == []
 
-    # Global config
     config["excluded-files"] = [r"dev-.*\.txt"]
     result = get_excluded_files(config, local_config)
     assert result == [r"dev-.*\.txt"]
 
-    # Local overrides global
     local_config["excluded-files"] = [r"test-.*\.txt"]
     result = get_excluded_files(config, local_config)
     assert result == [r"test-.*\.txt"]

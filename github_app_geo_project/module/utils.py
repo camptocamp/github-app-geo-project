@@ -8,7 +8,11 @@ import math
 import os
 import re
 import shlex
+import shutil
+import tempfile
 import urllib.parse
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, cast
 
@@ -1063,84 +1067,185 @@ async def close_pull_request_related_issues(
 _SSH_LOCK = asyncio.Lock()
 
 
-async def git_clone(
-    github_project: configuration.GithubProject,
-    branch: str | None,
-    cwd: Path,
-) -> Path | None:
-    """Clone the Git repository."""
-    # Store the ssh key
-    async with _SSH_LOCK:
-        directory = await anyio.Path("~/.ssh").expanduser()
-        await directory.mkdir(parents=True, exist_ok=True)
-        async with await (directory / "id_rsa").open("w", encoding="utf-8") as file:
-            await file.write(github_project.application.private_key)
+class GitWorktreeCache:
+    """Cache for Git repositories using worktrees.
 
-    _, success, _ = await run_timeout(
-        [
-            "git",
-            "clone",
-            *(["--depth=1", f"--branch={branch}"] if branch else []),
-            f"https://x-access-token:{github_project.token}@github.com/{github_project.owner}/{github_project.repository}.git",
-        ],
-        None,
-        600,
-        "Clone repository",
-        "Error cloning the repository",
-        "Timeout cloning the repository",
-        cwd,
-    )
-    if not success:
-        return None
+    Maintains a cache of Git repositories with worktrees, allowing efficient
+    access to different branches without cloning the full repository each time.
+    """
 
-    cwd = cwd / github_project.repository.split("/")[-1]
-    user = (
-        await github_project.aio_github.rest.users.async_get_by_username(
-            github_project.application.slug + "[bot]",
-        )
-    ).parsed_data
-    _, success, _ = await run_timeout(
-        [
-            "git",
-            "config",
-            "user.email",
-            f"{user.id}+{user.login}@users.noreply.github.com",
-        ],
-        None,
-        60,
-        "Set email",
-        "Error setting the email",
-        "Timeout setting the email",
-        cwd,
-    )
-    if not success:
-        return None
+    def __init__(self, cache_dir: Path | None = None) -> None:
+        """Initialize the GitWorktreeCache.
 
-    _, success, _ = await run_timeout(
-        ["git", "config", "user.name", user.login],
-        None,
-        60,
-        "Set name",
-        "Error setting the name",
-        "Timeout setting the name",
-        cwd,
-    )
-    if not success:
-        return None
+        Arguments:
+        ---------
+        cache_dir: The directory where the cache will be stored.
+            Defaults to ~/.cache/ghci/git/
+        """
+        self._cache_dir = cache_dir or Path.home() / ".cache" / "ghci" / "git"
+        self._locks: dict[str, asyncio.Lock] = {}
+        self._locks_lock = asyncio.Lock()
 
-    _, success, _ = await run_timeout(
-        ["git", "config", "gpg.format", "ssh"],
-        None,
-        60,
-        "Set gpg format",
-        "Error setting the gpg format",
-        "Timeout setting the gpg format",
-        cwd,
-    )
-    if not success:
-        return None
+    async def _get_lock(self, key: str) -> asyncio.Lock:
+        """Get the lock for a repository."""
+        async with self._locks_lock:
+            if key not in self._locks:
+                self._locks[key] = asyncio.Lock()
+            return self._locks[key]
 
-    return cwd
+    async def _set_user_config(self, repo_path: Path, github_project: configuration.GithubProject) -> None:
+        """Set the git user configuration for the bot in the repository."""
+        user = (
+            await github_project.aio_github.rest.users.async_get_by_username(
+                github_project.application.slug + "[bot]",
+            )
+        ).parsed_data
+        for config in [
+            ["user.email", f"{user.id}+{user.login}@users.noreply.github.com"],
+            ["user.name", user.login],
+            ["gpg.format", "ssh"],
+        ]:
+            await run_timeout(
+                ["git", "config", *config],
+                None,
+                60,
+                f"Set {config[0]}",
+                f"Error setting {config[0]}",
+                f"Timeout setting {config[0]}",
+                repo_path,
+            )
+
+    async def _ensure_cache(self, github_project: configuration.GithubProject) -> Path:
+        """Ensure the cache repository exists and is up to date.
+
+        Returns the path to the cache repository.
+        """
+        cache_path = self._cache_dir / github_project.owner / github_project.repository
+
+        # Ensure SSH key is available
+        ssh_key_path = await anyio.Path("~/.ssh/id_rsa").expanduser()
+        if not await ssh_key_path.exists():
+            async with _SSH_LOCK:
+                directory = await anyio.Path("~/.ssh").expanduser()
+                await directory.mkdir(parents=True, exist_ok=True)
+                async with await (directory / "id_rsa").open("w", encoding="utf-8") as file:
+                    await file.write(github_project.application.private_key)
+
+        if await anyio.Path(cache_path / ".git").exists():
+            # Fetch latest updates
+            _, success, _ = await run_timeout(
+                ["git", "fetch", "--prune", "origin"],
+                None,
+                600,
+                "Fetch latest changes",
+                "Error fetching latest changes",
+                "Timeout fetching latest changes",
+                cache_path,
+            )
+            if not success:
+                _LOGGER.warning(
+                    "Failed to fetch latest changes for %s/%s",
+                    github_project.owner,
+                    github_project.repository,
+                )
+        else:
+            # Initial clone
+            await anyio.Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+            _, success, _ = await run_timeout(
+                [
+                    "git",
+                    "clone",
+                    f"https://x-access-token:{github_project.token}@github.com/{github_project.owner}/{github_project.repository}.git",
+                    str(cache_path),
+                ],
+                None,
+                600,
+                "Clone repository",
+                "Error cloning the repository",
+                "Timeout cloning the repository",
+                cache_path.parent,
+            )
+            if not success:
+                error_message = "Failed to clone the repository"
+                raise ValueError(error_message)
+
+            # Set git user config in the cache repo
+            await self._set_user_config(cache_path, github_project)
+
+        return cache_path
+
+    @asynccontextmanager
+    async def working_tree(
+        self,
+        github_project: configuration.GithubProject,
+        branch: str,
+    ) -> AsyncIterator[Path]:
+        """Context manager that provides a working tree for the given branch.
+
+        The working tree is created from the cache and cleaned up on exit.
+
+        Arguments:
+        ---------
+        github_project: The GitHub project information
+        branch: The branch to check out
+
+        Yields
+        ------
+        The path to the working tree
+        """
+        cache_key = f"{github_project.owner}/{github_project.repository}"
+        lock = await self._get_lock(cache_key)
+        async with lock:
+            cache_path = await self._ensure_cache(github_project)
+
+        worktree_path = Path(tempfile.mkdtemp())
+        try:
+            # Create/update local branch to match remote (ensures the branch exists locally)
+            _, success, _ = await run_timeout(
+                ["git", "branch", "-f", branch, f"origin/{branch}"],
+                None,
+                120,
+                f"Update branch {branch}",
+                f"Error updating branch {branch}",
+                f"Timeout updating branch {branch}",
+                cache_path,
+            )
+            if not success:
+                message = f"Failed to update branch {branch}"
+                raise module.GHCIError(message)
+
+            # Create worktree
+            _, success, _ = await run_timeout(
+                ["git", "worktree", "add", str(worktree_path), branch],
+                None,
+                120,
+                f"Add worktree for {branch}",
+                f"Error adding worktree for {branch}",
+                f"Timeout adding worktree for {branch}",
+                cache_path,
+            )
+            if not success:
+                message = f"Failed to add worktree for branch {branch}"
+                raise module.GHCIError(message)
+
+            yield worktree_path
+        finally:
+            # Remove worktree
+            await run_timeout(
+                ["git", "worktree", "remove", "--force", str(worktree_path)],
+                None,
+                60,
+                f"Remove worktree for {branch}",
+                f"Error removing worktree for {branch}",
+                f"Timeout removing worktree for {branch}",
+                cache_path,
+                error=False,
+            )
+            # Ensure cleanup of any leftover files
+            shutil.rmtree(worktree_path, ignore_errors=True)
+
+
+GIT_WORKTREE_CACHE = GitWorktreeCache()
 
 
 def get_alternate_versions(security: security_md.Security, branch: str) -> list[str]:

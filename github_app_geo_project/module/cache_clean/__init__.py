@@ -7,9 +7,10 @@ from pathlib import Path
 from typing import Any
 
 import anyio
+import githubkit.exception
 from pydantic import BaseModel
 
-from github_app_geo_project import module
+from github_app_geo_project import configuration, module
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.settings import settings
 
@@ -69,7 +70,7 @@ class CacheClean(module.Module[None, _EventData, None, None]):
 
     async def process(
         self,
-        _context: module.ProcessContext[None, _EventData],
+        context: module.ProcessContext[None, _EventData],
     ) -> module.ProcessOutput[_EventData, None]:
         """Process the action."""
         await _setup_logger()
@@ -144,6 +145,9 @@ class CacheClean(module.Module[None, _EventData, None, None]):
 
         for config in cache_configs:
             await _process_cache_config(config)
+
+        # Clean the git worktree cache: prune stale worktrees and run gc
+        await _clean_git_repositories(home / ".cache" / "ghci" / "git", context.github_project)
 
         _LOGGER.debug("Cache clean completed")
         return module.ProcessOutput()
@@ -303,3 +307,70 @@ async def _process_cache_config(config: CacheConfig) -> None:
                 config.label,
                 size_mb,
             )
+
+
+async def _clean_git_repositories(
+    cache_path: anyio.Path, github_project: configuration.GithubProject
+) -> None:
+    """Run git maintenance on all repositories in the git worktree cache."""
+    if not await cache_path.exists():
+        return
+    _LOGGER.debug("Running git maintenance on cached repositories in %s", cache_path)
+    async for owner_dir in cache_path.iterdir():
+        if not await owner_dir.is_dir():
+            continue
+        async for repo_dir in owner_dir.iterdir():
+            git_dir = repo_dir / ".git"
+            if not await git_dir.exists():
+                continue
+            owner = owner_dir.name
+            repo = repo_dir.name
+            # Check if the repository is still accessible and not archived
+            try:
+                response = await github_project.aio_github.rest.repos.async_get(
+                    owner=owner,
+                    repo=repo,
+                )
+                if response.parsed_data.archived:
+                    _LOGGER.info("Repository %s/%s is archived, removing cache", owner, repo)
+                    shutil.rmtree(repo_dir)
+                    continue
+            except githubkit.exception.RequestFailed as exception:
+                if exception.response.status_code == 404:
+                    _LOGGER.info(
+                        "Repository %s/%s is no longer accessible, removing cache",
+                        owner,
+                        repo,
+                    )
+                    shutil.rmtree(repo_dir)
+                    continue
+                raise
+            # Prune stale worktrees
+            try:
+                await module_utils.run_timeout(
+                    ["git", "worktree", "prune"],
+                    None,
+                    60,
+                    success_message=f"Prune worktrees in {repo_dir.name}",
+                    error_message=f"Error pruning worktrees in {repo_dir.name}",
+                    timeout_message=f"Timeout pruning worktrees in {repo_dir.name}",
+                    cwd=Path(repo_dir),
+                    error=False,
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                _LOGGER.exception("Failed to prune worktrees in %s", repo_dir)
+            # Run git gc
+            try:
+                _LOGGER.debug("Running git gc on %s", repo_dir)
+                await module_utils.run_timeout(
+                    ["git", "gc", "--auto", "--prune=all"],
+                    None,
+                    600,
+                    success_message=f"Git gc on {repo_dir.name}",
+                    error_message=f"Error running git gc on {repo_dir.name}",
+                    timeout_message=f"Timeout running git gc on {repo_dir.name}",
+                    cwd=Path(repo_dir),
+                    error=False,
+                )
+            except Exception:  # pylint: disable=broad-exception-caught
+                _LOGGER.exception("Failed to run git gc on %s", repo_dir)

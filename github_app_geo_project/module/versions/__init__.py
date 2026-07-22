@@ -10,7 +10,6 @@ import json
 import logging
 import os
 import re
-import tempfile
 import tomllib
 from enum import Enum, IntEnum
 from pathlib import Path
@@ -412,21 +411,8 @@ class Versions(
                 version,
                 version,
             )
-            with tempfile.TemporaryDirectory() as tmpdirname:
-                if os.environ.get("TEST") != "TRUE":
-                    cwd = Path(tmpdirname)
-                    new_cwd = await module_utils.git_clone(
-                        context.github_project,
-                        branch,
-                        cwd,
-                    )
-                    if new_cwd is None:
-                        exception_message = "Failed to clone the repository"
-                        raise VersionError(exception_message)
-                    cwd = new_cwd
-                else:
-                    cwd = Path.cwd()
 
+            async def _process_version(cwd: Path) -> ProcessOutput[_EventData, _IntermediateStatus]:
                 # Get Renovate configuration from master branch
                 try:
                     renovate_file_content = (
@@ -470,7 +456,7 @@ class Versions(
                 )
                 message.title = "Names:"
                 _LOGGER.debug(message)
-                out_dir = Path(tmpdirname) / "renovate-graph-out"
+                out_dir = cwd / "renovate-graph-out"
                 out_dir.mkdir(parents=True, exist_ok=True)
                 if await _get_dependencies(
                     context,
@@ -506,10 +492,18 @@ class Versions(
                 message.title = "Dependencies:"
                 _LOGGER.debug(message)
 
-            return ProcessOutput(
-                intermediate_status=intermediate_status,
-                updated_transversal_status=True,
-            )
+                return ProcessOutput(
+                    intermediate_status=intermediate_status,
+                    updated_transversal_status=True,
+                )
+
+            if os.environ.get("TEST") == "TRUE":
+                return await _process_version(Path.cwd())
+            async with module_utils.GIT_WORKTREE_CACHE.working_tree(
+                context.github_project,
+                branch,
+            ) as cwd:
+                return await _process_version(cwd)
         exception_message = "Invalid step"
         raise VersionError(exception_message)
 

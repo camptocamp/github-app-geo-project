@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import subprocess  # nosec
-import tempfile
 from pathlib import Path
 from typing import Any, cast
 
@@ -389,29 +388,11 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
 
         branch = git.get("branch", configuration.BRANCH_DEFAULT)
 
-        # Checkout the right branch on a temporary directory
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            cwd = Path(tmpdirname)
-            _LOGGER.debug(
-                "Clone the repository in the temporary directory: %s",
-                tmpdirname,
-            )
-            new_cwd = await module_utils.git_clone(
-                context.github_project,
-                branch,
-                cwd,
-            )
-            if new_cwd is None:
-                _LOGGER.error(
-                    "Error on cloning the repository %s/%s",
-                    context.github_project.owner,
-                    context.github_project.repository,
-                )
-                exception_message = "Failed to clone the repository"
-                raise CleanError(exception_message)
-
-            cwd = new_cwd
-
+        _LOGGER.debug("Create worktree for branch: %s", branch)
+        async with module_utils.GIT_WORKTREE_CACHE.working_tree(
+            context.github_project,
+            branch,
+        ) as cwd:
             for name in context.module_event_data.names:
                 folder = git.get("folder", configuration.FOLDER_DEFAULT).format(name=name)
 
