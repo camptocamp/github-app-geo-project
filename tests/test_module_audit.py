@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 
 from github_app_geo_project.module.audit import Audit, _EventData, _process_renovate
+from github_app_geo_project.module.audit.utils import VulnerabilityData
 
 
 def _make_worktree_mock(clone_path: Path) -> MagicMock:
@@ -393,7 +394,6 @@ def test_get_actions_push_security_md_on_non_default_branch_no_renovate() -> Non
 
 def test_vulnerability_data_structure() -> None:
     """Test VulnerabilityData creation."""
-    from github_app_geo_project.module.audit.utils import VulnerabilityData
 
     vuln = VulnerabilityData(
         file="requirements.txt",
@@ -471,3 +471,128 @@ def test_get_excluded_files() -> None:
     local_config["excluded-files"] = [r"test-.*\.txt"]
     result = get_excluded_files(config, local_config)
     assert result == [r"test-.*\.txt"]
+
+
+def test_vulnerability_deduplication() -> None:
+    """Test that VulnerabilityData with same (snyk_id, package_version) for the same file is deduplicated."""
+
+    vuln1 = VulnerabilityData(
+        file="pyproject.toml",
+        package_name="black",
+        package_version="24.3.0",
+        package_manager="pip",
+        severity="high",
+        snyk_id="SNYK-PYTHON-BLACK-15518063",
+        cve_ids=["CVE-2024-12345"],
+        cwe_ids=["CWE-22"],
+        title="[HIGH] black@24.3.0: [SNYK-PYTHON-BLACK-15518063]",
+        fixed_in=["26.3.1"],
+        is_upgradable=True,
+        is_patchable=False,
+    )
+    vuln2 = VulnerabilityData(
+        file="pyproject.toml",
+        package_name="black",
+        package_version="24.3.0",
+        package_manager="pip",
+        severity="high",
+        snyk_id="SNYK-PYTHON-BLACK-15518063",
+        cve_ids=["CVE-2024-12345"],
+        cwe_ids=["CWE-22"],
+        title="[HIGH] black@24.3.0: [SNYK-PYTHON-BLACK-15518063]",
+        fixed_in=["26.3.1"],
+        is_upgradable=True,
+        is_patchable=False,
+    )
+    vuln3 = VulnerabilityData(
+        file="pyproject.toml",
+        package_name="black",
+        package_version="24.3.0",
+        package_manager="pip",
+        severity="high",
+        snyk_id="SNYK-PYTHON-BLACK-15518063",
+        cve_ids=["CVE-2024-12345"],
+        cwe_ids=["CWE-22"],
+        title="[HIGH] black@24.3.0: [SNYK-PYTHON-BLACK-15518063]",
+        fixed_in=["26.3.1"],
+        is_upgradable=True,
+        is_patchable=False,
+    )
+
+    file_vulnerabilities: dict[str, list[VulnerabilityData]] = {}
+    for vuln in [vuln1, vuln2, vuln3]:
+        existing = file_vulnerabilities.setdefault(vuln.file, [])
+        if not any(v.snyk_id == vuln.snyk_id and v.package_version == vuln.package_version for v in existing):
+            existing.append(vuln)
+
+    assert len(file_vulnerabilities["pyproject.toml"]) == 1
+    assert file_vulnerabilities["pyproject.toml"][0].snyk_id == "SNYK-PYTHON-BLACK-15518063"
+
+
+def test_vulnerability_deduplication_different_versions() -> None:
+    """Test that different versions of the same vulnerability are not considered duplicates."""
+
+    vuln1 = VulnerabilityData(
+        file="pyproject.toml",
+        package_name="black",
+        package_version="24.3.0",
+        package_manager="pip",
+        severity="high",
+        snyk_id="SNYK-PYTHON-BLACK-15518063",
+        cve_ids=["CVE-2024-12345"],
+        cwe_ids=["CWE-22"],
+        title="[HIGH] black@24.3.0: [SNYK-PYTHON-BLACK-15518063]",
+        fixed_in=["26.3.1"],
+        is_upgradable=True,
+        is_patchable=False,
+    )
+    vuln2 = VulnerabilityData(
+        file="pyproject.toml",
+        package_name="black",
+        package_version="26.3.1",
+        package_manager="pip",
+        severity="high",
+        snyk_id="SNYK-PYTHON-BLACK-15518063",
+        cve_ids=["CVE-2024-12345"],
+        cwe_ids=["CWE-22"],
+        title="[HIGH] black@26.3.1: [SNYK-PYTHON-BLACK-15518063]",
+        fixed_in=["26.3.1"],
+        is_upgradable=True,
+        is_patchable=False,
+    )
+
+    file_vulnerabilities: dict[str, list[VulnerabilityData]] = {}
+    for vuln in [vuln1, vuln2]:
+        existing = file_vulnerabilities.setdefault(vuln.file, [])
+        if not any(v.snyk_id == vuln.snyk_id and v.package_version == vuln.package_version for v in existing):
+            existing.append(vuln)
+
+    assert len(file_vulnerabilities["pyproject.toml"]) == 2
+
+
+def test_issue_body_cleanup() -> None:
+    """Test that non-action items are removed from the issue body."""
+    from github_app_geo_project.module import utils as module_utils
+
+    DashboardIssue = module_utils.DashboardIssue
+
+    issue = DashboardIssue(
+        "## Audit (Snyk/dpkg/Renovate)\n"
+        "\n"
+        "- [ ] <!-- outdated --> Check outdated version\n"
+        "- [ ] <!-- snyk --> Check security vulnerabilities with Snyk\n"
+        "- [ ] <!-- dpkg --> Update dpkg packages\n"
+        "\n"
+        "==== pyproject.toml\n"
+        "- [HIGH] black@24.3.0: ..\n"
+        "==== requirements.txt\n"
+        "- [HIGH] dulwich@0.21.7: ..\n"
+    )
+    issue.issue = [item for item in issue.issue if isinstance(item, module_utils.DashboardIssueItem)]
+    result = issue.to_string()
+    assert "==== pyproject.toml" not in result
+    assert "==== requirements.txt" not in result
+    assert "[HIGH]" not in result
+    assert "Check outdated version" in result
+    assert "Check security vulnerabilities with Snyk" in result
+    assert "Update dpkg packages" in result
