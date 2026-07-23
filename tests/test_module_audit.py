@@ -435,7 +435,6 @@ def test_get_actions_push_security_md_on_non_default_branch_no_renovate() -> Non
 
 def test_vulnerability_data_structure() -> None:
     """Test VulnerabilityData creation."""
-    from github_app_geo_project.module.audit.utils import VulnerabilityData
 
     vuln = VulnerabilityData(
         file="requirements.txt",
@@ -523,7 +522,6 @@ def test_get_excluded_files() -> None:
 
 def test_vulnerability_deduplication() -> None:
     """Test that VulnerabilityData with same (snyk_id, package_version) for the same file is deduplicated."""
-    from github_app_geo_project.module.audit.utils import VulnerabilityData
 
     vuln1 = VulnerabilityData(
         file="pyproject.toml",
@@ -571,10 +569,7 @@ def test_vulnerability_deduplication() -> None:
     file_vulnerabilities: dict[str, list[VulnerabilityData]] = {}
     for vuln in [vuln1, vuln2, vuln3]:
         existing = file_vulnerabilities.setdefault(vuln.file, [])
-        if not any(
-            v.snyk_id == vuln.snyk_id and v.package_version == vuln.package_version
-            for v in existing
-        ):
+        if not any(v.snyk_id == vuln.snyk_id and v.package_version == vuln.package_version for v in existing):
             existing.append(vuln)
 
     assert len(file_vulnerabilities["pyproject.toml"]) == 1
@@ -583,7 +578,6 @@ def test_vulnerability_deduplication() -> None:
 
 def test_vulnerability_deduplication_different_versions() -> None:
     """Test that different versions of the same vulnerability are not considered duplicates."""
-    from github_app_geo_project.module.audit.utils import VulnerabilityData
 
     vuln1 = VulnerabilityData(
         file="pyproject.toml",
@@ -617,10 +611,7 @@ def test_vulnerability_deduplication_different_versions() -> None:
     file_vulnerabilities: dict[str, list[VulnerabilityData]] = {}
     for vuln in [vuln1, vuln2]:
         existing = file_vulnerabilities.setdefault(vuln.file, [])
-        if not any(
-            v.snyk_id == vuln.snyk_id and v.package_version == vuln.package_version
-            for v in existing
-        ):
+        if not any(v.snyk_id == vuln.snyk_id and v.package_version == vuln.package_version for v in existing):
             existing.append(vuln)
 
     assert len(file_vulnerabilities["pyproject.toml"]) == 2
@@ -635,18 +626,16 @@ def test_issue_body_cleanup() -> None:
     issue = DashboardIssue(
         "## Audit (Snyk/dpkg/Renovate)\n"
         "\n"
-        '- [ ] <!-- outdated --> Check outdated version\n'
-        '- [ ] <!-- snyk --> Check security vulnerabilities with Snyk\n'
-        '- [ ] <!-- dpkg --> Update dpkg packages\n'
+        "- [ ] <!-- outdated --> Check outdated version\n"
+        "- [ ] <!-- snyk --> Check security vulnerabilities with Snyk\n"
+        "- [ ] <!-- dpkg --> Update dpkg packages\n"
         "\n"
         "==== pyproject.toml\n"
         "- [HIGH] black@24.3.0: ..\n"
         "==== requirements.txt\n"
         "- [HIGH] dulwich@0.21.7: ..\n"
     )
-    issue.issue = [
-        item for item in issue.issue if isinstance(item, module_utils.DashboardIssueItem)
-    ]
+    issue.issue = [item for item in issue.issue if isinstance(item, module_utils.DashboardIssueItem)]
     result = issue.to_string()
     assert "==== pyproject.toml" not in result
     assert "==== requirements.txt" not in result
