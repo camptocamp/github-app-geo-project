@@ -413,6 +413,11 @@ async def _process_snyk_dpkg(
                             break
                     del issue_check.issue[found_start:section_end]
 
+                # Remove any remaining non-action items from the issue body
+                issue_check.issue = [
+                    item for item in issue_check.issue if isinstance(item, module_utils.DashboardIssueItem)
+                ]
+
                 # Apply filtering and build new dashboard section
                 snyk_config = context.module_config.get("snyk", {})
                 local_snyk_config = local_config.get("snyk", {})

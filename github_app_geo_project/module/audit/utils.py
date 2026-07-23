@@ -699,7 +699,12 @@ async def _snyk_test(
                 is_upgradable=vuln.get("isUpgradable", False),
                 is_patchable=vuln.get("isPatchable", False),
             )
-            file_vulnerabilities.setdefault(target_file, []).append(vuln_data)
+            existing_vulns = file_vulnerabilities.setdefault(target_file, [])
+            if not any(
+                v.snyk_id == vuln_data.snyk_id and v.package_version == vuln_data.package_version
+                for v in existing_vulns
+            ):
+                existing_vulns.append(vuln_data)
 
         for title, vulnerability in vulnerabilities.items():
             message = module_utils.HtmlMessage(
