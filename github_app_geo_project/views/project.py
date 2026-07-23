@@ -101,7 +101,9 @@ async def project(
         )
 
     async with request.app.state.async_session_factory() as session:
-        select_output = sqlalchemy.select(models.Output.id, models.Output.title)
+        select_output = sqlalchemy.select(
+            models.Output.name, models.Output.owner, models.Output.repository, models.Output.title
+        )
 
         if owner == "none":
             select_output = select_output.where(models.Output.owner.is_(None))

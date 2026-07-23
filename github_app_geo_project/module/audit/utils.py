@@ -139,6 +139,7 @@ async def snyk(
     logs_url: str,
     env: dict[str, str],
     cwd: Path,
+    ignore_policy: bool = False,
 ) -> tuple[
     list[module_utils.Message],
     module_utils.HtmlMessage | None,
@@ -196,7 +197,7 @@ async def snyk(
         fixable_files_npm,
         vulnerabilities_in_requirements,
         file_vulnerabilities,
-    ) = await _snyk_test(branch, config, local_config, result, env_no_debug, cwd)
+    ) = await _snyk_test(branch, config, local_config, result, env_no_debug, cwd, ignore_policy=ignore_policy)
 
     snyk_fix_success, snyk_fix_message = await _snyk_fix(
         branch,
@@ -265,7 +266,9 @@ async def snyk(
             fixable_files_npm,
             vulnerabilities_in_requirements,
             file_vulnerabilities,
-        ) = await _snyk_test(branch, config, local_config, result, env_no_debug, cwd)
+        ) = await _snyk_test(
+            branch, config, local_config, result, env_no_debug, cwd, ignore_policy=ignore_policy
+        )
 
     return_message = [
         *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
@@ -530,6 +533,7 @@ async def _snyk_test(
     result: list[module_utils.Message],
     env_no_debug: dict[str, str],
     cwd: Path,
+    ignore_policy: bool = False,
 ) -> tuple[
     dict[str, int],
     dict[str, int],
@@ -539,23 +543,24 @@ async def _snyk_test(
     dict[str, list[VulnerabilityData]],
 ]:
     # Test with human output
-    command = [
-        "snyk",
-        "test",
-        *local_config.get(
-            "test-arguments",
-            config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT),
-        ),
-    ]
-    await module_utils.run_timeout(
-        command,
-        env_no_debug,
-        _TIMEOUT_SNYK,
-        "Snyk test (human)",
-        "Error while testing the project",
-        "Timeout while testing the project",
-        cwd,
-    )
+    if not ignore_policy:
+        command = [
+            "snyk",
+            "test",
+            *local_config.get(
+                "test-arguments",
+                config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT),
+            ),
+        ]
+        await module_utils.run_timeout(
+            command,
+            env_no_debug,
+            _TIMEOUT_SNYK,
+            "Snyk test (human)",
+            "Error while testing the project",
+            "Timeout while testing the project",
+            cwd,
+        )
 
     command = [
         "snyk",
@@ -565,6 +570,7 @@ async def _snyk_test(
             "test-arguments",
             config.get("test-arguments", configuration.SNYK_TEST_ARGUMENTS_DEFAULT),
         ),
+        *(["--ignore-policy"] if ignore_policy else []),
     ]
     test_json_str, _, message = await module_utils.run_timeout(
         command,
@@ -621,14 +627,6 @@ async def _snyk_test(
 
         package_manager = row.get("packageManager")
 
-        class _Vulnerability(NamedTuple):
-            link: str
-            title: str
-            identifiers: list[str]
-            paths: list[str]
-
-        vulnerabilities: dict[str, _Vulnerability] = {}
-
         for vuln in row.get("vulnerabilities", []):
             fixable = vuln.get("fixedIn", []) or vuln.get("isPatchable", False)
             severity = vuln["severity"]
@@ -642,23 +640,20 @@ async def _snyk_test(
             if not display:
                 continue
             severity = vuln["severity"]
-            severity_class = f' class="audit-severity-{severity}"'
             title = " ".join(
                 [
-                    f"<span{severity_class}>[{severity.upper()}]</span>",
+                    f"[{severity.upper()}]",
                     f"{vuln['packageName']}@{vuln['version']}:",
-                    f'<a href="https://security.snyk.io/vuln/{vuln["id"]}">{vuln["id"]}</a>',
+                    vuln["id"],
                     *(vuln.get("identifiers", {}).get("CWE", [])),
                 ],
             )
             if vuln.get("fixedIn", []):
-                title += (
-                    ' <span class="audit-fixed-in">[Fixed in: ' + ", ".join(vuln["fixedIn"]) + "]</span>."
-                )
+                title += " [Fixed in: " + ", ".join(vuln["fixedIn"]) + "]."
             elif vuln.get("isUpgradable", False):
-                title += ' <span class="audit-upgradable">[Upgradable]</span>.'
+                title += " [Upgradable]."
             elif vuln.get("isPatchable", False):
-                title += ' <span class="audit-patchable">[Patch available]</span>.'
+                title += " [Patch available]."
             else:
                 title += "."
             if vuln.get("fixedIn", []) or vuln.get("isUpgradable", False) or vuln.get("isPatchable", False):
@@ -667,20 +662,6 @@ async def _snyk_test(
                     fixable_files_npm.setdefault(row.get("displayTargetFile"), set()).add(title)
             elif package_manager == "pip":
                 vulnerabilities_in_requirements = True
-
-            if title not in vulnerabilities:
-                vulnerabilities[title] = _Vulnerability(
-                    f'<a href="https://security.snyk.io/vuln/{vuln["id"]}">{vuln["id"]}</a>',
-                    vuln["title"],
-                    [
-                        f"{identifier}: {', '.join(values)}"
-                        for identifier, values in vuln.get("identifiers", {}).items()
-                    ],
-                    [],
-                )
-            vulnerabilities[title].paths.append(
-                " > ".join([row.get("displayTargetFile", "-"), *vuln["from"]]),
-            )
 
             target_file = row.get("displayTargetFile", "-")
             cve_ids = vuln.get("identifiers", {}).get("CVE", [])
@@ -706,20 +687,6 @@ async def _snyk_test(
             ):
                 existing_vulns.append(vuln_data)
 
-        for title, vulnerability in vulnerabilities.items():
-            message = module_utils.HtmlMessage(
-                "<br>".join(
-                    [
-                        f"{vulnerability.title} [{vulnerability.link}]",
-                        *vulnerability.identifiers,
-                        "",
-                        *vulnerability.paths,
-                    ],
-                ),
-                title,
-            )
-            _LOGGER.warning(message)
-            result.append(message)
     _LOGGER.debug("End parsing the vulnerabilities")
     return (
         high_vulnerabilities,
@@ -993,3 +960,67 @@ async def dpkg(
 
     with dpkg_versions_filename.open("w", encoding="utf-8") as versions_file:
         yaml.dump(versions_config, versions_file, Dumper=yaml.SafeDumper)
+
+
+async def find_snyk_files(cwd: Path) -> list[Path]:
+    """Find all .snyk files in the repository."""
+    command = ["git", "ls-files", "**/.snyk"]
+    proc = await asyncio.create_subprocess_exec(
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
+    )
+    async with asyncio.timeout(30):
+        stdout, _ = await proc.communicate()
+    result = stdout.decode().strip()
+    return [cwd / f for f in result.split("\n") if f] if result else []
+
+
+def parse_snyk_ignore_reasons(snyk_file: Path) -> dict[str, str]:
+    """Parse a .snyk file and return a dict mapping Snyk ID to ignore reason."""
+    if not snyk_file.exists():
+        return {}
+    try:
+        with snyk_file.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+        if not isinstance(data, dict):
+            return {}
+        ignore = data.get("ignore", {})
+        if not isinstance(ignore, dict):
+            return {}
+        reasons: dict[str, str] = {}
+        for snyk_id, entries in ignore.items():
+            if isinstance(entries, list) and entries:
+                entry = entries[0]
+                if isinstance(entry, dict):
+                    for details in entry.values():
+                        if isinstance(details, dict) and "reason" in details:
+                            reasons[str(snyk_id)] = details["reason"]
+                            break
+    except Exception:  # pylint: disable=broad-except
+        _LOGGER.exception("Failed to parse .snyk file: %s", snyk_file)
+        return {}
+    return reasons
+
+
+async def snyk_test_ignored(
+    branch: str,
+    config: configuration.SnykConfiguration,
+    local_config: configuration.SnykConfiguration,
+    env: dict[str, str],
+    cwd: Path,
+) -> dict[str, list[VulnerabilityData]]:
+    """Run snyk test --json --ignore-policy and return file-grouped vulnerability data."""
+    env_no_debug = {**env}
+    result: list[module_utils.Message] = []
+    _, _, _, _, _, file_vulnerabilities = await _snyk_test(
+        branch,
+        config,
+        local_config,
+        result,
+        env_no_debug,
+        cwd,
+        ignore_policy=True,
+    )
+    return file_vulnerabilities

@@ -44,11 +44,17 @@ _OUTDATED = "Outdated version"
 
 
 class _TransversalStatusTool(BaseModel):
-    title: str
+    """Status data for a single check type, stored in transversal status."""
+
+    name: str = ""
+    summary: str = ""
+    status: str = ""
+    logs_url: str | None = None
+    output_url: str | None = None
 
 
 class _VulnerabilityStatus(BaseModel):
-    """Vulnerability data stored in transversal status."""
+    """Vulnerability data stored in the output."""
 
     file: str
     package_name: str
@@ -58,16 +64,15 @@ class _VulnerabilityStatus(BaseModel):
     snyk_id: str
     cve_ids: list[str] = []
     cwe_ids: list[str] = []
-    title: str
     fixed_in: list[str] = []
     is_upgradable: bool = False
     is_patchable: bool = False
+    reason: str = ""
+    """The reason the vulnerability is ignored (from .snyk file)."""
 
 
 class _TransversalStatusRepo(BaseModel):
     types: dict[str, _TransversalStatusTool] = {}
-    vulnerabilities: dict[str, dict[str, list[_VulnerabilityStatus]]] = {}
-    """Branch -> file_name -> list of vulnerability data"""
 
 
 class _TransversalStatus(BaseModel):
@@ -120,28 +125,46 @@ async def _process_error(
     issue_check: module_utils.DashboardIssue,
     error_message: list[str | models.OutputData] | None = None,
     message: str | None = None,
-) -> str | None:
-    output_url = None
+    output_name: str | None = None,
+    output_renderer_data: dict[str, Any] | None = None,
+) -> _TransversalStatusTool:
+    logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
+    output_url = ""
     if error_message:
-        logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
-        output_id = await module_utils.add_output(
-            context,
-            key,
-            [*error_message, f'<a href="{logs_url}">Logs</a>'],
-            models.OutputStatus.ERROR,
-        )
+        if output_name:
+            await module_utils.add_output(
+                context,
+                key,
+                output_name,
+                "github_app_geo_project:module/audit/output.html",
+                status=models.OutputStatus.ERROR,
+                renderer_data=output_renderer_data,
+            )
 
-        output_url = urllib.parse.urljoin(context.service_url, f"output/{output_id}")
+            output_url = urllib.parse.urljoin(
+                context.service_url,
+                f"output/{context.github_project.owner}/{context.github_project.repository}/{output_name}",
+            )
         issue_check.set_title(
             key,
-            (f"{key}: {message} ([Error]({output_url}))" if message else f"{key} ([Error]({output_url}))"),
+            (
+                f"{key}: {message} ([Logs]({logs_url}) [Output]({output_url}))"
+                if message
+                else f"{key} ([Logs]({logs_url}) [Output]({output_url}))"
+            ),
         )
     elif message:
-        issue_check.set_title(key, f"{key}: {message}")
+        issue_check.set_title(key, f"{key}: {message} ([Logs]({logs_url}), [Output]({output_url}))")
     else:
-        issue_check.set_title(key, f"{key}: everything is fine")
+        issue_check.set_title(key, f"{key}: everything is fine ([Logs]({logs_url}), [Output]({output_url}))")
 
-    return output_url
+    return _TransversalStatusTool(
+        name=key,
+        summary=message or "",
+        status="error" if error_message else "success",
+        logs_url=logs_url,
+        output_url=output_url,
+    )
 
 
 async def _process_renovate(
@@ -291,6 +314,7 @@ async def _process_snyk_dpkg(
 ) -> tuple[list[str], bool]:
     short_message: list[str] = []
     success = True
+    output_tool = _TransversalStatusTool()
 
     key = f"Undefined {context.module_event_data.version}"
     new_branch = f"ghci/audit/{context.module_event_data.type}/{context.module_event_data.version}"
@@ -348,26 +372,66 @@ async def _process_snyk_dpkg(
                         env,
                         cwd,
                     )
+
+                    # Run a second Snyk JSON test with --ignore-policy to find ignored vulnerabilities
+                    ignored_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
+                    try:
+                        all_file_vulns = await audit_utils.snyk_test_ignored(
+                            branch,
+                            context.module_config.get("snyk", {}),
+                            local_config.get("snyk", {}),
+                            env,
+                            cwd,
+                        )
+
+                        # Build a set of (snyk_id, package_version, file) for non-ignored vulns
+                        non_ignored_keys: set[tuple[str, str, str]] = set()
+                        for file_name, vulns in file_vulnerabilities.items():
+                            for vuln in vulns:
+                                non_ignored_keys.add((vuln.snyk_id, vuln.package_version, file_name))
+
+                        # Find vulns present in all but not in non-ignored → these are ignored
+                        for file_name, vulns in all_file_vulns.items():
+                            for vuln in vulns:
+                                vuln_key = (vuln.snyk_id, vuln.package_version, file_name)
+                                if vuln_key not in non_ignored_keys:
+                                    ignored_vulns.setdefault(file_name, []).append(vuln)
+
+                        # Parse .snyk files for ignore reasons
+                        snyk_ignore_reasons: dict[str, str] = {}
+                        snyk_files = await audit_utils.find_snyk_files(cwd)
+                        for snyk_file in snyk_files:
+                            reasons = audit_utils.parse_snyk_ignore_reasons(snyk_file)
+                            snyk_ignore_reasons.update(reasons)
+
+                    except Exception:  # pylint: disable=broad-except
+                        _LOGGER.exception("Failed to get ignored vulnerabilities")
                 body_md = body.to_markdown() if body is not None else ""
                 del body
                 success &= new_success
-                output_url = await _process_error(
+                output_name: str | None = None
+                output_renderer_data: dict[str, Any] | None = None
+                output_tool = await _process_error(
                     context,
                     key,
                     issue_check,
                     [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
                     ", ".join(short_message),
+                    output_name=output_name,
+                    output_renderer_data=output_renderer_data,
                 )
                 message: module_utils.Message = module_utils.HtmlMessage(
-                    f"<a href='{output_url}'>Output</a>",
+                    f"<a href='{output_tool.output_url}'>Output</a>",
                 )
                 message.title = "Output URL"
                 _LOGGER.debug(message)
-                if output_url is not None:
-                    short_message.append(f"[Output]({output_url})")
+                if output_tool.output_url is not None:
+                    short_message.append(f"[Output]({output_tool.output_url})")
                     if body_md:
                         body_md += "\n\n"
-                    body_md += f"[Output]({output_url})" if output_url is not None else ""
+                    body_md += (
+                        f"[Output]({output_tool.output_url})" if output_tool.output_url is not None else ""
+                    )
 
                 # Remove old vulnerability section (both old comment format and new format)
                 vuln_section_start = f"<!-- vulns-{branch} -->"
@@ -393,11 +457,6 @@ async def _process_snyk_dpkg(
                             break
                     del issue_check.issue[found_start:section_end]
 
-                # Remove any remaining non-action items from the issue body
-                issue_check.issue = [
-                    item for item in issue_check.issue if isinstance(item, module_utils.DashboardIssueItem)
-                ]
-
                 # Apply filtering and build new dashboard section
                 snyk_config = context.module_config.get("snyk", {})
                 local_snyk_config = local_config.get("snyk", {})
@@ -420,6 +479,7 @@ async def _process_snyk_dpkg(
 
                 # Filter vulnerabilities by excluded files and thresholds
                 filtered_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
+                low_severity_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
                 high_critical_vulns: list[audit_utils.VulnerabilityData] = []
                 for file_name, vulns in file_vulnerabilities.items():
                     if any(p.search(file_name) for p in excluded_patterns):
@@ -428,13 +488,88 @@ async def _process_snyk_dpkg(
                         vuln_severity = audit_utils.SEVERITY_ORDER.get(vuln.severity, 0)
                         if vuln_severity >= min_dashboard_severity:
                             filtered_vulns.setdefault(file_name, []).append(vuln)
+                        else:
+                            low_severity_vulns.setdefault(file_name, []).append(vuln)
                         if vuln_severity >= min_advisory_severity:
                             high_critical_vulns.append(vuln)
 
-                if filtered_vulns:
-                    intermediate_status.status.vulnerabilities[branch] = {
-                        file_name: [_VulnerabilityStatus(**vuln._asdict()) for vuln in vulns]
-                        for file_name, vulns in sorted(filtered_vulns.items())
+                if filtered_vulns or ignored_vulns:
+                    output_name = f"snyk-{branch}"
+                    vuln_data = (
+                        {
+                            file_name: [
+                                _VulnerabilityStatus(
+                                    file=vuln.file,
+                                    package_name=vuln.package_name,
+                                    package_version=vuln.package_version,
+                                    package_manager=vuln.package_manager,
+                                    severity=vuln.severity,
+                                    snyk_id=vuln.snyk_id,
+                                    cve_ids=vuln.cve_ids,
+                                    cwe_ids=vuln.cwe_ids,
+                                    fixed_in=vuln.fixed_in,
+                                    is_upgradable=vuln.is_upgradable,
+                                    is_patchable=vuln.is_patchable,
+                                )
+                                for vuln in vulns
+                            ]
+                            for file_name, vulns in sorted(filtered_vulns.items())
+                        }
+                        if filtered_vulns
+                        else {}
+                    )
+                    ignored_data = (
+                        {
+                            file_name: [
+                                _VulnerabilityStatus(
+                                    file=vuln.file,
+                                    package_name=vuln.package_name,
+                                    package_version=vuln.package_version,
+                                    package_manager=vuln.package_manager,
+                                    severity=vuln.severity,
+                                    snyk_id=vuln.snyk_id,
+                                    cve_ids=vuln.cve_ids,
+                                    cwe_ids=vuln.cwe_ids,
+                                    fixed_in=vuln.fixed_in,
+                                    is_upgradable=vuln.is_upgradable,
+                                    is_patchable=vuln.is_patchable,
+                                    reason=snyk_ignore_reasons.get(vuln.snyk_id, "No reason provided"),
+                                )
+                                for vuln in vulns
+                            ]
+                            for file_name, vulns in sorted(ignored_vulns.items())
+                        }
+                        if ignored_vulns
+                        else {}
+                    )
+                    low_severity_data = (
+                        {
+                            file_name: [
+                                _VulnerabilityStatus(
+                                    file=vuln.file,
+                                    package_name=vuln.package_name,
+                                    package_version=vuln.package_version,
+                                    package_manager=vuln.package_manager,
+                                    severity=vuln.severity,
+                                    snyk_id=vuln.snyk_id,
+                                    cve_ids=vuln.cve_ids,
+                                    cwe_ids=vuln.cwe_ids,
+                                    fixed_in=vuln.fixed_in,
+                                    is_upgradable=vuln.is_upgradable,
+                                    is_patchable=vuln.is_patchable,
+                                )
+                                for vuln in vulns
+                            ]
+                            for file_name, vulns in sorted(low_severity_vulns.items())
+                        }
+                        if low_severity_vulns
+                        else {}
+                    )
+                    output_renderer_data = {
+                        "branch": branch,
+                        "vulnerabilities": vuln_data,
+                        "ignored_vulnerabilities": ignored_data,
+                        "low_severity_vulnerabilities": low_severity_data,
                     }
 
                 # Create security advisories for HIGH and CRITICAL CVEs
@@ -472,7 +607,11 @@ async def _process_snyk_dpkg(
 
         transversal_message = ", ".join(short_message)
         intermediate_status.status.types[key] = _TransversalStatusTool(
-            title=f"{key}: {transversal_message}",
+            name=key,
+            summary=transversal_message,
+            status="success" if success else "error",
+            logs_url=logs_url,
+            output_url=output_tool.output_url,
         )
 
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
@@ -1225,7 +1364,9 @@ class Audit(
             transversal_status.repositories,
             key,
         )
-        transversal_status.repositories[key] = intermediate_status.status
+        existing = transversal_status.repositories.get(key, _TransversalStatusRepo())
+        existing.types.update(intermediate_status.status.types)
+        transversal_status.repositories[key] = existing
         return transversal_status
 
     async def get_json_schema(self) -> dict[str, Any]:
@@ -1259,24 +1400,36 @@ class Audit(
         """Get the transversal dashboard content."""
         repositories = []
         for repository, data in context.status.repositories.items():
-            if not (data.types or data.vulnerabilities):
+            if not data.types:
                 continue
 
             global_types = []
             branches: dict[str, Any] = {}
             for type_key, type_data in data.types.items():
                 if type_key == _OUTDATED:
-                    global_types.append({"name": type_key, "title": type_data.title})
+                    global_types.append(
+                        {
+                            "name": type_key,
+                            "summary": type_data.summary,
+                            "status": type_data.status,
+                            "logs_url": type_data.logs_url,
+                            "output_url": type_data.output_url,
+                        }
+                    )
                 else:
                     parts = type_key.rsplit(" ", 1)
                     if len(parts) > 1:
                         branch_name = parts[-1]
-                        branch = branches.setdefault(branch_name, {"types": [], "vulnerabilities": {}})
-                        branch["types"].append({"name": type_key, "title": type_data.title})
-
-            for branch_name, vulns in data.vulnerabilities.items():
-                branch = branches.setdefault(branch_name, {"types": [], "vulnerabilities": {}})
-                branch["vulnerabilities"] = vulns
+                        branch = branches.setdefault(branch_name, {"types": []})
+                        branch["types"].append(
+                            {
+                                "name": type_key,
+                                "summary": type_data.summary,
+                                "status": type_data.status,
+                                "logs_url": type_data.logs_url,
+                                "output_url": type_data.output_url,
+                            }
+                        )
 
             repositories.append(
                 {

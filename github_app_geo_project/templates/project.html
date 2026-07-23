@@ -141,7 +141,7 @@
 
     <h2>Last outputs</h2>
     {% for o in output %}
-    <p><a href="{{ url_for('output_route', output_id=o[0]) }}">{{ o[1] }}</a></p>
+    <p><a href="{{ url_for('output_route', owner=o[1], repository=o[2], name=o[0]) }}">{{ o[3] }}</a></p>
     {% endfor %}
 
     <h2>Modules</h2>
