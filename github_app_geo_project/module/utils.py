@@ -1198,8 +1198,7 @@ class GitWorktreeCache:
         async with lock:
             cache_path = await self._ensure_cache(github_project)
 
-        worktree_path = Path(tempfile.mkdtemp())
-        try:
+            worktree_path = Path(tempfile.mkdtemp())
             # Create/update local branch to match remote (ensures the branch exists locally)
             _, success, _ = await run_timeout(
                 ["git", "branch", "-f", branch, f"origin/{branch}"],
@@ -1228,21 +1227,23 @@ class GitWorktreeCache:
                 message = f"Failed to add worktree for branch {branch}"
                 raise module.GHCIError(message)
 
+        try:
             yield worktree_path
         finally:
-            # Remove worktree
-            await run_timeout(
-                ["git", "worktree", "remove", "--force", str(worktree_path)],
-                None,
-                60,
-                f"Remove worktree for {branch}",
-                f"Error removing worktree for {branch}",
-                f"Timeout removing worktree for {branch}",
-                cache_path,
-                error=False,
-            )
-            # Ensure cleanup of any leftover files
-            shutil.rmtree(worktree_path, ignore_errors=True)
+            async with lock:
+                # Remove worktree
+                await run_timeout(
+                    ["git", "worktree", "remove", "--force", str(worktree_path)],
+                    None,
+                    60,
+                    f"Remove worktree for {branch}",
+                    f"Error removing worktree for {branch}",
+                    f"Timeout removing worktree for {branch}",
+                    cache_path,
+                    error=False,
+                )
+                # Ensure cleanup of any leftover files
+                shutil.rmtree(worktree_path, ignore_errors=True)
 
 
 GIT_WORKTREE_CACHE = GitWorktreeCache()
