@@ -9,7 +9,6 @@ import os
 import re
 import shutil
 import subprocess  # nosec
-import tempfile
 import urllib.parse
 from pathlib import Path
 from typing import Any, Literal, cast
@@ -165,25 +164,17 @@ async def _process_renovate(
     -------
         bool: True if successful, False otherwise
     """
-    # Checkout the right branch on a temporary directory
-    with tempfile.TemporaryDirectory() as tmpdirname:
-        _LOGGER.debug(
-            "Clone the repository in the temporary directory: %s",
-            tmpdirname,
-        )
-        cwd = Path(tmpdirname)
-        if context.module_event_data.version is None:
-            _LOGGER.debug("Process renovate update on default branch")
+    if context.module_event_data.version is None:
+        _LOGGER.debug("Process renovate update on default branch")
 
-            assert known_versions is not None
+        assert known_versions is not None
 
-            default_branch = await context.github_project.default_branch()
+        default_branch = await context.github_project.default_branch()
 
-            new_cwd = await module_utils.git_clone(context.github_project, default_branch, cwd)
-            if new_cwd is None:
-                _LOGGER.error("Failed to clone the repository for Renovate update on default branch")
-                return False
-
+        async with module_utils.GIT_WORKTREE_CACHE.working_tree(
+            context.github_project,
+            default_branch,
+        ) as new_cwd:
             renovate_config_path = new_cwd / ".github" / "renovate.json5"
             if renovate_config_path.exists():
                 async with editor.EditRenovateConfig(anyio.Path(renovate_config_path)) as renovate_config:
@@ -210,28 +201,25 @@ async def _process_renovate(
                 None,
             )
             return success
+
+    _LOGGER.debug(
+        "Process Renovate cleanup for version %s",
+        context.module_event_data.version,
+    )
+
+    # Never process cleanup on the default branch
+    default_branch = await context.github_project.default_branch()
+    if context.module_event_data.version == default_branch:
         _LOGGER.debug(
-            "Process Renovate cleanup for version %s",
-            context.module_event_data.version,
+            "Skipping Renovate cleanup for default branch %s",
+            default_branch,
         )
+        return True
 
-        # Never process cleanup on the default branch
-        default_branch = await context.github_project.default_branch()
-        if context.module_event_data.version == default_branch:
-            _LOGGER.debug(
-                "Skipping Renovate cleanup for default branch %s",
-                default_branch,
-            )
-            return True
-
-        new_cwd = await module_utils.git_clone(context.github_project, context.module_event_data.version, cwd)
-        if new_cwd is None:
-            _LOGGER.error(
-                "Failed to clone the repository for Renovate cleanup on version %s",
-                context.module_event_data.version,
-            )
-            return False
-
+    async with module_utils.GIT_WORKTREE_CACHE.working_tree(
+        context.github_project,
+        context.module_event_data.version,
+    ) as new_cwd:
         renovate_config_path = new_cwd / ".github" / "renovate.json5"
         if renovate_config_path.exists():
             renovate_config_path.unlink()
@@ -313,18 +301,10 @@ async def _process_snyk_dpkg(
     try:
         branch: str = cast("str", context.module_event_data.version)
 
-        # Checkout the right branch on a temporary directory
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            _LOGGER.debug(
-                "Clone the repository in the temporary directory: %s",
-                tmpdirname,
-            )
-            cwd = Path(tmpdirname)
-            new_cwd = await module_utils.git_clone(context.github_project, branch, cwd)
-            if new_cwd is None:
-                return ["Fail to clone the repository"], False
-            cwd = new_cwd
-
+        async with module_utils.GIT_WORKTREE_CACHE.working_tree(
+            context.github_project,
+            branch,
+        ) as cwd:
             local_config: configuration.AuditConfiguration = {}
 
             ghci_config_path = cwd / ".github" / "ghci.yaml"

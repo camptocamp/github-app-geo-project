@@ -28,6 +28,7 @@ The module uses `PRIORITY_CRON + 10` to ensure it runs after standard cron jobs.
 | `~/.cache/prek/`                 | prek               | Delete directly                                                                    |
 | `~/.cache/pre-commit/`           | pre-commit         | Delete directly                                                                    |
 | `~/.npm/`                        | npm                | `npm cache clean`, then `npm cache clean --force`, then delete if still over limit |
+| `~/.cache/ghci/git/`             | Git worktree cache | `git worktree prune` + `git gc --auto --prune=all` on each cached repo             |
 
 ## Configuration
 

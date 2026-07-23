@@ -83,7 +83,10 @@ async def test_process_worker(mock_context):
 @patch("github_app_geo_project.module.updates.mra.EditYAML")
 @pytest.mark.asyncio
 async def test_process_branch(mock_edit_yaml, mock_utils, mock_context, tmp_path):
-    mock_utils.git_clone = AsyncMock(return_value=tmp_path)
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=tmp_path)
+    mock_cm.__aexit__ = AsyncMock(return_value=None)
+    mock_utils.GIT_WORKTREE_CACHE.working_tree.return_value = mock_cm
     mock_utils.create_commit_pull_request = AsyncMock()
 
     updates_module = updates.Updates()
@@ -105,33 +108,32 @@ async def test_process_branch(mock_edit_yaml, mock_utils, mock_context, tmp_path
     }
     mock_edit_yaml.return_value.__enter__.return_value = config_data
 
-    # Mock TemporaryDirectory to return tmp_path
-    with patch("tempfile.TemporaryDirectory") as mock_temp_dir:
-        mock_temp_dir.return_value.__enter__.return_value = str(tmp_path)
+    # Mock versions.yaml reading inside _process_branch
+    versions = {"mheap/json-schema-spell-checker": "0.1.0"}
+    with (
+        patch("yaml.safe_load", return_value=versions),
+        patch("pathlib.Path.open"),  # Mocking file opening since we mock yaml.safe_load
+    ):
+        await updates_module._process_branch(mock_context, "main")
 
-        # Mock versions.yaml reading inside _process_branch
-        versions = {"mheap/json-schema-spell-checker": "0.1.0"}
-        with (
-            patch("yaml.safe_load", return_value=versions),
-            patch("pathlib.Path.open"),  # Mocking file opening since we mock yaml.safe_load
-        ):
-            await updates_module._process_branch(mock_context, "main")
+    # Verify working_tree was called
+    mock_utils.GIT_WORKTREE_CACHE.working_tree.assert_called_once()
 
-        # Verify git_clone was called
-        mock_utils.git_clone.assert_called_once()
+    # Verify config data was updated
+    assert config_data["repos"][0]["rev"] == "0.1.0"
 
-        # Verify config data was updated
-        assert config_data["repos"][0]["rev"] == "0.1.0"
-
-        # Verify create_commit_pull_request was called
-        mock_utils.create_commit_pull_request.assert_called_once()
+    # Verify create_commit_pull_request was called
+    mock_utils.create_commit_pull_request.assert_called_once()
 
 
 @patch("github_app_geo_project.module.updates.module_utils")
 @patch("github_app_geo_project.module.updates.mra.EditYAML")
 @pytest.mark.asyncio
 async def test_process_branch_no_update(mock_edit_yaml, mock_utils, mock_context, tmp_path):
-    mock_utils.git_clone = AsyncMock(return_value=tmp_path)
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=tmp_path)
+    mock_cm.__aexit__ = AsyncMock(return_value=None)
+    mock_utils.GIT_WORKTREE_CACHE.working_tree.return_value = mock_cm
     mock_utils.create_commit_pull_request = AsyncMock()
 
     updates_module = updates.Updates()
@@ -153,20 +155,16 @@ async def test_process_branch_no_update(mock_edit_yaml, mock_utils, mock_context
     }
     mock_edit_yaml.return_value.__enter__.return_value = config_data
 
-    # Mock TemporaryDirectory to return tmp_path
-    with patch("tempfile.TemporaryDirectory") as mock_temp_dir:
-        mock_temp_dir.return_value.__enter__.return_value = str(tmp_path)
+    # Mock versions.yaml reading inside _process_branch
+    versions = {"mheap/json-schema-spell-checker": "0.1.0"}
+    with patch("yaml.safe_load", return_value=versions), patch("pathlib.Path.open"):
+        await updates_module._process_branch(mock_context, "main")
 
-        # Mock versions.yaml reading inside _process_branch
-        versions = {"mheap/json-schema-spell-checker": "0.1.0"}
-        with patch("yaml.safe_load", return_value=versions), patch("pathlib.Path.open"):
-            await updates_module._process_branch(mock_context, "main")
+    # Verify working_tree was called
+    mock_utils.GIT_WORKTREE_CACHE.working_tree.assert_called_once()
 
-        # Verify git_clone was called
-        mock_utils.git_clone.assert_called_once()
+    # Verify config data was NOT updated
+    assert config_data["repos"][0]["rev"] == "0.0.1"
 
-        # Verify config data was NOT updated
-        assert config_data["repos"][0]["rev"] == "0.0.1"
-
-        # Verify create_commit_pull_request was NOT called
-        mock_utils.create_commit_pull_request.assert_not_called()
+    # Verify create_commit_pull_request was NOT called
+    mock_utils.create_commit_pull_request.assert_not_called()
