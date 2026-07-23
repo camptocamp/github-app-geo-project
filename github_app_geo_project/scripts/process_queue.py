@@ -255,6 +255,23 @@ async def _process_job(
             )
 
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
+        root_logger.addHandler(handler)
+        old_level = root_logger.level
+        root_logger.setLevel(logging.DEBUG)
+        log_task = None
+        log_session_factory = sqlalchemy.ext.asyncio.async_sessionmaker(
+            bind=session.bind,
+        )
+        log_interval = settings.process_queue.logs_stream_interval.total_seconds()
+        log_task = asyncio.create_task(
+            _stream_job_logs(
+                log_session_factory,
+                handler,
+                job.id,
+                log_interval,
+            ),
+            name=f"Stream logs {job.id}",
+        )
         try:
             if not settings.test.app_name:
                 if job.check_run_id is None and job.owner is not None and job.repository is not None:
@@ -298,23 +315,6 @@ async def _process_job(
                 issue_data=issue_data,
                 job_id=job.id,
                 service_url=settings.service_url,
-            )
-            root_logger.addHandler(handler)
-            old_level = root_logger.level
-            root_logger.setLevel(logging.DEBUG)
-            log_task = None
-            log_interval = settings.process_queue.logs_stream_interval.total_seconds()
-            log_session_factory = sqlalchemy.ext.asyncio.async_sessionmaker(
-                bind=session.bind,
-            )
-            log_task = asyncio.create_task(
-                _stream_job_logs(
-                    log_session_factory,
-                    handler,
-                    job.id,
-                    log_interval,
-                ),
-                name=f"Stream logs {job.id}",
             )
             result = None
             try:
@@ -685,6 +685,14 @@ async def _process_job(
                         github_exception.response.status_code,
                     )
             raise
+        finally:
+            root_logger.setLevel(old_level)
+            root_logger.removeHandler(handler)
+            if log_task is not None:
+                log_task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await log_task
+            await _flush_job_logs(log_session_factory, handler, job.id)
     else:
         try:
             _LOGGER.info("Module %s is disabled", job.module)
@@ -1114,6 +1122,10 @@ async def _process_one_job(
         job.log = None
     finally:
         sentry_sdk.set_context("job", {})
+        log_session_factory = sqlalchemy.ext.asyncio.async_sessionmaker(
+            bind=session.bind,
+        )
+        await _flush_job_logs(log_session_factory, handler, job.id)
         if await session.run_sync(lambda _: job.status_enum == models.JobStatus.PENDING):
             _LOGGER.error("Job %s finished with pending status", job.id)
             job.status_enum = models.JobStatus.ERROR
