@@ -423,6 +423,13 @@ class TransversalDashboardOutput(NamedTuple):
     data: dict[str, Any]
 
 
+class OutputWithRenderer(NamedTuple):
+    """The output of the module with a custom renderer."""
+
+    renderer: str
+    data: dict[str, Any]
+
+
 class Fields(Enum):
     """Fields enum."""
 

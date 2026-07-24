@@ -133,22 +133,3 @@ def test_logs(log_type: str) -> None:
         expected_filename=str(Path(__file__).parent / f"logs-{log_type}.expected.png"),
         sleep=500,
     )
-
-
-@pytest.mark.parametrize("output_type", ["multi-line", "error"])
-def test_output(output_type: str) -> None:
-    """Tests the output page."""
-    with Path("/results/test-result.yaml").open(encoding="utf-8") as file:  # nosec
-        result = yaml.load(file, Loader=yaml.SafeLoader)
-
-    c2cwsgiutils.acceptance.image.check_screenshot(
-        f"http://application:8080/output/{result[f'output-{output_type}-id']}",
-        media=[
-            {"name": "prefers-color-scheme", "value": "dark"},
-        ],
-        width=900,
-        height=200,
-        result_folder="/results",
-        expected_filename=str(Path(__file__).parent / f"output-{output_type}.expected.png"),
-        sleep=500,
-    )

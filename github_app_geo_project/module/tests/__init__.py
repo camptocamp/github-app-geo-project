@@ -91,15 +91,17 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                 raise Exception  # noqa: TRY002
 
             if type_ == "success":
-                result["output-multi-line-id"] = await module_utils.add_output(
+                await module_utils.add_output(
                     context,
                     "Test",
-                    ["Test 1", {"title": "Test 2", "children": ["Test 3", "Test 4"]}],
+                    "test-multi-line",
+                    "github_app_geo_project:templates/output.html",
                 )
-                result["output-error-id"] = await module_utils.add_output(
+                await module_utils.add_output(
                     context,
                     "Test",
-                    ["Test error"],
+                    "test-error",
+                    "github_app_geo_project:templates/output.html",
                     status=models.OutputStatus.ERROR,
                 )
 

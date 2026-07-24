@@ -37,7 +37,7 @@ from github_app_geo_project.views.dashboard import DashboardData
 from github_app_geo_project.views.home import HomeData
 from github_app_geo_project.views.jobs import JobsData
 from github_app_geo_project.views.logs import LogsData
-from github_app_geo_project.views.output import OutputData
+from github_app_geo_project.views.output import OutputByNameData
 from github_app_geo_project.views.project import ProjectData
 from github_app_geo_project.views.schema import SchemaData
 from github_app_geo_project.views.webhook import WebhookData
@@ -255,15 +255,18 @@ async def schema_route(data: SchemaData) -> dict[str, Any]:
     return data
 
 
-@app.get(f"{route_prefix}output/{{output_id}}")
-async def output_route(request: Request, data: OutputData) -> HTMLResponse:
-    """Render the output page."""
-    status_code = data.pop("status_code", 200)
+@app.get(f"{route_prefix}output/{{owner}}/{{repository}}/{{name}}")
+async def output_route(request: Request, data: OutputByNameData) -> HTMLResponse:
+    """Render the output page by owner/repository/name."""
+    renderer = data.pop("renderer", None)
+    renderer_data = data.pop("renderer_data", None)
+    template_kwargs = {**data}
+    if renderer_data:
+        template_kwargs["renderer_data"] = renderer_data
     return templates.TemplateResponse(
         request,
-        "output.html",
-        data,
-        status_code=status_code,
+        renderer,
+        template_kwargs,
     )
 
 

@@ -1,4 +1,4 @@
-<style>
+<style nonce="{{ nonce }}">
   .audit-severity-high {
     color: #d33;
     font-weight: bold;
@@ -17,27 +17,31 @@
 {% for repo in repositories %}
 <h2>{{ repo['repository'] }}</h2>
 {% for type_ in repo['global_types'] %}
-<p>{{ type_['title'] | markdown | safe }}</p>
+<p>
+  <strong>{{ type_['name'] }}</strong>
+  {% if type_['summary'] %}: {{ type_['summary'] }}{% endif %}
+  <!---->
+  {% if type_['status'] == 'error' %}
+  <span class="text-danger">[Error]</span>
+  {% endif %}
+  <!---->
+  {% if type_['logs_url'] %}<a href="{{ type_['logs_url'] }}">Logs</a>{% endif %}
+  <!---->
+  {% if type_['output_url'] %}<a href="{{ type_['output_url'] }}">Output</a>{% endif %}
+</p>
 {% endfor %}
 <!---->
 {% for branch in repo['branches'] %}
 <h3>{{ branch['name'] }}</h3>
 {% for type_ in branch['types'] %}
-<p>{{ type_['title'] | markdown | safe }}</p>
+<p>
+  <strong>{{ type_['name'] }}</strong>
+  {% if type_['summary'] %}: {{ type_['summary'] }}{% endif %} {% if type_['status'] == 'error' %}
+  <span class="text-danger">[Error]</span>
+  {% endif %} {% if type_['logs_url'] %}<a href="{{ type_['logs_url'] }}">Logs</a>{% endif %} {% if
+  type_['output_url'] %}<a href="{{ type_['output_url'] }}">Output</a>{% endif %}
+</p>
 {% endfor %}
-<!---->
-{% if branch['vulnerabilities'] %}
-<h4>Vulnerabilities</h4>
-{% for file_name, vulns in branch['vulnerabilities'].items() %}
-<h5>{{ file_name }}</h5>
-<ul>
-  {% for vuln in vulns %}
-  <li>{{ vuln.title | safe }}</li>
-  {% endfor %}
-</ul>
-{% endfor %}
-<!---->
-{% endif %}
 <!---->
 {% endfor %}
 <!---->

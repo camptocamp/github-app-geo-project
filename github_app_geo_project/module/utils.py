@@ -67,23 +67,46 @@ _SANITIZER = html_sanitizer.Sanitizer(_SANITIZER_SETTINGS)
 async def add_output(
     context: module.ProcessContext[Any, Any],
     title: str,
-    data: list[str | models.OutputData],
+    name: str,
+    renderer: str,
     status: models.OutputStatus = models.OutputStatus.SUCCESS,
     access_type: models.AccessType = models.AccessType.PULL,
-) -> int:
-    """Add an output to the database."""
+    renderer_data: dict[str, Any] | None = None,
+) -> None:
+    """Add or update an output in the database."""
+    owner = context.github_project.owner if context.github_project else "camptocamp"
+    repository = context.github_project.repository if context.github_project else "test"
+
+    result = await context.session.execute(
+        sqlalchemy.select(models.Output).where(
+            models.Output.owner == owner,
+            models.Output.repository == repository,
+            models.Output.name == name,
+        ),
+    )
+    existing = result.scalar()
+    if existing is not None:
+        existing.title = title
+        existing.status = status
+        existing.access_type = access_type
+        existing.renderer = renderer
+        existing.renderer_data = renderer_data
+        await context.session.commit()
+        await context.session.refresh(existing)
+        return
+
     output = models.Output(
         title=title,
         status=status,
-        owner=context.github_project.owner if context.github_project else "camptocamp",
-        repository=(context.github_project.repository if context.github_project else "test"),
+        owner=owner,
+        repository=repository,
         access_type=access_type,
-        data=data,
+        name=name,
+        renderer=renderer,
+        renderer_data=renderer_data,
     )
     context.session.add(output)
     await context.session.commit()
-    await context.session.refresh(output)
-    return output.id
 
 
 class DashboardIssueItem:

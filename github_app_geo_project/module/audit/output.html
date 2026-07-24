@@ -1,0 +1,100 @@
+<style nonce="{{ nonce }}">
+  .audit-severity-low {
+    color: #6a737d;
+  }
+  .audit-severity-medium {
+    color: #d93;
+  }
+  .audit-severity-high {
+    color: #d33;
+    font-weight: bold;
+  }
+  .audit-severity-critical {
+    color: #800;
+    font-weight: bold;
+  }
+  .audit-fixed-in,
+  .audit-upgradable,
+  .audit-patchable {
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+</style>
+<h1>{{ title }}</h1>
+{% if renderer_data %}
+<h2>{{ renderer_data['branch'] }}</h2>
+{% if renderer_data['vulnerabilities'] %}
+<!---->
+{% for file_name, vulns in renderer_data['vulnerabilities'].items() %}
+<h3>{{ file_name }}</h3>
+<ul>
+  {% for vuln in vulns %}
+  <li>
+    <span class="audit-severity-{{ vuln.severity }}">[{{ vuln.severity | upper }}]</span>
+    {{ vuln.package_name }}@{{ vuln.package_version }}:
+    <a href="https://security.snyk.io/vuln/{{ vuln.snyk_id }}">{{ vuln.snyk_id }}</a>
+    {% if vuln.cwe_ids %}
+    <!---->
+    {% for cwe in vuln.cwe_ids %}{{ cwe }}{% endfor %}
+    <!---->
+    {% endif %}
+    <!---->
+    {% if vuln.fixed_in %}
+    <span class="audit-fixed-in">[Fixed in: {{ vuln.fixed_in | join(', ') }}]</span>
+    {% endif %}
+    <!---->
+    {% if vuln.is_upgradable %}<span class="audit-upgradable">[Upgradable]</span>{% endif %}
+    <!---->
+    {% if vuln.is_patchable %}<span class="audit-patchable">[Patch available]</span>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endfor %}
+<!---->
+{% endif %}
+<!---->
+{% if renderer_data['ignored_vulnerabilities'] %}
+<h3>Ignored vulnerabilities</h3>
+{% for file_name, vulns in renderer_data['ignored_vulnerabilities'].items() %}
+<h4>{{ file_name }}</h4>
+<ul>
+  {% for vuln in vulns %}
+  <li>
+    <span class="audit-severity-{{ vuln.severity }}">[{{ vuln.severity | upper }}]</span>
+    {{ vuln.package_name }}@{{ vuln.package_version }}:
+    <a href="https://security.snyk.io/vuln/{{ vuln.snyk_id }}">{{ vuln.snyk_id }}</a>
+    {% if vuln.fixed_in %}
+    <span class="audit-fixed-in">[Fixed in: {{ vuln.fixed_in | join(', ') }}]</span>
+    {% endif %}
+    <!---->
+    {% if vuln.reason %}<em> – Ignored: {{ vuln.reason }}</em>{% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endfor %}
+<!---->
+{% endif %}
+<!---->
+{% if renderer_data['low_severity_vulnerabilities'] %}
+<details>
+  <summary>Low severity vulnerabilities (below threshold)</summary>
+  {% for file_name, vulns in renderer_data['low_severity_vulnerabilities'].items() %}
+  <h4>{{ file_name }}</h4>
+  <ul>
+    {% for vuln in vulns %}
+    <li>
+      <span class="audit-severity-{{ vuln.severity }}">[{{ vuln.severity | upper }}]</span>
+      {{ vuln.package_name }}@{{ vuln.package_version }}:
+      <a href="https://security.snyk.io/vuln/{{ vuln.snyk_id }}">{{ vuln.snyk_id }}</a>
+      {% if vuln.fixed_in %}
+      <span class="audit-fixed-in">[Fixed in: {{ vuln.fixed_in | join(', ') }}]</span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% endfor %}
+</details>
+<!---->
+{% endif %}
+<!---->
+{% endif %}

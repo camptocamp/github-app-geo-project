@@ -7,7 +7,7 @@ from typing import Any, TypedDict, Union
 
 import sqlalchemy
 import sqlalchemy.sql.functions
-from sqlalchemy import JSON, BigInteger, DateTime, Enum, ForeignKey, Integer, Unicode
+from sqlalchemy import JSON, BigInteger, DateTime, Enum, ForeignKey, Integer, Unicode, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from github_app_geo_project.settings import settings
@@ -157,7 +157,10 @@ class Output(Base):
     """SQLAlchemy model for the output entries."""
 
     __tablename__ = "output"
-    __table_args__ = {"schema": _SCHEMA}  # noqa: RUF012
+    __table_args__ = (
+        UniqueConstraint("owner", "repository", "name", name="uq_output_owner_repo_name"),
+        {"schema": _SCHEMA},
+    )
 
     id: Mapped[int] = mapped_column(
         Integer,
@@ -183,7 +186,9 @@ class Output(Base):
         nullable=False,
     )
     title: Mapped[str] = mapped_column(Unicode, nullable=False)
-    data: Mapped[list[str | OutputData]] = mapped_column(JSON, nullable=False)
+    name: Mapped[str] = mapped_column(Unicode, nullable=False)
+    renderer: Mapped[str] = mapped_column(Unicode, nullable=False)
+    renderer_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
 
 class ModuleStatus(Base):
