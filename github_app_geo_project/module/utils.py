@@ -1155,6 +1155,22 @@ class GitWorktreeCache:
                     await file.write(github_project.application.private_key)
 
         if await anyio.Path(cache_path / ".git").exists():
+            # Update the remote URL with the current token in case it has expired
+            await run_timeout(
+                [
+                    "git",
+                    "remote",
+                    "set-url",
+                    "origin",
+                    f"https://x-access-token:{github_project.token}@github.com/{github_project.owner}/{github_project.repository}.git",
+                ],
+                None,
+                60,
+                "Update remote URL",
+                "Error updating remote URL",
+                "Timeout updating remote URL",
+                cache_path,
+            )
             # Fetch latest updates
             _, success, _ = await run_timeout(
                 ["git", "fetch", "--prune", "origin"],
