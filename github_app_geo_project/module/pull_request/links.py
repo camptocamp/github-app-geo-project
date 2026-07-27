@@ -164,4 +164,4 @@ class Links(
         # Get the new body with added links
         message = await _add_issue_link(context)
 
-        return module.ProcessOutput(output={"summary": message})
+        return module.ProcessOutput(check_output={"summary": message})
