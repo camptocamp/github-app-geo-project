@@ -414,7 +414,7 @@ async def _process_snyk_dpkg(
                 body_md = body.to_markdown() if body is not None else ""
                 del body
                 success &= new_success
-                output_name: str | None = None
+                output_name: str = f"Snyk ${branch}"
                 output_renderer_data: dict[str, Any] | None = None
                 output_tool = await _process_error(
                     context,
