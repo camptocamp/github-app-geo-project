@@ -440,10 +440,10 @@ async def _process_job(
                                 ),
                             )
 
-                        if result.output is not None:
+                        if result.check_output is not None:
                             _LOGGER.info(
                                 module_utils.HtmlMessage(
-                                    utils.format_json(result.output),
+                                    utils.format_json(result.check_output),
                                     title="Output",
                                 ),
                             )
