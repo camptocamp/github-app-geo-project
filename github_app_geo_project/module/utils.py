@@ -1238,23 +1238,9 @@ class GitWorktreeCache:
             cache_path = await self._ensure_cache(github_project)
 
             worktree_path = Path(tempfile.mkdtemp())
-            # Create/update local branch to match remote (ensures the branch exists locally)
+            # Create worktree in detached HEAD to avoid conflicts with other worktrees
             _, success, _ = await run_timeout(
-                ["git", "branch", "-f", branch, f"origin/{branch}"],
-                None,
-                120,
-                f"Update branch {branch}",
-                f"Error updating branch {branch}",
-                f"Timeout updating branch {branch}",
-                cache_path,
-            )
-            if not success:
-                message = f"Failed to update branch {branch}"
-                raise module.GHCIError(message)
-
-            # Create worktree
-            _, success, _ = await run_timeout(
-                ["git", "worktree", "add", str(worktree_path), branch],
+                ["git", "worktree", "add", "--detach", str(worktree_path), f"origin/{branch}"],
                 None,
                 120,
                 f"Add worktree for {branch}",
