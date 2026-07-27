@@ -129,7 +129,7 @@ async def _process_error(
     output_renderer_data: dict[str, Any] | None = None,
 ) -> _TransversalStatusTool:
     logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
-    output_url = ""
+    output_url: str | None = None
     if error_message:
         if output_name:
             await module_utils.add_output(
@@ -148,15 +148,20 @@ async def _process_error(
         issue_check.set_title(
             key,
             (
-                f"{key}: {message} ([Logs]({logs_url}) [Output]({output_url}))"
+                f"{key}: {message} ([Logs]({logs_url}){f' [Output]({output_url})' if output_url else ''})"
                 if message
-                else f"{key} ([Logs]({logs_url}) [Output]({output_url}))"
+                else f"{key} ([Logs]({logs_url}){f', [Output]({output_url})' if output_url else ''})"
             ),
         )
     elif message:
-        issue_check.set_title(key, f"{key}: {message} ([Logs]({logs_url}), [Output]({output_url}))")
+        issue_check.set_title(
+            key, f"{key}: {message} ([Logs]({logs_url}){f', [Output]({output_url})' if output_url else ''})"
+        )
     else:
-        issue_check.set_title(key, f"{key}: everything is fine ([Logs]({logs_url}), [Output]({output_url}))")
+        issue_check.set_title(
+            key,
+            f"{key}: everything is fine ([Logs]({logs_url}){f', [Output]({output_url})' if output_url else ''})",
+        )
 
     return _TransversalStatusTool(
         name=key,
@@ -425,14 +430,6 @@ async def _process_snyk_dpkg(
                 )
                 message.title = "Output URL"
                 _LOGGER.debug(message)
-                if output_tool.output_url is not None:
-                    short_message.append(f"[Output]({output_tool.output_url})")
-                    if body_md:
-                        body_md += "\n\n"
-                    body_md += (
-                        f"[Output]({output_tool.output_url})" if output_tool.output_url is not None else ""
-                    )
-
                 # Remove old vulnerability section (both old comment format and new format)
                 vuln_section_start = f"<!-- vulns-{branch} -->"
                 vuln_section_end = f"<!-- /vulns-{branch} -->"
@@ -456,6 +453,9 @@ async def _process_snyk_dpkg(
                             section_end = j
                             break
                     del issue_check.issue[found_start:section_end]
+                else:
+                    # Remove all str entries (vulnerability lines, separators, module data)
+                    issue_check.issue = [item for item in issue_check.issue if not isinstance(item, str)]
 
                 # Apply filtering and build new dashboard section
                 snyk_config = context.module_config.get("snyk", {})
@@ -576,6 +576,22 @@ async def _process_snyk_dpkg(
                 if high_critical_vulns:
                     await _create_security_advisories(context, high_critical_vulns)
 
+                # Create output for vulnerabilities
+                if output_name:
+                    await module_utils.add_output(
+                        context,
+                        key,
+                        output_name,
+                        "github_app_geo_project:module/audit/output.html",
+                        status=models.OutputStatus.SUCCESS,
+                        renderer_data=output_renderer_data,
+                    )
+                    output_url = urllib.parse.urljoin(
+                        context.service_url,
+                        f"output/{context.github_project.owner}/{context.github_project.repository}/{output_name}",
+                    )
+                    output_tool.output_url = output_url
+
             if context.module_event_data.type == "dpkg":
                 body_md = "Update dpkg packages"
 
@@ -590,7 +606,6 @@ async def _process_snyk_dpkg(
 
             body_md += "\n" if body_md else ""
             body_md += f"[Logs]({logs_url})"
-            short_message.append(f"[Logs]({logs_url})")
 
             new_success, pr_messages = await _create_pull_request_if_changes(
                 branch,
