@@ -7,6 +7,7 @@ import contextlib
 import contextvars
 import datetime
 import functools
+import html
 import inspect
 import io
 import logging
@@ -416,6 +417,34 @@ async def _process_job(
                                 "Actions: %s",
                                 ", ".join(
                                     [a.title or "Untitled" for a in result.actions],
+                                ),
+                            )
+
+                        if result.dashboard is not None:
+                            _LOGGER.info(
+                                module_utils.HtmlMessage(
+                                    f"<pre>{html.escape(str(result.dashboard))}</pre>",
+                                    title="Dashboard",
+                                ),
+                            )
+
+                        if transversal_status is not None:
+                            _LOGGER.info(
+                                module_utils.HtmlMessage(
+                                    utils.format_json(
+                                        current_module.transversal_status_to_json(
+                                            transversal_status,
+                                        ),
+                                    ),
+                                    title="Transversal status",
+                                ),
+                            )
+
+                        if result.output is not None:
+                            _LOGGER.info(
+                                module_utils.HtmlMessage(
+                                    utils.format_json(result.output),
+                                    title="Output",
                                 ),
                             )
                     else:
