@@ -31,6 +31,7 @@ from github_app_geo_project.templates import (
     pprint_duration,
     pprint_full_date,
     pprint_short_date,
+    render_template,
     sanitizer,
 )
 from github_app_geo_project.views.dashboard import DashboardData
@@ -256,18 +257,15 @@ async def schema_route(data: SchemaData) -> dict[str, Any]:
 
 
 @app.get(f"{route_prefix}output/{{owner}}/{{repository}}/{{name}}")
-async def output_route(request: Request, data: OutputByNameData) -> HTMLResponse:
+async def output_route(data: OutputByNameData) -> HTMLResponse:
     """Render the output page by owner/repository/name."""
     renderer = data.pop("renderer", None)
     renderer_data = data.pop("renderer_data", None)
-    template_kwargs = {**data}
+    template_kwargs: dict[str, Any] = {**data}
     if renderer_data:
         template_kwargs["renderer_data"] = renderer_data
-    return templates.TemplateResponse(
-        request,
-        renderer,
-        template_kwargs,
-    )
+    html = await render_template(renderer, template_kwargs)
+    return HTMLResponse(html)
 
 
 @app.get(f"{route_prefix}logs/{{logs_id}}")

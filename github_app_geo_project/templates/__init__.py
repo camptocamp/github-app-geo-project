@@ -2,8 +2,11 @@
 
 import datetime
 import logging
+from typing import Any
 
+import anyio
 import markdown as markdown_lib
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup
 
 from github_app_geo_project.module.utils import _SANITIZER
@@ -85,3 +88,22 @@ def pprint_duration(duration: datetime.timedelta | None) -> str:
         return f"{round(duration.total_seconds() / 3600)} hour{plural}"
     plural = "" if round(seconds_abs / 86400) == 1 else "s"
     return f"{round(duration.total_seconds() / 86400)} day{plural}"
+
+
+async def render_template(renderer: str, data: dict[str, Any]) -> str:
+    """Render a template from a renderer string in the format 'package:path'."""
+    package, path = renderer.split(":", 1)
+    package_dir = anyio.Path(__file__).parent.parent.parent / package
+    template_path = package_dir / path
+    env = Environment(
+        loader=FileSystemLoader(str(template_path.parent)),
+        autoescape=select_autoescape(),
+    )
+    env.filters["markdown"] = markdown
+    env.filters["sanitizer"] = sanitizer
+    env.filters["pprint_date"] = pprint_date
+    env.filters["pprint_short_date"] = pprint_short_date
+    env.filters["pprint_full_date"] = pprint_full_date
+    env.filters["pprint_duration"] = pprint_duration
+    template = env.get_template(template_path.name)
+    return template.render(data)
