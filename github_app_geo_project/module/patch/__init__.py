@@ -280,6 +280,16 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                 context.github_project,
                 head_branch,
             ) as cwd:
+                _, expected_sha_output, _ = await module_utils.run_timeout(
+                    ["git", "rev-parse", "HEAD"],
+                    None,
+                    30,
+                    "Get expected SHA",
+                    "Error getting expected SHA",
+                    "Timeout getting expected SHA",
+                    cwd,
+                )
+                expected_sha = expected_sha_output.strip()
                 async for artifact, patch_input in _iter_artifact_patches(
                     context,
                     artifacts,
@@ -323,6 +333,47 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                             raise PatchError(exception_message)
                         should_push = True
                 if should_push:
+                    _, fetch_success, _ = await module_utils.run_timeout(
+                        ["git", "fetch", "--prune", "origin", head_branch],
+                        None,
+                        60,
+                        "Fetch branch before push",
+                        "Error fetching branch before push",
+                        "Timeout fetching branch before push",
+                        cwd,
+                    )
+                    if fetch_success:
+                        _, current_sha_output, _ = await module_utils.run_timeout(
+                            ["git", "rev-parse", f"origin/{head_branch}"],
+                            None,
+                            30,
+                            "Get remote branch SHA",
+                            "Error getting remote branch SHA",
+                            "Timeout getting remote branch SHA",
+                            cwd,
+                        )
+                        current_sha = current_sha_output.strip()
+                        if current_sha != expected_sha:
+                            _LOGGER.warning(
+                                "Branch '%s' has been updated since the workflow run (expected: %s, current: %s)",
+                                head_branch,
+                                expected_sha,
+                                current_sha,
+                            )
+                            return module.ProcessOutput(
+                                success=False,
+                                check_output={
+                                    "summary": (
+                                        f"Failed to push the changes: branch '{head_branch}' has been updated "
+                                        f"since the workflow run, you should rebase your branch and retry"
+                                    ),
+                                },
+                            )
+                    else:
+                        _LOGGER.warning(
+                            "Failed to fetch branch '%s' before push check, proceeding anyway",
+                            head_branch,
+                        )
                     command = ["git", "push", "origin", f"HEAD:{head_branch}"]
                     proc = await asyncio.create_subprocess_exec(
                         *command,
