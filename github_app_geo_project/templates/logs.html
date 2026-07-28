@@ -1,242 +1,151 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <title>{{ title }}</title>
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="32x32"
-      href="{{ url_for('static', path='/favicon-' ~ favicon_postfix ~ '-32x32.png') }}"
-      referrerpolicy="no-referrer"
-    />
-    <link
-      rel="icon"
-      type="image/png"
-      sizes="16x16"
-      href="{{ url_for('static', path='/favicon-' ~ favicon_postfix ~ '-16x16.png') }}"
-      referrerpolicy="no-referrer"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/css/bootstrap.min.css"
-      integrity="sha512-2bBQCjcnw658Lho4nlXJcc6WkV/UxpE/sAokbXPxQNGqmNdQrWqtw26Ns9kFF/yG792pKR1Sx8/Y1Lf1XN4GKA=="
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    />
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.13.1/font/bootstrap-icons.min.css"
-      integrity="sha512-t7Few9xlddEmgd3oKZQahkNI4dS6l80+eGEzFQiqtyVYdvcSG2D3Iub77R20BdotfRPA9caaRkg1tyaJiPmO0g=="
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    />
-    <style nonce="{{ nonce }}">
-      a {
-        text-decoration: none;
-      }
-      a:hover {
-        text-decoration: underline;
-      }
-      h1 {
-        /* Leave some space for the GitHub login button */
-        margin-right: 20rem;
-        margin-bottom: 2rem;
-      }
-      .logs p {
-        margin: 0;
-      }
-      .logs pre {
-        margin-top: 0;
-        margin-bottom: 0.5rem;
-      }
-      [aria-expanded='true'] .col-up {
-        display: none;
-      }
-      [aria-expanded='false'] .col-down {
-        display: none;
-      }
-      .collapse-container .d-inline-flex a {
-        text-decoration: none;
-        color: var(--bs-body-color);
-      }
-      .collapse-container a i {
-        margin-right: 0.3rem;
-        width: 1rem;
-      }
-      .collapse-container p {
-        margin: 0;
-      }
-      .collapse-container .collapse {
-        margin-left: 0.3rem;
-        padding-left: 0.9rem;
-        border-left: gray solid 0.2rem;
-      }
-      .level-warning {
-        color: orange;
-        margin-bottom: 0.2rem;
-      }
-      .level-error {
-        color: red;
-        margin-bottom: 0.2rem;
-      }
-      .level-critical {
-        color: red;
-        font-weight: bold;
-        margin-bottom: 0.2rem;
-      }
-      .level-info {
-        color: rgb(var(--bs-link-color-rgb));
-        margin-bottom: 0.2rem;
-      }
-      .level-debug {
-        margin-bottom: 0.2rem;
-      }
-      .log-entry {
-        display: flex;
-        gap: 0.5rem;
-      }
-      .log-timestamp {
-        color: #888;
-        font-size: 0.8em;
-        font-family: monospace;
-        white-space: nowrap;
-        flex-shrink: 0;
-        padding-top: 0.1rem;
-      }
-      .login-container {
-        position: absolute;
-        right: 3rem;
-        top: 2rem;
-      }
-      .logout-button {
-        vertical-align: baseline;
-        margin-left: 0.5rem;
-      }
-      /* pygments */
-      .highlight {
-        background: #0d1117;
-        padding: 0.5rem;
-      }
-      .highlight pre {
-        line-height: 125%;
-        margin-bottom: 0;
-      }
-      body pre {
-        line-height: var(--bs-body-line-height)
-      }
-      {{ styles | safe }}
-    </style>
-  </head>
-  <body class="px-5 py-4">
-    <script nonce="{{ nonce }}">
-      /* For dark mode */
-      if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-        document.documentElement.setAttribute('data-bs-theme', 'dark');
-      }
-    </script>
+{% extends "base.html" %}
+<!---->
+{% block head_title %}{{ title }}{% endblock %}
+<!---->
+{% block head_styles %}
+a {
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+h1 {
+  /* Leave some space for the GitHub login button */
+  margin-right: 20rem;
+  margin-bottom: 2rem;
+}
+.logs p {
+  margin: 0;
+}
+.logs pre {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+}
+[aria-expanded='true'] .col-up {
+  display: none;
+}
+[aria-expanded='false'] .col-down {
+  display: none;
+}
+.collapse-container .d-inline-flex a {
+  text-decoration: none;
+  color: var(--bs-body-color);
+}
+.collapse-container a i {
+  margin-right: 0.3rem;
+  width: 1rem;
+}
+.collapse-container p {
+  margin: 0;
+}
+.collapse-container .collapse {
+  margin-left: 0.3rem;
+  padding-left: 0.9rem;
+  border-left: gray solid 0.2rem;
+}
+.level-warning {
+  color: orange;
+  margin-bottom: 0.2rem;
+}
+.level-error {
+  color: red;
+  margin-bottom: 0.2rem;
+}
+.level-critical {
+  color: red;
+  font-weight: bold;
+  margin-bottom: 0.2rem;
+}
+.level-info {
+  color: rgb(var(--bs-link-color-rgb));
+  margin-bottom: 0.2rem;
+}
+.level-debug {
+  margin-bottom: 0.2rem;
+}
+.log-entry {
+  display: flex;
+  gap: 0.5rem;
+}
+.log-timestamp {
+  color: #888;
+  font-size: 0.8em;
+  font-family: monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+  padding-top: 0.1rem;
+}
+body pre {
+  line-height: var(--bs-body-line-height)
+}
+{% endblock %}
+<!---->
+{% block content %}
+<h1 class="bd-title">{{ title }}</h1>
+<p>
+  [{{ job.status_enum.value }}] created {{ job.created_at | pprint_date }}, started {{ job.started_at | pprint_date }},
+  finished {{ job.finished_at | pprint_date }},
+  <a href="{{ url_for('project_route', owner=job.owner, repository=job.repository) }}">project</a>.
+</p>
 
-    <div class="login-container">
-      {% if not user.is_auth %}
-      <a
-        class="btn btn-primary"
-        href="{{ url_for('c2c_github_login') }}?came_from={{ request.url | urlencode }}"
-        >Login with GitHub</a
-      >
-      {% else %}
-      <p>
-        Logged as: <a href="{{ user.url }}">{{ user.name }}</a>
-        {% if user.auth_type == 'github_oauth' %}
-        <a
-          class="btn btn-outline-primary logout-button"
-          href="{{ url_for('c2c_github_logout') }}?came_from={{ request.url | urlencode }}"
-          >Logout</a
-        >
-        {% endif %}
-      </p>
-      {% endif %}
+{% if logs %}
+<h2>Logs</h2>
+{% if error_message %}
+<div class="alert alert-danger" role="alert">{{ error_message }}</div>
+{% endif %}
+<form class="row gy-2 gx-3 align-items-center mb-3" method="get">
+  <div class="col-auto">
+    <label class="form-label" for="level-filter">Level</label>
+    <select
+      class="form-select"
+      id="level-filter"
+      name="level"
+    >
+      <option value="">All levels</option>
+      <option value="50"{{ ' selected' if level_filter == '50' else '' }}>CRITICAL</option>
+      <option value="40"{{ ' selected' if level_filter == '40' else '' }}>ERROR</option>
+      <option value="30"{{ ' selected' if level_filter == '30' else '' }}>WARNING</option>
+      <option value="20"{{ ' selected' if level_filter == '20' else '' }}>INFO</option>
+      <option value="10"{{ ' selected' if level_filter in ('10', '') else '' }}>DEBUG</option>
+    </select>
+  </div>
+  <div class="col-auto">
+    <label class="form-label" for="filename-filter">File</label>
+    <input
+      class="form-control"
+      id="filename-filter"
+      name="filename"
+      type="text"
+      value="{{ filename_filter }}"
+      placeholder="Regular expression apply on filename"
+    />
+  </div>
+  <div class="col-auto align-self-end">
+    <button class="btn btn-primary" type="submit">Filter</button>
+    <a class="btn btn-outline-secondary" href="{{ request.url.path }}">Reset</a>
+  </div>
+</form>
+<div class="logs">
+  {% if log_entries %}
+    {% for entry in log_entries %}
+    <div class="log-entry">
+      <span class="log-timestamp">{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+      <div>{{ entry.log | sanitizer | safe }}</div>
     </div>
-    <h1 class="bd-title">{{ title }}</h1>
-    <p>
-      [{{ job.status_enum.value }}] created {{ job.created_at | pprint_date }}, started {{ job.started_at | pprint_date }},
-      finished {{ job.finished_at | pprint_date }},
-      <a href="{{ url_for('project_route', owner=job.owner, repository=job.repository) }}">project</a>.
-    </p>
-
-    {% if logs %}
-    <h2>Logs</h2>
-    {% if error_message %}
-    <div class="alert alert-danger" role="alert">{{ error_message }}</div>
-    {% endif %}
-    <form class="row gy-2 gx-3 align-items-center mb-3" method="get">
-      <div class="col-auto">
-        <label class="form-label" for="level-filter">Level</label>
-        <select
-          class="form-select"
-          id="level-filter"
-          name="level"
-        >
-          <option value="">All levels</option>
-          <option value="50"{{ ' selected' if level_filter == '50' else '' }}>CRITICAL</option>
-          <option value="40"{{ ' selected' if level_filter == '40' else '' }}>ERROR</option>
-          <option value="30"{{ ' selected' if level_filter == '30' else '' }}>WARNING</option>
-          <option value="20"{{ ' selected' if level_filter == '20' else '' }}>INFO</option>
-          <option value="10"{{ ' selected' if level_filter in ('10', '') else '' }}>DEBUG</option>
-        </select>
-      </div>
-      <div class="col-auto">
-        <label class="form-label" for="filename-filter">File</label>
-        <input
-          class="form-control"
-          id="filename-filter"
-          name="filename"
-          type="text"
-          value="{{ filename_filter }}"
-          placeholder="Regular expression apply on filename"
-        />
-      </div>
-      <div class="col-auto align-self-end">
-        <button class="btn btn-primary" type="submit">Filter</button>
-        <a class="btn btn-outline-secondary" href="{{ request.url.path }}">Reset</a>
-      </div>
-    </form>
-    <div class="logs">
-      {% if log_entries %}
-        {% for entry in log_entries %}
-        <div class="log-entry">
-          <span class="log-timestamp">{{ entry.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
-          <div>{{ entry.log | sanitizer | safe }}</div>
-        </div>
-        {% endfor %}
-      {% else %}
-        {{ logs | sanitizer | safe }}
-      {% endif %}
-    </div>
-    {% endif %}
-
-    <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"
-      integrity="sha512-v2CJ7UaYy4JwqLDIrZUI/4hqeoQieOmAZNXBeQyjo21dadnwR+8ZaIJVT8EE2iyI61OV8e6M8PP2/4hpQINQ/g=="
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    ></script>
-    <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/2.11.8/umd/popper.min.js"
-      integrity="sha512-TPh2Oxlg1zp+kz3nFA0C5vVC6leG/6mm1z9+mA81MI5eaUVqasPLO8Cuk4gMF4gUfP5etR73rgU/8PNMsSesoQ=="
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    ></script>
-    <script
-      src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.8/js/bootstrap.min.js"
-      integrity="sha512-nKXmKvJyiGQy343jatQlzDprflyB5c+tKCzGP3Uq67v+lmzfnZUi/ZT+fc6ITZfSC5HhaBKUIvr/nTLCV+7F+Q=="
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    ></script>
-    {% if reload %}
-    <script nonce="{{ nonce }}">
-      setTimeout(() => {
-        location.reload();
-      }, 30000);
-    </script>
-    {% endif %}
-  </body>
-</html>
+    {% endfor %}
+  {% else %}
+    {{ logs | sanitizer | safe }}
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+<!---->
+{% block body_scripts %}
+{% if reload %}
+<script nonce="{{ nonce }}">
+  setTimeout(() => {
+    location.reload();
+  }, 30000);
+</script>
+{% endif %}
+{% endblock %}

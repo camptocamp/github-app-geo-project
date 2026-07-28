@@ -257,15 +257,21 @@ async def schema_route(data: SchemaData) -> dict[str, Any]:
 
 
 @app.get(f"{route_prefix}output/{{owner}}/{{repository}}/{{name}}")
-async def output_route(data: OutputByNameData) -> HTMLResponse:
+async def output_route(request: Request, data: OutputByNameData) -> HTMLResponse:
     """Render the output page by owner/repository/name."""
     renderer = data.pop("renderer", None)
     renderer_data = data.pop("renderer_data", None)
-    template_kwargs: dict[str, Any] = {**data}
+    data.pop("request", None)
+    template_kwargs = {**data}
     if renderer_data:
         template_kwargs["renderer_data"] = renderer_data
+    template_kwargs["nonce"] = getattr(request.state, "nonce", "")
     html = await render_template(renderer, template_kwargs)
-    return HTMLResponse(html)
+    return templates.TemplateResponse(
+        request,
+        "output.html",
+        {**data, "html": html, "nonce": getattr(request.state, "nonce", "")},
+    )
 
 
 @app.get(f"{route_prefix}logs/{{logs_id}}")
