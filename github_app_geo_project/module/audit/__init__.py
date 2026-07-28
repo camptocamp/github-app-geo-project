@@ -71,6 +71,15 @@ class _VulnerabilityStatus(BaseModel):
     """The reason the vulnerability is ignored (from .snyk file)."""
 
 
+class _OutputRendererData(BaseModel):
+    """Output renderer data for the audit module stored in the output."""
+
+    branch: str
+    vulnerabilities: dict[str, list[_VulnerabilityStatus]]
+    ignored_vulnerabilities: dict[str, list[_VulnerabilityStatus]]
+    low_severity_vulnerabilities: dict[str, list[_VulnerabilityStatus]]
+
+
 class _TransversalStatusRepo(BaseModel):
     types: dict[str, _TransversalStatusTool] = {}
 
@@ -126,7 +135,7 @@ async def _process_error(
     error_message: list[str | models.OutputData] | None = None,
     message: str | None = None,
     output_name: str | None = None,
-    output_renderer_data: dict[str, Any] | None = None,
+    output_renderer_data: _OutputRendererData | None = None,
 ) -> _TransversalStatusTool:
     logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
     output_url: str | None = None
@@ -415,7 +424,7 @@ async def _process_snyk_dpkg(
                 del body
                 success &= new_success
                 output_name: str = f"Snyk ${branch}"
-                output_renderer_data: dict[str, Any] | None = None
+                output_renderer_data: _OutputRendererData | None = None
                 output_tool = await _process_error(
                     context,
                     key,
@@ -565,12 +574,12 @@ async def _process_snyk_dpkg(
                         if low_severity_vulns
                         else {}
                     )
-                    output_renderer_data = {
-                        "branch": branch,
-                        "vulnerabilities": vuln_data,
-                        "ignored_vulnerabilities": ignored_data,
-                        "low_severity_vulnerabilities": low_severity_data,
-                    }
+                    output_renderer_data = _OutputRendererData(
+                        branch=branch,
+                        vulnerabilities=vuln_data,
+                        ignored_vulnerabilities=ignored_data,
+                        low_severity_vulnerabilities=low_severity_data,
+                    )
 
                 # Create security advisories for HIGH and CRITICAL CVEs
                 if high_critical_vulns:

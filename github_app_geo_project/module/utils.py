@@ -25,6 +25,7 @@ import security_md
 import sqlalchemy.ext.asyncio
 from ansi2html import Ansi2HTMLConverter
 from ansi2html.style import get_styles
+from pydantic import BaseModel
 
 from github_app_geo_project import configuration, models, module, utils
 
@@ -64,6 +65,17 @@ _SANITIZER_SETTINGS: dict[str, Any] = {
 _SANITIZER = html_sanitizer.Sanitizer(_SANITIZER_SETTINGS)
 
 
+def _serialize_renderer_data(data: Any) -> Any:
+    """Recursively convert Pydantic BaseModel instances to dicts for JSON serialization."""
+    if isinstance(data, BaseModel):
+        return data.model_dump()
+    if isinstance(data, dict):
+        return {key: _serialize_renderer_data(value) for key, value in data.items()}
+    if isinstance(data, list):
+        return [_serialize_renderer_data(item) for item in data]
+    return data
+
+
 async def add_output(
     context: module.ProcessContext[Any, Any],
     title: str,
@@ -71,7 +83,7 @@ async def add_output(
     renderer: str,
     status: models.OutputStatus = models.OutputStatus.SUCCESS,
     access_type: models.AccessType = models.AccessType.PULL,
-    renderer_data: dict[str, Any] | None = None,
+    renderer_data: dict[str, Any] | BaseModel | None = None,
 ) -> None:
     """Add or update an output in the database."""
     owner = context.github_project.owner if context.github_project else "camptocamp"
@@ -90,7 +102,7 @@ async def add_output(
         existing.status = status
         existing.access_type = access_type
         existing.renderer = renderer
-        existing.renderer_data = renderer_data
+        existing.renderer_data = _serialize_renderer_data(renderer_data)
         await context.session.commit()
         await context.session.refresh(existing)
         return
