@@ -1,6 +1,7 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
 import base64
+import datetime
 import logging
 from typing import Any
 
@@ -80,6 +81,42 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
         full_repo = f"{context.github_project.owner}/{context.github_project.repository}"
 
         module_utils.manage_updated(transversal_status, full_repo, days_old=30)
+
+        cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=30)
+        for repo_key, repo_data_cleanup in list(transversal_status.items()):
+            if not isinstance(repo_data_cleanup, dict):
+                continue
+            for branch_key, branch_data in list(repo_data_cleanup.items()):
+                if branch_key == "updated":
+                    continue
+                if not isinstance(branch_data, dict):
+                    continue
+                for workflow_key, workflow_data in list(branch_data.items()):
+                    if not isinstance(workflow_data, dict):
+                        del branch_data[workflow_key]
+                        continue
+                    workflow_date = workflow_data.get("date")
+                    if workflow_date:
+                        try:
+                            parsed_date = utils.datetime_with_timezone(
+                                datetime.datetime.fromisoformat(workflow_date)
+                            )
+                            if parsed_date < cutoff:
+                                del branch_data[workflow_key]
+                                _LOGGER.debug(
+                                    "Remove old workflow %s from %s/%s",
+                                    workflow_key,
+                                    repo_key,
+                                    branch_key,
+                                )
+                        except (ValueError, TypeError):
+                            del branch_data[workflow_key]
+                    else:
+                        del branch_data[workflow_key]
+                if not branch_data:
+                    del repo_data_cleanup[branch_key]
+            if repo_key != full_repo and (not repo_data_cleanup or repo_data_cleanup.keys() == {"updated"}):
+                del transversal_status[repo_key]
 
         repo_data = transversal_status[full_repo]
 

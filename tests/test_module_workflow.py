@@ -294,3 +294,77 @@ async def test_process_failure() -> None:
             },
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_process_cleanup_old_workflows() -> None:
+    context = MagicMock()
+    context.github_project.owner = "owner"
+    context.github_project.repository = "repository"
+    context.github_event_name = "workflow_run"
+    context.module_event_name = "workflow_run"
+    context.github_event_data = dict(_EVENT)
+    context.github_event_data["workflow_run"]["conclusion"] = "failure"
+
+    default_branch = AsyncMock()
+    default_branch.return_value = "master"
+    context.github_project.default_branch = default_branch
+
+    repo = MagicMock()
+    context.github_project.aio_repo = repo
+    repo.default_branch = "master"
+    github = MagicMock()
+    context.github_project.aio_github = github
+    rest = MagicMock()
+    github.rest = rest
+    repos = AsyncMock()
+    rest.repos = repos
+    repo_response = MagicMock()
+    repo_response.status_code = 404
+    repos.async_get_content.side_effect = githubkit.exception.RequestFailed(repo_response)
+    actions = AsyncMock()
+    rest.actions = actions
+    actions_response = MagicMock()
+    actions_response.status_code = 200
+    actions_response.parsed_data = {
+        "total_count": 0,
+        "jobs": [],
+    }
+    actions.async_list_jobs_for_workflow_run.return_value = actions_response
+
+    workflow = Workflow()
+
+    transversal_status = await workflow.update_transversal_status(
+        context,
+        None,
+        {
+            "owner/repository": {
+                "old_workflow": {
+                    "date": "2020-01-01T00:00:00+00:00",
+                    "jobs": [],
+                    "url": "https://example.com/old",
+                },
+            },
+            "other/repo": {
+                "old_other_workflow": {
+                    "date": "2020-06-15T00:00:00+00:00",
+                    "jobs": [],
+                    "url": "https://example.com/old-other",
+                },
+            },
+        },
+    )
+
+    assert "updated" in transversal_status["owner/repository"]
+    del transversal_status["owner/repository"]["updated"]
+    assert transversal_status == {
+        "owner/repository": {
+            "master": {
+                "workflow_name": {
+                    "date": "2024-01-01T00:00:00+00:00",
+                    "jobs": [],
+                    "url": "https://github.com/user/repo/actions/runs/123456789",
+                },
+            },
+        },
+    }
