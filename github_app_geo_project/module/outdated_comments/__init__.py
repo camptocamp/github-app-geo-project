@@ -165,18 +165,18 @@ class OutdatedComments(module.Module[_Config, _EventData, None, None]):
 
         if not author_found:
             return module.ProcessOutput(
-                output={
+                check_output={
                     "summary": f"Author {context.module_event_data.author} is not configured in the list of authors to outdate comments.",
                 },
             )
         if not output_messages:
             return module.ProcessOutput(
-                output={
+                check_output={
                     "summary": f"No comments to outdate for author {context.module_event_data.author} on pull request #{context.module_event_data.pull_request_number}.",
                 },
             )
         return module.ProcessOutput(
-            output={
+            check_output={
                 "summary": f"Outdated {len(output_messages)} comments from {context.module_event_data.author} on pull request #{context.module_event_data.pull_request_number}.",
                 "test": "\n".join(output_messages),
             },

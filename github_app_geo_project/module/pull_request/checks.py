@@ -427,4 +427,4 @@ class Checks(
         success = success_1 and success_2 and success_3
         message = "\n".join([*messages_1, *messages_2, *messages_3])
 
-        return module.ProcessOutput(success=success, output={"summary": message})
+        return module.ProcessOutput(success=success, check_output={"summary": message})

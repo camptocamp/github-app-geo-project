@@ -403,7 +403,7 @@ async def _process_job(
                         *(["dashboard"] if result.dashboard is not None else []),
                         *(["transversal_status"] if transversal_status is not None else []),
                         *([f"{len(result.actions)} action(s)"] if result.actions else []),
-                        *(["output"] if result.output is not None else []),
+                        *(["check_output"] if result.check_output is not None else []),
                     ]
                     if non_none:
                         _LOGGER.info(
@@ -440,10 +440,10 @@ async def _process_job(
                                 ),
                             )
 
-                        if result.output is not None:
+                        if result.check_output is not None:
                             _LOGGER.info(
                                 module_utils.HtmlMessage(
-                                    utils.format_json(result.output),
+                                    utils.format_json(result.check_output),
                                     title="Output",
                                 ),
                             )
@@ -454,8 +454,6 @@ async def _process_job(
                         _LOGGER.warning("Module %s failed", job.module)
                 else:
                     _LOGGER.info("Module %s finished with None result", job.module)
-            except GHCIError:
-                raise
             except Exception as exception:  # pylint: disable=broad-exception-caught
                 root_logger.removeHandler(handler)
                 await session.refresh(job)
@@ -467,6 +465,8 @@ async def _process_job(
                     job.module,
                 )
                 error_message = f"Failed to process job id: {job.id} on module: {job.module}"
+                if isinstance(exception, GHCIError):
+                    raise
                 raise GHCIError(error_message) from exception
             finally:
                 root_logger.setLevel(old_level)
@@ -487,8 +487,8 @@ async def _process_job(
                 }
                 if result is not None and not result.success:
                     check_output["text"] = f"[See logs for more details]({logs_url})"
-                if result is not None and result.output:
-                    check_output.update(result.output)
+                if result is not None and result.check_output:
+                    check_output.update(result.check_output)
                 if len(check_output.get("summary", "")) > 65535:
                     check_output["summary"] = check_output["summary"][:65532] + "..."
                 if len(check_output.get("text", "")) > 65535:

@@ -388,8 +388,8 @@ class ProcessOutput(Generic[_EVENT_DATA, _INTERMEDIATE_STATUS]):
     """The new actions that should be done."""
     success: bool
     """The success of the process."""
-    output: dict[str, Any] | None
-    """The output of the process."""
+    check_output: dict[str, Any] | None
+    """The check run output of the process."""
 
     def __init__(
         self,
@@ -398,7 +398,7 @@ class ProcessOutput(Generic[_EVENT_DATA, _INTERMEDIATE_STATUS]):
         updated_transversal_status: bool = False,
         actions: list[Action[_EVENT_DATA]] | None = None,
         success: bool = True,
-        output: dict[str, Any] | None = None,
+        check_output: dict[str, Any] | None = None,
     ) -> None:
         """Create the output of the process method."""
         self.dashboard = dashboard
@@ -406,7 +406,7 @@ class ProcessOutput(Generic[_EVENT_DATA, _INTERMEDIATE_STATUS]):
         self.updated_transversal_status = updated_transversal_status
         self.actions = actions or []
         self.success = success
-        self.output = output
+        self.check_output = check_output
 
 
 class TransversalDashboardContext(NamedTuple, Generic[_TRANSVERSAL_STATUS]):

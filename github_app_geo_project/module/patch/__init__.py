@@ -227,7 +227,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         else:
             return module.ProcessOutput(
                 success=False,
-                output={"summary": f"Invalid event '{context.module_event_name}' for the Patch module"},
+                check_output={"summary": f"Invalid event '{context.module_event_name}' for the Patch module"},
             )
 
         if head_branch is None:
@@ -344,7 +344,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                         _LOGGER.warning(message)
                         return module.ProcessOutput(
                             success=False,
-                            output={
+                            check_output={
                                 "summary": f"Failed to push the changes{format_process_bytes(stdout, stderr)}",
                             },
                         )
@@ -359,7 +359,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         if is_clone and result_message:
             return module.ProcessOutput(
                 success=False,
-                output={
+                check_output={
                     "summary": "\n".join(
                         [*error_messages, "", "Patch to be applied", *result_message],
                     ),
@@ -368,7 +368,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         if error_messages:
             return module.ProcessOutput(
                 success=False,
-                output={"summary": "\n".join(error_messages)},
+                check_output={"summary": "\n".join(error_messages)},
             )
         return module.ProcessOutput()
 

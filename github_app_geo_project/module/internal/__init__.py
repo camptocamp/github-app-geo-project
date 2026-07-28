@@ -73,12 +73,12 @@ class Dispatcher(module.Module[None, _EventData, None, None]):
 
         if context.module_event_name == "event":
             await _process_event(context)
-            return module.ProcessOutput(output={"summary": "Event processed"})
+            return module.ProcessOutput(check_output={"summary": "Event processed"})
 
         if context.module_event_name == "repo_event":
             await _process_repo_event(context)
             return module.ProcessOutput(
-                output={"summary": "Event processed on repository"},
+                check_output={"summary": "Event processed on repository"},
             )
 
         re_requested_check_ids = _get_re_requested_check_suite_id(
@@ -97,7 +97,7 @@ class Dispatcher(module.Module[None, _EventData, None, None]):
         if not process_event_outputs:
             process_event_outputs.append("No action to process from other modules")
         return module.ProcessOutput(
-            output={
+            check_output={
                 "title": f"Dispatch {context.module_event_name} events to modules and do check re-runs",
                 "summary": f"Create {nb_modules_action} actions and performed {nb_re_run} check re-runs",
                 "text": "\n".join([*outputs, "", *process_event_outputs]),

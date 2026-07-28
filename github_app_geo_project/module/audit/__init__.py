@@ -115,7 +115,7 @@ def _get_process_output(
         intermediate_status=intermediate_status,
         updated_transversal_status=True,
         success=success,
-        output={"summary": "\n".join(short_message)} if short_message else {},
+        check_output={"summary": "\n".join(short_message)} if short_message else {},
     )
 
 

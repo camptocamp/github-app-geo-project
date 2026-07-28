@@ -220,7 +220,7 @@ async def test_links_process() -> None:
         # Verify the output structure
         assert result is not None
         assert isinstance(result, module.ProcessOutput)
-        assert result.output == {"summary": "Pull request descriptions updated."}
+        assert result.check_output == {"summary": "Pull request descriptions updated."}
 
 
 @pytest.mark.asyncio

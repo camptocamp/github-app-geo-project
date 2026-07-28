@@ -182,7 +182,7 @@ class Backport(
                     assert backport_todo.content is not None
                     return module.ProcessOutput(
                         success=False,
-                        output={
+                        check_output={
                             "summary": "BACKPORT_TODO file found",
                             "text": "There is a BACKPORT_TODO file in the branch, he should be threaded and removed\n\n"
                             + base64.b64decode(backport_todo.content).decode("utf-8"),
@@ -195,7 +195,7 @@ class Backport(
                     _LOGGER.exception("Error while getting BACKPORT_TODO file")
                     return module.ProcessOutput(
                         success=False,
-                        output={
+                        check_output={
                             "summary": "BACKPORT_TODO error",
                             "text": "Error while getting BACKPORT_TODO file",
                         },
@@ -367,13 +367,13 @@ class Backport(
                 context.module_event_data.branch,
             ):
                 return module.ProcessOutput(
-                    output={
+                    check_output={
                         "summary": "Backport pull request created",
                     },
                 )
             return module.ProcessOutput(
                 success=False,
-                output={
+                check_output={
                     "summary": "Error while backporting the pull request",
                 },
             )
