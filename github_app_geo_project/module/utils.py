@@ -96,13 +96,14 @@ async def add_output(
             models.Output.name == name,
         ),
     )
+    serialize_renderer_data = _serialize_renderer_data(renderer_data)
     existing = result.scalar()
     if existing is not None:
         existing.title = title
         existing.status = status
         existing.access_type = access_type
         existing.renderer = renderer
-        existing.renderer_data = _serialize_renderer_data(renderer_data)
+        existing.renderer_data = serialize_renderer_data
         await context.session.commit()
         await context.session.refresh(existing)
         return
@@ -115,7 +116,7 @@ async def add_output(
         access_type=access_type,
         name=name,
         renderer=renderer,
-        renderer_data=renderer_data,
+        renderer_data=serialize_renderer_data,
     )
     context.session.add(output)
     await context.session.commit()
