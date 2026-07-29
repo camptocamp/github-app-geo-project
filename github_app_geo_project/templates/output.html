@@ -4,6 +4,7 @@
 <!---->
 {% block content %}
 <h1 class="bd-title">{{ title }}</h1>
+<p><a href="{{ url_for('project_route', owner=owner, repository=repository) }}">project</a>.</p>
 
 {{ html | safe }}
 <!---->

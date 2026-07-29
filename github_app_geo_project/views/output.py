@@ -41,6 +41,8 @@ async def output_by_name_view(
             "request": request,
             "user": user,
             "title": out.title,
+            "owner": owner,
+            "repository": repository,
             "renderer": out.renderer,
             "renderer_data": out.renderer_data,
             "enumerate": enumerate,
