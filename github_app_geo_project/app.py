@@ -162,7 +162,7 @@ _ui_csp_headers: dict[str, _Header] = {
 }
 
 _ui_path_match = (
-    rf"^{route_prefix_escaped}(?:welcome|project/.*|dashboard/.*|output/[0-9]+|logs/[0-9]+|jobs)?$"
+    rf"^{route_prefix_escaped}(?:welcome|project/.*|dashboard/.*|output/[^/]+/[^/]+/[^/]+|logs/[0-9]+|jobs)?$"
 )
 
 app.add_middleware(

@@ -41,6 +41,8 @@ async def output_by_name_view(
             "request": request,
             "user": user,
             "title": out.title,
+            "status": out.status.value,
+            "updated_at": out.updated_at,
             "owner": owner,
             "repository": repository,
             "renderer": out.renderer,

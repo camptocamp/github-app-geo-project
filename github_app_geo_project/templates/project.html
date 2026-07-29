@@ -73,7 +73,11 @@ div.alert-danger a[data-bs-toggle="tooltip"] {
 
 <h2>Last outputs</h2>
 {% for o in output %}
-<p><a href="{{ url_for('output_route', owner=o[1], repository=o[2], name=o[0]) }}">{{ o[3] }}</a></p>
+<p>
+  <a href="{{ url_for('output_route', owner=o[1], repository=o[2], name=o[0]) }}">{{ o[3] }}</a>
+  {% if o[4].value == "success" %}<span class="text-success">Success</span>{% else %}<span class="text-danger">Error</span>{% endif %}
+  <span class="text-muted">{{ o[5].strftime('%Y-%m-%d %H:%M') }}</span>
+</p>
 {% endfor %}
 
 <h2>Modules</h2>

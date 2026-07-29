@@ -3,8 +3,13 @@
 {% block head_title %}{{ title }}{% endblock %}
 <!---->
 {% block content %}
-<h1 class="bd-title">{{ title }}</h1>
-<p><a href="{{ url_for('project_route', owner=owner, repository=repository) }}">project</a>.</p>
+<p class="text-muted">
+  Status: {% if status == "success" %}<span class="text-success">Success</span>{% else %}<span
+    class="text-danger"
+    >Error</span
+  >{% endif %} | Last updated: {{ updated_at.strftime('%Y-%m-%d %H:%M:%S %Z') }}
+</p>
+<p><a href="{{ url_for('project_route', owner=owner, repository=repository) }}">related project</a>.</p>
 
 {{ html | safe }}
 <!---->

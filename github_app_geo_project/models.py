@@ -174,6 +174,12 @@ class Output(Base):
         server_default=sqlalchemy.sql.functions.now(),
         index=True,
     )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=sqlalchemy.sql.functions.now(),
+        onupdate=sqlalchemy.sql.functions.now(),
+    )
     status: Mapped[OutputStatus] = mapped_column(
         Enum(OutputStatus, create_type=False, native_enum=False),
         nullable=False,
