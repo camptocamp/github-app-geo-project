@@ -256,7 +256,6 @@ async def _process_job(
             )
 
     if module_config.get("enabled", project_configuration.MODULE_ENABLED_DEFAULT):
-        root_logger.addHandler(handler)
         old_level = root_logger.level
         root_logger.setLevel(logging.DEBUG)
         log_task = None
@@ -1080,7 +1079,6 @@ async def _process_one_job(
         job.priority,
         max_priority,
     )
-    root_logger.removeHandler(handler)
 
     if make_pending:
         _LOGGER.info("Make job ID %s pending", job.id)
