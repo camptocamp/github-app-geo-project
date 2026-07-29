@@ -134,50 +134,23 @@ async def _process_error(
     issue_check: module_utils.DashboardIssue,
     error_message: list[str | models.OutputData] | None = None,
     message: str | None = None,
-    output_name: str | None = None,
-    output_renderer_data: _OutputRendererData | None = None,
 ) -> _TransversalStatusTool:
     logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
-    output_url: str | None = None
     if error_message:
-        if output_name:
-            await module_utils.add_output(
-                context,
-                key,
-                output_name,
-                "github_app_geo_project:module/audit/output.html",
-                status=models.OutputStatus.ERROR,
-                renderer_data=output_renderer_data,
-            )
-
-            output_url = urllib.parse.urljoin(
-                context.service_url,
-                f"output/{context.github_project.owner}/{context.github_project.repository}/{output_name}",
-            )
         issue_check.set_title(
             key,
-            (
-                f"{key}: {message} ([Logs]({logs_url}){f' [Output]({output_url})' if output_url else ''})"
-                if message
-                else f"{key} ([Logs]({logs_url}){f', [Output]({output_url})' if output_url else ''})"
-            ),
+            (f"{key}: {message} ([Logs]({logs_url}))" if message else f"{key} ([Logs]({logs_url}))"),
         )
     elif message:
-        issue_check.set_title(
-            key, f"{key}: {message} ([Logs]({logs_url}){f', [Output]({output_url})' if output_url else ''})"
-        )
+        issue_check.set_title(key, f"{key}: {message} ([Logs]({logs_url}))")
     else:
         issue_check.set_title(
             key,
-            f"{key}: everything is fine ([Logs]({logs_url}){f', [Output]({output_url})' if output_url else ''})",
+            f"{key}: everything is fine ([Logs]({logs_url}))",
         )
 
     return _TransversalStatusTool(
-        name=key,
-        summary=message or "",
-        status="error" if error_message else "success",
-        logs_url=logs_url,
-        output_url=output_url,
+        name=key, summary=message or "", status="error" if error_message else "success", logs_url=logs_url
     )
 
 
@@ -423,16 +396,12 @@ async def _process_snyk_dpkg(
                 body_md = body.to_markdown() if body is not None else ""
                 del body
                 success &= new_success
-                output_name: str = f"Snyk {branch}"
-                output_renderer_data: _OutputRendererData | None = None
                 output_tool = await _process_error(
                     context,
                     key,
                     issue_check,
                     [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
                     ", ".join(short_message),
-                    output_name=output_name,
-                    output_renderer_data=output_renderer_data,
                 )
                 message: module_utils.Message = module_utils.HtmlMessage(
                     f"<a href='{output_tool.output_url}'>Output</a>",
@@ -503,7 +472,6 @@ async def _process_snyk_dpkg(
                             high_critical_vulns.append(vuln)
 
                 if filtered_vulns or ignored_vulns:
-                    output_name = f"snyk-{branch}"
                     vuln_data = (
                         {
                             file_name: [
@@ -581,25 +549,24 @@ async def _process_snyk_dpkg(
                         low_severity_vulnerabilities=low_severity_data,
                     )
 
-                # Create security advisories for HIGH and CRITICAL CVEs
-                if high_critical_vulns:
-                    await _create_security_advisories(context, high_critical_vulns)
-
-                # Create output for vulnerabilities
-                if output_name:
+                    # Create output for vulnerabilities
+                    output_name = f"snyk-{branch}"
                     await module_utils.add_output(
                         context,
-                        key,
+                        f"Snyk summary report {branch}",
                         output_name,
                         "github_app_geo_project:module/audit/output.html",
                         status=models.OutputStatus.SUCCESS,
                         renderer_data=output_renderer_data,
                     )
-                    output_url = urllib.parse.urljoin(
+                    output_tool.output_url = urllib.parse.urljoin(
                         context.service_url,
                         f"output/{context.github_project.owner}/{context.github_project.repository}/{output_name}",
                     )
-                    output_tool.output_url = output_url
+
+                # Create security advisories for HIGH and CRITICAL CVEs
+                if high_critical_vulns:
+                    await _create_security_advisories(context, high_critical_vulns)
 
             if context.module_event_data.type == "dpkg":
                 body_md = "Update dpkg packages"

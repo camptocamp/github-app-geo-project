@@ -102,7 +102,12 @@ async def project(
 
     async with request.app.state.async_session_factory() as session:
         select_output = sqlalchemy.select(
-            models.Output.name, models.Output.owner, models.Output.repository, models.Output.title
+            models.Output.name,
+            models.Output.owner,
+            models.Output.repository,
+            models.Output.title,
+            models.Output.status,
+            models.Output.updated_at,
         )
 
         if owner == "none":
