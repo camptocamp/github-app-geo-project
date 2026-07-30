@@ -8,8 +8,10 @@ from typing import Any, NamedTuple, cast
 import githubkit.cache
 import githubkit.exception
 import githubkit_schemas.latest.models
+import hishel
 import jsonmerge
 import redis.asyncio.client
+import redis.exceptions
 import yaml
 
 from github_app_geo_project import application_configuration, project_configuration
@@ -48,6 +50,32 @@ while [True for p in APPLICATION_CONFIGURATION.get("profiles", {}).values() if "
             )
 
 _LOGGER.debug("Configuration loaded: %s", APPLICATION_CONFIGURATION)
+
+
+class _SafeAsyncRedisStorage(hishel.AsyncRedisStorage):
+    """AsyncRedisStorage that ignores TimeoutError on close.
+
+    githubkit creates a new AsyncRedisStorage per API call, and each tries to close
+    the shared Redis client. A slow redis connection close must not crash the caller.
+    """
+
+    async def close(self) -> None:
+        """Close the storage, ignoring Redis timeout errors."""
+        try:
+            await super().close()
+        except redis.exceptions.TimeoutError:
+            _LOGGER.warning("Redis close timeout ignored", exc_info=True)
+
+
+class SafeRedisCacheStrategy(githubkit.cache.AsyncRedisCacheStrategy):
+    """AsyncRedisCacheStrategy that uses _SafeAsyncRedisStorage."""
+
+    async def get_async_hishel_storage(self) -> hishel.AsyncBaseStorage:
+        """Get an async hishel storage that ignores timeout errors on close."""
+        return _SafeAsyncRedisStorage(
+            client=self.client,
+            key_prefix=self.prefix or "hishel",
+        )
 
 
 class GithubApplication(NamedTuple):
@@ -126,7 +154,7 @@ async def get_github_application(application_name: str) -> GithubApplication:
 
     aio_auth = githubkit.AppAuthStrategy(application_id, private_key)
     aio_cache_strategy = (
-        githubkit.cache.AsyncRedisCacheStrategy(
+        SafeRedisCacheStrategy(
             redis.asyncio.client.Redis(
                 host=settings.redis.host,
                 port=settings.redis.port,

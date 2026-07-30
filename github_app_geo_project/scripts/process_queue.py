@@ -443,7 +443,7 @@ async def _process_job(
                             _LOGGER.info(
                                 module_utils.HtmlMessage(
                                     utils.format_json(result.check_output),
-                                    title="Output",
+                                    title="Check output",
                                 ),
                             )
                     else:
