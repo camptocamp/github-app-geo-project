@@ -5,10 +5,10 @@
 {% block content %}
 <h1>{{ title }}</h1>
 <p class="text-muted">
-  [{% if status == "success" %}<span class="text-success">Success</span>{% else %}<span
-    class="text-danger"
+  [{% if status == "success" %}<span class="text-success">Success</span>{% else %}<span class="text-danger"
     >Error</span
-  >{% endif %}], Last updated: {{ updated_at.strftime('%Y-%m-%d %H:%M:%S %Z') }}, <a href="{{ url_for('project_route', owner=owner, repository=repository) }}">project</a>.
+  >{% endif %}], Last updated: {{ updated_at.strftime('%Y-%m-%d %H:%M:%S %Z') }},
+  <a href="{{ url_for('project_route', owner=owner, repository=repository) }}">project</a>.
 </p>
 
 {{ html | safe }}
