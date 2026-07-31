@@ -539,7 +539,7 @@ async def _process_job(
                     )
 
             job.status_enum = (
-                models.JobStatus.DONE if result is None or result.success else models.JobStatus.ERROR
+                models.JobStatus.DONE if result is None or result.success else models.JobStatus.REPORT_ERROR
             )
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
@@ -581,7 +581,7 @@ async def _process_job(
             new_issue_data = result.dashboard if result is not None else None
             _LOGGER.debug("Job queue updated")
         except githubkit.exception.RequestFailed as exception:
-            job.status_enum = models.JobStatus.ERROR
+            job.status_enum = models.JobStatus.FAIL
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             root_logger.addHandler(handler)
             try:
@@ -632,7 +632,7 @@ async def _process_job(
                         root_logger.removeHandler(handler)
                 raise
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
-            job.status_enum = models.JobStatus.ERROR
+            job.status_enum = models.JobStatus.FAIL
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
 
             message = module_utils.AnsiProcessMessage(
@@ -675,7 +675,7 @@ async def _process_job(
                     )
             raise
         except Exception as exception:
-            job.status_enum = models.JobStatus.ERROR
+            job.status_enum = models.JobStatus.FAIL
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             if not isinstance(exception, GHCIError):
                 root_logger.addHandler(handler)
@@ -995,7 +995,7 @@ async def _get_process_one_job(
                     models.Queue.status == models.JobStatus.PENDING.name,
                     models.Queue.started_at < error_threshold,
                 )
-                .values(status=models.JobStatus.ERROR.name),
+                .values(status=models.JobStatus.FAIL.name),
             )
             affected_rows = result.rowcount  # type: ignore[attr-defined]
             if affected_rows:
@@ -1120,11 +1120,11 @@ async def _process_one_job(
                     )
                     job.status_enum = models.JobStatus.DONE
                 else:
-                    job.status_enum = models.JobStatus.ERROR
+                    job.status_enum = models.JobStatus.FAIL
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
             else:
                 _LOGGER.error("Unknown event name: %s", job.module_event_name)
-                job.status_enum = models.JobStatus.ERROR
+                job.status_enum = models.JobStatus.FAIL
                 job.finished_at = datetime.datetime.now(tz=datetime.UTC)
                 success = False
         else:
@@ -1155,7 +1155,7 @@ async def _process_one_job(
         await _flush_job_logs(log_session_factory, handler, job.id)
         if await session.run_sync(lambda _: job.status_enum == models.JobStatus.PENDING):
             _LOGGER.error("Job %s finished with pending status", job.id)
-            job.status_enum = models.JobStatus.ERROR
+            job.status_enum = models.JobStatus.FAIL
         job.finished_at = datetime.datetime.now(tz=datetime.UTC)
         _RUNNING_JOBS.pop(job.id)
         await session.commit()
