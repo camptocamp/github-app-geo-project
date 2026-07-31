@@ -193,13 +193,8 @@ class Backport(
                     if exception.response.status_code == 404:
                         return module.ProcessOutput()
                     _LOGGER.exception("Error while getting BACKPORT_TODO file")
-                    return module.ProcessOutput(
-                        success=False,
-                        check_output={
-                            "summary": "BACKPORT_TODO error",
-                            "text": "Error while getting BACKPORT_TODO file",
-                        },
-                    )
+                    error_message = "Error while getting BACKPORT_TODO file"
+                    raise module.GHCIError(error_message) from exception
         elif context.module_event_data.type == "SECURITY.md":
             has_security_md = True
             branch = context.module_event_data.branch

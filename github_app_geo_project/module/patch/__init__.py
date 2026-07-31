@@ -225,10 +225,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                 else False
             )
         else:
-            return module.ProcessOutput(
-                success=False,
-                check_output={"summary": f"Invalid event '{context.module_event_name}' for the Patch module"},
-            )
+            error_message = f"Invalid event '{context.module_event_name}' for the Patch module"
+            raise PatchError(error_message)
 
         if head_branch is None:
             _LOGGER.error("workflow event head_branch is None; cannot apply patch.")
@@ -342,12 +340,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     if proc.returncode != 0:
                         message.title = "Failed to push the changes"
                         _LOGGER.warning(message)
-                        return module.ProcessOutput(
-                            success=False,
-                            check_output={
-                                "summary": f"Failed to push the changes{format_process_bytes(stdout, stderr)}",
-                            },
-                        )
+                        error_message = f"Failed to push the changes{format_process_bytes(stdout, stderr)}"
+                        raise PatchError(error_message)
                     message.title = "Pushed the changes"
                     _LOGGER.debug(message)
         else:

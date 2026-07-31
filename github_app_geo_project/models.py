@@ -26,7 +26,9 @@ class JobStatus(enum.Enum):
 
     NEW = "new"
     PENDING = "pending"
-    ERROR = "error"
+    ERROR = "error"  # Legacy: kept for backward compatibility with existing DB records, use FAIL instead
+    FAIL = "fail"
+    REPORT_ERROR = "report_error"
     DONE = "done"
     SKIPPED = "skipped"
 

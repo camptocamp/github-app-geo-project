@@ -36,6 +36,9 @@ div.alert-secondary a[data-bs-toggle="tooltip"] {
 div.alert-warning a[data-bs-toggle="tooltip"] {
   color: var(--bs-warning-text-emphasis);
 }
+div.alert-warning a[data-bs-toggle="tooltip"] {
+  color: var(--bs-warning-text-emphasis);
+}
 div.alert-danger a[data-bs-toggle="tooltip"] {
   color: var(--bs-danger-text-emphasis);
 }
@@ -66,7 +69,9 @@ div.alert-danger a[data-bs-toggle="tooltip"] {
       <option value="">All</option>
       <option value="NEW" {% if status == 'NEW' %}selected{% endif %}>New</option>
       <option value="PENDING" {% if status == 'PENDING' %}selected{% endif %}>Pending</option>
-      <option value="ERROR" {% if status == 'ERROR' %}selected{% endif %}>Error</option>
+      <option value="REPORT_ERROR" {% if status == 'REPORT_ERROR' %}selected{% endif %}>Report Error</option>
+      <option value="FAIL" {% if status == 'FAIL' %}selected{% endif %}>Fail</option>
+      <option value="ERROR" {% if status == 'ERROR' %}selected{% endif %}>Error (legacy)</option>
       <option value="DONE" {% if status == 'DONE' %}selected{% endif %}>Done</option>
       <option value="SKIPPED" {% if status == 'SKIPPED' %}selected{% endif %}>Skipped</option>
     </select>
@@ -89,7 +94,9 @@ div.alert-danger a[data-bs-toggle="tooltip"] {
 </form>
 
 {% for job in jobs %}
-  {% if job.status_enum.value == 'error' %}
+  {% if job.status_enum.value == 'report_error' %}
+<div class="alert alert-warning event" role="alert">
+  {% elif job.status_enum.value in ['error', 'fail'] %}
 <div class="alert alert-danger event" role="alert">
   {% else %}
     {% if job.status_enum.value in ['new', 'pending'] %}

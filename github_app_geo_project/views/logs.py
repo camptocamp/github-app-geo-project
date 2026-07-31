@@ -111,7 +111,8 @@ async def logs_view(
                 "reload": job.status_enum in [models.JobStatus.NEW, models.JobStatus.PENDING],
                 "favicon_postfix": (
                     "red"
-                    if job.status_enum == models.JobStatus.ERROR
+                    if job.status_enum
+                    in [models.JobStatus.ERROR, models.JobStatus.FAIL, models.JobStatus.REPORT_ERROR]
                     else ("green" if job.status_enum == models.JobStatus.DONE else "blue")
                 ),
             }
