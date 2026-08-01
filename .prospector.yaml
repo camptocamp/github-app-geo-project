@@ -25,3 +25,5 @@ mypy:
 ruff:
   options:
     target-version: py311
+  disable:
+    - CPY
