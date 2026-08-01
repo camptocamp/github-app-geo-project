@@ -28,16 +28,16 @@ html-sanitizer = "2.6.0"
 ansi2html = "1.9.2"
 apt-repo = "0.5"
 debian-inspector = "31.1.1"
-codespell = "2.4.2"
+codespell = "2.4.3"
 pydantic = "2.13.4"
 markdownify = "1.2.3"
 cryptography = "49.0.0"
 urllib3 = "2.7.0"
 certifi = "2026.7.22"
-sentry-sdk = "2.65.0"
+sentry-sdk = "2.66.1"
 lxml-html-clean = "0.4.5"
 tag-publish = "1.1.1"
-aiohttp = "3.14.1"
+aiohttp = "3.14.3"
 githubkit = { version = "0.16.0", extras = ["auth-app"] }
 githubkit-schemas = "26.7.11"
 aiomonitor = "0.7.1"
@@ -47,8 +47,8 @@ psycopg2 = "2.9.12"
 multi-repo-automation = "1.9.1"
 anyio = "4.14.2"
 itsdangerous = "2.2.0"
-"pre-commit" = "4.6.0"
-prek = "0.4.9"
+"pre-commit" = "4.6.1"
+prek = "0.4.11"
 setuptools = "83.0.0"
 tinycss2 = "1.5.1"
 
@@ -63,7 +63,7 @@ aiointercept = "0.1.9"
 WebTest = "3.0.7"
 mypy = "2.1.0"
 requests = "2.34.2"
-types-pyyaml = "6.0.12.20260518"
+types-pyyaml = "6.0.12.20260724"
 types-markdown = "3.10.2.20260712"
 
 [tool.poetry-dynamic-versioning]
@@ -142,5 +142,5 @@ outdated-comments = "github_app_geo_project.module.outdated_comments:OutdatedCom
 updates = "github_app_geo_project.module.updates:Updates"
 
 [build-system]
-requires = ["poetry-core==2.4.0", "poetry-dynamic-versioning==1.10.0"]
+requires = ["poetry-core==2.4.1", "poetry-dynamic-versioning==1.10.0"]
 build-backend = "poetry.core.masonry.api"
