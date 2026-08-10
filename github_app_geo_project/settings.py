@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import enum
 import json
 import logging
 import os
@@ -282,6 +283,16 @@ class _TestSettings(BaseModel):
     github_app_private_key: Annotated[str | None, Field(description="Test GitHub app private key")] = None
 
 
+class LogLevel(enum.StrEnum):
+    """Log level for the application."""
+
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
+
 class ApplicationSettings(BaseSettings):
     """Application settings."""
 
@@ -294,6 +305,12 @@ class ApplicationSettings(BaseSettings):
         "/app/github_app_geo_project/templates"
     )
     service_url: Annotated[str, Field(description="Base URL")] = "http://localhost:8080/"
+    log_level: Annotated[LogLevel, Field(description="Log level for the application's own loggers")] = (
+        LogLevel.INFO
+    )
+    log_level_other: Annotated[LogLevel, Field(description="Log level for other (library) loggers")] = (
+        LogLevel.WARNING
+    )
     session_secret: Annotated[str, Field(description="Session secret")] = "change-me"  # noqa: S105
     configuration: Annotated[str | None, Field(description="Config YAML path")] = None
     sqlalchemy: Annotated[_SqlAlchemySettings, Field(description="Database settings")] = _SqlAlchemySettings()
