@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Models for the GitHub App Geo Project."""
 
 import enum

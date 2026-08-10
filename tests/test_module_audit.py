@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Tests for the audit module."""
 
 import tempfile

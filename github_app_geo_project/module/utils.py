@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Module utility functions for the modules."""
 
 import asyncio

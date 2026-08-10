@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 from github_app_geo_project import utils
 
 

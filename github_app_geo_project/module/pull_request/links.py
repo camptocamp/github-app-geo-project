@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Module that adds some links to the pull request message."""
 
 import json

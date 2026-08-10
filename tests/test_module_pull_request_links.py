@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 from unittest import mock
 from unittest.mock import AsyncMock, MagicMock
 

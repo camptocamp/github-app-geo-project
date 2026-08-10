@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Utility functions for the auto* modules."""
 
 import datetime

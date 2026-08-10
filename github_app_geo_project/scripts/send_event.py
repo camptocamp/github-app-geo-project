@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Send an event in the database queue."""
 
 import argparse

@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Application settings loaded from environment variables."""
 
 from __future__ import annotations

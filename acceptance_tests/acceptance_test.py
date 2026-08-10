@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Main acceptance test for the application."""
 
 from pathlib import Path

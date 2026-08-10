@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Manage configuration of the application."""
 
 import base64

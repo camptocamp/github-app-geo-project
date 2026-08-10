@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 import asyncio
 import logging
 import subprocess

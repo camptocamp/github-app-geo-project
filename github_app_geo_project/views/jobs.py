@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Jobs view - list jobs across repositories."""
 
 import datetime

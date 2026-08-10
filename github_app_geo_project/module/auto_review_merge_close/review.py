@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Module to generate the changelog on a release of a version."""
 
 import logging

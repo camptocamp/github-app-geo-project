@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Module to outdated old comments from a bot like copilot."""
 
 import json

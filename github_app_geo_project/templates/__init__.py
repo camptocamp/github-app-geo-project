@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """The mako templates to render the pages."""
 
 import datetime
