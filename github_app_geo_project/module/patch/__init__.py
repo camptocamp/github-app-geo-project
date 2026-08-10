@@ -340,8 +340,10 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     if proc.returncode != 0:
                         message.title = "Failed to push the changes"
                         _LOGGER.warning(message)
-                        error_message = f"Failed to push the changes{format_process_bytes(stdout, stderr)}"
-                        raise PatchError(error_message)
+                        return module.ProcessOutput(
+                            success=False,
+                            check_output={"summary": "Failed to push the changes"},
+                        )
                     message.title = "Pushed the changes"
                     _LOGGER.debug(message)
         else:
