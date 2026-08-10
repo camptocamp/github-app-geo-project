@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-10
+
+### Changed
+
+- **Patch module**: When `git push` fails, the module now returns `ProcessOutput(success=False)` instead of raising `PatchError`. This marks the job as `REPORT_ERROR` (yellow warning) instead of `FAIL` (red danger), distinguishing a push failure from a system error.
+
 ## 2026-07-20
 
 ### Added
