@@ -55,6 +55,7 @@ services:
     environment:
       <<: *app-env
       GHCI__PROCESS_QUEUE__MAX_WORKERS: 2
+      GHCI__LOG_LEVEL: DEBUG
     ports: []
     volumes:
       - ./docker/test-app/config.yaml:/etc/ghci/config.yaml:ro
