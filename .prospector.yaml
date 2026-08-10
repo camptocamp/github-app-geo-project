@@ -23,7 +23,5 @@ mypy:
     python-version: '3.11'
 
 ruff:
-  disable:
-    - CPY001
   options:
     target-version: py311
