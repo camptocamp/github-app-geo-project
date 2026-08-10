@@ -11,6 +11,7 @@ import html
 import inspect
 import io
 import logging
+import logging.config
 import os
 import signal
 import socket
@@ -1541,6 +1542,33 @@ async def _async_main() -> None:
 
 def main() -> None:
     """Process the jobs present in the database queue."""
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "root": {
+                "level": settings.log_level_other.value,
+                "handlers": ["console"],
+            },
+            "loggers": {
+                "github_app_geo_project": {"level": settings.log_level.value},
+            },
+            "handlers": {
+                "console": {
+                    "class": "logging.StreamHandler",
+                    "formatter": "generic",
+                    "stream": "ext://sys.stderr",
+                },
+            },
+            "formatters": {
+                "generic": {
+                    "format": "%(asctime)s %(levelname)-5.5s %(name)s:%(lineno)d %(funcName)s() %(message)s",
+                    "datefmt": "[%Y-%m-%d %H:%M:%S %z]",
+                    "class": "logging.Formatter",
+                },
+            },
+        },
+    )
     socket.setdefaulttimeout(settings.process_queue.socket_timeout.total_seconds())
     asyncio.run(_async_main())
 
