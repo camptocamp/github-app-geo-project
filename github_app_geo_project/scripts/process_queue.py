@@ -65,7 +65,6 @@ class _JobInfo(NamedTuple):
 _RUNNING_JOBS: dict[int, _JobInfo] = {}
 
 _LAST_RUN_TIME = time.time()
-_FLUSH_LOCK = asyncio.Lock()
 
 
 class _Handler(logging.Handler):
@@ -79,6 +78,7 @@ class _Handler(logging.Handler):
         self.suppressed_logger_names = suppressed_logger_names
         self.suppressed_logger_level = logging.getLevelName(suppressed_logger_level)
         self.context_var.set(job_id)
+        self.flush_lock = asyncio.Lock()
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
@@ -121,8 +121,11 @@ async def _flush_job_logs(
     session_factory: sqlalchemy.ext.asyncio.async_sessionmaker[sqlalchemy.ext.asyncio.AsyncSession],
     handler: _Handler,
     job_id: int,
+    force: bool = True,
 ) -> None:
-    async with _FLUSH_LOCK:
+    if not force and handler.flush_lock.locked():
+        return
+    async with handler.flush_lock:
         new_entries = handler.results[handler.last_written_index :]
         if not new_entries:
             return
@@ -151,7 +154,7 @@ async def _stream_job_logs(
 ) -> None:
     while True:
         await asyncio.sleep(interval)
-        await _flush_job_logs(session_factory, handler, job_id)
+        await _flush_job_logs(session_factory, handler, job_id, force=False)
 
 
 async def _validate_job(
