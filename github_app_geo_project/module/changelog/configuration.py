@@ -1,4 +1,3 @@
-# Copyright (c) 2026 Camptocamp SA
 """
 Automatically generated file from a JSON schema.
 """
