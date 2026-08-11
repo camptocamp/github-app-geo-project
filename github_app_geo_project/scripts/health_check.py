@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Script used to check the health of the process-queue daemon."""
 
 import argparse

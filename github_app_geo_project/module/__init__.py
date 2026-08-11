@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """The base class of the modules."""
 
 import json

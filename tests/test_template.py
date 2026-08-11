@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 from datetime import UTC, datetime, timedelta
 
 from github_app_geo_project.templates import markdown, pprint_date, pprint_duration, sanitizer

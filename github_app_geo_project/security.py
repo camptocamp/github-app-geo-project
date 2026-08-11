@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Security dependencies for the FastAPI application."""
 
 import enum

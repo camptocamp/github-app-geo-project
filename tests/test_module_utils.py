@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 import datetime
 from unittest.mock import AsyncMock, MagicMock, Mock
 

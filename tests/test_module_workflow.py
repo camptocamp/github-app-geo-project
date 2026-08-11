@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 from unittest.mock import AsyncMock, MagicMock
 
 import githubkit.exception

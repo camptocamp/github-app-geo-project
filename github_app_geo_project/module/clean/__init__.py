@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Module to display the status of the workflows in the transversal dashboard."""
 
 import asyncio

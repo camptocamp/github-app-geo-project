@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Process the jobs present in the database queue."""
 
 import argparse

@@ -1,4 +1,5 @@
-# noqa: INP001
+# Copyright (c) 2026, Camptocamp SA
+
 """Used to generate different color favicons for the website."""
 
 import cv2  # pylint: disable=import-error

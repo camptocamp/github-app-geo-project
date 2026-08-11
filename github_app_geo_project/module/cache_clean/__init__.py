@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 """Module to clean local tool caches (pip, poetry, pyenv, prek, pre-commit, npm)."""
 
 import logging

@@ -1,3 +1,5 @@
+# Copyright (c) 2026, Camptocamp SA
+
 import base64
 from unittest.mock import AsyncMock, MagicMock, patch
 
