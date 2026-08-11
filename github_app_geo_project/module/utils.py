@@ -11,7 +11,6 @@ import os
 import re
 import shlex
 import shutil
-import tempfile
 import urllib.parse
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -627,14 +626,14 @@ class AnsiProcessMessage(AnsiMessage):
         )
 
 
-def get_cwd() -> Path | None:
+async def get_cwd() -> anyio.Path | None:
     """
     Get the current working directory.
 
     Did not raise an exception if it does not exist, return None instead.
     """
     try:
-        return Path.cwd()
+        return await anyio.Path.cwd()
     except FileNotFoundError:
         return None
 
@@ -646,7 +645,7 @@ async def run_timeout(
     success_message: str,
     error_message: str,
     timeout_message: str,
-    cwd: Path,
+    cwd: anyio.Path,
     error: bool = True,
 ) -> tuple[str | None, bool, Message | None]:
     """
@@ -753,7 +752,7 @@ async def run_timeout(
         return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
 
 
-async def has_changes(cwd: Path, include_un_followed: bool = False) -> bool:
+async def has_changes(cwd: anyio.Path, include_un_followed: bool = False) -> bool:
     """Check if there are changes."""
     if include_un_followed:
         stdout, _, _ = await run_timeout(
@@ -778,7 +777,7 @@ async def has_changes(cwd: Path, include_un_followed: bool = False) -> bool:
     return not success
 
 
-async def create_commit(message: str, cwd: Path) -> bool:
+async def create_commit(message: str, cwd: anyio.Path) -> bool:
     """Do a commit."""
     _, success, _ = await run_timeout(
         ["git", "add", "--all"],
@@ -813,7 +812,7 @@ async def create_pull_request(
     message: str,
     body: str,
     github_project: configuration.GithubProject,
-    cwd: Path,
+    cwd: anyio.Path,
     auto_merge: bool = True,
 ) -> tuple[bool, githubkit_schemas.latest.models.PullRequest | None]:
     """Create a pull request."""
@@ -952,17 +951,17 @@ async def create_commit_pull_request(
     message: str,
     body: str,
     project: configuration.GithubProject,
-    cwd: Path,
+    cwd: anyio.Path,
     enable_pre_commit: bool = True,
     skip_pre_commit_hooks: list[str] | None = None,
 ) -> tuple[bool, githubkit_schemas.latest.models.PullRequest | None]:
     """Do a commit, then create a pull request."""
     skip_pre_commit_hooks = skip_pre_commit_hooks or []
-    if enable_pre_commit and (cwd / ".pre-commit-config.yaml").exists():
+    if enable_pre_commit and await (cwd / ".pre-commit-config.yaml").exists():
         # If the .python-version file exists, we activate pyenv in the subprocess
         env = dict(os.environ)
         python_version_file = cwd / ".python-version"
-        if python_version_file.exists():
+        if await python_version_file.exists():
             # We search for pyenv in the PATH
             pyenv_proc = await asyncio.create_subprocess_exec(
                 "pyenv",
@@ -1112,7 +1111,7 @@ class GitWorktreeCache:
     access to different branches without cloning the full repository each time.
     """
 
-    def __init__(self, cache_dir: Path | None = None) -> None:
+    def __init__(self, cache_dir: anyio.Path | None = None) -> None:
         """Initialize the GitWorktreeCache.
 
         Arguments:
@@ -1120,9 +1119,15 @@ class GitWorktreeCache:
         cache_dir: The directory where the cache will be stored.
             Defaults to ~/.cache/ghci/git/
         """
-        self._cache_dir = cache_dir or Path.home() / ".cache" / "ghci" / "git"
+        self._cache_dir: anyio.Path | None = cache_dir
         self._locks: dict[str, asyncio.Lock] = {}
         self._locks_lock = asyncio.Lock()
+
+    async def _get_cache_dir(self) -> anyio.Path:
+        """Get the cache directory, initializing it lazily if needed."""
+        if self._cache_dir is None:
+            self._cache_dir = await anyio.Path.home() / ".cache" / "ghci" / "git"
+        return self._cache_dir
 
     async def _get_lock(self, key: str) -> asyncio.Lock:
         """Get the lock for a repository."""
@@ -1131,7 +1136,9 @@ class GitWorktreeCache:
                 self._locks[key] = asyncio.Lock()
             return self._locks[key]
 
-    async def _set_user_config(self, repo_path: Path, github_project: configuration.GithubProject) -> None:
+    async def _set_user_config(
+        self, repo_path: anyio.Path, github_project: configuration.GithubProject
+    ) -> None:
         """Set the git user configuration for the bot in the repository."""
         user = (
             await github_project.aio_github.rest.users.async_get_by_username(
@@ -1153,12 +1160,12 @@ class GitWorktreeCache:
                 repo_path,
             )
 
-    async def _ensure_cache(self, github_project: configuration.GithubProject) -> Path:
+    async def _ensure_cache(self, github_project: configuration.GithubProject) -> anyio.Path:
         """Ensure the cache repository exists and is up to date.
 
         Returns the path to the cache repository.
         """
-        cache_path = self._cache_dir / github_project.owner / github_project.repository
+        cache_path = (await self._get_cache_dir()) / github_project.owner / github_project.repository
 
         # Ensure SSH key is available
         ssh_key_path = await anyio.Path("~/.ssh/id_rsa").expanduser()
@@ -1169,7 +1176,7 @@ class GitWorktreeCache:
                 async with await (directory / "id_rsa").open("w", encoding="utf-8") as file:
                     await file.write(github_project.application.private_key)
 
-        if await anyio.Path(cache_path / ".git").exists():
+        if await (cache_path / ".git").exists():
             # Update the remote URL with the current token in case it has expired
             await run_timeout(
                 [
@@ -1233,7 +1240,7 @@ class GitWorktreeCache:
         self,
         github_project: configuration.GithubProject,
         branch: str,
-    ) -> AsyncIterator[Path]:
+    ) -> AsyncIterator[anyio.Path]:
         """Context manager that provides a working tree for the given branch.
 
         The working tree is created from the cache and cleaned up on exit.
@@ -1252,7 +1259,7 @@ class GitWorktreeCache:
         async with lock:
             cache_path = await self._ensure_cache(github_project)
 
-            worktree_path = Path(tempfile.mkdtemp())
+            worktree_path = anyio.Path(await anyio.mkdtemp())
             # Create worktree in detached HEAD to avoid conflicts with other worktrees
             _, success, _ = await run_timeout(
                 ["git", "worktree", "add", "--detach", str(worktree_path), f"origin/{branch}"],
@@ -1283,7 +1290,7 @@ class GitWorktreeCache:
                     error=False,
                 )
                 # Ensure cleanup of any leftover files
-                shutil.rmtree(worktree_path, ignore_errors=True)
+                await anyio.to_thread.run_sync(lambda: shutil.rmtree(worktree_path, ignore_errors=True))
 
 
 GIT_WORKTREE_CACHE = GitWorktreeCache()

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-08-11
+
+### Fixed
+
+- **Modules & Queue**: Replaced blocking synchronous file I/O calls (`pathlib.Path.exists()`, `pathlib.Path.mkdir()`, `open()`, `shutil.rmtree()`, `tempfile.mkdtemp()`, `os.chdir()`, `c2cciutils.get_config()`) with async equivalents (`anyio.Path`, `anyio.to_thread.run_sync`) across all modules. This prevents the event loop from being blocked, allowing the `asyncio.timeout()` (50 min) to properly fire and cancel stuck jobs instead of leaving them in `PENDING` status permanently.
+- **Queue**: Added explicit task cleanup after `asyncio.timeout()` fires to ensure the inner processing task is cancelled and its resources are released.
+
 ## 2026-08-10
 
 ### Changed

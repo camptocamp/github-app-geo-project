@@ -12,6 +12,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, cast
 
+import anyio
 import githubkit.exception
 import githubkit_schemas.latest.models
 import multi_repo_automation as mra
@@ -90,14 +91,13 @@ class Updates(
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module configuration."""
-        with (Path(__file__).parent / "schema.json").open(
-            encoding="utf-8",
-        ) as schema_file:
-            schema = json.loads(schema_file.read())
-            for key in ("$schema", "$id"):
-                if key in schema:
-                    del schema[key]
-            return cast("dict[str, Any]", schema)
+        schema = json.loads(
+            await (anyio.Path(__file__).parent / "schema.json").read_text(encoding="utf-8"),
+        )
+        for key in ("$schema", "$id"):
+            if key in schema:
+                del schema[key]
+        return cast("dict[str, Any]", schema)
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the GitHub application permissions needed by the module."""
@@ -165,8 +165,9 @@ class Updates(
         context: module.ProcessContext[configuration.UpdatesConfiguration, UpdatesEventData],
         branch: str,
     ) -> None:
-        with (Path(__file__).parent / "versions.yaml").open(encoding="utf-8") as versions_file:
-            versions = yaml.safe_load(versions_file)
+        versions = yaml.safe_load(
+            await (anyio.Path(__file__).parent / "versions.yaml").read_text(encoding="utf-8"),
+        )
 
         if os.environ.get("TEST") == "TRUE":
             # In test mode, we don't create a worktree
@@ -180,8 +181,8 @@ class Updates(
             updated = False
 
             config_file = cwd / ".pre-commit-config.yaml"
-            if config_file.exists():
-                with mra.EditYAML(config_file) as config:
+            if await config_file.exists():
+                with mra.EditYAML(Path(config_file)) as config:
                     for repo_config in config.get("repos", []):
                         if (
                             repo_config.get("repo") == "https://github.com/mheap/json-schema-spell-checker"

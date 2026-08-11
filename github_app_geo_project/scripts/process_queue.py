@@ -332,7 +332,13 @@ async def _process_job(
                         current_module.process(context),
                         name=f"Process Job {job.id} - {job.module_event_name} - {job.module or '-'}",
                     )
-                    result = await task
+                    try:
+                        result = await task
+                    finally:
+                        if not task.done():
+                            task.cancel()
+                            with contextlib.suppress(asyncio.CancelledError):
+                                await task
                     if result.updated_transversal_status:
                         root_logger.removeHandler(handler)
                         await session.refresh(job)
