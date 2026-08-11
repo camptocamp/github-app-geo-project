@@ -10,6 +10,9 @@ extend-select = ["UP", "I", "S", "B", "ALL"]
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
 
+[tool.ruff.lint.flake8-copyright]
+notice-rgx = "Copyright \\(c\\) \\d{4},? Camptocamp SA"
+
 [tool.ruff.lint.extend-per-file-ignores]
 "tests/**" = ["ANN", "ARG", "ASYNC", "BLE001", "D", "DTZ", "E722", "FBT003", "INP001", "N", "PGH003", "PLC", "PLR2004", "PLW0603", "PLW1641", "RET", "RUF012", "RUF100", "S104", "S105", "S106", "S108", "S113", "S324", "S603", "S607", "S608", "SLF", "TRY003", "TRY301"]
 "**/tests/**" = ["ANN", "ARG", "ASYNC", "BLE001", "D", "DTZ", "E722", "FBT003", "INP001", "N", "PGH003", "PLC", "PLR2004", "PLW0603", "PLW1641", "RET", "RUF012", "RUF100", "S104", "S105", "S106", "S108", "S113", "S324", "S603", "S607", "S608", "SLF", "TRY003", "TRY301"]
@@ -36,7 +39,7 @@ urllib3 = "2.7.0"
 certifi = "2026.7.22"
 sentry-sdk = "2.66.1"
 lxml-html-clean = "0.4.5"
-tag-publish = "1.1.1"
+tag-publish = "1.2.2"
 aiohttp = "3.14.3"
 githubkit = { version = "0.16.0", extras = ["auth-app"] }
 githubkit-schemas = "26.7.11"
@@ -54,14 +57,14 @@ tinycss2 = "1.5.1"
 
 [tool.poetry.group.dev.dependencies]
 c2cwsgiutils = { version = "6.1.9",  extras = ["test-images"] }
-prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.19.0" }
+prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.19.1" }
 prospector-profile-duplicated = "1.12.0"
 prospector-profile-utils = "1.27.0"
 pytest = "9.1.1"
 pytest-asyncio = "1.4.0"
 aiointercept = "0.1.9"
 WebTest = "3.0.7"
-mypy = "2.1.0"
+mypy = "2.3.0"
 requests = "2.34.2"
 types-pyyaml = "6.0.12.20260724"
 types-markdown = "3.10.2.20260712"
