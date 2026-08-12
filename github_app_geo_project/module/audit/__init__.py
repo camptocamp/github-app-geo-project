@@ -41,6 +41,7 @@ _LOGGER = logging.getLogger(__name__)
 _SNYK_LOCK = asyncio.Lock()
 
 _OUTDATED = "Outdated version"
+_ADVISORY = False
 
 
 class _TransversalStatusTool(BaseModel):
@@ -557,7 +558,7 @@ async def _process_snyk_dpkg(
                 )
 
             # Create security advisories for HIGH and CRITICAL CVEs
-            if high_critical_vulns:
+            if high_critical_vulns and _ADVISORY:
                 await _create_security_advisories(context, high_critical_vulns)
 
         if context.module_event_data.type == "dpkg":
@@ -1361,7 +1362,7 @@ class Audit(
                 "issues": "write",
                 "contents": "write",
                 "workflows": "write",
-                "repository_security_advisories": "write",
+                **({"repository_security_advisories": "write"} if _ADVISORY else {}),
             },
             {"push", "pull_request"},
         )
