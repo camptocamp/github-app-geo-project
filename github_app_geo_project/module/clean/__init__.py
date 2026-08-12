@@ -72,7 +72,9 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
             "dict[str, Any]",
             json.loads(
                 await (anyio.Path(__file__).parent / "schema.json").read_text(encoding="utf-8"),
-            ).get("properties", {}).get("clean"),
+            )
+            .get("properties", {})
+            .get("clean"),
         )
 
     def get_actions(

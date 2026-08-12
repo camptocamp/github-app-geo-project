@@ -4,8 +4,8 @@ import base64
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import githubkit_schemas.latest.models
 import anyio
+import githubkit_schemas.latest.models
 import pytest
 
 from github_app_geo_project import module
@@ -114,9 +114,12 @@ async def test_process_branch(mock_edit_yaml, mock_utils, mock_context, tmp_path
 
     # Mock versions.yaml reading inside _process_branch
     versions = {"mheap/json-schema-spell-checker": "0.1.0"}
-    with patch("yaml.safe_load", return_value=versions), patch(
-        "github_app_geo_project.module.updates.anyio.Path.read_text",
-        return_value="",
+    with (
+        patch("yaml.safe_load", return_value=versions),
+        patch(
+            "github_app_geo_project.module.updates.anyio.Path.read_text",
+            return_value="",
+        ),
     ):
         await updates_module._process_branch(mock_context, "main")
 
@@ -161,9 +164,12 @@ async def test_process_branch_no_update(mock_edit_yaml, mock_utils, mock_context
 
     # Mock versions.yaml reading inside _process_branch
     versions = {"mheap/json-schema-spell-checker": "0.1.0"}
-    with patch("yaml.safe_load", return_value=versions), patch(
-        "github_app_geo_project.module.updates.anyio.Path.read_text",
-        return_value="",
+    with (
+        patch("yaml.safe_load", return_value=versions),
+        patch(
+            "github_app_geo_project.module.updates.anyio.Path.read_text",
+            return_value="",
+        ),
     ):
         await updates_module._process_branch(mock_context, "main")
 

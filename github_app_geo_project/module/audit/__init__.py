@@ -1370,7 +1370,9 @@ class Audit(
             "dict[str, Any]",
             json.loads(
                 await (anyio.Path(__file__).parent / "schema.json").read_text(encoding="utf-8"),
-            ).get("properties", {}).get("audit"),
+            )
+            .get("properties", {})
+            .get("audit"),
         )
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
