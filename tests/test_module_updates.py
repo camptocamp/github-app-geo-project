@@ -1,8 +1,10 @@
 # Copyright (c) 2026, Camptocamp SA
 
 import base64
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import anyio
 import githubkit_schemas.latest.models
 import pytest
 
@@ -86,7 +88,7 @@ async def test_process_worker(mock_context):
 @pytest.mark.asyncio
 async def test_process_branch(mock_edit_yaml, mock_utils, mock_context, tmp_path):
     mock_cm = MagicMock()
-    mock_cm.__aenter__ = AsyncMock(return_value=tmp_path)
+    mock_cm.__aenter__ = AsyncMock(return_value=anyio.Path(tmp_path))
     mock_cm.__aexit__ = AsyncMock(return_value=None)
     mock_utils.GIT_WORKTREE_CACHE.working_tree.return_value = mock_cm
     mock_utils.create_commit_pull_request = AsyncMock()
@@ -94,7 +96,7 @@ async def test_process_branch(mock_edit_yaml, mock_utils, mock_context, tmp_path
     updates_module = updates.Updates()
 
     # Setup tmp_path with .pre-commit-config.yaml
-    config_file = tmp_path / ".pre-commit-config.yaml"
+    config_file = Path(tmp_path) / ".pre-commit-config.yaml"
     # Create the file so .exists() returns True
     config_file.touch()
 
@@ -114,7 +116,10 @@ async def test_process_branch(mock_edit_yaml, mock_utils, mock_context, tmp_path
     versions = {"mheap/json-schema-spell-checker": "0.1.0"}
     with (
         patch("yaml.safe_load", return_value=versions),
-        patch("pathlib.Path.open"),  # Mocking file opening since we mock yaml.safe_load
+        patch(
+            "github_app_geo_project.module.updates.anyio.Path.read_text",
+            return_value="",
+        ),
     ):
         await updates_module._process_branch(mock_context, "main")
 
@@ -133,7 +138,7 @@ async def test_process_branch(mock_edit_yaml, mock_utils, mock_context, tmp_path
 @pytest.mark.asyncio
 async def test_process_branch_no_update(mock_edit_yaml, mock_utils, mock_context, tmp_path):
     mock_cm = MagicMock()
-    mock_cm.__aenter__ = AsyncMock(return_value=tmp_path)
+    mock_cm.__aenter__ = AsyncMock(return_value=anyio.Path(tmp_path))
     mock_cm.__aexit__ = AsyncMock(return_value=None)
     mock_utils.GIT_WORKTREE_CACHE.working_tree.return_value = mock_cm
     mock_utils.create_commit_pull_request = AsyncMock()
@@ -141,7 +146,7 @@ async def test_process_branch_no_update(mock_edit_yaml, mock_utils, mock_context
     updates_module = updates.Updates()
 
     # Setup tmp_path with .pre-commit-config.yaml
-    config_file = tmp_path / ".pre-commit-config.yaml"
+    config_file = Path(tmp_path) / ".pre-commit-config.yaml"
     # Create the file so .exists() returns True
     config_file.touch()
 
@@ -159,7 +164,13 @@ async def test_process_branch_no_update(mock_edit_yaml, mock_utils, mock_context
 
     # Mock versions.yaml reading inside _process_branch
     versions = {"mheap/json-schema-spell-checker": "0.1.0"}
-    with patch("yaml.safe_load", return_value=versions), patch("pathlib.Path.open"):
+    with (
+        patch("yaml.safe_load", return_value=versions),
+        patch(
+            "github_app_geo_project.module.updates.anyio.Path.read_text",
+            return_value="",
+        ),
+    ):
         await updates_module._process_branch(mock_context, "main")
 
     # Verify working_tree was called

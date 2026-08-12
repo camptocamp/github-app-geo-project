@@ -5,7 +5,6 @@
 import logging
 import logging.handlers
 import shutil
-from pathlib import Path
 from typing import Any
 
 import anyio
@@ -213,7 +212,7 @@ async def _get_directory_size(path: anyio.Path) -> int | None:
             success_message="",
             error_message="",
             timeout_message="",
-            cwd=Path("/"),
+            cwd=anyio.Path("/"),
             error=False,
         )
     except Exception:  # pylint: disable=broad-exception-caught
@@ -226,8 +225,11 @@ async def _get_directory_size(path: anyio.Path) -> int | None:
         return None
 
 
-async def _run_command(command: list[str], label: str) -> bool:
-    """Run a cache cleaning command."""
+async def _run_command(
+    command: list[str],
+    label: str,
+) -> bool:
+    """Run a command with a timeout."""
     try:
         _, success, _ = await module_utils.run_timeout(
             command,
@@ -236,7 +238,7 @@ async def _run_command(command: list[str], label: str) -> bool:
             success_message="",
             error_message="",
             timeout_message="",
-            cwd=Path("/"),
+            cwd=anyio.Path("/"),
             error=False,
         )
     except Exception:  # pylint: disable=broad-exception-caught
@@ -356,7 +358,7 @@ async def _clean_git_repositories(
                     success_message=f"Prune worktrees in {repo_dir.name}",
                     error_message=f"Error pruning worktrees in {repo_dir.name}",
                     timeout_message=f"Timeout pruning worktrees in {repo_dir.name}",
-                    cwd=Path(repo_dir),
+                    cwd=anyio.Path(repo_dir),
                     error=False,
                 )
             except Exception:  # pylint: disable=broad-exception-caught
@@ -371,7 +373,7 @@ async def _clean_git_repositories(
                     success_message=f"Git gc on {repo_dir.name}",
                     error_message=f"Error running git gc on {repo_dir.name}",
                     timeout_message=f"Timeout running git gc on {repo_dir.name}",
-                    cwd=Path(repo_dir),
+                    cwd=anyio.Path(repo_dir),
                     error=False,
                 )
             except Exception:  # pylint: disable=broad-exception-caught

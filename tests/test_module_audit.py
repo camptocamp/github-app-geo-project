@@ -6,6 +6,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import anyio
 import pytest
 
 from github_app_geo_project.module.audit import Audit, _EventData, _process_renovate
@@ -15,7 +16,7 @@ from github_app_geo_project.module.audit.utils import VulnerabilityData
 def _make_worktree_mock(clone_path: Path) -> MagicMock:
     """Create a mock for GIT_WORKTREE_CACHE.working_tree async context manager."""
     mock_cm = MagicMock()
-    mock_cm.__aenter__ = AsyncMock(return_value=clone_path)
+    mock_cm.__aenter__ = AsyncMock(return_value=anyio.Path(clone_path))
     mock_cm.__aexit__ = AsyncMock(return_value=None)
     return mock_cm
 

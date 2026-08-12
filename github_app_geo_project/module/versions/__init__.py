@@ -14,8 +14,7 @@ import os
 import re
 import tomllib
 from enum import Enum, IntEnum
-from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 import aiohttp
 import anyio
@@ -270,14 +269,16 @@ class Versions(
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module configuration."""
-        with (Path(__file__).parent / "schema.json").open(
-            encoding="utf-8",
-        ) as schema_file:
-            schema = json.loads(schema_file.read())
-            for key in ("$schema", "$id"):
-                if key in schema:
-                    del schema[key]
-            return schema  # type: ignore[no-any-return]
+        schema = cast(
+            "dict[str, Any]",
+            json.loads(
+                await (anyio.Path(__file__).parent / "schema.json").read_text(encoding="utf-8"),
+            ),
+        )
+        for key in ("$schema", "$id"):
+            if key in schema:
+                del schema[key]
+        return schema
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the GitHub application permissions needed by the module."""
@@ -414,7 +415,7 @@ class Versions(
                 version,
             )
 
-            async def _process_version(cwd: Path) -> ProcessOutput[_EventData, _IntermediateStatus]:
+            async def _process_version(cwd: anyio.Path) -> ProcessOutput[_EventData, _IntermediateStatus]:
                 # Get Renovate configuration from master branch
                 try:
                     renovate_file_content = (
@@ -430,7 +431,7 @@ class Versions(
                     )
 
                     github_path = cwd / ".github"
-                    github_path.mkdir(parents=True, exist_ok=True)
+                    await anyio.Path(github_path).mkdir(parents=True, exist_ok=True)
                     async with await anyio.open_file(
                         github_path / "renovate.json5",
                         "w",
@@ -459,7 +460,7 @@ class Versions(
                 message.title = "Names:"
                 _LOGGER.debug(message)
                 out_dir = cwd / "renovate-graph-out"
-                out_dir.mkdir(parents=True, exist_ok=True)
+                await anyio.Path(out_dir).mkdir(parents=True, exist_ok=True)
                 if await _get_dependencies(
                     context,
                     intermediate_status.version_dependencies_by_datasource,
@@ -500,7 +501,7 @@ class Versions(
                 )
 
             if os.environ.get("TEST") == "TRUE":
-                return await _process_version(Path.cwd())
+                return await _process_version(await anyio.Path.cwd())
             async with module_utils.GIT_WORKTREE_CACHE.working_tree(
                 context.github_project,
                 branch,
@@ -924,11 +925,20 @@ def _build_global_names(transversal_status: _TransversalStatus) -> _Names:
     return names
 
 
+def _do_get_config(cwd: anyio.Path) -> dict[str, Any]:
+    """Run c2cciutils.get_config() in the correct working directory."""
+    os.chdir(cwd)
+    try:
+        return cast("dict[str, Any]", c2cciutils.get_config())
+    finally:
+        os.chdir("/")
+
+
 async def _get_names(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource],
     version: str,
-    cwd: Path,
+    cwd: anyio.Path,
     alternate_versions: list[str] | None = None,
 ) -> None:
     """
@@ -1013,7 +1023,7 @@ async def _get_names(
     os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     docker_config = {}
     repository_default = {}
-    if (cwd / ".github" / "publish.yaml").exists():
+    if await (cwd / ".github" / "publish.yaml").exists():
         async with await anyio.open_file(
             cwd / ".github" / "publish.yaml",
             encoding="utf-8",
@@ -1025,9 +1035,7 @@ async def _get_names(
         repository_default = tag_publish.configuration.DOCKER_REPOSITORY_DEFAULT
     else:
         async with module_utils.WORKING_DIRECTORY_LOCK:
-            os.chdir(cwd)
-            data = c2cciutils.get_config()
-            os.chdir("/")
+            data = await anyio.to_thread.run_sync(_do_get_config, cwd)
         docker_config = data.get("publish", {}).get("docker", {})
         repository_default = c2cciutils.configuration.DOCKER_REPOSITORY_DEFAULT
 
@@ -1107,8 +1115,8 @@ async def _get_names(
 async def _get_dependencies(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     result: dict[str, _TransversalStatusNameInDatasource],
-    cwd: Path,
-    out_dir: Path,
+    cwd: anyio.Path,
+    out_dir: anyio.Path,
 ) -> bool:
     """
     Extract dependencies using renovate-graph.
@@ -1179,7 +1187,7 @@ async def _get_dependencies(
         _LOGGER.debug(message)
 
         output_file = out_dir / f"github-{github_project.owner}-{github_project.repository}.json"
-        if not output_file.exists():
+        if not await output_file.exists():
             message.title = "No output file found from renovate-graph"
             _LOGGER.error(message)
             raise VersionError(message.title)

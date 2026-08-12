@@ -12,7 +12,6 @@ import re
 import shutil
 import subprocess  # nosec
 import urllib.parse
-from pathlib import Path
 from typing import Any, Literal, cast
 
 import anyio
@@ -188,8 +187,8 @@ async def _process_renovate(
             default_branch,
         ) as new_cwd:
             renovate_config_path = new_cwd / ".github" / "renovate.json5"
-            if renovate_config_path.exists():
-                async with editor.EditRenovateConfig(anyio.Path(renovate_config_path)) as renovate_config:
+            if await renovate_config_path.exists():
+                async with editor.EditRenovateConfig(renovate_config_path) as renovate_config:
                     # Add other versions to baseBranchPatterns, avoiding duplicates
                     other_versions = [v for v in known_versions if v != default_branch]
                     if other_versions:
@@ -233,11 +232,11 @@ async def _process_renovate(
         context.module_event_data.version,
     ) as new_cwd:
         renovate_config_path = new_cwd / ".github" / "renovate.json5"
-        if renovate_config_path.exists():
-            renovate_config_path.unlink()
+        if await renovate_config_path.exists():
+            await renovate_config_path.unlink()
         security_md_path = new_cwd / "SECURITY.md"
-        if security_md_path.exists():
-            security_md_path.unlink()
+        if await security_md_path.exists():
+            await security_md_path.unlink()
 
         logs_url = urllib.parse.urljoin(
             context.service_url,
@@ -321,8 +320,8 @@ async def _process_snyk_dpkg(
             local_config: configuration.AuditConfiguration = {}
 
             ghci_config_path = cwd / ".github" / "ghci.yaml"
-            if context.module_event_data.type in ("snyk", "dpkg") and ghci_config_path.exists():
-                async with await anyio.Path(ghci_config_path).open("r", encoding="utf-8") as file:
+            if context.module_event_data.type in ("snyk", "dpkg") and await ghci_config_path.exists():
+                async with await ghci_config_path.open("r", encoding="utf-8") as file:
                     local_config = yaml.load(
                         await file.read(),
                         Loader=yaml.SafeLoader,
@@ -336,8 +335,8 @@ async def _process_snyk_dpkg(
                 async with _SNYK_LOCK:
                     python_version = ""
                     tool_versions = cwd / ".tool-versions"
-                    if tool_versions.exists():
-                        async with await anyio.Path(tool_versions).open("r", encoding="utf-8") as file:
+                    if await tool_versions.exists():
+                        async with await tool_versions.open("r", encoding="utf-8") as file:
                             for line in (await file.read()).splitlines():
                                 if line.startswith("python "):
                                     python_version = ".".join(
@@ -390,7 +389,7 @@ async def _process_snyk_dpkg(
                         snyk_ignore_reasons: dict[str, str] = {}
                         snyk_files = await audit_utils.find_snyk_files(cwd)
                         for snyk_file in snyk_files:
-                            reasons = audit_utils.parse_snyk_ignore_reasons(snyk_file)
+                            reasons = await audit_utils.parse_snyk_ignore_reasons(snyk_file)
                             snyk_ignore_reasons.update(reasons)
 
                     except Exception:  # pylint: disable=broad-except
@@ -573,9 +572,10 @@ async def _process_snyk_dpkg(
             if context.module_event_data.type == "dpkg":
                 body_md = "Update dpkg packages"
 
-                if (cwd / "ci" / "dpkg-versions.yaml").exists() or (
-                    cwd / ".github" / "dpkg-versions.yaml"
-                ).exists():
+                if (
+                    await (cwd / "ci" / "dpkg-versions.yaml").exists()
+                    or await (cwd / ".github" / "dpkg-versions.yaml").exists()
+                ):
                     await audit_utils.dpkg(
                         context.module_config.get("dpkg", {}),
                         local_config.get("dpkg", {}),
@@ -623,7 +623,7 @@ async def _process_snyk_dpkg(
     return short_message, success
 
 
-async def _use_python_version(python_version: str, cwd: Path) -> dict[str, str]:
+async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str, str]:
     command = ["pyenv", "local", python_version]
     proc = await asyncio.create_subprocess_exec(
         *command,
@@ -671,7 +671,9 @@ async def _use_python_version(python_version: str, cwd: Path) -> dict[str, str]:
     _LOGGER.debug(message)
 
     # Cleanup the packages
-    shutil.rmtree(f"/var/www/.local/lib/python{python_version}", ignore_errors=True)
+    await anyio.to_thread.run_sync(
+        lambda: shutil.rmtree(f"/var/www/.local/lib/python{python_version}", ignore_errors=True)
+    )
 
     # Cleanup poetry virtual environments
     await module_utils.run_timeout(
@@ -695,7 +697,7 @@ async def _create_pull_request_if_changes(
     body_md: str,
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     local_config: configuration.AuditConfiguration,
-    cwd: Path,
+    cwd: anyio.Path,
     issue_check: module_utils.DashboardIssue | None,
 ) -> tuple[bool, list[str]]:
     """Create a pull request if there are changes to commit."""
@@ -1364,10 +1366,14 @@ class Audit(
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema of the module configuration."""
-        with (Path(__file__).parent / "schema.json").open(
-            encoding="utf-8",
-        ) as schema_file:
-            return json.loads(schema_file.read()).get("properties", {}).get("audit")  # type: ignore[no-any-return]
+        return cast(
+            "dict[str, Any]",
+            json.loads(
+                await (anyio.Path(__file__).parent / "schema.json").read_text(encoding="utf-8"),
+            )
+            .get("properties", {})
+            .get("audit"),
+        )
 
     def get_github_application_permissions(self) -> module.GitHubApplicationPermissions:
         """Get the permissions and events required by the module."""

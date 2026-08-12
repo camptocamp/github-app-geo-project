@@ -9,7 +9,6 @@ import json
 import logging
 import os
 import subprocess
-from pathlib import Path
 from typing import NamedTuple
 
 import anyio
@@ -140,7 +139,7 @@ async def snyk(
     local_config: configuration.SnykConfiguration,
     logs_url: str,
     env: dict[str, str],
-    cwd: Path,
+    cwd: anyio.Path,
     ignore_policy: bool = False,
 ) -> tuple[
     list[module_utils.Message],
@@ -288,7 +287,7 @@ async def _select_java_version(
     config: configuration.SnykConfiguration,
     local_config: configuration.SnykConfiguration,
     env: dict[str, str],
-    cwd: Path,
+    cwd: anyio.Path,
 ) -> None:
     if not (cwd / "gradlew").exists():
         return
@@ -342,7 +341,7 @@ async def _install_requirements_dependencies(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env: dict[str, str],
-    cwd: Path,
+    cwd: anyio.Path,
 ) -> None:
     command = ["git", "ls-files", "requirements.txt", "*/requirements.txt"]
     proc = await asyncio.create_subprocess_exec(
@@ -390,7 +389,7 @@ async def _install_pipenv_dependencies(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env: dict[str, str],
-    cwd: Path,
+    cwd: anyio.Path,
 ) -> None:
     command = ["git", "ls-files", "Pipfile", "*/Pipfile"]
     proc = await asyncio.create_subprocess_exec(
@@ -412,7 +411,7 @@ async def _install_pipenv_dependencies(
                 continue
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
-            directory = (cwd / file).resolve().parent
+            directory = (await (cwd / file).resolve()).parent
 
             _, _, proc_message = await module_utils.run_timeout(
                 [
@@ -436,7 +435,7 @@ async def _install_poetry_dependencies(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env: dict[str, str],
-    cwd: Path,
+    cwd: anyio.Path,
 ) -> None:
     command = ["git", "ls-files", "poetry.lock", "*/poetry.lock"]
     proc = await asyncio.create_subprocess_exec(
@@ -470,7 +469,7 @@ async def _install_poetry_dependencies(
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
-                (cwd / file).resolve().parent,
+                (await (cwd / file).resolve()).parent,
             )
             if proc_message is not None:
                 result.append(proc_message)
@@ -482,7 +481,7 @@ async def _snyk_monitor(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env: dict[str, str],
-    cwd: Path,
+    cwd: anyio.Path,
 ) -> None:
     command = [
         "snyk",
@@ -534,7 +533,7 @@ async def _snyk_test(
     local_config: configuration.SnykConfiguration,
     result: list[module_utils.Message],
     env_no_debug: dict[str, str],
-    cwd: Path,
+    cwd: anyio.Path,
     ignore_policy: bool = False,
 ) -> tuple[
     dict[str, int],
@@ -702,7 +701,7 @@ async def _snyk_test(
 
 async def _snyk_fix(
     branch: str,
-    cwd: Path,
+    cwd: anyio.Path,
     config: configuration.SnykConfiguration,
     local_config: configuration.SnykConfiguration,
     logs_url: str,
@@ -782,12 +781,12 @@ async def _snyk_fix(
 async def _npm_audit_fix(
     fixable_files_npm: dict[str, set[str]],
     result: list[module_utils.Message],
-    cwd: Path,
+    cwd: anyio.Path,
 ) -> tuple[str, bool]:
     messages: set[str] = set()
     fix_success = True
     for package_lock_file_name, file_messages in fixable_files_npm.items():
-        directory = (cwd / package_lock_file_name).absolute().parent
+        directory = (await (cwd / package_lock_file_name).absolute()).parent
         messages.update(file_messages)
         _LOGGER.debug("Fixing vulnerabilities in %s with npm audit fix", package_lock_file_name)
         command = ["npm", "audit", "fix"]
@@ -914,57 +913,63 @@ async def _get_packages_version(
 async def dpkg(
     config: configuration.DpkgConfiguration,
     local_config: configuration.DpkgConfiguration,
-    cwd: Path,
+    cwd: anyio.Path,
 ) -> None:
     """Update the version of packages in the file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml."""
     ci_dpkg_versions_filename = cwd / ".github" / "dpkg-versions.yaml"
     github_dpkg_versions_filename = cwd / "ci" / "dpkg-versions.yaml"
 
-    if not ci_dpkg_versions_filename.exists() and not github_dpkg_versions_filename.exists():
+    if not await ci_dpkg_versions_filename.exists() and not await github_dpkg_versions_filename.exists():
         _LOGGER.warning("The file .github/dpkg-versions.yaml or ci/dpkg-versions.yaml does not exist")
 
     dpkg_versions_filename = (
-        github_dpkg_versions_filename if github_dpkg_versions_filename.exists() else ci_dpkg_versions_filename
+        github_dpkg_versions_filename
+        if await github_dpkg_versions_filename.exists()
+        else ci_dpkg_versions_filename
     )
 
-    with dpkg_versions_filename.open(encoding="utf-8") as versions_file:
-        versions_config = yaml.load(versions_file, Loader=yaml.SafeLoader)
-        for versions in versions_config.values():
-            for package_full in versions:
-                version = await _get_packages_version(package_full, config, local_config)
-                if version is None:
-                    _LOGGER.warning("No version found for %s", package_full)
-                    continue
-                if versions[package_full] is None or versions[package_full] == "None":
+    versions_config = yaml.load(
+        await dpkg_versions_filename.read_text(encoding="utf-8"),
+        Loader=yaml.SafeLoader,
+    )
+    for versions in versions_config.values():
+        for package_full in versions:
+            version = await _get_packages_version(package_full, config, local_config)
+            if version is None:
+                _LOGGER.warning("No version found for %s", package_full)
+                continue
+            if versions[package_full] is None or versions[package_full] == "None":
+                versions[package_full] = version
+                continue
+            try:
+                current_version = debian_inspector.version.Version.from_string(versions[package_full])
+            except ValueError as exception:
+                _LOGGER.warning(
+                    "Error while parsing the current version '%s' of the package %s: %s",
+                    versions[package_full],
+                    package_full,
+                    exception,
+                )
+                versions[package_full] = version
+                continue
+            try:
+                if debian_inspector.version.Version.from_string(version) > current_version:
                     versions[package_full] = version
-                    continue
-                try:
-                    current_version = debian_inspector.version.Version.from_string(versions[package_full])
-                except ValueError as exception:
-                    _LOGGER.warning(
-                        "Error while parsing the current version '%s' of the package %s: %s",
-                        versions[package_full],
-                        package_full,
-                        exception,
-                    )
-                    versions[package_full] = version
-                    continue
-                try:
-                    if debian_inspector.version.Version.from_string(version) > current_version:
-                        versions[package_full] = version
-                except ValueError as exception:
-                    _LOGGER.warning(
-                        "Error while parsing the new version '%s' of the package %s: %s",
-                        version,
-                        package_full,
-                        exception,
-                    )
+            except ValueError as exception:
+                _LOGGER.warning(
+                    "Error while parsing the new version '%s' of the package %s: %s",
+                    version,
+                    package_full,
+                    exception,
+                )
 
-    with dpkg_versions_filename.open("w", encoding="utf-8") as versions_file:
-        yaml.dump(versions_config, versions_file, Dumper=yaml.SafeDumper)
+    await dpkg_versions_filename.write_text(
+        yaml.dump(versions_config, Dumper=yaml.SafeDumper),
+        encoding="utf-8",
+    )
 
 
-async def find_snyk_files(cwd: Path) -> list[Path]:
+async def find_snyk_files(cwd: anyio.Path) -> list[anyio.Path]:
     """Find all .snyk files in the repository."""
     command = ["git", "ls-files", "**/.snyk"]
     proc = await asyncio.create_subprocess_exec(
@@ -979,13 +984,12 @@ async def find_snyk_files(cwd: Path) -> list[Path]:
     return [cwd / f for f in result.split("\n") if f] if result else []
 
 
-def parse_snyk_ignore_reasons(snyk_file: Path) -> dict[str, str]:
+async def parse_snyk_ignore_reasons(snyk_file: anyio.Path) -> dict[str, str]:
     """Parse a .snyk file and return a dict mapping Snyk ID to ignore reason."""
-    if not snyk_file.exists():
+    if not await snyk_file.exists():
         return {}
     try:
-        with snyk_file.open(encoding="utf-8") as f:
-            data = yaml.safe_load(f)
+        data = yaml.safe_load(await snyk_file.read_text(encoding="utf-8"))
         if not isinstance(data, dict):
             return {}
         ignore = data.get("ignore", {})
@@ -1011,7 +1015,7 @@ async def snyk_test_ignored(
     config: configuration.SnykConfiguration,
     local_config: configuration.SnykConfiguration,
     env: dict[str, str],
-    cwd: Path,
+    cwd: anyio.Path,
 ) -> dict[str, list[VulnerabilityData]]:
     """Run snyk test --json --ignore-policy and return file-grouped vulnerability data."""
     env_no_debug = {**env}

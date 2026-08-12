@@ -8,10 +8,10 @@ import json
 import logging
 import os
 import subprocess  # nosec
-from pathlib import Path
 from typing import Any, cast
 
 import aiohttp
+import anyio
 import githubkit.exception
 import githubkit.webhooks
 import githubkit_schemas
@@ -68,10 +68,14 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
 
     async def get_json_schema(self) -> dict[str, Any]:
         """Get the JSON schema for the module."""
-        with (Path(__file__).parent / "schema.json").open(
-            encoding="utf-8",
-        ) as schema_file:
-            return json.loads(schema_file.read()).get("properties", {}).get("clean")  # type: ignore[no-any-return]
+        return cast(
+            "dict[str, Any]",
+            json.loads(
+                await (anyio.Path(__file__).parent / "schema.json").read_text(encoding="utf-8"),
+            )
+            .get("properties", {})
+            .get("clean"),
+        )
 
     def get_actions(
         self,
