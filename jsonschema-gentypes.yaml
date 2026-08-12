@@ -5,7 +5,7 @@ headers: |
   Automatically generated file from a JSON schema.
   """
 
-python_version: '3.11'
+python_version: '3.12'
 
 generate:
   - source: github_app_geo_project/project-schema.json
