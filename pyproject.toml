@@ -70,6 +70,8 @@ mypy = "2.3.0"
 requests = "2.34.2"
 types-pyyaml = "6.0.12.20260724"
 types-markdown = "3.10.2.20260712"
+ruff = "0.16.1"
+pylint = "4.0.6"
 
 [tool.poetry-dynamic-versioning]
 enable = true
