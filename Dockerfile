@@ -1,5 +1,5 @@
 # Base of all section, install the apt packages
-FROM ubuntu:24.04 AS base-all
+FROM ubuntu:26.04 AS base-all
 LABEL maintainer Camptocamp "info@camptocamp.com"
 
 # Fail on error on pipe, see: https://github.com/hadolint/hadolint/wiki/DL4006.
