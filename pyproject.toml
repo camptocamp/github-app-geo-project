@@ -56,7 +56,7 @@ setuptools = "83.0.0"
 tinycss2 = "1.5.1"
 
 [tool.poetry.group.dev.dependencies]
-c2cwsgiutils = { version = "6.1.9",  extras = ["test-images"] }
+c2cwsgiutils = { version = "6.1.10",  extras = ["test-images"] }
 prospector = { extras = ["with_mypy", "with_bandit", "with_pyroma", "with_ruff"], version = "1.19.1" }
 prospector-profile-duplicated = "1.12.0"
 prospector-profile-utils = "1.27.0"
