@@ -988,25 +988,21 @@ async def parse_snyk_ignore_reasons(snyk_file: anyio.Path) -> dict[str, str]:
     """Parse a .snyk file and return a dict mapping Snyk ID to ignore reason."""
     if not await snyk_file.exists():
         return {}
-    try:
-        data = yaml.safe_load(await snyk_file.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            return {}
-        ignore = data.get("ignore", {})
-        if not isinstance(ignore, dict):
-            return {}
-        reasons: dict[str, str] = {}
-        for snyk_id, entries in ignore.items():
-            if isinstance(entries, list) and entries:
-                entry = entries[0]
-                if isinstance(entry, dict):
-                    for details in entry.values():
-                        if isinstance(details, dict) and "reason" in details:
-                            reasons[str(snyk_id)] = details["reason"]
-                            break
-    except Exception:  # pylint: disable=broad-except
-        _LOGGER.exception("Failed to parse .snyk file: %s", snyk_file)
+    data = yaml.safe_load(await snyk_file.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
         return {}
+    ignore = data.get("ignore", {})
+    if not isinstance(ignore, dict):
+        return {}
+    reasons: dict[str, str] = {}
+    for snyk_id, entries in ignore.items():
+        if isinstance(entries, list) and entries:
+            entry = entries[0]
+            if isinstance(entry, dict):
+                for details in entry.values():
+                    if isinstance(details, dict) and "reason" in details:
+                        reasons[str(snyk_id)] = details["reason"]
+                        break
     return reasons
 
 
