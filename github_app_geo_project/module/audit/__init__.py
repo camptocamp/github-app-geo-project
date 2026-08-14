@@ -342,11 +342,7 @@ async def _process_snyk_dpkg(
                                 ).strip()
                                 break
 
-                env = (
-                    await _use_python_version(python_version, cwd)
-                    if python_version
-                    else os.environ.copy()
-                )
+                env = await _use_python_version(python_version, cwd) if python_version else os.environ.copy()
 
                 result, body, short_message, new_success, file_vulnerabilities = await audit_utils.snyk(
                     branch,
