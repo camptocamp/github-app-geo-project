@@ -423,7 +423,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 except Exception:  # pylint: disable=broad-exception-caught
                     _LOGGER.exception("Error while running 'tree' command")
 
-                if not (cwd / folder).exists():
+                if not await (cwd / folder).exists():
                     _LOGGER.info(
                         "The folder '%s' does not exist in the branch '%s', nothing to do",
                         folder,

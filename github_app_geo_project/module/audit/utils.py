@@ -229,7 +229,7 @@ async def snyk(
     fix_success = True
 
     pre_commit_config = get_pre_commit_config(audit_config, audit_local_config)
-    if pre_commit_config.get("enabled", True) and (cwd / ".pre-commit-config.yaml").exists():
+    if pre_commit_config.get("enabled", True) and await (cwd / ".pre-commit-config.yaml").exists():
         command = [
             "pre-commit",
             "run",
@@ -289,7 +289,7 @@ async def _select_java_version(
     env: dict[str, str],
     cwd: anyio.Path,
 ) -> None:
-    if not (cwd / "gradlew").exists():
+    if not await (cwd / "gradlew").exists():
         return
 
     command = ["./gradlew", "--version"]
