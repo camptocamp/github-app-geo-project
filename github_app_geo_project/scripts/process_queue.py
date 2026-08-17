@@ -993,7 +993,10 @@ async def _get_process_one_job(
                         models.Queue.priority == min_priority,
                     )
                     .order_by(models.Queue.created_at.asc())
-                    .with_for_update(skip_locked=True),
+                    # Limit to one row to not lock all the jobs of the priority level
+                    # (FOR UPDATE SKIP LOCKED locks every fetched row until the end of the transaction)
+                    .limit(1)
+                    .with_for_update(skip_locked=True)
                 )
             ).scalar()
 

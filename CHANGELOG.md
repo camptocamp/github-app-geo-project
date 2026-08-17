@@ -9,6 +9,7 @@
 ### Fixed
 
 - **Versions module**: The subprocesses (`git ls-files`, `renovate-graph`) are now killed when their timeout expires, instead of being left running.
+- **Queue**: The job selection now only locks the picked row (`LIMIT 1` added to the `FOR UPDATE SKIP LOCKED` query), instead of locking all the jobs of the current priority level for the whole selection transaction, which could make the other workers see no available job.
 
 ## 2026-08-11
 
