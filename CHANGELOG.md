@@ -6,6 +6,10 @@
 
 - **Queue**: Added step logs in the job preamble (`Get GitHub application`, `Get GitHub project`, `Get GitHub rate limit`, `Get dashboard issue`, `Get project configuration`, check run creation/update), to identify where a job hangs when it never reaches the module processing.
 
+### Fixed
+
+- **Versions module**: The subprocesses (`git ls-files`, `renovate-graph`) are now killed when their timeout expires, instead of being left running.
+
 ## 2026-08-11
 
 ### Fixed
