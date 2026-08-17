@@ -92,7 +92,10 @@ async def _lifespan(main_app: FastAPI) -> AsyncIterator[None]:
 
     await c2casgiutils.startup(main_app)
 
-    main_app.state.async_engine = create_async_engine(settings.sqlalchemy.async_url)
+    main_app.state.async_engine = create_async_engine(
+        settings.sqlalchemy.async_url,
+        pool_pre_ping=settings.sqlalchemy.pool_pre_ping,
+    )
     main_app.state.async_session_factory = async_sessionmaker(main_app.state.async_engine)
 
     health_checks.FACTORY.add(

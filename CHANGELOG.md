@@ -10,6 +10,7 @@
 
 - **Versions module**: The subprocesses (`git ls-files`, `renovate-graph`) are now killed when their timeout expires, instead of being left running.
 - **Queue**: The job selection now only locks the picked row (`LIMIT 1` added to the `FOR UPDATE SKIP LOCKED` query), instead of locking all the jobs of the current priority level for the whole selection transaction, which could make the other workers see no available job.
+- **Database**: The SQLAlchemy connection pools now test the connections before using them (`pool_pre_ping` enabled by default, can be disabled with `GHCI__SQLALCHEMY__POOL_PRE_PING=false`), to not hang on dead connections (for example after a database restart).
 
 ## 2026-08-11
 

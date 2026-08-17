@@ -1490,8 +1490,11 @@ async def _async_main() -> None:
             options["pool_size"] = settings.sqlalchemy.pool_size
         if settings.sqlalchemy.max_overflow is not None:
             options["max_overflow"] = settings.sqlalchemy.max_overflow
+        options["pool_pre_ping"] = settings.sqlalchemy.pool_pre_ping
         async_engine = sqlalchemy.ext.asyncio.create_async_engine(settings.sqlalchemy.async_url, **options)
-        engine = sqlalchemy.create_engine(settings.sqlalchemy.url)
+        engine = sqlalchemy.create_engine(
+            settings.sqlalchemy.url, pool_pre_ping=settings.sqlalchemy.pool_pre_ping
+        )
         Session = sqlalchemy.orm.sessionmaker(  # noqa: N806
             bind=engine,
         )  # pylint: disable=invalid-name
