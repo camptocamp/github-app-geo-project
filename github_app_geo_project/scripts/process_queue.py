@@ -166,6 +166,7 @@ async def _validate_job(
 ) -> bool:
     if settings.test.app_name:
         return True
+    _LOGGER.debug("Get GitHub application %s (job validation)", application)
     github_application = await configuration.get_github_application(application)
     installation_id = event_data.get("installation", {}).get("id", 0)
     if github_application.id == installation_id:
@@ -201,16 +202,19 @@ async def _process_job(
     check_run: githubkit_schemas.latest.models.CheckRun | None = None
     tasks: list[asyncio.Task[Any]] = []
     if not settings.test.app_name:
+        _LOGGER.debug("Get GitHub application %s for job id %s", job.application, job.id)
         github_application = await configuration.get_github_application(
             job.application,
         )
         if job.owner is not None and job.repository is not None:
+            _LOGGER.debug("Get GitHub project %s/%s for job id %s", job.owner, job.repository, job.id)
             github_project = await configuration.get_github_project(
                 github_application,
                 job.owner,
                 job.repository,
             )
             # Get Rate limit status
+            _LOGGER.debug("Get GitHub rate limit for job id %s", job.id)
             rate_limit = (await github_project.aio_github.rest.rate_limit.async_get()).parsed_data
             if rate_limit.resources.core.remaining < 1000:
                 _LOGGER.warning(
@@ -227,6 +231,7 @@ async def _process_job(
                 )
 
             if current_module.required_issue_dashboard():
+                _LOGGER.debug("Get dashboard issue for job id %s", job.id)
                 dashboard_issue = await _get_dashboard_issue(github_project)
                 if dashboard_issue:
                     issue_full_data = dashboard_issue.body
@@ -236,6 +241,7 @@ async def _process_job(
                         job.module,
                     )
 
+            _LOGGER.debug("Get project configuration for job id %s", job.id)
             module_config = cast(
                 "project_configuration.ModuleConfiguration",
                 (await configuration.get_configuration(github_project)).get(
@@ -244,6 +250,7 @@ async def _process_job(
                 ),
             )
             if job.check_run_id is not None:
+                _LOGGER.info("Get check run %s", job.check_run_id)
                 check_run = (
                     await github_project.aio_github.rest.checks.async_get(
                         owner=job.owner,
@@ -281,6 +288,7 @@ async def _process_job(
         try:
             if not settings.test.app_name:
                 if job.check_run_id is None and job.owner is not None and job.repository is not None:
+                    _LOGGER.debug("Create check run for job id %s", job.id)
                     check_run = await module_utils.create_checks(
                         job,
                         session,
@@ -294,6 +302,7 @@ async def _process_job(
                     and github_project.aio_github is not None
                     and check_run is not None
                 ):
+                    _LOGGER.debug("Update check run %s to in_progress for job id %s", check_run.id, job.id)
                     await github_project.aio_github.rest.checks.async_update(
                         owner=job.owner,
                         repo=job.repository,

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-17
+
+### Added
+
+- **Queue**: Added step logs in the job preamble (`Get GitHub application`, `Get GitHub project`, `Get GitHub rate limit`, `Get dashboard issue`, `Get project configuration`, check run creation/update), to identify where a job hangs when it never reaches the module processing.
+
 ## 2026-08-11
 
 ### Fixed
