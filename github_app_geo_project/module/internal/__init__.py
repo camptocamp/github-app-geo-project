@@ -222,7 +222,6 @@ async def process_event(
                 job.module_event_data = module_data
                 context.session.add(job)
                 await context.session.flush()
-                github_project = None
 
                 should_create_checks = action.checks
                 if should_create_checks is None:
@@ -234,12 +233,12 @@ async def process_event(
                         "check_suite",
                         "workflow_run",
                     ]
-                if should_create_checks and github_project is not None:
+                if should_create_checks and context.github_project is not None:
                     await module_utils.create_checks(
                         job,
                         context.session,
                         current_module,
-                        github_project,
+                        context.github_project,
                         context.service_url,
                     )
         except Exception:  # pylint: disable=broad-except
