@@ -108,7 +108,7 @@ async def get_user(request: Request) -> User:
                             user.token,
                             owner,
                             repo_name,
-                            c2casgiutils.config.settings.auth.github.access_type,
+                            c2casgiutils.config.settings.auth.github.access_type_read_write,
                         )
                     except githubkit.exception.RequestFailed:
                         _LOGGER.warning(
@@ -147,7 +147,7 @@ async def get_user(request: Request) -> User:
                             user.token,
                             owner,
                             repo_name,
-                            c2casgiutils.config.settings.auth.github.access_type,
+                            c2casgiutils.config.settings.auth.github.access_type_read_write,
                         )
                     except githubkit.exception.RequestFailed:
                         _LOGGER.warning(
@@ -166,7 +166,9 @@ async def get_user(request: Request) -> User:
     return user
 
 
-async def _check_repo_permission(token: str, owner: str, repo: str, required_access: str) -> bool:
+async def _check_repo_permission(
+    token: str, owner: str, repo: str, required_access: c2casgiutils.config.GitHubAccessType
+) -> bool:
     """Check if the user has the required access level on a repository."""
     gh = githubkit.GitHub(githubkit.TokenAuthStrategy(token))
     try:
@@ -178,11 +180,11 @@ async def _check_repo_permission(token: str, owner: str, repo: str, required_acc
         return False
     if repo_data.permissions is None or isinstance(repo_data.permissions, Unset):
         return False
-    if required_access == "admin":
+    if required_access == c2casgiutils.config.GitHubAccessType.ADMIN:
         return repo_data.permissions.admin
-    if required_access == "push":
+    if required_access == c2casgiutils.config.GitHubAccessType.PUSH:
         return repo_data.permissions.admin or repo_data.permissions.push
-    if required_access == "pull":
+    if required_access == c2casgiutils.config.GitHubAccessType.PULL:
         return repo_data.permissions.admin or repo_data.permissions.push or repo_data.permissions.pull
     return False
 
@@ -204,4 +206,6 @@ async def has_repo_access(user: User, owner: str | None, repository: str | None)
         return True
     if owner is None or repository is None or user.token is None:
         return False
-    return await _check_repo_permission(user.token, owner, repository, "admin")
+    return await _check_repo_permission(
+        user.token, owner, repository, c2casgiutils.config.GitHubAccessType.ADMIN
+    )
