@@ -1539,8 +1539,6 @@ async def _async_main() -> None:
 
             prometheus_client.start_http_server(c2casgiutils.config.settings.prometheus.port)
 
-        priority_groups = [int(e) for e in settings.process_queue.priority_groups.split(",")]
-
         tasks = []
         if not args.exit_when_empty:
             tasks.append(asyncio.create_task(_WatchDog()(), name="Watch Dog"))
@@ -1557,7 +1555,7 @@ async def _async_main() -> None:
                     _Run(AsyncSession, args.exit_when_empty, priority)(),
                     name=f"Run ({priority})",
                 )
-                for priority in priority_groups
+                for priority in settings.process_queue.priority_groups
             ],
         )
         await asyncio.gather(*tasks)

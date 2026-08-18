@@ -134,7 +134,7 @@ RUN mkdir /var/www \
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
 
-ENV PROMETHEUS_MULTIPROC_DIR=/prometheus-metrics
+ENV C2C__TOOLS__LOGGING__APPLICATION_MODULE=github_app_geo_project
 
 # Do the lint, used by the tests
 FROM base AS tests

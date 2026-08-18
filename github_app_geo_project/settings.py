@@ -13,6 +13,7 @@ import re
 from typing import Annotated, Any, cast
 
 import yaml
+from c2casgiutils.config import IntList, StringList  # noqa: TC002, resolved at runtime by pydantic
 from pydantic import BaseModel, BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -153,10 +154,12 @@ class _ProcessQueueSettings(BaseModel):
     slow_callback_duration: Annotated[Duration, Field(description="Slow callback duration")] = (
         datetime.timedelta(minutes=1)
     )
-    priority_groups: Annotated[str, Field(description="Priority groups")] = "2147483647"
+    priority_groups: Annotated[IntList, Field(description="Maximum priority value per queue worker")] = [
+        2147483647
+    ]
     socket_timeout: Annotated[Duration, Field(description="Socket timeout")] = datetime.timedelta(minutes=2)
     suppressed_logger_names: Annotated[
-        list[str], Field(description="Logger names to suppress from DB logs")
+        StringList, Field(description="Logger names to suppress from DB logs")
     ] = ["asyncio", "hishel", "httpcore"]
     suppressed_logger_level: Annotated[
         str,
@@ -209,7 +212,7 @@ class _AppConfig(BaseModel):
     github_app: Annotated[_GitHubApp, Field(description="GitHub app configuration")]
     title: Annotated[str | None, Field(description="Application title")] = None
     description: Annotated[str | None, Field(description="Application description")] = None
-    modules: Annotated[list[str], Field(description="Space-separated module names")] = []
+    modules: Annotated[StringList, Field(description="Space-separated module names")] = []
 
 
 class _RedisSettings(BaseModel):
