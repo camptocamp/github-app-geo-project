@@ -965,8 +965,14 @@ async def _get_names(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(60):
-        stdout, stderr = await proc.communicate()
+    try:
+        async with asyncio.timeout(60):
+            stdout, stderr = await proc.communicate()
+    except TimeoutError:
+        # Kill the process, otherwise it keeps running after the timeout
+        proc.kill()
+        await proc.wait()
+        raise
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage(
             command,
@@ -998,8 +1004,14 @@ async def _get_names(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(60):
-        stdout, stderr = await proc.communicate()
+    try:
+        async with asyncio.timeout(60):
+            stdout, stderr = await proc.communicate()
+    except TimeoutError:
+        # Kill the process, otherwise it keeps running after the timeout
+        proc.kill()
+        await proc.wait()
+        raise
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage(
             command,
@@ -1080,8 +1092,14 @@ async def _get_names(
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(60):
-        stdout, stderr = await proc.communicate()
+    try:
+        async with asyncio.timeout(60):
+            stdout, stderr = await proc.communicate()
+    except TimeoutError:
+        # Kill the process, otherwise it keeps running after the timeout
+        proc.kill()
+        await proc.wait()
+        raise
     if proc.returncode != 0:
         message = module_utils.AnsiProcessMessage(
             command,
@@ -1159,8 +1177,14 @@ async def _get_dependencies(
             stdout=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
-        async with asyncio.timeout(2700):  # 45 minutes
-            stdout, stderr = await proc.communicate()
+        try:
+            async with asyncio.timeout(2700):  # 45 minutes
+                stdout, stderr = await proc.communicate()
+        except TimeoutError:
+            # Kill the process, otherwise it keeps running after the timeout
+            proc.kill()
+            await proc.wait()
+            raise
         message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
             command,
             proc,

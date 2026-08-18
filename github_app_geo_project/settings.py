@@ -181,6 +181,10 @@ class _SqlAlchemySettings(BaseModel):
     pool_recycle: Annotated[int | None, Field(description="DB pool recycle seconds")] = None
     pool_size: Annotated[int | None, Field(description="DB pool size")] = None
     max_overflow: Annotated[int | None, Field(description="DB max overflow")] = None
+    pool_pre_ping: Annotated[
+        bool,
+        Field(description="Test the DB connections before using them, to not use dead connections"),
+    ] = True
     db_schema: Annotated[str, Field(description="DB schema name")] = "ghci"
 
     @property
