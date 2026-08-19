@@ -79,7 +79,7 @@ class DeleteOldWorkflowRuns(
             context.github_event_data.get("type") == "event"
             and context.github_event_data.get("name") == "daily"
         ):
-            return [module.Action(data={})]
+            return [module.Action(data={}, priority=module.PRIORITY_CRON)]
         return []
 
     async def get_json_schema(self) -> dict[str, Any]:
