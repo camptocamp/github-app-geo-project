@@ -44,7 +44,7 @@ async def _main() -> None:
         job.module_event_data = {
             "modules": app_config.modules if app_config else [],
         }
-        job.priority = github_app_geo_project.module.PRIORITY_CRON
+        job.priority = github_app_geo_project.module.PRIORITY_STANDARD
         session.add(job)
         await session.commit()
 

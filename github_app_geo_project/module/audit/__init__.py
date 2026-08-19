@@ -993,7 +993,7 @@ class Audit(
         if dpkg or snyk:
             results.append(
                 module.Action(
-                    priority=module.PRIORITY_CRON,
+                    priority=module.PRIORITY_CRON + 10,
                     data=_EventData(snyk=snyk, dpkg=dpkg, is_dashboard=is_dashboard),
                 ),
             )

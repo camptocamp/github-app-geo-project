@@ -397,7 +397,7 @@ class Versions(
                         ],
                     ),
                     title=version,
-                    priority=module.PRIORITY_CRON + 10,
+                    priority=module.PRIORITY_CRON + 20,
                 )
                 for version in stabilization_versions
             ]
