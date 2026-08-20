@@ -817,7 +817,7 @@ async def create_pull_request(
 ) -> tuple[bool, githubkit_schemas.latest.models.PullRequest | None]:
     """Create a pull request."""
     _, success, _ = await run_timeout(
-        ["git", "push", "--force", "origin", new_branch],
+        ["git", "push", "--force-with-lease", "origin", new_branch],
         None,
         60,
         "Push branch",

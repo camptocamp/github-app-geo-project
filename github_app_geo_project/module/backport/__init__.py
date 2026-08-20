@@ -616,7 +616,7 @@ class Backport(
                         "```",
                         "When all the conflicts are resolved, push the branch:",
                         "```bash",
-                        f"git push origin {backport_branch} --force",
+                        f"git push origin {backport_branch} --force-with-lease",
                         "```",
                     ],
                 )

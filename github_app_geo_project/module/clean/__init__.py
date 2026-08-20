@@ -477,7 +477,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
             command = [
                 "git",
                 "push",
-                *(["--force"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
+                *(["--force-with-lease"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
                 "origin",
                 branch,
             ]
