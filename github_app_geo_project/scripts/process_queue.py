@@ -475,15 +475,7 @@ async def _process_job(
                 else:
                     _LOGGER.info("Module %s finished with None result", job.module)
             except Exception as exception:  # pylint: disable=broad-exception-caught
-                root_logger.removeHandler(handler)
                 await session.refresh(job)
-                root_logger.addHandler(handler)
-                # For the logs view
-                _LOGGER.exception(
-                    "Failed to process job id: %s on module: %s",
-                    job.id,
-                    job.module,
-                )
                 error_message = f"Failed to process job id: {job.id} on module: {job.module}"
                 if isinstance(exception, GHCIError):
                     raise
@@ -604,23 +596,6 @@ async def _process_job(
         except githubkit.exception.RequestFailed as exception:
             job.status_enum = models.JobStatus.FAIL
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-            root_logger.addHandler(handler)
-            try:
-                _LOGGER.exception(
-                    "Failed to process job id: %s on module: %s, return data:\n%s\nreturn headers:\n%s\nreturn message:\n%s\nreturn status: %s",
-                    job.id,
-                    job.module,
-                    exception.response.text,
-                    (
-                        "\n".join(f"{k}: {v}" for k, v in exception.response.headers.items())
-                        if exception.response.headers
-                        else ""
-                    ),
-                    exception.response.reason_phrase,
-                    exception.response.status_code,
-                )
-            finally:
-                root_logger.removeHandler(handler)
             if check_run is not None:
                 try:
                     if github_project is not None and github_project.aio_github is not None:
@@ -655,19 +630,6 @@ async def _process_job(
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
             job.status_enum = models.JobStatus.FAIL
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-
-            message = module_utils.AnsiProcessMessage(
-                cast("list[str]", proc_error.cmd),
-                (None if isinstance(proc_error, subprocess.TimeoutExpired) else proc_error.returncode),
-                proc_error.output,
-                cast("str", proc_error.stderr),
-            )
-            message.title = f"Error process job '{job.id}' on module: {job.module}"
-            root_logger.addHandler(handler)
-            try:
-                _LOGGER.exception(message)
-            finally:
-                root_logger.removeHandler(handler)
             if check_run is not None:
                 try:
                     if github_project is not None and github_project.aio_github is not None:
@@ -698,16 +660,6 @@ async def _process_job(
         except Exception as exception:
             job.status_enum = models.JobStatus.FAIL
             job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-            if not isinstance(exception, GHCIError):
-                root_logger.addHandler(handler)
-                try:
-                    _LOGGER.exception(
-                        "Failed to process job id: %s on module: %s",
-                        job.id,
-                        job.module,
-                    )
-                finally:
-                    root_logger.removeHandler(handler)
             if check_run is not None and github_project is not None and github_project.aio_github is not None:
                 try:
                     await github_project.aio_github.rest.checks.async_update(
@@ -1165,21 +1117,25 @@ async def _process_one_job(
                 )
 
     except Exception:  # pylint: disable=broad-exception-caught
-        _LOGGER.exception(
-            "Failed to process job id: %s on module: %s.",
-            job.id,
-            job.module or "-",
-        )
+        root_logger.addHandler(handler)
+        try:
+            _LOGGER.exception(
+                "Failed to process job id: %s on module: %s.",
+                job.id,
+                job.module or "-",
+            )
+        finally:
+            root_logger.removeHandler(handler)
         job.log = None
     finally:
         sentry_sdk.set_context("job", {})
         log_session_factory = sqlalchemy.ext.asyncio.async_sessionmaker(
             bind=session.bind,
         )
-        await _flush_job_logs(log_session_factory, handler, job.id)
         if await session.run_sync(lambda _: job.status_enum == models.JobStatus.PENDING):
             _LOGGER.error("Job %s finished with pending status", job.id)
             job.status_enum = models.JobStatus.FAIL
+        await _flush_job_logs(log_session_factory, handler, job.id)
         job.finished_at = datetime.datetime.now(tz=datetime.UTC)
         _RUNNING_JOBS.pop(job.id)
         await session.commit()
