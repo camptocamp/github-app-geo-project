@@ -606,6 +606,7 @@ async def _process_job(
                             status="completed",
                             conclusion="failure",
                             output={
+                                "title": "Job failed",
                                 "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url})",
                             },
                         )
@@ -640,6 +641,7 @@ async def _process_job(
                             status="completed",
                             conclusion="failure",
                             output={
+                                "title": "Job failed",
                                 "summary": f"Unexpected error: {proc_error}\n[See logs for more details]({logs_url})",
                             },
                         )
@@ -669,7 +671,8 @@ async def _process_job(
                         status="completed",
                         conclusion="failure",
                         output={
-                            "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url}))",
+                            "title": "Job failed",
+                            "summary": f"Unexpected error: {exception}\n[See logs for more details]({logs_url})",
                         },
                     )
                 except githubkit.exception.RequestFailed as github_exception:
