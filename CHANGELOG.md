@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-08-22
+
+### Added
+
+- **Settings**: All hardcoded timeouts across modules are now configurable through Pydantic settings, organized per module (`settings.<module>.timeouts.<operation>`). Affected modules: `utils`, `audit`, `versions`, `clean`, `backport`, `cache_clean`, `tests`, `pull_request`, `patch`.
+
+### Changed
+
+- **Breaking**: `settings.audit_timeouts` moved to `settings.audit.timeouts`. Environment variables change from `GHCI__AUDIT_TIMEOUTS__*` to `GHCI__AUDIT__TIMEOUTS__*`.
+
 ## 2026-08-17
 
 ### Added

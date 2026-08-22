@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from github_app_geo_project import models, module, utils
 from github_app_geo_project.module import utils as module_utils
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                 )
-                async with asyncio.timeout(60):
+                async with asyncio.timeout(settings.test.timeouts.echo_command.total_seconds()):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
@@ -130,7 +131,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                 )
-                async with asyncio.timeout(60):
+                async with asyncio.timeout(settings.test.timeouts.echo_command.total_seconds()):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)
@@ -144,7 +145,7 @@ class TestModule(module.Module[_ConfigType, _EventData, _TransversalDashboardDat
                     stdin=asyncio.subprocess.PIPE,
                     stdout=asyncio.subprocess.PIPE,
                 )
-                async with asyncio.timeout(60):
+                async with asyncio.timeout(settings.test.timeouts.echo_command.total_seconds()):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(proc.returncode, command, stdout, stderr)

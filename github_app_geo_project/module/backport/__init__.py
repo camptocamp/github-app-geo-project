@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
+from github_app_geo_project.settings import settings
 
 from . import configuration
 
@@ -414,7 +415,7 @@ class Backport(
             stdout, _, _ = await module_utils.run_timeout(
                 ["git", "branch", "-a"],
                 None,
-                60,
+                settings.backport.timeouts.git_branch,
                 "List branches",
                 "Error listing branches",
                 "Timeout listing branches",
@@ -428,7 +429,7 @@ class Backport(
             _, success, _ = await module_utils.run_timeout(
                 ["git", "checkout", "-b", backport_branch, f"origin/{target_branch}"],
                 None,
-                60,
+                settings.backport.timeouts.git_checkout,
                 f"Create branch {backport_branch}",
                 f"Error while creating the branch {backport_branch}",
                 f"Timeout while creating the branch {backport_branch}",
@@ -487,7 +488,7 @@ class Backport(
                         stdout, success, _ = await module_utils.run_timeout(
                             ["git", "fetch", "origin", commit.sha],
                             None,
-                            300,
+                            settings.backport.timeouts.git_fetch,
                             f"Fetch {commit.sha}",
                             f"Error while fetching {commit.sha}",
                             f"Timeout while fetching {commit.sha}",
@@ -510,7 +511,7 @@ class Backport(
                                 commit.sha,
                             ],
                             None,
-                            60,
+                            settings.backport.timeouts.git_log,
                             f"Get email for {commit.sha}",
                             f"Error while getting user email {commit.sha}",
                             f"Timeout while getting user email {commit.sha}",
@@ -523,7 +524,7 @@ class Backport(
                             _, success_email, _ = await module_utils.run_timeout(
                                 ["git", "config", "--global", "user.email", user_email],
                                 None,
-                                10,
+                                settings.backport.timeouts.git_config,
                                 f"Set email {user_email}",
                                 f"Error while setting user email {user_email}",
                                 f"Timeout while setting user email {user_email}",
@@ -545,7 +546,7 @@ class Backport(
                                 commit.sha,
                             ],
                             None,
-                            60,
+                            settings.backport.timeouts.git_log,
                             f"Get name for {commit.sha}",
                             f"Error while getting user name {commit.sha}",
                             f"Timeout while getting user name {commit.sha}",
@@ -558,7 +559,7 @@ class Backport(
                             _, success_name, _ = await module_utils.run_timeout(
                                 ["git", "config", "--global", "user.name", user_name],
                                 None,
-                                10,
+                                settings.backport.timeouts.git_config,
                                 f"Set name {user_name}",
                                 f"Error while setting user name {user_name}",
                                 f"Timeout while setting user name {user_name}",
@@ -571,7 +572,7 @@ class Backport(
                         stdout, success, _ = await module_utils.run_timeout(
                             ["git", "cherry-pick", commit.sha],
                             None,
-                            60,
+                            settings.backport.timeouts.git_cherry_pick,
                             f"Cherry-pick {commit.sha}",
                             f"Error while cherry-picking {commit.sha}",
                             f"Timeout while cherry-picking {commit.sha}",
@@ -585,7 +586,7 @@ class Backport(
                             await module_utils.run_timeout(
                                 ["git", "cherry-pick", "--abort"],
                                 None,
-                                10,
+                                settings.backport.timeouts.git_cherry_pick_abort,
                                 f"Abort cherry-pick {commit.sha}",
                                 f"Error while aborting the cherry-pick {commit.sha}",
                                 f"Timeout while aborting the cherry-pick {commit.sha}",
@@ -629,7 +630,7 @@ class Backport(
                 _, success, _ = await module_utils.run_timeout(
                     ["git", "add", "BACKPORT_TODO"],
                     None,
-                    10,
+                    settings.backport.timeouts.git_add,
                     "Add BACKPORT_TODO",
                     "Error while adding the BACKPORT_TODO file",
                     "Timeout while adding the BACKPORT_TODO file",
@@ -641,7 +642,7 @@ class Backport(
                 _, success, _ = await module_utils.run_timeout(
                     ["git", "commit", "--message=[skip ci] Add instructions to finish the backport"],
                     None,
-                    10,
+                    settings.backport.timeouts.git_commit,
                     "Commit BACKPORT_TODO",
                     "Error while committing the BACKPORT_TODO file",
                     "Timeout while committing the BACKPORT_TODO file",

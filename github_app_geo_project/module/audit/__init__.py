@@ -34,6 +34,7 @@ from github_app_geo_project.module import ProcessOutput
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
 from github_app_geo_project.module.audit import utils as audit_utils
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -610,7 +611,7 @@ async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str,
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(300):
+    async with asyncio.timeout(settings.audit.timeouts.pyenv_local.total_seconds()):
         stdout, stderr = await proc.communicate()
     message = module_utils.AnsiProcessMessage.from_async_artifacts(
         command,
@@ -631,7 +632,7 @@ async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str,
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(5):
+    async with asyncio.timeout(settings.audit.timeouts.python_version.total_seconds()):
         stdout, stderr = await proc.communicate()
 
     # Get path from /pyenv/versions/{python_version}.*/bin/
@@ -658,7 +659,7 @@ async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str,
     await module_utils.run_timeout(
         ["poetry", "env", "remove", "--all"],
         env,
-        120,
+        settings.audit.timeouts.poetry_env_remove,
         success_message="Poetry virtual environments removed",
         error_message="Failed to remove poetry virtual environments",
         timeout_message="Poetry virtual environments removal timed out",
@@ -686,14 +687,14 @@ async def _create_pull_request_if_changes(
     command = ["git", "diff", "--quiet"]
     diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
     try:
-        async with asyncio.timeout(60):
+        async with asyncio.timeout(settings.audit.timeouts.git_diff.total_seconds()):
             await diff_proc.communicate()
         if diff_proc.returncode != 0:
             command = ["git", "diff"]
             await module_utils.run_timeout(
                 command,
                 env=None,
-                timeout=60,
+                timeout=settings.audit.timeouts.git_diff,
                 success_message="Changes to be committed",
                 error_message="Git diff failed",
                 timeout_message="Git diff timed out",
@@ -705,7 +706,7 @@ async def _create_pull_request_if_changes(
             _, success_checkout, _ = await module_utils.run_timeout(
                 command,
                 env=None,
-                timeout=60,
+                timeout=settings.audit.timeouts.git_checkout,
                 success_message="Git checkout completed",
                 error_message="Error while creating the new branch",
                 timeout_message="Git checkout timed out",
