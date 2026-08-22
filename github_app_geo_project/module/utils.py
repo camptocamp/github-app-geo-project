@@ -29,6 +29,7 @@ from ansi2html.style import get_styles
 from pydantic import BaseModel
 
 from github_app_geo_project import configuration, models, module, utils
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 WORKING_DIRECTORY_LOCK = asyncio.Lock()
@@ -719,7 +720,7 @@ async def run_timeout(
             stderr=asyncio.subprocess.PIPE,
             cwd=cwd,
         )
-        async with asyncio.timeout(60):
+        async with asyncio.timeout(settings.utils.timeouts.find_command.total_seconds()):
             stdout, stderr = await proc.communicate()
         message = AnsiProcessMessage.from_async_artifacts(cmd, proc, stdout, stderr)
         message.title = f"Find {command[0]}"
@@ -758,7 +759,7 @@ async def has_changes(cwd: anyio.Path, include_un_followed: bool = False) -> boo
         stdout, _, _ = await run_timeout(
             ["git", "status", "--porcelain"],
             None,
-            60,
+            settings.utils.timeouts.git_status,
             "Git status",
             "Error getting git status",
             "Timeout getting git status",
@@ -768,7 +769,7 @@ async def has_changes(cwd: anyio.Path, include_un_followed: bool = False) -> boo
     _, success, _ = await run_timeout(
         ["git", "diff", "--exit-code"],
         None,
-        60,
+        settings.utils.timeouts.git_diff,
         "Git diff",
         "Error running git diff",
         "Timeout running git diff",
@@ -782,7 +783,7 @@ async def create_commit(message: str, cwd: anyio.Path) -> bool:
     _, success, _ = await run_timeout(
         ["git", "add", "--all"],
         None,
-        30,
+        settings.utils.timeouts.git_add,
         "Add files to commit",
         "Error adding files to commit",
         "Timeout adding files to commit",
@@ -797,7 +798,7 @@ async def create_commit(message: str, cwd: anyio.Path) -> bool:
             f"--message={message}",
         ],
         None,
-        600,
+        settings.utils.timeouts.git_commit,
         "Commit",
         "Error committing files",
         "Timeout committing files",
@@ -976,7 +977,7 @@ async def create_commit_pull_request(
         await run_timeout(
             ["prek", "run", "--all-files", "--show-diff-on-failure", "--config=.pre-commit-config.yaml"],
             env,
-            600,
+            settings.utils.timeouts.prek_run,
             "Run prek",
             "Error running prek",
             "Timeout running prek",
@@ -991,7 +992,7 @@ async def create_commit_pull_request(
                 "--config=.pre-commit-config.yaml",
             ],
             env,
-            600,
+            settings.utils.timeouts.precommit_run,
             "Run pre-commit",
             "Error running pre-commit",
             "Timeout running pre-commit",
@@ -1002,7 +1003,7 @@ async def create_commit_pull_request(
     await run_timeout(
         ["git", "diff"],
         None,
-        30,
+        settings.utils.timeouts.git_diff_print,
         "Changes to be committed",
         "Error printing changes to be committed",
         "Timeout printing changes to be committed",
@@ -1153,7 +1154,7 @@ class GitWorktreeCache:
             await run_timeout(
                 ["git", "config", *config],
                 None,
-                60,
+                settings.utils.timeouts.git_config,
                 f"Set {config[0]}",
                 f"Error setting {config[0]}",
                 f"Timeout setting {config[0]}",
@@ -1187,7 +1188,7 @@ class GitWorktreeCache:
                     f"https://x-access-token:{github_project.token}@github.com/{github_project.owner}/{github_project.repository}.git",
                 ],
                 None,
-                60,
+                settings.utils.timeouts.git_remote_set_url,
                 "Update remote URL",
                 "Error updating remote URL",
                 "Timeout updating remote URL",
@@ -1197,7 +1198,7 @@ class GitWorktreeCache:
             _, success, _ = await run_timeout(
                 ["git", "fetch", "--prune", "origin"],
                 None,
-                600,
+                settings.utils.timeouts.git_fetch,
                 "Fetch latest changes",
                 "Error fetching latest changes",
                 "Timeout fetching latest changes",
@@ -1220,7 +1221,7 @@ class GitWorktreeCache:
                     str(cache_path),
                 ],
                 None,
-                1800,
+                settings.utils.timeouts.git_clone,
                 "Clone repository",
                 "Error cloning the repository",
                 "Timeout cloning the repository",
@@ -1264,7 +1265,7 @@ class GitWorktreeCache:
             _, success, _ = await run_timeout(
                 ["git", "worktree", "add", "--detach", str(worktree_path), f"origin/{branch}"],
                 None,
-                120,
+                settings.utils.timeouts.git_worktree_add,
                 f"Add worktree for {branch}",
                 f"Error adding worktree for {branch}",
                 f"Timeout adding worktree for {branch}",
@@ -1282,7 +1283,7 @@ class GitWorktreeCache:
                 await run_timeout(
                     ["git", "worktree", "remove", "--force", str(worktree_path)],
                     None,
-                    60,
+                    settings.utils.timeouts.git_worktree_remove,
                     f"Remove worktree for {branch}",
                     f"Error removing worktree for {branch}",
                     f"Timeout removing worktree for {branch}",

@@ -208,7 +208,7 @@ async def _get_directory_size(path: anyio.Path) -> int | None:
         stdout, success, _ = await module_utils.run_timeout(
             ["du", "-sb", str(path)],
             None,
-            30,
+            settings.cache_clean.timeouts.du_sb,
             success_message="",
             error_message="",
             timeout_message="",
@@ -234,7 +234,7 @@ async def _run_command(
         _, success, _ = await module_utils.run_timeout(
             command,
             None,
-            120,
+            settings.cache_clean.timeouts.run_command,
             success_message="",
             error_message="",
             timeout_message="",
@@ -354,7 +354,7 @@ async def _clean_git_repositories(
                 await module_utils.run_timeout(
                     ["git", "worktree", "prune"],
                     None,
-                    60,
+                    settings.cache_clean.timeouts.git_worktree_prune,
                     success_message=f"Prune worktrees in {repo_dir.name}",
                     error_message=f"Error pruning worktrees in {repo_dir.name}",
                     timeout_message=f"Timeout pruning worktrees in {repo_dir.name}",
@@ -369,7 +369,7 @@ async def _clean_git_repositories(
                 await module_utils.run_timeout(
                     ["git", "gc", "--auto", "--prune=all"],
                     None,
-                    600,
+                    settings.cache_clean.timeouts.git_gc,
                     success_message=f"Git gc on {repo_dir.name}",
                     error_message=f"Error running git gc on {repo_dir.name}",
                     timeout_message=f"Timeout running git gc on {repo_dir.name}",

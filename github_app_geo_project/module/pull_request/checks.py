@@ -21,6 +21,7 @@ import githubkit_schemas.latest.webhooks
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.pull_request import checks_configuration
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -234,7 +235,7 @@ async def _commits_spell(
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
             )
-            async with asyncio.timeout(120):
+            async with asyncio.timeout(settings.pull_request.timeouts.spellcheck_commit.total_seconds()):
                 stdout, stderr = await spell.communicate()
             message = module_utils.AnsiProcessMessage.from_async_artifacts(
                 command,
@@ -285,7 +286,9 @@ async def _pull_request_spell(
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
         )
-        async with asyncio.timeout(60):
+        async with asyncio.timeout(
+            settings.pull_request.timeouts.spellcheck_pull_request.total_seconds()
+        ):
             stdout, stderr = await spell.communicate()
         message = module_utils.AnsiProcessMessage.from_async_artifacts(
             command,

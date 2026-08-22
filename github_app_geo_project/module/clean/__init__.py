@@ -410,7 +410,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                         stderr=asyncio.subprocess.PIPE,
                         cwd=cwd,
                     )
-                    async with asyncio.timeout(10):
+                    async with asyncio.timeout(settings.clean.timeouts.tree.total_seconds()):
                         stdout, stderr = await tree_proc.communicate()
                         message = module_utils.AnsiProcessMessage.from_async_artifacts(
                             command,
@@ -444,7 +444,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     stderr=asyncio.subprocess.PIPE,
                     cwd=cwd,
                 )
-                async with asyncio.timeout(10):
+                async with asyncio.timeout(settings.clean.timeouts.git_rm.total_seconds()):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(
@@ -465,7 +465,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     stderr=asyncio.subprocess.PIPE,
                     cwd=cwd,
                 )
-                async with asyncio.timeout(120):
+                async with asyncio.timeout(settings.clean.timeouts.git_commit.total_seconds()):
                     stdout, stderr = await proc.communicate()
                 if proc.returncode != 0:
                     raise subprocess.CalledProcessError(
@@ -487,7 +487,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd,
             )
-            async with asyncio.timeout(120):
+            async with asyncio.timeout(settings.clean.timeouts.git_push.total_seconds()):
                 stdout, stderr = await proc.communicate()
             if proc.returncode != 0:
                 raise subprocess.CalledProcessError(
