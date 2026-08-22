@@ -286,9 +286,7 @@ async def _pull_request_spell(
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
         )
-        async with asyncio.timeout(
-            settings.pull_request.timeouts.spellcheck_pull_request.total_seconds()
-        ):
+        async with asyncio.timeout(settings.pull_request.timeouts.spellcheck_pull_request.total_seconds()):
             stdout, stderr = await spell.communicate()
         message = module_utils.AnsiProcessMessage.from_async_artifacts(
             command,

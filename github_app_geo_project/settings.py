@@ -135,15 +135,13 @@ class _AuditTimeouts(BaseModel):
         seconds=10
     )
     npm_audit: Annotated[Duration, Field(description="npm audit timeout")] = datetime.timedelta(minutes=5)
-    pyenv_local: Annotated[Duration, Field(description="pyenv local timeout")] = datetime.timedelta(
-        minutes=5
-    )
+    pyenv_local: Annotated[Duration, Field(description="pyenv local timeout")] = datetime.timedelta(minutes=5)
     python_version: Annotated[Duration, Field(description="python --version timeout")] = datetime.timedelta(
         seconds=5
     )
-    poetry_env_remove: Annotated[
-        Duration, Field(description="poetry env remove timeout")
-    ] = datetime.timedelta(minutes=2)
+    poetry_env_remove: Annotated[Duration, Field(description="poetry env remove timeout")] = (
+        datetime.timedelta(minutes=2)
+    )
     git_checkout: Annotated[Duration, Field(description="git checkout timeout")] = datetime.timedelta(
         minutes=1
     )
@@ -162,9 +160,7 @@ class _UtilsTimeouts(BaseModel):
     git_status: Annotated[Duration, Field(description="git status timeout")] = datetime.timedelta(seconds=60)
     git_diff: Annotated[Duration, Field(description="git diff timeout")] = datetime.timedelta(seconds=60)
     git_add: Annotated[Duration, Field(description="git add timeout")] = datetime.timedelta(seconds=30)
-    git_commit: Annotated[Duration, Field(description="git commit timeout")] = datetime.timedelta(
-        seconds=600
-    )
+    git_commit: Annotated[Duration, Field(description="git commit timeout")] = datetime.timedelta(seconds=600)
     prek_run: Annotated[Duration, Field(description="prek run timeout")] = datetime.timedelta(seconds=600)
     precommit_run: Annotated[Duration, Field(description="pre-commit run timeout")] = datetime.timedelta(
         seconds=600
@@ -173,53 +169,41 @@ class _UtilsTimeouts(BaseModel):
         seconds=30
     )
     git_config: Annotated[Duration, Field(description="git config timeout")] = datetime.timedelta(seconds=60)
-    git_remote_set_url: Annotated[
-        Duration, Field(description="git remote set-url timeout")
-    ] = datetime.timedelta(seconds=60)
-    git_fetch: Annotated[Duration, Field(description="git fetch timeout")] = datetime.timedelta(seconds=600)
-    git_clone: Annotated[Duration, Field(description="git clone timeout")] = datetime.timedelta(
-        seconds=1800
+    git_remote_set_url: Annotated[Duration, Field(description="git remote set-url timeout")] = (
+        datetime.timedelta(seconds=60)
     )
-    git_worktree_add: Annotated[
-        Duration, Field(description="git worktree add timeout")
-    ] = datetime.timedelta(seconds=120)
-    git_worktree_remove: Annotated[
-        Duration, Field(description="git worktree remove timeout")
-    ] = datetime.timedelta(seconds=60)
+    git_fetch: Annotated[Duration, Field(description="git fetch timeout")] = datetime.timedelta(seconds=600)
+    git_clone: Annotated[Duration, Field(description="git clone timeout")] = datetime.timedelta(seconds=1800)
+    git_worktree_add: Annotated[Duration, Field(description="git worktree add timeout")] = datetime.timedelta(
+        seconds=120
+    )
+    git_worktree_remove: Annotated[Duration, Field(description="git worktree remove timeout")] = (
+        datetime.timedelta(seconds=60)
+    )
 
 
 class _BackportTimeouts(BaseModel):
-    git_branch: Annotated[Duration, Field(description="git branch timeout")] = datetime.timedelta(
-        seconds=60
-    )
+    git_branch: Annotated[Duration, Field(description="git branch timeout")] = datetime.timedelta(seconds=60)
     git_checkout: Annotated[Duration, Field(description="git checkout timeout")] = datetime.timedelta(
         seconds=60
     )
-    git_fetch: Annotated[Duration, Field(description="git fetch timeout")] = datetime.timedelta(
-        seconds=300
-    )
+    git_fetch: Annotated[Duration, Field(description="git fetch timeout")] = datetime.timedelta(seconds=300)
     git_log: Annotated[Duration, Field(description="git log timeout")] = datetime.timedelta(seconds=60)
-    git_config: Annotated[Duration, Field(description="git config timeout")] = datetime.timedelta(
-        seconds=10
+    git_config: Annotated[Duration, Field(description="git config timeout")] = datetime.timedelta(seconds=10)
+    git_cherry_pick: Annotated[Duration, Field(description="git cherry-pick timeout")] = datetime.timedelta(
+        seconds=60
     )
-    git_cherry_pick: Annotated[
-        Duration, Field(description="git cherry-pick timeout")
-    ] = datetime.timedelta(seconds=60)
-    git_cherry_pick_abort: Annotated[
-        Duration, Field(description="git cherry-pick --abort timeout")
-    ] = datetime.timedelta(seconds=10)
+    git_cherry_pick_abort: Annotated[Duration, Field(description="git cherry-pick --abort timeout")] = (
+        datetime.timedelta(seconds=10)
+    )
     git_add: Annotated[Duration, Field(description="git add timeout")] = datetime.timedelta(seconds=10)
-    git_commit: Annotated[Duration, Field(description="git commit timeout")] = datetime.timedelta(
-        seconds=10
-    )
+    git_commit: Annotated[Duration, Field(description="git commit timeout")] = datetime.timedelta(seconds=10)
 
 
 class _CleanTimeouts(BaseModel):
     tree: Annotated[Duration, Field(description="tree command timeout")] = datetime.timedelta(seconds=10)
     git_rm: Annotated[Duration, Field(description="git rm timeout")] = datetime.timedelta(seconds=10)
-    git_commit: Annotated[Duration, Field(description="git commit timeout")] = datetime.timedelta(
-        seconds=120
-    )
+    git_commit: Annotated[Duration, Field(description="git commit timeout")] = datetime.timedelta(seconds=120)
     git_push: Annotated[Duration, Field(description="git push timeout")] = datetime.timedelta(seconds=120)
 
 
@@ -228,9 +212,9 @@ class _CacheCleanTimeouts(BaseModel):
     run_command: Annotated[Duration, Field(description="Generic command timeout")] = datetime.timedelta(
         seconds=120
     )
-    git_worktree_prune: Annotated[
-        Duration, Field(description="git worktree prune timeout")
-    ] = datetime.timedelta(seconds=60)
+    git_worktree_prune: Annotated[Duration, Field(description="git worktree prune timeout")] = (
+        datetime.timedelta(seconds=60)
+    )
     git_gc: Annotated[Duration, Field(description="git gc timeout")] = datetime.timedelta(seconds=600)
 
 
@@ -241,9 +225,9 @@ class _VersionsTimeouts(BaseModel):
     renovate: Annotated[Duration, Field(description="Renovate graph timeout")] = datetime.timedelta(
         seconds=2700
     )
-    endoflife_date_api: Annotated[
-        Duration, Field(description="endoflife.date API timeout")
-    ] = datetime.timedelta(seconds=120)
+    endoflife_date_api: Annotated[Duration, Field(description="endoflife.date API timeout")] = (
+        datetime.timedelta(seconds=120)
+    )
 
 
 class _TestsTimeouts(BaseModel):
@@ -253,12 +237,12 @@ class _TestsTimeouts(BaseModel):
 
 
 class _PullRequestTimeouts(BaseModel):
-    spellcheck_commit: Annotated[
-        Duration, Field(description="Spellcheck per commit timeout")
-    ] = datetime.timedelta(seconds=120)
-    spellcheck_pull_request: Annotated[
-        Duration, Field(description="Spellcheck pull request timeout")
-    ] = datetime.timedelta(seconds=60)
+    spellcheck_commit: Annotated[Duration, Field(description="Spellcheck per commit timeout")] = (
+        datetime.timedelta(seconds=120)
+    )
+    spellcheck_pull_request: Annotated[Duration, Field(description="Spellcheck pull request timeout")] = (
+        datetime.timedelta(seconds=60)
+    )
 
 
 class _PatchTimeouts(BaseModel):
