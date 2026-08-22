@@ -1220,7 +1220,7 @@ class GitWorktreeCache:
                     str(cache_path),
                 ],
                 None,
-                600,
+                1800,
                 "Clone repository",
                 "Error cloning the repository",
                 "Timeout cloning the repository",
