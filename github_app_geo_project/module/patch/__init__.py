@@ -16,6 +16,7 @@ import githubkit.webhooks
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
+from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 _CODEQL_JOB_NAME_MATCHER = re.compile(r"^Analyze \([a-z]+\)$")
@@ -292,7 +293,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                         stderr=asyncio.subprocess.PIPE,
                         cwd=cwd,
                     )
-                    async with asyncio.timeout(60):
+                    async with asyncio.timeout(settings.patch.timeouts.git_apply.total_seconds()):
                         stdout, stderr = await proc.communicate(
                             patch_input.encode(),
                         )
@@ -331,7 +332,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                         stderr=asyncio.subprocess.PIPE,
                         cwd=cwd,
                     )
-                    async with asyncio.timeout(60):
+                    async with asyncio.timeout(settings.patch.timeouts.git_push.total_seconds()):
                         stdout, stderr = await proc.communicate()
                     message = module_utils.AnsiProcessMessage.from_async_artifacts(
                         command,

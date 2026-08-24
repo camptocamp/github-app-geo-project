@@ -25,17 +25,17 @@ from github_app_geo_project.settings import settings
 _LOGGER = logging.getLogger(__name__)
 
 # Add timeout environment variables with defaults at module level
-_TIMEOUT_SUBPROCESS = settings.audit_timeouts.subprocess
-_TIMEOUT_PIP_FREEZE = settings.audit_timeouts.pip_freeze
-_TIMEOUT_PRECOMMIT = settings.audit_timeouts.precommit
-_TIMEOUT_GIT_DIFF = settings.audit_timeouts.git_diff
-_TIMEOUT_GRADLE = settings.audit_timeouts.gradle
-_TIMEOUT_GIT_LSFILES = settings.audit_timeouts.git_lsfiles
-_TIMEOUT_PYTHON_INSTALL = settings.audit_timeouts.python_install
-_TIMEOUT_SNYK = settings.audit_timeouts.snyk
-_TIMEOUT_SNYK_FIX = settings.audit_timeouts.snyk_fix
-_TIMEOUT_POETRY_VERSION = settings.audit_timeouts.poetry_version
-_TIMEOUT_NPM_AUDIT = settings.audit_timeouts.npm_audit
+_TIMEOUT_SUBPROCESS = settings.audit.timeouts.subprocess
+_TIMEOUT_PIP_FREEZE = settings.audit.timeouts.pip_freeze
+_TIMEOUT_PRECOMMIT = settings.audit.timeouts.precommit
+_TIMEOUT_GIT_DIFF = settings.audit.timeouts.git_diff
+_TIMEOUT_GRADLE = settings.audit.timeouts.gradle
+_TIMEOUT_GIT_LSFILES = settings.audit.timeouts.git_lsfiles
+_TIMEOUT_PYTHON_INSTALL = settings.audit.timeouts.python_install
+_TIMEOUT_SNYK = settings.audit.timeouts.snyk
+_TIMEOUT_SNYK_FIX = settings.audit.timeouts.snyk_fix
+_TIMEOUT_POETRY_VERSION = settings.audit.timeouts.poetry_version
+_TIMEOUT_NPM_AUDIT = settings.audit.timeouts.npm_audit
 
 
 class VulnerabilityData(NamedTuple):
@@ -726,7 +726,7 @@ async def _snyk_fix(
     snyk_fix_message = None
     command = ["git", "reset", "--hard"]
     proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
-    async with asyncio.timeout(60):
+    async with asyncio.timeout(settings.audit.timeouts.git_reset_hard.total_seconds()):
         await proc.communicate()
     if fixable_vulnerabilities_summary or vulnerabilities_in_requirements:
         command = [
@@ -978,7 +978,7 @@ async def find_snyk_files(cwd: anyio.Path) -> list[anyio.Path]:
         stdout=asyncio.subprocess.PIPE,
         cwd=cwd,
     )
-    async with asyncio.timeout(30):
+    async with asyncio.timeout(settings.audit.timeouts.snyk_files.total_seconds()):
         stdout, _ = await proc.communicate()
     result = stdout.decode().strip()
     return [cwd / f for f in result.split("\n") if f] if result else []

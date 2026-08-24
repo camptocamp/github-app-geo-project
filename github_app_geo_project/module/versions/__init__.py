@@ -966,7 +966,7 @@ async def _get_names(
         cwd=cwd,
     )
     try:
-        async with asyncio.timeout(60):
+        async with asyncio.timeout(settings.versions.timeouts.git_ls_files.total_seconds()):
             stdout, stderr = await proc.communicate()
     except TimeoutError:
         # Kill the process, otherwise it keeps running after the timeout
@@ -1005,7 +1005,7 @@ async def _get_names(
         cwd=cwd,
     )
     try:
-        async with asyncio.timeout(60):
+        async with asyncio.timeout(settings.versions.timeouts.git_ls_files.total_seconds()):
             stdout, stderr = await proc.communicate()
     except TimeoutError:
         # Kill the process, otherwise it keeps running after the timeout
@@ -1093,7 +1093,7 @@ async def _get_names(
         cwd=cwd,
     )
     try:
-        async with asyncio.timeout(60):
+        async with asyncio.timeout(settings.versions.timeouts.git_ls_files.total_seconds()):
             stdout, stderr = await proc.communicate()
     except TimeoutError:
         # Kill the process, otherwise it keeps running after the timeout
@@ -1179,7 +1179,7 @@ async def _get_dependencies(
             cwd=cwd,
         )
         try:
-            async with asyncio.timeout(2700):  # 45 minutes
+            async with asyncio.timeout(settings.versions.timeouts.renovate.total_seconds()):
                 stdout, stderr = await proc.communicate()
         except TimeoutError:
             # Kill the process, otherwise it keeps running after the timeout
@@ -1357,7 +1357,7 @@ async def _update_upstream_versions(
 
         async with (
             aiohttp.ClientSession() as session,
-            asyncio.timeout(120),
+            asyncio.timeout(settings.versions.timeouts.endoflife_date_api.total_seconds()),
             session.get(f"https://endoflife.date/api/{package}.json") as response,
         ):
             if not response.ok:
