@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-24
+
+### Added
+
+- **Versions**: The `renovate-graph` subprocess log level is now configurable via `GHCI__VERSIONS__RENOVATE_GRAPH_LOG_LEVEL` (default: `info`). Set to `debug` to get Renovate debug logs.
+
 ## 2026-08-22
 
 ### Added
