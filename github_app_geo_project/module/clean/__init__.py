@@ -7,7 +7,6 @@ import base64
 import json
 import logging
 import os
-import subprocess  # nosec
 from typing import Any, cast
 
 import aiohttp
@@ -437,62 +436,50 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     branch,
                 )
 
-                command = ["git", "rm", "-r", folder]
-                proc = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=cwd,
+                _, success, _ = await module_utils.run_timeout(
+                    ["git", "rm", "-r", folder],
+                    None,
+                    settings.clean.timeouts.git_rm,
+                    f"Remove folder '{folder}'",
+                    f"Error removing folder '{folder}'",
+                    f"Timeout removing folder '{folder}'",
+                    cwd,
                 )
-                async with asyncio.timeout(settings.clean.timeouts.git_rm.total_seconds()):
-                    stdout, stderr = await proc.communicate()
-                if proc.returncode != 0:
-                    raise subprocess.CalledProcessError(
-                        proc.returncode if proc.returncode is not None else -999,
-                        command,
-                        stdout,
-                        stderr,
-                    )
+                if not success:
+                    error_message = f"Failed to remove folder '{folder}' in branch '{branch}'"
+                    raise CleanError(error_message)
                 commit_args = (
                     ["--amend", "--no-edit"]
                     if git.get("amend", configuration.AMEND_DEFAULT)
                     else ["-m", f"Delete {folder} to clean {context.module_event_data.type} {name}"]
                 )
-                command = ["git", "commit", *commit_args]
-                proc = await asyncio.create_subprocess_exec(
-                    *command,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=cwd,
+                _, success, _ = await module_utils.run_timeout(
+                    ["git", "commit", *commit_args],
+                    None,
+                    settings.clean.timeouts.git_commit,
+                    f"Commit removal of '{folder}'",
+                    f"Error committing removal of '{folder}'",
+                    f"Timeout committing removal of '{folder}'",
+                    cwd,
                 )
-                async with asyncio.timeout(settings.clean.timeouts.git_commit.total_seconds()):
-                    stdout, stderr = await proc.communicate()
-                if proc.returncode != 0:
-                    raise subprocess.CalledProcessError(
-                        proc.returncode if proc.returncode is not None else -999,
-                        command,
-                        stdout,
-                        stderr,
-                    )
-            command = [
-                "git",
-                "push",
-                *(["--force-with-lease"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
-                "origin",
-                branch,
-            ]
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
+                if not success:
+                    error_message = f"Failed to commit removal of '{folder}' in branch '{branch}'"
+                    raise CleanError(error_message)
+            _, success, _ = await module_utils.run_timeout(
+                [
+                    "git",
+                    "push",
+                    *(["--force-with-lease"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
+                    "origin",
+                    branch,
+                ],
+                None,
+                settings.clean.timeouts.git_push,
+                f"Push branch '{branch}'",
+                f"Error pushing branch '{branch}'",
+                f"Timeout pushing branch '{branch}'",
+                cwd,
             )
-            async with asyncio.timeout(settings.clean.timeouts.git_push.total_seconds()):
-                stdout, stderr = await proc.communicate()
-            if proc.returncode != 0:
-                raise subprocess.CalledProcessError(
-                    proc.returncode if proc.returncode is not None else -999,
-                    command,
-                    stdout,
-                    stderr,
-                )
+            if not success:
+                error_message = f"Failed to push branch '{branch}'"
+                raise CleanError(error_message)
