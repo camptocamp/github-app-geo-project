@@ -677,7 +677,7 @@ async def run_timeout(
     if timeout:
         log_message += ", timeout %ds"
         args.append(int(timeout_seconds))
-    _LOGGER.debug(log_message, *args)
+    _LOGGER.info(log_message, *args)
     async_proc = None
     start = datetime.datetime.now(datetime.UTC)
     try:
@@ -703,7 +703,7 @@ async def run_timeout(
             success = async_proc.returncode == 0
             if success:
                 message.title = f"{success_message}, in {datetime.datetime.now(datetime.UTC) - start}s."
-                _LOGGER.debug(message)
+                _LOGGER.info(message)
             else:
                 message.title = f"{error_message}, in {datetime.datetime.now(datetime.UTC) - start}s."
                 _LOGGER.warning(message)

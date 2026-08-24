@@ -1148,7 +1148,11 @@ async def _process_one_job(
             bind=session.bind,
         )
         if await session.run_sync(lambda _: job.status_enum == models.JobStatus.PENDING):
-            _LOGGER.error("Job %s finished with pending status", job.id)
+            root_logger.addHandler(handler)
+            try:
+                _LOGGER.error("Job %s finished with pending status", job.id)
+            finally:
+                root_logger.removeHandler(handler)
             job.status_enum = models.JobStatus.FAIL
         await _flush_job_logs(log_session_factory, handler, job.id)
         job.finished_at = datetime.datetime.now(tz=datetime.UTC)
