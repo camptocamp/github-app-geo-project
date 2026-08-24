@@ -208,11 +208,23 @@ async def _process_job(
         )
         if job.owner is not None and job.repository is not None:
             _LOGGER.debug("Get GitHub project %s/%s for job id %s", job.owner, job.repository, job.id)
-            github_project = await configuration.get_github_project(
-                github_application,
-                job.owner,
-                job.repository,
-            )
+            try:
+                github_project = await configuration.get_github_project(
+                    github_application,
+                    job.owner,
+                    job.repository,
+                )
+            except githubkit.exception.RequestFailed as exception:
+                if exception.response.status_code == 404:
+                    _LOGGER.warning(
+                        "The GitHub App is not installed on repository %s/%s, skip the job",
+                        job.owner,
+                        job.repository,
+                    )
+                    job.status_enum = models.JobStatus.SKIPPED
+                    job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+                    return True
+                raise
             # Get Rate limit status
             _LOGGER.debug("Get GitHub rate limit for job id %s", job.id)
             rate_limit = (await github_project.aio_github.rest.rate_limit.async_get()).parsed_data
