@@ -381,10 +381,24 @@ class _DispatchPublishingSettings(BaseModel):
     config: Annotated[JsonDict, Field(description="Dispatch publish config")] = {}
 
 
+class RenovateLogLevel(enum.StrEnum):
+    """Log level for the renovate-graph subprocess."""
+
+    TRACE = "trace"
+    DEBUG = "debug"
+    INFO = "info"
+    WARN = "warn"
+    ERROR = "error"
+    FATAL = "fatal"
+
+
 class _VersionsSettings(BaseModel):
     renovate_graph_retry_number: Annotated[int, Field(description="Renovate retry number")] = 10
     renovate_graph_retry_delay: Annotated[Duration, Field(description="Renovate retry delay")] = (
         datetime.timedelta(minutes=10)
+    )
+    renovate_graph_log_level: Annotated[RenovateLogLevel, Field(description="Renovate graph log level")] = (
+        RenovateLogLevel.INFO
     )
     external_packages_update_period: Annotated[Duration, Field(description="Update period")] = (
         datetime.timedelta(days=30)

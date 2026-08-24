@@ -1189,6 +1189,7 @@ async def _get_dependencies(
                 "RENOVATE_REPOSITORIES": f"{github_project.owner}/{github_project.repository}",
                 "OUT_DIR": str(out_dir),
                 "RENOVATE_GITHUB_COM_TOKEN": github_project.token,
+                "LOG_LEVEL": settings.versions.renovate_graph_log_level,
             },
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
