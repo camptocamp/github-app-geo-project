@@ -11,11 +11,31 @@ import githubkit.exception
 import githubkit.webhooks
 import githubkit_schemas.latest.models
 import security_md
+from githubkit.compat import type_validate_python
+from githubkit_schemas.latest.models import Job
 
 from github_app_geo_project import module, utils
 from github_app_geo_project.module import utils as module_utils
 
 _LOGGER = logging.getLogger(__name__)
+
+_VALID_STEP_STATUSES = {"queued", "in_progress", "completed"}
+
+
+def _parse_workflow_jobs(response: Any) -> list[Job]:
+    """Parse workflow jobs from the API response, fixing invalid step statuses.
+
+    GitHub's API can return 'pending' for step status, which is not in the
+    githubkit-schemas Pydantic model. This function fixes the raw JSON before
+    parsing.
+    """
+    raw_data = response.json()
+    jobs_data = raw_data.get("jobs", [])
+    for job_data in jobs_data:
+        for step in job_data.get("steps") or []:
+            if step.get("status") not in _VALID_STEP_STATUSES:
+                step["status"] = "queued"
+    return type_validate_python(list[Job], jobs_data)
 
 
 class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
@@ -201,7 +221,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
             owner=context.github_project.owner,
             repo=context.github_project.repository,
             run_id=event_data.workflow_run.id,
-            map_func=lambda response: response.parsed_data.jobs,
+            map_func=_parse_workflow_jobs,
         )
         jobs_to_add = [
             {"name": job.name, "run_url": job.html_url}
