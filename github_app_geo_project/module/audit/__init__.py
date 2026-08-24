@@ -1010,6 +1010,22 @@ class Audit(
 
         Note that this method is called in the queue consuming Pod
         """
+        if (
+            context.github_event_data.get("type") == "event"
+            and context.github_event_data.get("name") == "daily"
+        ):
+            response = await context.github_project.aio_github.rest.repos.async_get(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+            )
+            if response.parsed_data.archived:
+                _LOGGER.warning(
+                    "Repository %s/%s is archived, skipping audit cron",
+                    context.github_project.owner,
+                    context.github_project.repository,
+                )
+                return module.ProcessOutput(success=True)
+
         issue_check = module_utils.DashboardIssue(context.issue_data)
         short_message: list[str] = []
         success = True

@@ -599,3 +599,34 @@ def test_issue_body_cleanup() -> None:
     assert "Check outdated version" in result
     assert "Check security vulnerabilities with Snyk" in result
     assert "Update dpkg packages" in result
+
+
+@pytest.mark.asyncio
+async def test_process_archived_repository() -> None:
+    from github_app_geo_project.module.audit import Audit
+
+    audit = Audit()
+    context = Mock()
+    context.module_event_data = _EventData(type="outdated")
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "archived-repo"
+    context.module_config = {}
+    context.github_event_data = {"type": "event", "name": "daily"}
+
+    github = MagicMock()
+    context.github_project.aio_github = github
+    rest = MagicMock()
+    github.rest = rest
+    repos = AsyncMock()
+    rest.repos = repos
+    response = MagicMock()
+    response.parsed_data.archived = True
+    repos.async_get.return_value = response
+
+    result = await audit.process(context)
+    assert result.success is True
+    repos.async_get.assert_called_once_with(
+        owner="camptocamp",
+        repo="archived-repo",
+    )
