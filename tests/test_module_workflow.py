@@ -237,7 +237,7 @@ async def test_process_failure() -> None:
     rest.actions = actions
     actions_response = MagicMock()
     actions_response.status_code = 200
-    actions_response.parsed_data = {
+    actions_response.json.return_value = {
         "total_count": 1,
         "jobs": [
             {
@@ -250,6 +250,7 @@ async def test_process_failure() -> None:
                 "html_url": "https://github.com/octo-org/octo-repo/runs/29679449/jobs/399444496",
                 "status": "completed",
                 "conclusion": "success",
+                "created_at": "2020-01-20T17:42:40Z",
                 "started_at": "2020-01-20T17:42:40Z",
                 "completed_at": "2020-01-20T17:44:39Z",
                 "name": "build",
@@ -328,7 +329,7 @@ async def test_process_cleanup_old_workflows() -> None:
     rest.actions = actions
     actions_response = MagicMock()
     actions_response.status_code = 200
-    actions_response.parsed_data = {
+    actions_response.json.return_value = {
         "total_count": 0,
         "jobs": [],
     }
@@ -370,3 +371,173 @@ async def test_process_cleanup_old_workflows() -> None:
             },
         },
     }
+
+
+def test_parse_workflow_jobs_with_pending_steps() -> None:
+    """Test that _parse_workflow_jobs fixes 'pending' step status."""
+    from github_app_geo_project.module.workflow import _parse_workflow_jobs
+
+    response = MagicMock()
+    response.json.return_value = {
+        "total_count": 1,
+        "jobs": [
+            {
+                "id": 123456789,
+                "run_id": 29679449,
+                "run_url": "https://api.github.com/repos/octo-org/octo-repo/actions/runs/29679449",
+                "node_id": "MDEyOldvcmtmbG93IEpvYjM5OTQ0NDQ5Ng==",
+                "head_sha": "f83a356604ae3c5d03e1b46ef4d1ca77d64a90b0",
+                "url": "https://api.github.com/repos/octo-org/octo-repo/actions/jobs/399444496",
+                "html_url": "https://github.com/octo-org/octo-repo/runs/29679449/jobs/399444496",
+                "status": "completed",
+                "conclusion": "failure",
+                "created_at": "2020-01-20T17:42:40Z",
+                "started_at": "2020-01-20T17:42:40Z",
+                "completed_at": "2020-01-20T17:44:39Z",
+                "name": "build",
+                "steps": [
+                    {
+                        "name": "Set up job",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "number": 1,
+                        "started_at": "2020-01-20T09:42:40.000-08:00",
+                        "completed_at": "2020-01-20T09:42:41.000-08:00",
+                    },
+                    {
+                        "name": "Run tests",
+                        "status": "pending",
+                        "conclusion": None,
+                        "number": 2,
+                        "started_at": None,
+                        "completed_at": None,
+                    },
+                ],
+                "check_run_url": "https://api.github.com/repos/octo-org/octo-repo/check-runs/399444496",
+                "labels": ["self-hosted"],
+                "runner_id": 1,
+                "runner_name": "my runner",
+                "runner_group_id": 2,
+                "runner_group_name": "my runner group",
+                "workflow_name": "CI",
+                "head_branch": "main",
+            },
+        ],
+    }
+
+    jobs = _parse_workflow_jobs(response)
+
+    assert len(jobs) == 1
+    assert jobs[0].name == "build"
+    assert jobs[0].conclusion == "failure"
+    assert jobs[0].html_url == "https://github.com/octo-org/octo-repo/runs/29679449/jobs/399444496"
+    assert len(jobs[0].steps) == 2
+    assert jobs[0].steps[0].status == "completed"
+    assert jobs[0].steps[1].status == "queued"
+
+
+def test_parse_workflow_jobs_without_pending_steps() -> None:
+    """Test that _parse_workflow_jobs works with valid step statuses."""
+    from github_app_geo_project.module.workflow import _parse_workflow_jobs
+
+    response = MagicMock()
+    response.json.return_value = {
+        "total_count": 1,
+        "jobs": [
+            {
+                "id": 123456789,
+                "run_id": 29679449,
+                "run_url": "https://api.github.com/repos/octo-org/octo-repo/actions/runs/29679449",
+                "node_id": "MDEyOldvcmtmbG93IEpvYjM5OTQ0NDQ5Ng==",
+                "head_sha": "f83a356604ae3c5d03e1b46ef4d1ca77d64a90b0",
+                "url": "https://api.github.com/repos/octo-org/octo-repo/actions/jobs/399444496",
+                "html_url": "https://github.com/octo-org/octo-repo/runs/29679449/jobs/399444496",
+                "status": "completed",
+                "conclusion": "success",
+                "created_at": "2020-01-20T17:42:40Z",
+                "started_at": "2020-01-20T17:42:40Z",
+                "completed_at": "2020-01-20T17:44:39Z",
+                "name": "build",
+                "steps": [
+                    {
+                        "name": "Set up job",
+                        "status": "completed",
+                        "conclusion": "success",
+                        "number": 1,
+                        "started_at": "2020-01-20T09:42:40.000-08:00",
+                        "completed_at": "2020-01-20T09:42:41.000-08:00",
+                    },
+                ],
+                "check_run_url": "https://api.github.com/repos/octo-org/octo-repo/check-runs/399444496",
+                "labels": ["self-hosted"],
+                "runner_id": 1,
+                "runner_name": "my runner",
+                "runner_group_id": 2,
+                "runner_group_name": "my runner group",
+                "workflow_name": "CI",
+                "head_branch": "main",
+            },
+        ],
+    }
+
+    jobs = _parse_workflow_jobs(response)
+
+    assert len(jobs) == 1
+    assert jobs[0].name == "build"
+    assert jobs[0].conclusion == "success"
+    assert jobs[0].steps[0].status == "completed"
+
+
+def test_parse_workflow_jobs_empty_jobs() -> None:
+    """Test that _parse_workflow_jobs handles empty jobs list."""
+    from github_app_geo_project.module.workflow import _parse_workflow_jobs
+
+    response = MagicMock()
+    response.json.return_value = {
+        "total_count": 0,
+        "jobs": [],
+    }
+
+    jobs = _parse_workflow_jobs(response)
+
+    assert jobs == []
+
+
+def test_parse_workflow_jobs_no_steps() -> None:
+    """Test that _parse_workflow_jobs handles jobs without steps."""
+    from github_app_geo_project.module.workflow import _parse_workflow_jobs
+
+    response = MagicMock()
+    response.json.return_value = {
+        "total_count": 1,
+        "jobs": [
+            {
+                "id": 123456789,
+                "run_id": 29679449,
+                "run_url": "https://api.github.com/repos/octo-org/octo-repo/actions/runs/29679449",
+                "node_id": "MDEyOldvcmtmbG93IEpvYjM5OTQ0NDQ5Ng==",
+                "head_sha": "f83a356604ae3c5d03e1b46ef4d1ca77d64a90b0",
+                "url": "https://api.github.com/repos/octo-org/octo-repo/actions/jobs/399444496",
+                "html_url": "https://github.com/octo-org/octo-repo/runs/29679449/jobs/399444496",
+                "status": "completed",
+                "conclusion": "success",
+                "created_at": "2020-01-20T17:42:40Z",
+                "started_at": "2020-01-20T17:42:40Z",
+                "completed_at": "2020-01-20T17:44:39Z",
+                "name": "build",
+                "check_run_url": "https://api.github.com/repos/octo-org/octo-repo/check-runs/399444496",
+                "labels": ["self-hosted"],
+                "runner_id": 1,
+                "runner_name": "my runner",
+                "runner_group_id": 2,
+                "runner_group_name": "my runner group",
+                "workflow_name": "CI",
+                "head_branch": "main",
+            },
+        ],
+    }
+
+    jobs = _parse_workflow_jobs(response)
+
+    assert len(jobs) == 1
+    assert jobs[0].name == "build"
