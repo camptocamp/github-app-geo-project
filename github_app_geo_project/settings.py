@@ -397,9 +397,9 @@ class _VersionsSettings(BaseModel):
     renovate_graph_retry_delay: Annotated[Duration, Field(description="Renovate retry delay")] = (
         datetime.timedelta(minutes=10)
     )
-    renovate_graph_log_level: Annotated[
-        RenovateLogLevel, Field(description="Renovate graph log level")
-    ] = RenovateLogLevel.INFO
+    renovate_graph_log_level: Annotated[RenovateLogLevel, Field(description="Renovate graph log level")] = (
+        RenovateLogLevel.INFO
+    )
     external_packages_update_period: Annotated[Duration, Field(description="Update period")] = (
         datetime.timedelta(days=30)
     )
