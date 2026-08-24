@@ -2195,3 +2195,32 @@ def test_apply_additional_packages_least_support():
     repo3 = transversal_status.repositories["repo3"]
     main_version = repo3.versions["main"]
     assert main_version.support.type == _SupportType.UNSUPPORTED
+
+
+@pytest.mark.asyncio
+async def test_process_archived_repository() -> None:
+    versions = Versions()
+    context = Mock()
+    context.module_event_data = _EventData(step=1)
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "archived-repo"
+    context.module_config = {}
+    context.github_event_data = {"type": "event", "name": "versions-cron"}
+
+    github = MagicMock()
+    context.github_project.aio_github = github
+    rest = MagicMock()
+    github.rest = rest
+    repos = AsyncMock()
+    rest.repos = repos
+    response = MagicMock()
+    response.parsed_data.archived = True
+    repos.async_get.return_value = response
+
+    result = await versions.process(context)
+    assert result.success is True
+    repos.async_get.assert_called_once_with(
+        owner="camptocamp",
+        repo="archived-repo",
+    )

@@ -302,6 +302,22 @@ class Versions(
         """
         intermediate_status = _IntermediateStatus(step=context.module_event_data.step)
         if context.module_event_data.step == 1:
+            if (
+                context.github_event_data.get("type") == "event"
+                and context.github_event_data.get("name") == "versions-cron"
+            ):
+                response = await context.github_project.aio_github.rest.repos.async_get(
+                    owner=context.github_project.owner,
+                    repo=context.github_project.repository,
+                )
+                if response.parsed_data.archived:
+                    _LOGGER.warning(
+                        "Repository %s/%s is archived, skipping versions cron",
+                        context.github_project.owner,
+                        context.github_project.repository,
+                    )
+                    return module.ProcessOutput(success=True)
+
             intermediate_status.url = (
                 f"https://github.com/{context.github_project.owner}/{context.github_project.repository}"
             )
