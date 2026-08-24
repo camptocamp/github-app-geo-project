@@ -10,6 +10,7 @@ import sqlalchemy
 from fastapi import Depends, HTTPException, Request
 
 from github_app_geo_project import models, module
+from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.security import AuthType, User, get_user
 from github_app_geo_project.settings import settings
 
@@ -28,6 +29,8 @@ async def webhook(
     data = await request.json()
 
     event_name = request.headers.get("X-GitHub-Event", "undefined")
+    if event_name == "push":
+        data = module_utils.normalize_push_event(data)
     _LOGGER.debug(
         "Webhook received for %s on %s",
         event_name,
