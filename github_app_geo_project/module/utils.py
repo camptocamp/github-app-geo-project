@@ -1231,8 +1231,8 @@ class GitWorktreeCache:
                 error_message = "Failed to clone the repository"
                 raise ValueError(error_message)
 
-            # Set git user config in the cache repo
-            await self._set_user_config(cache_path, github_project)
+        # Set git user config in the cache repo
+        await self._set_user_config(cache_path, github_project)
 
         return cache_path
 
