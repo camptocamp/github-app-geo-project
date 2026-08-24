@@ -1465,3 +1465,16 @@ async def create_checks(
     await session.commit()
     await session.refresh(job)
     return check_run
+
+
+def normalize_push_event(event_data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize push event data to match githubkit's WebhookPush schema.
+
+    GitHub can send ``compare`` as ``null`` (e.g. on force-pushes) but the
+    githubkit schema requires a string. This function returns a shallow copy
+    with the offending fields coerced to their expected types.
+    """
+    normalized = event_data.copy()
+    if "compare" in normalized and normalized["compare"] is None:
+        normalized["compare"] = ""
+    return normalized

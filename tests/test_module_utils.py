@@ -369,3 +369,29 @@ def test_to_html_css_backgrounds_included() -> None:
     """_to_html_css should include background styles."""
     _html, css = utils._to_html_css("text")
     assert "body_" in css or "background" in css or css.strip()
+
+
+def test_normalize_push_event_null_compare() -> None:
+    """normalize_push_event should coerce ``compare`` from null to empty string."""
+    event_data = {"ref": "refs/heads/main", "compare": None, "commits": []}
+    normalized = utils.normalize_push_event(event_data)
+
+    assert normalized["compare"] == ""
+    assert normalized["ref"] == "refs/heads/main"
+    assert event_data["compare"] is None
+
+
+def test_normalize_push_event_keeps_existing_compare() -> None:
+    """normalize_push_event should leave a valid ``compare`` untouched."""
+    event_data = {"compare": "https://github.com/owner/repo/compare/abc...def"}
+    normalized = utils.normalize_push_event(event_data)
+
+    assert normalized["compare"] == "https://github.com/owner/repo/compare/abc...def"
+
+
+def test_normalize_push_event_missing_compare() -> None:
+    """normalize_push_event should not add ``compare`` when the key is absent."""
+    event_data = {"ref": "refs/heads/main"}
+    normalized = utils.normalize_push_event(event_data)
+
+    assert "compare" not in normalized
