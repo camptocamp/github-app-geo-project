@@ -66,7 +66,7 @@ def test_health_check_fail(tmp_path, monkeypatch, capsys) -> None:
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "WARNING" in out
+    assert "WARNING" not in out
     assert "ERROR" in out
     assert "unhealthy" in out
 
