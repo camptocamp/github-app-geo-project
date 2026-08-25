@@ -177,6 +177,9 @@ class _UtilsTimeouts(BaseModel):
     git_worktree_add: Annotated[Duration, Field(description="git worktree add timeout")] = datetime.timedelta(
         seconds=120
     )
+    git_worktree_checkout: Annotated[Duration, Field(description="git worktree checkout timeout")] = (
+        datetime.timedelta(seconds=10)
+    )
     git_worktree_remove: Annotated[Duration, Field(description="git worktree remove timeout")] = (
         datetime.timedelta(seconds=60)
     )
