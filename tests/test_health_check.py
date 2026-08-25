@@ -4,6 +4,7 @@
 
 import os
 import time
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -36,6 +37,25 @@ def test_health_check_ok(tmp_path, monkeypatch, age, timeout) -> None:
     health_check.main()
 
 
+def _mock_subprocess_run(calls):
+    """Create a mock subprocess.run that records calls and returns appropriate results."""
+
+    def mock_run(*args, **kwargs):
+        calls.append((args, kwargs))
+        result = MagicMock()
+        cmd = args[0] if args else kwargs.get("args", [])
+        if "pgrep" in cmd:
+            result.returncode = 0
+            result.stdout = "12345"
+        elif "py-spy" in cmd:
+            result.returncode = 0
+        else:
+            result.returncode = 0
+        return result
+
+    return mock_run
+
+
 def test_health_check_warning_but_healthy(tmp_path, monkeypatch, capsys) -> None:
     """Between half of the timeout and the timeout, warn but do not fail."""
     monkeypatch.setattr(health_check, "WATCH_DOG_FILE", _create_watch_dog(tmp_path, 90))
@@ -44,7 +64,7 @@ def test_health_check_warning_but_healthy(tmp_path, monkeypatch, capsys) -> None
     monkeypatch.setattr(
         health_check.subprocess,
         "run",
-        lambda *args, **kwargs: subprocess_calls.append(args),
+        _mock_subprocess_run(subprocess_calls),
     )
 
     health_check.main()
@@ -52,14 +72,79 @@ def test_health_check_warning_but_healthy(tmp_path, monkeypatch, capsys) -> None
     out = capsys.readouterr().out
     assert "WARNING" in out
     assert "ERROR" not in out
-    assert len(subprocess_calls) == 3
+    commands = [call[0][0] for call in subprocess_calls]
+    assert any("ls" in cmd for cmd in commands)
+    assert any("pgrep" in cmd for cmd in commands)
+    assert any("py-spy" in cmd for cmd in commands)
+    assert any("ps" in cmd for cmd in commands)
+
+
+def test_health_check_warning_pyspy_fails(tmp_path, monkeypatch, capsys) -> None:
+    """When py-spy fails, fall back to ps aux."""
+    monkeypatch.setattr(health_check, "WATCH_DOG_FILE", _create_watch_dog(tmp_path, 90))
+    monkeypatch.setattr("sys.argv", ["health_check", "--timeout=120"])
+    subprocess_calls = []
+
+    def mock_run(*args, **kwargs):
+        subprocess_calls.append((args, kwargs))
+        cmd = args[0] if args else kwargs.get("args", [])
+        result = MagicMock()
+        if "pgrep" in cmd:
+            result.returncode = 0
+            result.stdout = "12345"
+        elif "py-spy" in cmd:
+            result.returncode = 1
+        else:
+            result.returncode = 0
+        return result
+
+    monkeypatch.setattr(health_check.subprocess, "run", mock_run)
+
+    health_check.main()
+
+    out = capsys.readouterr().out
+    assert "WARNING" in out
+    commands = [call[0][0] for call in subprocess_calls]
+    assert any("ps" in cmd for cmd in commands)
+
+
+def test_health_check_warning_no_pid(tmp_path, monkeypatch, capsys) -> None:
+    """When process-queue PID is not found, fall back to ps aux."""
+    monkeypatch.setattr(health_check, "WATCH_DOG_FILE", _create_watch_dog(tmp_path, 90))
+    monkeypatch.setattr("sys.argv", ["health_check", "--timeout=120"])
+    subprocess_calls = []
+
+    def mock_run(*args, **kwargs):
+        subprocess_calls.append((args, kwargs))
+        cmd = args[0] if args else kwargs.get("args", [])
+        result = MagicMock()
+        if "pgrep" in cmd:
+            result.returncode = 1
+            result.stdout = ""
+        else:
+            result.returncode = 0
+        return result
+
+    monkeypatch.setattr(health_check.subprocess, "run", mock_run)
+
+    health_check.main()
+
+    out = capsys.readouterr().out
+    assert "WARNING" in out
+    commands = [call[0][0] for call in subprocess_calls]
+    assert any("ps" in cmd for cmd in commands)
+    assert not any("py-spy" in cmd for cmd in commands)
 
 
 def test_health_check_fail(tmp_path, monkeypatch, capsys) -> None:
     """When the event loop is blocked for too long, the health check must fail."""
     monkeypatch.setattr(health_check, "WATCH_DOG_FILE", _create_watch_dog(tmp_path, 150))
     monkeypatch.setattr("sys.argv", ["health_check", "--timeout=120"])
-    monkeypatch.setattr(health_check.subprocess, "run", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        health_check.subprocess,
+        "run",
+        _mock_subprocess_run([]),
+    )
 
     with pytest.raises(SystemExit) as exc_info:
         health_check.main()

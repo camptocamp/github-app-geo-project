@@ -11,7 +11,8 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     apt-get update \
     && apt-get upgrade --assume-yes \
-    && apt-get install --assume-yes --no-install-recommends python3-pip python3-venv postgresql-client docker.io libmagic1 git curl gnupg zlib1g libpq5 \
+    && apt-get install --assume-yes --no-install-recommends python3-pip python3-venv \
+        postgresql-client docker.io procps libmagic1 git curl gnupg zlib1g libpq5 \
     && python3 -m venv /venv
 
 ENV PATH=/venv/bin:$PATH
