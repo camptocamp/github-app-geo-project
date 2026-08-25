@@ -8,7 +8,6 @@ import concurrent
 import contextlib
 import contextvars
 import datetime
-import functools
 import html
 import inspect
 import io
@@ -33,7 +32,6 @@ import githubkit_schemas.latest.models
 import prometheus_client.exposition
 import sentry_sdk
 import sqlalchemy.ext.asyncio
-import sqlalchemy.orm
 from prometheus_client import Gauge
 
 from github_app_geo_project import (
@@ -1027,6 +1025,23 @@ async def _get_process_one_job(
         return False
 
 
+def _requeue_cancelled_job(
+    job: models.Queue,
+    root_logger: logging.Logger,
+    handler: _Handler,
+) -> None:
+    """Put an interrupted job back to new, to be reprocessed on the next start."""
+    root_logger.addHandler(handler)
+    try:
+        _LOGGER.error(
+            "Job %s interrupted by shutdown, put back to new to be reprocessed",
+            job.id,
+        )
+    finally:
+        root_logger.removeHandler(handler)
+    job.status_enum = models.JobStatus.NEW
+
+
 async def _process_one_job(
     job: models.Queue,
     session: sqlalchemy.ext.asyncio.AsyncSession,
@@ -1131,6 +1146,11 @@ async def _process_one_job(
                     job,
                 )
 
+    except asyncio.CancelledError:
+        # The job task is cancelled, generally on shutdown (SIGTERM or SIGINT),
+        # put it back to new to reprocess it on the next start.
+        _requeue_cancelled_job(job, root_logger, handler)
+        raise
     except Exception:  # pylint: disable=broad-exception-caught
         root_logger.addHandler(handler)
         try:
@@ -1195,6 +1215,13 @@ class _Run:
                 empty = await task
                 if self.end_when_empty and empty:
                     return
+            except asyncio.CancelledError:
+                # On shutdown also cancel the current job task, and wait the end of its
+                # cleanup (requeue, flush the logs and commit the status).
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+                raise
             except TimeoutError:
                 _LOGGER.exception("Timeout")
             except Exception:  # pylint: disable=broad-exception-caught
@@ -1394,31 +1421,6 @@ class _WatchDog:
             await asyncio.sleep(60)
 
 
-class HandleSigint:
-    """Handle SIGINT."""
-
-    def __init__(
-        self,
-        Session: sqlalchemy.orm.sessionmaker[sqlalchemy.orm.Session],  # noqa: N803 # # pylint: disable=unsubscriptable-object
-    ) -> None:  # pylint: disable=invalid-name
-        self.Session = Session  # pylint: disable=invalid-name
-
-    def __call__(self) -> None:
-        """Handle SIGINT."""
-        with self.Session() as session:
-            jobs_ids = _RUNNING_JOBS.keys()
-            for job in session.query(models.Queue).filter(
-                sqlalchemy.and_(
-                    models.Queue.id.in_(jobs_ids),
-                    models.Queue.status == models.JobStatus.PENDING.name,
-                ),
-            ):
-                job.status_enum = models.JobStatus.NEW
-                job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-            session.commit()
-        sys.exit()
-
-
 async def _async_main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1440,6 +1442,11 @@ async def _async_main() -> None:
 
     args = parser.parse_args()
 
+    _LOGGER.info(
+        "Starting the process queue (priority groups: %s)",
+        settings.process_queue.priority_groups,
+    )
+
     loop = asyncio.get_running_loop()
     with aiomonitor.start_monitor(loop):
         loop.set_default_executor(
@@ -1451,12 +1458,23 @@ async def _async_main() -> None:
         if settings.process_queue.debug:
             loop.set_debug(True)
 
-        def do_exit(loop: asyncio.AbstractEventLoop) -> None:
-            print("Exiting...")
-            loop.stop()
+        main_task = asyncio.current_task()
+        tasks: list[asyncio.Task[Any]] = []
+
+        def handle_signal(signal_number: int) -> None:
+            # On shutdown gracefully cancel the tasks, the interrupted jobs are
+            # put back to new by _process_one_job to be reprocessed on the next start.
+            _LOGGER.warning(
+                "Signal %s received, gracefully shutting down",
+                signal.Signals(signal_number).name,
+            )
+            for task_to_cancel in tasks:
+                task_to_cancel.cancel()
+            if main_task is not None and not main_task.done():
+                main_task.cancel()
 
         for signal_type in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(signal_type, functools.partial(do_exit, loop))
+            loop.add_signal_handler(signal_type, handle_signal, signal_type)
 
         options = {}
         if settings.sqlalchemy.pool_recycle is not None:
@@ -1467,12 +1485,6 @@ async def _async_main() -> None:
             options["max_overflow"] = settings.sqlalchemy.max_overflow
         options["pool_pre_ping"] = settings.sqlalchemy.pool_pre_ping
         async_engine = sqlalchemy.ext.asyncio.create_async_engine(settings.sqlalchemy.async_url, **options)
-        engine = sqlalchemy.create_engine(
-            settings.sqlalchemy.url, pool_pre_ping=settings.sqlalchemy.pool_pre_ping
-        )
-        Session = sqlalchemy.orm.sessionmaker(  # noqa: N806
-            bind=engine,
-        )  # pylint: disable=invalid-name
         AsyncSession = sqlalchemy.ext.asyncio.async_sessionmaker(  # noqa: N806
             bind=async_engine,
         )  # pylint: disable=invalid-name
@@ -1480,10 +1492,6 @@ async def _async_main() -> None:
         # Create tables if they do not exist
         async with async_engine.begin() as connection:
             await connection.run_sync(models.Base.metadata.create_all)
-
-        handle_sigint = HandleSigint(Session)
-        loop = asyncio.get_running_loop()
-        loop.add_signal_handler(signal.SIGINT, handle_sigint)
 
         if args.only_one:
             await _get_process_one_job(
@@ -1514,7 +1522,6 @@ async def _async_main() -> None:
 
             prometheus_client.start_http_server(c2casgiutils.config.settings.prometheus.port)
 
-        tasks = []
         if not args.exit_when_empty:
             tasks.append(asyncio.create_task(_WatchDog()(), name="Watch Dog"))
             tasks.append(
@@ -1566,7 +1573,11 @@ def main() -> None:
         },
     )
     socket.setdefaulttimeout(settings.process_queue.socket_timeout.total_seconds())
-    asyncio.run(_async_main())
+    try:
+        asyncio.run(_async_main())
+    except asyncio.CancelledError:
+        # Raised on shutdown (SIGTERM or SIGINT), the tasks cleanup is already done.
+        _LOGGER.info("Process queue stopped")
 
 
 if __name__ == "__main__":

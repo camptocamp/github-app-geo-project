@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-08-25
+
+### Added
+
+- **Queue**: On shutdown (`SIGTERM` or `SIGINT`), the interrupted jobs are now logged (visible in the job logs) and put back to `new`, to be reprocessed on the next start, instead of being definitively marked as `fail`.
+- **Queue**: Log a message when the process starts and when a shutdown signal is received, to easily find the restarts in the container logs.
+- **Health check**: `ghci-health-check` now prints explicit messages when the process-queue event loop seems blocked (warning from half of the timeout, error when marking the container as unhealthy).
+
+### Changed
+
+- **Queue**: `SIGTERM` and `SIGINT` now use the same graceful shutdown path: the tasks are cancelled and waited (the jobs cleanup, logs flush and commit are done), instead of abruptly stopping the event loop.
+
+### Removed
+
+- **Queue**: The synchronous `SIGINT` handler is replaced by the unified graceful shutdown path (it also did a blocking database call in the event loop).
+
 ## 2026-08-24
 
 ### Added
