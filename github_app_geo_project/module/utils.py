@@ -1275,6 +1275,19 @@ class GitWorktreeCache:
                 message = f"Failed to add worktree for branch {branch}"
                 raise module.GHCIError(message)
 
+            _, success, _ = await run_timeout(
+                ["git", "checkout", "-b", branch],
+                None,
+                settings.utils.timeouts.git_worktree_checkout,
+                f"Checkout worktree on {branch}",
+                f"Error checkout worktree on {branch}",
+                f"Timeout checkout worktree on {branch}",
+                worktree_path,
+            )
+            if not success:
+                message = f"Failed to checkout worktree on branch {branch}"
+                raise module.GHCIError(message)
+
         try:
             yield worktree_path
         finally:
