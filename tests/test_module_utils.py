@@ -395,3 +395,31 @@ def test_normalize_push_event_missing_compare() -> None:
     normalized = utils.normalize_push_event(event_data)
 
     assert "compare" not in normalized
+
+
+def test_normalize_workflow_run_event_missing_triggering_actor() -> None:
+    """normalize_workflow_run_event should add ``triggering_actor`` as None when missing."""
+    event_data = {"workflow_run": {"id": 1, "head_sha": "abc123"}, "sender": {"login": "user"}}
+    normalized = utils.normalize_workflow_run_event(event_data)
+
+    assert normalized["workflow_run"]["triggering_actor"] is None
+    assert normalized["workflow_run"]["id"] == 1
+    assert "triggering_actor" not in event_data["workflow_run"]
+
+
+def test_normalize_workflow_run_event_keeps_existing_triggering_actor() -> None:
+    """normalize_workflow_run_event should leave an existing ``triggering_actor`` untouched."""
+    actor = {"login": "user", "id": 42}
+    event_data = {"workflow_run": {"id": 1, "triggering_actor": actor}}
+    normalized = utils.normalize_workflow_run_event(event_data)
+
+    assert normalized["workflow_run"]["triggering_actor"] == actor
+
+
+def test_normalize_workflow_run_event_no_workflow_run() -> None:
+    """normalize_workflow_run_event should return a copy unchanged when ``workflow_run`` is absent."""
+    event_data = {"action": "completed", "sender": {"login": "user"}}
+    normalized = utils.normalize_workflow_run_event(event_data)
+
+    assert normalized == event_data
+    assert normalized is not event_data
