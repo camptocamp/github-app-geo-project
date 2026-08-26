@@ -12,7 +12,7 @@ import re
 import shlex
 import shutil
 import urllib.parse
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, cast
@@ -1425,7 +1425,7 @@ async def create_checks(
     if job.github_event_name == "workflow_run":
         event_data_workflow_run = githubkit.webhooks.parse_obj(  # type: ignore[attr-defined]
             "workflow_run",
-            job.github_event_data,
+            normalize_workflow_run_event(job.github_event_data),
         )
         sha = event_data_workflow_run.workflow_run.head_sha
     if job.github_event_name == "check_suite":
@@ -1490,4 +1490,18 @@ def normalize_push_event(event_data: dict[str, Any]) -> dict[str, Any]:
     normalized = event_data.copy()
     if "compare" in normalized and normalized["compare"] is None:
         normalized["compare"] = ""
+    return normalized
+
+
+def normalize_workflow_run_event(event_data: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize workflow_run event data to match githubkit's schema.
+
+    GitHub does not always send ``triggering_actor`` in workflow_run events,
+    but the githubkit schema requires the field (it accepts ``null``). This
+    function returns a copy with the missing field set to ``None``.
+    """
+    normalized: dict[str, Any] = dict(event_data)
+    workflow_run = normalized.get("workflow_run")
+    if isinstance(workflow_run, dict) and "triggering_actor" not in workflow_run:
+        normalized["workflow_run"] = {**workflow_run, "triggering_actor": None}
     return normalized

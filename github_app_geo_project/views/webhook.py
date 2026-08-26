@@ -31,6 +31,8 @@ async def webhook(
     event_name = request.headers.get("X-GitHub-Event", "undefined")
     if event_name == "push":
         data = module_utils.normalize_push_event(data)
+    elif event_name == "workflow_run":
+        data = module_utils.normalize_workflow_run_event(data)
     _LOGGER.debug(
         "Webhook received for %s on %s",
         event_name,
