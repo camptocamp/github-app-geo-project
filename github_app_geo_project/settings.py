@@ -329,6 +329,10 @@ class _SqlAlchemySettings(BaseModel):
     db_schema: Annotated[str, Field(description="DB schema name")] = "ghci"
 
     @property
+    def sync_url(self) -> str:
+        return self.url.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+    @property
     def async_url(self) -> str:
         return self.url.replace("postgresql://", "postgresql+asyncpg://", 1)
 

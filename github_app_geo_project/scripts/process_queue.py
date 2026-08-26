@@ -1491,7 +1491,7 @@ async def _async_main() -> None:
             bind=async_engine,
         )  # pylint: disable=invalid-name
         engine = sqlalchemy.create_engine(
-            settings.sqlalchemy.url, pool_pre_ping=settings.sqlalchemy.pool_pre_ping
+            settings.sqlalchemy.sync_url, pool_pre_ping=settings.sqlalchemy.pool_pre_ping
         )
         Session = sqlalchemy.orm.sessionmaker(  # noqa: N806
             bind=engine,
