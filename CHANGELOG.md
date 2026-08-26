@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-08-26
+
+### Fixed
+
+- **Patch**: The `patch` module no longer crashes on `workflow_job` webhooks whose job steps carry a `pending` status (e.g. `completed.workflow_job.steps[i].status`). Such payloads previously raised a Pydantic `ValidationError` because `githubkit-schemas` only accepts `queued`, `in_progress` or `completed`. Invalid step statuses are now rewritten to `queued` before parsing.
+
 ## 2026-08-25
 
 ### Added

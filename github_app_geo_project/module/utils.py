@@ -1505,3 +1505,31 @@ def normalize_workflow_run_event(event_data: Mapping[str, Any]) -> dict[str, Any
     if isinstance(workflow_run, dict) and "triggering_actor" not in workflow_run:
         normalized["workflow_run"] = {**workflow_run, "triggering_actor": None}
     return normalized
+
+
+_VALID_WORKFLOW_JOB_STEP_STATUSES = {"queued", "in_progress", "completed"}
+
+
+def normalize_workflow_job_event(event_data: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize workflow_job event data to match githubkit's schema.
+
+    GitHub's webhook payload can include ``pending`` (or other values) as a
+    step status, but the githubkit Pydantic model only accepts ``queued``,
+    ``in_progress`` and ``completed``. This function returns a copy with any
+    invalid step status rewritten to ``queued``.
+    """
+    normalized: dict[str, Any] = dict(event_data)
+    workflow_job = normalized.get("workflow_job")
+    if not isinstance(workflow_job, dict):
+        return normalized
+    steps = workflow_job.get("steps")
+    if not isinstance(steps, list):
+        return normalized
+    new_steps: list[Any] = []
+    for step in steps:
+        if isinstance(step, dict) and step.get("status") not in _VALID_WORKFLOW_JOB_STEP_STATUSES:
+            new_steps.append({**step, "status": "queued"})
+        else:
+            new_steps.append(step)
+    normalized["workflow_job"] = {**workflow_job, "steps": new_steps}
+    return normalized

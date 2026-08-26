@@ -125,7 +125,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         if context.module_event_name == "workflow_job":
             event_data_workflow_job = githubkit.webhooks.parse_obj(
                 "workflow_job",
-                context.github_event_data,
+                module_utils.normalize_workflow_job_event(context.github_event_data),
             )
 
             _LOGGER.debug(
@@ -183,7 +183,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         if context.module_event_name == "workflow_job":
             event_data_workflow_job = githubkit.webhooks.parse_obj(
                 "workflow_job",
-                context.github_event_data,
+                module_utils.normalize_workflow_job_event(context.github_event_data),
             )
             run_id = event_data_workflow_job.workflow_job.run_id
             head_branch = event_data_workflow_job.workflow_job.head_branch
