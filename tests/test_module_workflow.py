@@ -1,5 +1,6 @@
 # Copyright (c) 2026, Camptocamp SA
 
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import githubkit.exception
@@ -541,3 +542,64 @@ def test_parse_workflow_jobs_no_steps() -> None:
 
     assert len(jobs) == 1
     assert jobs[0].name == "build"
+
+
+def test_fix_workflow_run_event_data_missing_triggering_actor() -> None:
+    from github_app_geo_project.module.workflow import _fix_workflow_run_event_data
+
+    event_data = {
+        "action": "in_progress",
+        "workflow_run": {"id": 123, "head_branch": "main"},
+    }
+
+    fixed = _fix_workflow_run_event_data(event_data)
+
+    assert fixed["workflow_run"]["triggering_actor"] is None
+    # Original data must not be mutated
+    assert "triggering_actor" not in event_data["workflow_run"]
+
+
+def test_fix_workflow_run_event_data_preserves_existing_triggering_actor() -> None:
+    from github_app_geo_project.module.workflow import _fix_workflow_run_event_data
+
+    event_data = {
+        "action": "completed",
+        "workflow_run": {"id": 123, "triggering_actor": {"login": "user"}},
+    }
+
+    fixed = _fix_workflow_run_event_data(event_data)
+
+    assert fixed["workflow_run"]["triggering_actor"] == {"login": "user"}
+
+
+def test_fix_workflow_run_event_data_no_workflow_run() -> None:
+    from github_app_geo_project.module.workflow import _fix_workflow_run_event_data
+
+    event_data = {"action": "completed"}
+
+    fixed = _fix_workflow_run_event_data(event_data)
+
+    assert fixed == event_data
+
+
+def test_get_actions_missing_triggering_actor() -> None:
+    from github_app_geo_project.module import GetActionContext
+    from github_app_geo_project.module.workflow import Workflow
+
+    event_data: dict[str, Any] = dict(_EVENT)
+    event_data["workflow_run"] = dict(event_data["workflow_run"])
+    del event_data["workflow_run"]["triggering_actor"]
+
+    context = GetActionContext(
+        github_event_name="workflow_run",
+        github_event_data=event_data,
+        module_event_name="workflow_run",
+        owner="owner",
+        repository="repository",
+        github_application=None,  # type: ignore[arg-type]
+    )
+
+    workflow = Workflow()
+    actions = workflow.get_actions(context)
+
+    assert len(actions) == 1
