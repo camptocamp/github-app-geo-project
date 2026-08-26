@@ -43,6 +43,7 @@ from github_app_geo_project import (
 )
 from github_app_geo_project.module import GHCIError, modules
 from github_app_geo_project.module import utils as module_utils
+from github_app_geo_project.scripts import health_check
 from github_app_geo_project.settings import settings
 
 if TYPE_CHECKING:
@@ -1391,6 +1392,32 @@ class _WatchDog:
             await asyncio.sleep(60)
 
 
+class HandleSigint:
+    """Handle SIGINT."""
+
+    def __init__(
+        self,
+        Session: sqlalchemy.orm.sessionmaker[sqlalchemy.orm.Session],  # noqa: N803 # # pylint: disable=unsubscriptable-object
+    ) -> None:  # pylint: disable=invalid-name
+        self.Session = Session  # pylint: disable=invalid-name
+
+    def __call__(self) -> None:
+        """Handle SIGINT."""
+        with self.Session() as session:
+            jobs_ids = _RUNNING_JOBS.keys()
+            for job in session.query(models.Queue).filter(
+                sqlalchemy.and_(
+                    models.Queue.id.in_(jobs_ids),
+                    models.Queue.status == models.JobStatus.PENDING.name,
+                ),
+            ):
+                job.status_enum = models.JobStatus.NEW
+                job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+            session.commit()
+        _LOGGER.info("Exiting due to SIGINT")
+        sys.exit()
+
+
 async def _async_main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1443,6 +1470,11 @@ async def _async_main() -> None:
             if main_task is not None and not main_task.done():
                 main_task.cancel()
 
+            subprocess.run(["ps", "aux"], check=False)  # noqa: S607
+            pid = health_check.get_process_queue_pid()
+            if pid is not None:
+                health_check.dump_stacks(pid)
+
         for signal_type in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(signal_type, handle_signal, signal_type)
 
@@ -1458,10 +1490,21 @@ async def _async_main() -> None:
         AsyncSession = sqlalchemy.ext.asyncio.async_sessionmaker(  # noqa: N806
             bind=async_engine,
         )  # pylint: disable=invalid-name
+        engine = sqlalchemy.create_engine(
+            settings.sqlalchemy.url, pool_pre_ping=settings.sqlalchemy.pool_pre_ping
+        )
+        Session = sqlalchemy.orm.sessionmaker(  # noqa: N806
+            bind=engine,
+        )  # pylint: disable=invalid-name
 
         # Create tables if they do not exist
         async with async_engine.begin() as connection:
             await connection.run_sync(models.Base.metadata.create_all)
+
+        handle_sigint = HandleSigint(Session)
+        loop = asyncio.get_running_loop()
+        for signal_type in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(signal_type, handle_sigint)
 
         if args.only_one:
             await _get_process_one_job(
