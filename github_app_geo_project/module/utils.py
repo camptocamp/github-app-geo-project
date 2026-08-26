@@ -1217,6 +1217,7 @@ class GitWorktreeCache:
                 [
                     "git",
                     "clone",
+                    "--no-checkout",
                     f"https://x-access-token:{github_project.token}@github.com/{github_project.owner}/{github_project.repository}.git",
                     str(cache_path),
                 ],
