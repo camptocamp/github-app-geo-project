@@ -5,6 +5,7 @@
 import base64
 import datetime
 import logging
+from collections.abc import Mapping
 from typing import Any
 
 import githubkit.exception
@@ -20,6 +21,19 @@ from github_app_geo_project.module import utils as module_utils
 _LOGGER = logging.getLogger(__name__)
 
 _VALID_STEP_STATUSES = {"queued", "in_progress", "completed"}
+
+
+def _fix_workflow_run_event_data(event_data: Mapping[str, Any]) -> dict[str, Any]:
+    """Fix missing 'triggering_actor' field in workflow_run webhook payloads.
+
+    GitHub sometimes omits 'triggering_actor' from the workflow_run object,
+    but githubkit-schemas requires it. Returns a shallow copy with the fix applied.
+    """
+    result: dict[str, Any] = dict(event_data)
+    workflow_run = result.get("workflow_run")
+    if isinstance(workflow_run, dict) and "triggering_actor" not in workflow_run:
+        result["workflow_run"] = {**workflow_run, "triggering_actor": None}
+    return result
 
 
 def _parse_workflow_jobs(response: Any) -> list[Job]:
@@ -78,7 +92,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
         if context.module_event_name == "workflow_run":
             event_data = githubkit.webhooks.parse_obj(
                 "workflow_run",
-                context.github_event_data,
+                _fix_workflow_run_event_data(context.github_event_data),
             )
             if event_data.action == "completed" and event_data.workflow_run.event != "pull_request":
                 return [module.Action({}, priority=module.PRIORITY_STANDARD)]
@@ -177,7 +191,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
         assert context.module_event_name == "workflow_run"
         event_data = githubkit.webhooks.parse_obj(
             "workflow_run",
-            context.github_event_data,
+            _fix_workflow_run_event_data(context.github_event_data),
         )
         head_branch = event_data.workflow_run.head_branch
         if head_branch not in stabilization_branches:
