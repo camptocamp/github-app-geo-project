@@ -1276,7 +1276,7 @@ class GitWorktreeCache:
                 raise module.GHCIError(message)
 
             _, success, _ = await run_timeout(
-                ["git", "checkout", "-b", branch],
+                ["git", "checkout", "-B", branch],
                 None,
                 settings.utils.timeouts.git_worktree_checkout,
                 f"Checkout worktree on {branch}",
