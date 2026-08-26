@@ -7,14 +7,17 @@
 - **Queue**: On shutdown (`SIGTERM` or `SIGINT`), the interrupted jobs are now logged (visible in the job logs) and put back to `new`, to be reprocessed on the next start, instead of being definitively marked as `fail`.
 - **Queue**: Log a message when the process starts and when a shutdown signal is received, to easily find the restarts in the container logs.
 - **Health check**: `ghci-health-check` now prints explicit messages when the process-queue event loop seems blocked (warning from half of the timeout, error when marking the container as unhealthy).
+- **Health check**: `ghci-health-check` now uses `py-spy` to dump real-time stack traces of the `process-queue` process when the event loop appears blocked, showing exactly where each thread is stuck.
 
 ### Changed
 
 - **Queue**: `SIGTERM` and `SIGINT` now use the same graceful shutdown path: the tasks are cancelled and waited (the jobs cleanup, logs flush and commit are done), instead of abruptly stopping the event loop.
+- **Health check**: `ghci-health-check` uses `py-spy dump` instead of `cat /var/ghci/job_info` for diagnostic output, providing real-time OS-level thread stack traces even when the event loop is completely frozen.
 
 ### Removed
 
 - **Queue**: The synchronous `SIGINT` handler is replaced by the unified graceful shutdown path (it also did a blocking database call in the event loop).
+- **Queue**: The `/var/ghci/job_info` file is no longer written by `_PrometheusWatch`. The health check now relies on `py-spy` for real-time stack traces, making the periodically-updated job info file obsolete.
 
 ## 2026-08-24
 

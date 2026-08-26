@@ -11,6 +11,37 @@ from pathlib import Path
 WATCH_DOG_FILE = Path("/var/ghci/watch_dog")
 
 
+def _get_process_queue_pid() -> int | None:
+    """Find the PID of the process-queue daemon."""
+    try:
+        result = subprocess.run(  # nosec
+            ["pgrep", "--full", "--newest", "process-queue"],  # noqa: S607
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return int(result.stdout.strip())
+    except (ValueError, OSError):
+        pass
+    return None
+
+
+def _dump_stacks(pid: int) -> None:
+    """Dump stack traces of the process-queue daemon using py-spy.
+
+    Returns True if py-spy ran successfully, False otherwise.
+    """
+    try:
+        subprocess.run(  # noqa: S603  # nosec
+            ["py-spy", "dump", "--pid", str(pid)],  # noqa: S607
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exception:
+        print(f"Failed to dump stacks with py-spy: {exception}", flush=True)
+
+
 def main() -> None:
     """Check the health of the process-queue daemon."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -38,8 +69,10 @@ def main() -> None:
 
     if blocked_time > warning_timeout:
         subprocess.run(["ls", "-l", "/var/ghci/"], check=False)  # noqa: S607
-        subprocess.run(["cat", "/var/ghci/job_info"], check=False)  # noqa: S607
         subprocess.run(["ps", "aux"], check=False)  # noqa: S607
+        pid = _get_process_queue_pid()
+        if pid is not None:
+            _dump_stacks(pid)
 
     if blocked_time > args.timeout:
         sys.exit(1)

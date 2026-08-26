@@ -1239,7 +1239,6 @@ class _PrometheusWatch:
         loop: asyncio.AbstractEventLoop,
     ) -> None:
         self.Session = Session  # pylint: disable=invalid-name
-        self.last_run = time.time()
         self.loop = loop
 
     async def __call__(self, *args: Any, **kwargs: Any) -> Any:
@@ -1369,35 +1368,6 @@ class _PrometheusWatch:
                         ).scalar()
                         or 0,
                     )
-            text = []
-            for id_, job in _RUNNING_JOBS.items():
-                text.append(
-                    f"{id_}: {job.module} {job.module_event_name} {job.repository} [{job.priority}] (Worker max priority {job.worker_max_priority})",
-                )
-            try:
-                for task in asyncio.all_tasks():
-                    txt = io.StringIO()
-                    task.print_stack(file=txt)
-                    text.append("-" * 30)
-                    text.append(txt.getvalue())
-            except RuntimeError as exception:
-                text.append(str(exception))
-
-            if time.time() - self.last_run > 300:
-                error_message = ["Old Status"]
-                async with await anyio.Path("/var/ghci/job_info").open(encoding="utf-8") as file_:
-                    error_message.extend((await file_.read()).split("\n"))
-                error_message.append("-" * 30)
-                error_message.append("New status")
-                error_message.extend(text)
-                message = module_utils.HtmlMessage("<br>\n".join(error_message))
-                message.title = "Too long waiting for a schedule"
-                _LOGGER.error(message)
-            self.last_run = time.time()
-
-            async with await anyio.Path("/var/ghci/job_info").open("w", encoding="utf-8") as file_:
-                await file_.write("\n".join(text))
-                await file_.write("\n")
             await asyncio.sleep(60)
 
 
