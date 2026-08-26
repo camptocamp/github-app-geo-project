@@ -1,7 +1,8 @@
 # Copyright (c) 2026, Camptocamp SA
 
+import asyncio
 import datetime
-from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
@@ -485,3 +486,106 @@ def test_normalize_workflow_job_event_no_steps() -> None:
 
     assert normalized["workflow_job"] == {"id": 1, "name": "build"}
     assert normalized is not event_data
+
+
+@pytest.mark.asyncio
+async def test_git_worktree_cache_get_branch_lock() -> None:
+    """_get_branch_lock should return the same lock for the same key."""
+    cache = utils.GitWorktreeCache()
+
+    lock1 = await cache._get_branch_lock("owner/repo/branch1")
+    lock2 = await cache._get_branch_lock("owner/repo/branch1")
+    lock3 = await cache._get_branch_lock("owner/repo/branch2")
+
+    assert lock1 is lock2
+    assert lock1 is not lock3
+
+
+@pytest.mark.asyncio
+async def test_git_worktree_cache_branch_lock_serializes_same_branch() -> None:
+    """Two concurrent working_tree calls on the same branch should be serialized."""
+    cache = utils.GitWorktreeCache()
+    execution_order: list[str] = []
+
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+
+    async def mock_ensure_cache(_project):
+        return MagicMock()
+
+    async def mock_run_timeout(*args, **kwargs):
+        return ("", True, "")
+
+    async def mock_mkdtemp():
+        return "/tmp/test"
+
+    async def mock_run_sync(func, *args):
+        return func(*args) if args else func()
+
+    async def use_worktree(label: str) -> None:
+        async with cache.working_tree(github_project, "main"):
+            execution_order.append(f"{label}_start")
+            await asyncio.sleep(0.05)
+            execution_order.append(f"{label}_end")
+
+    with (
+        patch.object(cache, "_ensure_cache", side_effect=mock_ensure_cache),
+        patch(
+            "github_app_geo_project.module.utils.run_timeout",
+            side_effect=mock_run_timeout,
+        ),
+        patch("github_app_geo_project.module.utils.anyio.mkdtemp", side_effect=mock_mkdtemp),
+        patch("github_app_geo_project.module.utils.anyio.to_thread.run_sync", side_effect=mock_run_sync),
+    ):
+        await asyncio.gather(
+            use_worktree("first"),
+            use_worktree("second"),
+        )
+
+    assert execution_order == ["first_start", "first_end", "second_start", "second_end"]
+
+
+@pytest.mark.asyncio
+async def test_git_worktree_cache_branch_lock_allows_different_branches() -> None:
+    """Two concurrent working_tree calls on different branches should run in parallel."""
+    cache = utils.GitWorktreeCache()
+    execution_order: list[str] = []
+
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+
+    async def mock_ensure_cache(_project):
+        return MagicMock()
+
+    async def mock_run_timeout(*args, **kwargs):
+        return ("", True, "")
+
+    async def mock_mkdtemp():
+        return "/tmp/test"
+
+    async def mock_run_sync(func, *args):
+        return func(*args) if args else func()
+
+    async def use_worktree(label: str, branch: str) -> None:
+        async with cache.working_tree(github_project, branch):
+            execution_order.append(f"{label}_start")
+            await asyncio.sleep(0.05)
+            execution_order.append(f"{label}_end")
+
+    with (
+        patch.object(cache, "_ensure_cache", side_effect=mock_ensure_cache),
+        patch(
+            "github_app_geo_project.module.utils.run_timeout",
+            side_effect=mock_run_timeout,
+        ),
+        patch("github_app_geo_project.module.utils.anyio.mkdtemp", side_effect=mock_mkdtemp),
+        patch("github_app_geo_project.module.utils.anyio.to_thread.run_sync", side_effect=mock_run_sync),
+    ):
+        await asyncio.gather(
+            use_worktree("a", "branch-a"),
+            use_worktree("b", "branch-b"),
+        )
+
+    assert execution_order == ["a_start", "b_start", "a_end", "b_end"]
