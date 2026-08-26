@@ -423,3 +423,65 @@ def test_normalize_workflow_run_event_no_workflow_run() -> None:
 
     assert normalized == event_data
     assert normalized is not event_data
+
+
+def test_normalize_workflow_job_event_fixes_pending_steps() -> None:
+    """normalize_workflow_job_event should rewrite invalid step statuses to ``queued``."""
+    event_data = {
+        "action": "completed",
+        "workflow_job": {
+            "id": 1,
+            "name": "build",
+            "steps": [
+                {"number": 1, "name": "Set up job", "status": "completed", "conclusion": "success"},
+                {"number": 2, "name": "Run tests", "status": "pending", "conclusion": None},
+                {"number": 3, "name": "Post", "status": "pending", "conclusion": None},
+            ],
+        },
+    }
+    normalized = utils.normalize_workflow_job_event(event_data)
+
+    assert normalized["workflow_job"]["steps"][0]["status"] == "completed"
+    assert normalized["workflow_job"]["steps"][1]["status"] == "queued"
+    assert normalized["workflow_job"]["steps"][2]["status"] == "queued"
+    assert event_data["workflow_job"]["steps"][1]["status"] == "pending"
+
+
+def test_normalize_workflow_job_event_keeps_valid_statuses() -> None:
+    """normalize_workflow_job_event should leave valid step statuses untouched."""
+    event_data = {
+        "action": "in_progress",
+        "workflow_job": {
+            "id": 1,
+            "steps": [
+                {"number": 1, "status": "queued"},
+                {"number": 2, "status": "in_progress"},
+                {"number": 3, "status": "completed"},
+            ],
+        },
+    }
+    normalized = utils.normalize_workflow_job_event(event_data)
+
+    assert [s["status"] for s in normalized["workflow_job"]["steps"]] == [
+        "queued",
+        "in_progress",
+        "completed",
+    ]
+
+
+def test_normalize_workflow_job_event_no_workflow_job() -> None:
+    """normalize_workflow_job_event should return a copy unchanged when ``workflow_job`` is absent."""
+    event_data = {"action": "queued", "sender": {"login": "user"}}
+    normalized = utils.normalize_workflow_job_event(event_data)
+
+    assert normalized == event_data
+    assert normalized is not event_data
+
+
+def test_normalize_workflow_job_event_no_steps() -> None:
+    """normalize_workflow_job_event should leave a ``workflow_job`` without ``steps`` unchanged."""
+    event_data = {"action": "queued", "workflow_job": {"id": 1, "name": "build"}}
+    normalized = utils.normalize_workflow_job_event(event_data)
+
+    assert normalized["workflow_job"] == {"id": 1, "name": "build"}
+    assert normalized is not event_data
