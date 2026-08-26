@@ -11,7 +11,7 @@ from pathlib import Path
 WATCH_DOG_FILE = Path("/var/ghci/watch_dog")
 
 
-def _get_process_queue_pid() -> int | None:
+def get_process_queue_pid() -> int | None:
     """Find the PID of the process-queue daemon."""
     try:
         result = subprocess.run(  # nosec
@@ -27,7 +27,7 @@ def _get_process_queue_pid() -> int | None:
     return None
 
 
-def _dump_stacks(pid: int) -> None:
+def dump_stacks(pid: int) -> None:
     """Dump stack traces of the process-queue daemon using py-spy.
 
     Returns True if py-spy ran successfully, False otherwise.
@@ -70,9 +70,9 @@ def main() -> None:
     if blocked_time > warning_timeout:
         subprocess.run(["ls", "-l", "/var/ghci/"], check=False)  # noqa: S607
         subprocess.run(["ps", "aux"], check=False)  # noqa: S607
-        pid = _get_process_queue_pid()
+        pid = get_process_queue_pid()
         if pid is not None:
-            _dump_stacks(pid)
+            dump_stacks(pid)
 
     if blocked_time > args.timeout:
         sys.exit(1)
