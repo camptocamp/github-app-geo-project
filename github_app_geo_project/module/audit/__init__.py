@@ -702,46 +702,33 @@ async def _create_pull_request_if_changes(
                 error=False,
             )
 
-            command = ["git", "checkout", "-b", new_branch]
-            _, success_checkout, _ = await module_utils.run_timeout(
-                command,
-                env=None,
-                timeout=settings.audit.timeouts.git_checkout,
-                success_message="Git checkout completed",
-                error_message="Error while creating the new branch",
-                timeout_message="Git checkout timed out",
-                cwd=cwd,
-                error=True,
+            pre_commit_config = audit_utils.get_pre_commit_config(
+                context.module_config,
+                local_config,
             )
-
-            if success_checkout:
-                pre_commit_config = audit_utils.get_pre_commit_config(
-                    context.module_config,
-                    local_config,
+            new_success, pull_request = await module_utils.create_commit_pull_request(
+                branch,
+                new_branch,
+                f"Audit {key}",
+                body_md,
+                context.github_project,
+                cwd,
+                pre_commit_config.get("enabled", True),
+                pre_commit_config.get("skip-hooks", []),
+            )
+            success &= new_success
+            if not new_success:
+                _LOGGER.error(
+                    "Error while create commit or pull request",
                 )
-                new_success, pull_request = await module_utils.create_commit_pull_request(
-                    branch,
-                    new_branch,
-                    f"Audit {key}",
-                    body_md,
-                    context.github_project,
-                    cwd,
-                    pre_commit_config.get("enabled", True),
-                    pre_commit_config.get("skip-hooks", []),
+            elif pull_request is not None and issue_check is not None:
+                issue_check.set_title(
+                    key,
+                    f"{key} ([Pull request]({pull_request.html_url}))",
                 )
-                success &= new_success
-                if not new_success:
-                    _LOGGER.error(
-                        "Error while create commit or pull request",
-                    )
-                elif pull_request is not None and issue_check is not None:
-                    issue_check.set_title(
-                        key,
-                        f"{key} ([Pull request]({pull_request.html_url}))",
-                    )
-                    short_message.append(
-                        f"[Pull request]({pull_request.html_url})",
-                    )
+                short_message.append(
+                    f"[Pull request]({pull_request.html_url})",
+                )
 
         else:
             _LOGGER.debug("No changes to commit")

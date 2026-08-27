@@ -471,7 +471,7 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                     "push",
                     *(["--force-with-lease"] if git.get("amend", configuration.AMEND_DEFAULT) else []),
                     "origin",
-                    branch,
+                    f"HEAD:refs/heads/{branch}",
                 ],
                 None,
                 settings.clean.timeouts.git_push,

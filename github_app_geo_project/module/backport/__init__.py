@@ -426,19 +426,6 @@ class Backport(
             _LOGGER.debug("Branches: %s", ", ".join(branches))
 
             # Checkout the branch
-            _, success, _ = await module_utils.run_timeout(
-                ["git", "checkout", "-b", backport_branch, f"origin/{target_branch}"],
-                None,
-                settings.backport.timeouts.git_checkout,
-                f"Create branch {backport_branch}",
-                f"Error while creating the branch {backport_branch}",
-                f"Timeout while creating the branch {backport_branch}",
-                cwd,
-            )
-            if not success:
-                error_message = f"Error while creating the branch {backport_branch}"
-                raise module.GHCIError(error_message)
-
             failed_commits: list[str] = []
 
             # Get pull request commits
@@ -617,7 +604,7 @@ class Backport(
                         "```",
                         "When all the conflicts are resolved, push the branch:",
                         "```bash",
-                        f"git push origin {backport_branch} --force-with-lease",
+                        f"git push origin HEAD:refs/heads/{backport_branch} --force-with-lease",
                         "```",
                     ],
                 )
