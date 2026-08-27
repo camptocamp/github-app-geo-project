@@ -1297,6 +1297,9 @@ class GitWorktreeCache:
                     cache_path,
                 )
                 if not success:
+                    await anyio.to_thread.run_sync(
+                        lambda: shutil.rmtree(worktree_path, ignore_errors=True),
+                    )
                     message = f"Failed to add worktree for branch {branch}"
                     raise module.GHCIError(message)
 
