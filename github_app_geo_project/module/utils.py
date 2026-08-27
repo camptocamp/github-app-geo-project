@@ -818,7 +818,7 @@ async def create_pull_request(
 ) -> tuple[bool, githubkit_schemas.latest.models.PullRequest | None]:
     """Create a pull request."""
     _, success, _ = await run_timeout(
-        ["git", "push", "--force-with-lease", "origin", new_branch],
+        ["git", "push", "--force-with-lease", "origin", f"HEAD:refs/heads/{new_branch}"],
         None,
         60,
         "Push branch",
@@ -1299,19 +1299,6 @@ class GitWorktreeCache:
                 )
                 if not success:
                     message = f"Failed to add worktree for branch {branch}"
-                    raise module.GHCIError(message)
-
-                _, success, _ = await run_timeout(
-                    ["git", "checkout", "-B", branch],
-                    None,
-                    settings.utils.timeouts.git_worktree_checkout,
-                    f"Checkout worktree on {branch}",
-                    f"Error checkout worktree on {branch}",
-                    f"Timeout checkout worktree on {branch}",
-                    worktree_path,
-                )
-                if not success:
-                    message = f"Failed to checkout worktree on branch {branch}"
                     raise module.GHCIError(message)
 
             try:

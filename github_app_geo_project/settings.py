@@ -142,9 +142,6 @@ class _AuditTimeouts(BaseModel):
     poetry_env_remove: Annotated[Duration, Field(description="poetry env remove timeout")] = (
         datetime.timedelta(minutes=2)
     )
-    git_checkout: Annotated[Duration, Field(description="git checkout timeout")] = datetime.timedelta(
-        minutes=1
-    )
     git_reset_hard: Annotated[Duration, Field(description="git reset --hard timeout")] = datetime.timedelta(
         minutes=1
     )
@@ -187,9 +184,6 @@ class _UtilsTimeouts(BaseModel):
 
 class _BackportTimeouts(BaseModel):
     git_branch: Annotated[Duration, Field(description="git branch timeout")] = datetime.timedelta(seconds=60)
-    git_checkout: Annotated[Duration, Field(description="git checkout timeout")] = datetime.timedelta(
-        seconds=60
-    )
     git_fetch: Annotated[Duration, Field(description="git fetch timeout")] = datetime.timedelta(seconds=300)
     git_log: Annotated[Duration, Field(description="git log timeout")] = datetime.timedelta(seconds=60)
     git_config: Annotated[Duration, Field(description="git config timeout")] = datetime.timedelta(seconds=10)
