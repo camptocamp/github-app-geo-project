@@ -1433,7 +1433,10 @@ async def create_checks(
         )
         sha = event_data_pull_request.pull_request.head.sha
     if job.github_event_name == "push":
-        event_data_push = githubkit.webhooks.parse_obj("push", job.github_event_data)  # type: ignore[attr-defined]
+        event_data_push = githubkit.webhooks.parse_obj(  # type: ignore[attr-defined]
+            "push",
+            normalize_push_event(job.github_event_data),
+        )
         sha = event_data_push.before if event_data_push.deleted else event_data_push.after
     if job.github_event_name == "workflow_run":
         event_data_workflow_run = githubkit.webhooks.parse_obj(  # type: ignore[attr-defined]
