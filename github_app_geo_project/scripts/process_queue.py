@@ -1178,7 +1178,7 @@ async def _process_one_job(
         await _flush_job_logs(log_session_factory, handler, job.id)
         job.finished_at = datetime.datetime.now(tz=datetime.UTC)
         _RUNNING_JOBS.pop(job.id)
-        await session.commit()
+        await asyncio.shield(session.commit())
 
     _LOGGER.debug("Process one job (max priority: %i): Done", max_priority)
 
@@ -1392,32 +1392,6 @@ class _WatchDog:
             await asyncio.sleep(60)
 
 
-class HandleSigint:
-    """Handle SIGINT."""
-
-    def __init__(
-        self,
-        Session: sqlalchemy.orm.sessionmaker[sqlalchemy.orm.Session],  # noqa: N803 # # pylint: disable=unsubscriptable-object
-    ) -> None:  # pylint: disable=invalid-name
-        self.Session = Session  # pylint: disable=invalid-name
-
-    def __call__(self) -> None:
-        """Handle SIGINT."""
-        with self.Session() as session:
-            jobs_ids = _RUNNING_JOBS.keys()
-            for job in session.query(models.Queue).filter(
-                sqlalchemy.and_(
-                    models.Queue.id.in_(jobs_ids),
-                    models.Queue.status == models.JobStatus.PENDING.name,
-                ),
-            ):
-                job.status_enum = models.JobStatus.NEW
-                job.finished_at = datetime.datetime.now(tz=datetime.UTC)
-            session.commit()
-        _LOGGER.info("Exiting due to SIGINT")
-        sys.exit()
-
-
 async def _async_main() -> None:
     """Process the jobs present in the database queue."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1486,25 +1460,14 @@ async def _async_main() -> None:
         if settings.sqlalchemy.max_overflow is not None:
             options["max_overflow"] = settings.sqlalchemy.max_overflow
         options["pool_pre_ping"] = settings.sqlalchemy.pool_pre_ping
-        async_engine = sqlalchemy.ext.asyncio.create_async_engine(settings.sqlalchemy.async_url, **options)
+        async_engine = sqlalchemy.ext.asyncio.create_async_engine(settings.sqlalchemy.url, **options)
         AsyncSession = sqlalchemy.ext.asyncio.async_sessionmaker(  # noqa: N806
             bind=async_engine,
-        )  # pylint: disable=invalid-name
-        engine = sqlalchemy.create_engine(
-            settings.sqlalchemy.sync_url, pool_pre_ping=settings.sqlalchemy.pool_pre_ping
-        )
-        Session = sqlalchemy.orm.sessionmaker(  # noqa: N806
-            bind=engine,
         )  # pylint: disable=invalid-name
 
         # Create tables if they do not exist
         async with async_engine.begin() as connection:
             await connection.run_sync(models.Base.metadata.create_all)
-
-        handle_sigint = HandleSigint(Session)
-        loop = asyncio.get_running_loop()
-        for signal_type in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(signal_type, handle_sigint)
 
         if args.only_one:
             await _get_process_one_job(

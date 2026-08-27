@@ -28,7 +28,7 @@ async def _main() -> None:
     args = parser.parse_args()
 
     app_config: _AppConfig | None = settings.application_configs.get(args.application)
-    engine = sqlalchemy.ext.asyncio.create_async_engine(settings.sqlalchemy.async_url)
+    engine = sqlalchemy.ext.asyncio.create_async_engine(settings.sqlalchemy.url)
     async_session = sqlalchemy.ext.asyncio.async_sessionmaker(engine)
 
     async with async_session() as session:

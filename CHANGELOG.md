@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-08-27
+
+### Fixed
+
+- **Queue**: Fix `MissingGreenlet` error on `SIGINT`/`SIGTERM` caused by `HandleSigint` replacing the correct `handle_signal` handler and attempting synchronous database operations in the async event loop. The existing `_requeue_cancelled_job` + `finally` cleanup in `_process_one_job` now handles job re-queueing on shutdown.
+- **Queue**: Wrap `session.commit()` in the `_process_one_job` `finally` block with `asyncio.shield()` to protect the commit from being cancelled by a second signal during shutdown.
+
+### Changed
+
+- **Settings**: The `sqlalchemy.url` setting now uses `postgresql+asyncpg://` directly. The `sync_url` and `async_url` computed properties are removed. Update `GHCI__SQLALCHEMY__URL` environment variable to include the `+asyncpg` driver prefix.
+
+### Removed
+
+- **Dependencies**: `psycopg2` is no longer a dependency (the synchronous PostgreSQL driver was only used by the removed `HandleSigint` signal handler).
+
 ## 2026-08-26
 
 ### Fixed
