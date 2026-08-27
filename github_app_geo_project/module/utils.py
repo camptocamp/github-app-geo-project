@@ -1232,6 +1232,18 @@ class GitWorktreeCache:
                 error_message = "Failed to clone the repository"
                 raise ValueError(error_message)
 
+        # Detach HEAD so the default branch is not locked in the cache repo,
+        # allowing linked worktrees to check out any branch including the default one
+        await run_timeout(
+            ["git", "checkout", "--detach"],
+            None,
+            settings.utils.timeouts.git_worktree_checkout,
+            "Detach HEAD in cache repo",
+            "Error detaching HEAD in cache repo",
+            "Timeout detaching HEAD in cache repo",
+            cache_path,
+        )
+
         # Set git user config in the cache repo
         await self._set_user_config(cache_path, github_project)
 
