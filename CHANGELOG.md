@@ -2,6 +2,10 @@
 
 ## 2026-08-27
 
+### Added
+
+- **Patch**: When the direct push to a protected branch (e.g. `main`) is rejected, the `patch` module now automatically creates a new branch (`ghci/patch/<branch>-<run-id>`) and opens a pull request with auto-merge enabled, instead of failing silently.
+
 ### Fixed
 
 - **Queue**: Fix `MissingGreenlet` error on `SIGINT`/`SIGTERM` caused by `HandleSigint` replacing the correct `handle_signal` handler and attempting synchronous database operations in the async event loop. The existing `_requeue_cancelled_job` + `finally` cleanup in `_process_one_job` now handles job re-queueing on shutdown.
