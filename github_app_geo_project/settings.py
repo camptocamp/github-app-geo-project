@@ -315,7 +315,7 @@ class _C2cciutilsSettings(BaseModel):
 
 class _SqlAlchemySettings(BaseModel):
     url: Annotated[str, Field(description="SQLAlchemy database URL")] = (
-        f"postgresql://{os.environ.get('PGUSER', 'postgresql')}:{os.environ.get('PGPASSWORD', 'postgresql')}"
+        f"postgresql+asyncpg://{os.environ.get('PGUSER', 'postgresql')}:{os.environ.get('PGPASSWORD', 'postgresql')}"
         f"@{os.environ.get('PGHOST', 'db')}:{os.environ.get('PGPORT', '5432')}"
         f"/{os.environ.get('PGDATABASE', 'tests')}"
     )
@@ -327,14 +327,6 @@ class _SqlAlchemySettings(BaseModel):
         Field(description="Test the DB connections before using them, to not use dead connections"),
     ] = True
     db_schema: Annotated[str, Field(description="DB schema name")] = "ghci"
-
-    @property
-    def sync_url(self) -> str:
-        return self.url.replace("postgresql://", "postgresql+psycopg2://", 1)
-
-    @property
-    def async_url(self) -> str:
-        return self.url.replace("postgresql://", "postgresql+asyncpg://", 1)
 
 
 class _GitHubApp(BaseModel):

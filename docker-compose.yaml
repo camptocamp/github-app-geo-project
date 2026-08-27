@@ -22,7 +22,7 @@ services:
       C2C__HTTP: 'true'
       C2C__PROMETHEUS__PORT: 9110
       GHCI__TEST__APP_NAME: test
-      GHCI__SQLALCHEMY__URL: postgresql://postgresql:postgresql@db/tests
+      GHCI__SQLALCHEMY__URL: postgresql+asyncpg://postgresql:postgresql@db/tests
       GHCI__SQLALCHEMY__POOL_RECYCLE: '3600'
       GHCI__SQLALCHEMY__POOL_SIZE: '10'
       GHCI__SQLALCHEMY__MAX_OVERFLOW: '20'

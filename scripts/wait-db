@@ -1,37 +1,41 @@
 #!/usr/bin/env python3
 # Copyright (c) 2026 Camptocamp SA
-# pylint: disable=invalid-name
 
+import asyncio
+import logging
 import sys
-import time
 
-import psycopg2
+import asyncpg
+
+_LOGGER = logging.getLogger(__name__)
 
 
-def _main() -> None:
+async def _wait_for_db(host: str, max_sleep: int = 60) -> bool:
     sleep_time = 1
-    max_sleep = 60
+    while sleep_time < max_sleep:
+        print(f"Waiting for the DataBase server '{host}' to be reachable")
+        try:
+            connection = await asyncpg.connect(
+                host=host,
+                password="postgresql",  # noqa: S106
+                user="postgresql",
+                database="tests",
+            )
+        except Exception as exception:  # noqa: BLE001
+            print(str(exception))
+            await asyncio.sleep(sleep_time)
+            sleep_time *= 2
+        else:
+            await connection.execute("SELECT 1")
+            await connection.close()
+            return True
+    return False
 
-    # Wait for the db to be UP
-    for db in ("db",):
-        while sleep_time < max_sleep:
-            print(f"Waiting for the DataBase server '{db}' to be reachable")
-            try:
-                connection = psycopg2.connect(
-                    host=db,
-                    password="postgresql",  # noqa: S106
-                    user="postgresql",
-                    database="tests",
-                )
-                cursor = connection.cursor()
-                cursor.execute("SELECT 1")
-                break
-            except Exception as e:  # noqa: BLE001
-                print(str(e))
-                time.sleep(sleep_time)
-                sleep_time *= 2
-    sys.exit(0 if sleep_time < max_sleep else 1)
+
+async def _async_main() -> None:
+    result = await _wait_for_db("db")
+    sys.exit(0 if result else 1)
 
 
 if __name__ == "__main__":
-    _main()
+    asyncio.run(_async_main())
