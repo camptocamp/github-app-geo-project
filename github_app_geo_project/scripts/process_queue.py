@@ -297,10 +297,12 @@ async def _process_job(
             name=f"Stream logs {job.id}",
         )
         try:
+            job.github_event_data = utils.normalize_event(job.github_event_name, job.github_event_data)
+
             if not settings.test.app_name:
                 if job.check_run_id is None and job.owner is not None and job.repository is not None:
                     _LOGGER.debug("Create check run for job id %s", job.id)
-                    check_run = await module_utils.create_checks(
+                    check_run = await utils.create_checks(
                         job,
                         session,
                         current_module,
@@ -594,7 +596,7 @@ async def _process_job(
                         action.data,
                     )
                     session.add(new_job)
-                    await module_utils.create_checks(
+                    await utils.create_checks(
                         new_job,
                         session,
                         current_module,
@@ -912,7 +914,7 @@ async def _process_dashboard_issue(
                             session.add(job)
                             await session.flush()
                             if action.checks:
-                                await module_utils.create_checks(
+                                await utils.create_checks(
                                     job,
                                     session,
                                     current_module,
