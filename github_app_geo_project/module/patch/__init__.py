@@ -257,6 +257,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         )
 
         should_push = False
+        last_artifact_name = ""
         result_message = []
         error_messages = []
 
@@ -316,13 +317,14 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
 
                     if await module_utils.has_changes(cwd, include_un_followed=True):
                         success = await module_utils.create_commit(
-                            f"{artifact.name[:-6]}\n\nFrom the artifact of the previous workflow run",
+                            f"{artifact.name.removesuffix('.patch')}\n\nFrom the artifact of the previous workflow run",
                             cwd,
                         )
                         if not success:
                             exception_message = "Failed to commit the changes, see logs for details"
                             raise PatchError(exception_message)
                         should_push = True
+                        last_artifact_name = artifact.name
                 if should_push:
                     command = ["git", "push", "origin", f"HEAD:{head_branch}"]
                     proc = await asyncio.create_subprocess_exec(
@@ -341,14 +343,50 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                         stderr,
                     )
                     if proc.returncode != 0:
-                        message.title = "Failed to push the changes"
-                        _LOGGER.warning(message)
-                        return module.ProcessOutput(
-                            success=False,
-                            check_output={"summary": "Failed to push the changes"},
-                        )
-                    message.title = "Pushed the changes"
-                    _LOGGER.debug(message)
+                        stderr_text = stderr.decode() if stderr else ""
+                        if "protected branch hook declined" in stderr_text:
+                            _LOGGER.info(
+                                "Branch '%s' is protected, creating a pull request instead",
+                                head_branch,
+                            )
+                            new_branch = f"ghci/patch/{head_branch}-{run_id}"
+                            pr_title = last_artifact_name.removesuffix(".patch")
+                            pr_body = (
+                                f"Automated patch from workflow run "
+                                f"[{run_id}](https://github.com/{context.github_project.owner}"
+                                f"/{context.github_project.repository}/actions/runs/{run_id})"
+                            )
+                            pr_success, pull_request = await module_utils.create_pull_request(
+                                head_branch,
+                                new_branch,
+                                pr_title,
+                                pr_body,
+                                context.github_project,
+                                cwd,
+                            )
+                            if not pr_success:
+                                message.title = (
+                                    "Failed to create pull request after protected branch push rejection"
+                                )
+                                _LOGGER.warning(message)
+                                return module.ProcessOutput(
+                                    success=False,
+                                    check_output={
+                                        "summary": "Failed to create pull request after protected branch push rejection"
+                                    },
+                                )
+                            if pull_request is not None:
+                                _LOGGER.info("Created pull request %s", pull_request.html_url)
+                        else:
+                            message.title = "Failed to push the changes"
+                            _LOGGER.warning(message)
+                            return module.ProcessOutput(
+                                success=False,
+                                check_output={"summary": "Failed to push the changes"},
+                            )
+                    else:
+                        message.title = "Pushed the changes"
+                        _LOGGER.debug(message)
         else:
             async for _artifact, patch_input in _iter_artifact_patches(
                 context,
@@ -380,6 +418,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         return module.GitHubApplicationPermissions(
             {
                 "contents": "write",
+                "pull_requests": "write",
                 "workflows": "read",
             },
             {"workflow_run", "workflow_job"},
