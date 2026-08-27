@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 
+from github_app_geo_project import utils as app_utils
 from github_app_geo_project.module import utils
 
 
@@ -375,7 +376,7 @@ def test_to_html_css_backgrounds_included() -> None:
 def test_normalize_push_event_null_compare() -> None:
     """normalize_push_event should coerce ``compare`` from null to empty string."""
     event_data = {"ref": "refs/heads/main", "compare": None, "commits": []}
-    normalized = utils.normalize_push_event(event_data)
+    normalized = app_utils.normalize_push_event(event_data)
 
     assert normalized["compare"] == ""
     assert normalized["ref"] == "refs/heads/main"
@@ -385,7 +386,7 @@ def test_normalize_push_event_null_compare() -> None:
 def test_normalize_push_event_keeps_existing_compare() -> None:
     """normalize_push_event should leave a valid ``compare`` untouched."""
     event_data = {"compare": "https://github.com/owner/repo/compare/abc...def"}
-    normalized = utils.normalize_push_event(event_data)
+    normalized = app_utils.normalize_push_event(event_data)
 
     assert normalized["compare"] == "https://github.com/owner/repo/compare/abc...def"
 
@@ -393,7 +394,7 @@ def test_normalize_push_event_keeps_existing_compare() -> None:
 def test_normalize_push_event_missing_compare() -> None:
     """normalize_push_event should not add ``compare`` when the key is absent."""
     event_data = {"ref": "refs/heads/main"}
-    normalized = utils.normalize_push_event(event_data)
+    normalized = app_utils.normalize_push_event(event_data)
 
     assert "compare" not in normalized
 
@@ -401,7 +402,7 @@ def test_normalize_push_event_missing_compare() -> None:
 def test_normalize_workflow_run_event_missing_triggering_actor() -> None:
     """normalize_workflow_run_event should add ``triggering_actor`` as None when missing."""
     event_data = {"workflow_run": {"id": 1, "head_sha": "abc123"}, "sender": {"login": "user"}}
-    normalized = utils.normalize_workflow_run_event(event_data)
+    normalized = app_utils.normalize_workflow_run_event(event_data)
 
     assert normalized["workflow_run"]["triggering_actor"] is None
     assert normalized["workflow_run"]["id"] == 1
@@ -412,7 +413,7 @@ def test_normalize_workflow_run_event_keeps_existing_triggering_actor() -> None:
     """normalize_workflow_run_event should leave an existing ``triggering_actor`` untouched."""
     actor = {"login": "user", "id": 42}
     event_data = {"workflow_run": {"id": 1, "triggering_actor": actor}}
-    normalized = utils.normalize_workflow_run_event(event_data)
+    normalized = app_utils.normalize_workflow_run_event(event_data)
 
     assert normalized["workflow_run"]["triggering_actor"] == actor
 
@@ -420,7 +421,7 @@ def test_normalize_workflow_run_event_keeps_existing_triggering_actor() -> None:
 def test_normalize_workflow_run_event_no_workflow_run() -> None:
     """normalize_workflow_run_event should return a copy unchanged when ``workflow_run`` is absent."""
     event_data = {"action": "completed", "sender": {"login": "user"}}
-    normalized = utils.normalize_workflow_run_event(event_data)
+    normalized = app_utils.normalize_workflow_run_event(event_data)
 
     assert normalized == event_data
     assert normalized is not event_data
@@ -440,7 +441,7 @@ def test_normalize_workflow_job_event_fixes_pending_steps() -> None:
             ],
         },
     }
-    normalized = utils.normalize_workflow_job_event(event_data)
+    normalized = app_utils.normalize_workflow_job_event(event_data)
 
     assert normalized["workflow_job"]["steps"][0]["status"] == "completed"
     assert normalized["workflow_job"]["steps"][1]["status"] == "queued"
@@ -461,7 +462,7 @@ def test_normalize_workflow_job_event_keeps_valid_statuses() -> None:
             ],
         },
     }
-    normalized = utils.normalize_workflow_job_event(event_data)
+    normalized = app_utils.normalize_workflow_job_event(event_data)
 
     assert [s["status"] for s in normalized["workflow_job"]["steps"]] == [
         "queued",
@@ -473,7 +474,7 @@ def test_normalize_workflow_job_event_keeps_valid_statuses() -> None:
 def test_normalize_workflow_job_event_no_workflow_job() -> None:
     """normalize_workflow_job_event should return a copy unchanged when ``workflow_job`` is absent."""
     event_data = {"action": "queued", "sender": {"login": "user"}}
-    normalized = utils.normalize_workflow_job_event(event_data)
+    normalized = app_utils.normalize_workflow_job_event(event_data)
 
     assert normalized == event_data
     assert normalized is not event_data
@@ -482,7 +483,7 @@ def test_normalize_workflow_job_event_no_workflow_job() -> None:
 def test_normalize_workflow_job_event_no_steps() -> None:
     """normalize_workflow_job_event should leave a ``workflow_job`` without ``steps`` unchanged."""
     event_data = {"action": "queued", "workflow_job": {"id": 1, "name": "build"}}
-    normalized = utils.normalize_workflow_job_event(event_data)
+    normalized = app_utils.normalize_workflow_job_event(event_data)
 
     assert normalized["workflow_job"] == {"id": 1, "name": "build"}
     assert normalized is not event_data

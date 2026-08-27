@@ -4,15 +4,23 @@
 
 import datetime
 import json
-from collections.abc import Iterable
+import logging
+import urllib.parse
+from collections.abc import Iterable, Mapping
 from typing import Any
 
+import githubkit.exception
+import githubkit.webhooks
+import githubkit_schemas.latest.models
 import pygments.formatters
 import pygments.lexers
+import sqlalchemy.ext.asyncio
 import yaml
 from tinycss2 import parse_stylesheet, serialize
 
-from github_app_geo_project import module
+from github_app_geo_project import configuration, models, module
+
+_LOGGER = logging.getLogger(__name__)
 
 _ISSUE_START = "<!-- START {} -->"
 _ISSUE_END = "<!-- END {} -->"
@@ -130,3 +138,158 @@ def merge_css_blocks(css_blocks: Iterable[str]) -> str:
         merged_css.append(f"{selector} {{ {flat_declarations}; }}")
 
     return "\n".join(merged_css)
+
+
+def normalize_push_event(event_data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize push event data to match githubkit's WebhookPush schema.
+
+    GitHub can send ``compare`` as ``null`` (e.g. on force-pushes) but the
+    githubkit schema requires a string. This function returns a shallow copy
+    with the offending fields coerced to their expected types.
+    """
+    normalized = event_data.copy()
+    if "compare" in normalized and normalized["compare"] is None:
+        normalized["compare"] = ""
+    return normalized
+
+
+def normalize_workflow_run_event(event_data: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize workflow_run event data to match githubkit's schema.
+
+    GitHub does not always send ``triggering_actor`` in workflow_run events,
+    but the githubkit schema requires the field (it accepts ``null``). This
+    function returns a copy with the missing field set to ``None``.
+    """
+    normalized: dict[str, Any] = dict(event_data)
+    workflow_run = normalized.get("workflow_run")
+    if isinstance(workflow_run, dict) and "triggering_actor" not in workflow_run:
+        normalized["workflow_run"] = {**workflow_run, "triggering_actor": None}
+    return normalized
+
+
+_VALID_WORKFLOW_JOB_STEP_STATUSES = {"queued", "in_progress", "completed"}
+
+
+def normalize_workflow_job_event(event_data: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize workflow_job event data to match githubkit's schema.
+
+    GitHub's webhook payload can include ``pending`` (or other values) as a
+    step status, but the githubkit Pydantic model only accepts ``queued``,
+    ``in_progress`` and ``completed``. This function returns a copy with any
+    invalid step status rewritten to ``queued``.
+    """
+    normalized: dict[str, Any] = dict(event_data)
+    workflow_job = normalized.get("workflow_job")
+    if not isinstance(workflow_job, dict):
+        return normalized
+    steps = workflow_job.get("steps")
+    if not isinstance(steps, list):
+        return normalized
+    new_steps: list[Any] = []
+    for step in steps:
+        if isinstance(step, dict) and step.get("status") not in _VALID_WORKFLOW_JOB_STEP_STATUSES:
+            new_steps.append({**step, "status": "queued"})
+        else:
+            new_steps.append(step)
+    normalized["workflow_job"] = {**workflow_job, "steps": new_steps}
+    return normalized
+
+
+def normalize_event(event_name: str, event_data: dict[str, Any]) -> dict[str, Any]:
+    """Normalize GitHub webhook event data based on event name.
+
+    Dispatches to the appropriate normalizer based on the event type.
+    Returns the normalized data, or the original data if no normalization is needed.
+    """
+    if event_name == "push":
+        return normalize_push_event(event_data)
+    if event_name == "workflow_run":
+        return normalize_workflow_run_event(event_data)
+    if event_name == "workflow_job":
+        return normalize_workflow_job_event(event_data)
+    return event_data
+
+
+async def create_checks(
+    job: models.Queue,
+    session: sqlalchemy.ext.asyncio.AsyncSession,
+    current_module: module.Module[Any, Any, Any, Any],
+    github_project: configuration.GithubProject,
+    service_url: str,
+) -> githubkit_schemas.latest.models.CheckRun | None:
+    """Create the GitHub check run."""
+    await session.flush()
+
+    service_url = service_url if service_url.endswith("/") else service_url + "/"
+    service_url = urllib.parse.urljoin(service_url, "logs/")
+    service_url = urllib.parse.urljoin(service_url, str(job.id))
+
+    sha = None
+    if job.github_event_name == "pull_request":
+        event_data_pull_request = githubkit.webhooks.parse_obj(
+            "pull_request",
+            job.github_event_data,
+        )
+        sha = event_data_pull_request.pull_request.head.sha
+    if job.github_event_name == "push":
+        event_data_push = githubkit.webhooks.parse_obj(
+            "push",
+            job.github_event_data,
+        )
+        sha = event_data_push.before if event_data_push.deleted else event_data_push.after
+    if job.github_event_name == "workflow_run":
+        event_data_workflow_run = githubkit.webhooks.parse_obj(
+            "workflow_run",
+            job.github_event_data,
+        )
+        sha = event_data_workflow_run.workflow_run.head_sha
+    if job.github_event_name == "check_suite":
+        event_data_check_suite = githubkit.webhooks.parse_obj(
+            "check_suite",
+            job.github_event_data,
+        )
+        sha = event_data_check_suite.check_suite.head_sha
+    if job.github_event_name == "check_run":
+        event_data_check_run = githubkit.webhooks.parse_obj(
+            "check_run",
+            job.github_event_data,
+        )
+        sha = event_data_check_run.check_run.head_sha
+    if sha is None:
+        branch = (
+            await github_project.aio_github.rest.repos.async_get_branch(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                branch=await github_project.default_branch(),
+            )
+        ).parsed_data
+        sha = branch.commit.sha
+    if sha is None:
+        message = f"No sha found for the job {job.id} in {job.github_event_name}"
+        raise ValueError(message)
+
+    name = f"{current_module.title()}: {job.github_event_name}"
+    try:
+        check_run = (
+            await github_project.aio_github.rest.checks.async_create(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                name=name,
+                head_sha=sha,
+                details_url=service_url,
+                external_id=str(job.id),
+            )
+        ).parsed_data
+    except githubkit.exception.RequestFailed as exception:
+        _LOGGER.warning(
+            "Failed to create check run for job %s: %s - %s\n%s",
+            job.id,
+            exception.response.status_code,
+            exception.response.reason_phrase,
+            exception.response.text,
+        )
+        return None
+    job.check_run_id = check_run.id
+    await session.commit()
+    await session.refresh(job)
+    return check_run

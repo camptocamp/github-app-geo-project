@@ -10,9 +10,8 @@ import sqlalchemy
 import sqlalchemy.dialects.postgresql
 from pydantic import BaseModel
 
-from github_app_geo_project import models, module
+from github_app_geo_project import models, module, utils
 from github_app_geo_project.module import modules
-from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
@@ -231,7 +230,7 @@ async def process_event(
                     "workflow_run",
                 ]
             if should_create_checks and context.github_project is not None:
-                await module_utils.create_checks(
+                await utils.create_checks(
                     job,
                     context.session,
                     current_module,
