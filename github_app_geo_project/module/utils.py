@@ -952,12 +952,12 @@ async def create_commit_pull_request(
     body: str,
     project: configuration.GithubProject,
     cwd: anyio.Path,
-    enable_pre_commit: bool = True,
-    skip_pre_commit_hooks: list[str] | None = None,
+    enable_prek: bool = True,
+    skip_prek_hooks: list[str] | None = None,
 ) -> tuple[bool, githubkit_schemas.latest.models.PullRequest | None]:
     """Do a commit, then create a pull request."""
-    skip_pre_commit_hooks = skip_pre_commit_hooks or []
-    if enable_pre_commit and await (cwd / ".pre-commit-config.yaml").exists():
+    skip_prek_hooks = skip_prek_hooks or []
+    if enable_prek and await (cwd / ".pre-commit-config.yaml").exists():
         # If the .python-version file exists, we activate pyenv in the subprocess
         env = dict(os.environ)
         python_version_file = cwd / ".python-version"
@@ -972,7 +972,7 @@ async def create_commit_pull_request(
             pyenv_root = stdout.decode().strip()
             env["PYENV_ROOT"] = pyenv_root
             env["PATH"] = f"{Path(pyenv_root) / 'shims'!s}:{Path(pyenv_root) / 'bin'!s}:{env['PATH']}"
-        env["SKIP"] = ",".join(skip_pre_commit_hooks)
+        env["SKIP"] = ",".join(skip_prek_hooks)
         await run_timeout(
             ["prek", "run", "--all-files", "--show-diff-on-failure", "--config=.pre-commit-config.yaml"],
             env,
@@ -982,22 +982,6 @@ async def create_commit_pull_request(
             "Timeout running prek",
             cwd,
         )
-        await run_timeout(
-            [
-                "pre-commit",
-                "run",
-                "--all-files",
-                "--show-diff-on-failure",
-                "--config=.pre-commit-config.yaml",
-            ],
-            env,
-            settings.utils.timeouts.precommit_run,
-            "Run pre-commit",
-            "Error running pre-commit",
-            "Timeout running pre-commit",
-            cwd,
-        )
-
     # Print the changes to be committed
     await run_timeout(
         ["git", "diff"],

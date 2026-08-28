@@ -1,6 +1,6 @@
 # Copyright (c) 2026, Camptocamp SA
 
-"""Module to clean local tool caches (pip, poetry, pyenv, prek, pre-commit, npm)."""
+"""Module to clean local tool caches (pip, poetry, pyenv, prek, npm)."""
 
 import logging
 import logging.handlers
@@ -31,7 +31,7 @@ class CacheClean(module.Module[None, _EventData, None, None]):
 
     def description(self) -> str:
         """Get the description of the module."""
-        return "Clean local tool caches (pip, poetry, pyenv, prek, pre-commit, npm)"
+        return "Clean local tool caches (pip, poetry, pyenv, prek, npm)"
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
@@ -121,13 +121,6 @@ class CacheClean(module.Module[None, _EventData, None, None]):
                 commands=[],
                 delete=True,
                 label="prek",
-            ),
-            CacheConfig(
-                path=home / ".cache" / "pre-commit",
-                max_size=settings.cache_clean.pre_commit_max_size,
-                commands=[],
-                delete=True,
-                label="pre-commit",
             ),
             CacheConfig(
                 path=home / ".npm",

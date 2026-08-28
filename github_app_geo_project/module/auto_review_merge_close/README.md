@@ -2,7 +2,7 @@ The auto modules will do some simple operations on modules:
 
 - Auto review: add a positive review on the pull request (doesn't work as expected because the application cannot be set as an official reviewer)
 - Auto merge: activate the auto-merge option of a pull request, even if it is preferable that the modules themselves activate this option.
-- Auto close: close the pull request, used to automatically close unwanted pull requests created by applications like pre-commit.
+- Auto close: close the pull request, used to automatically close unwanted pull requests created by applications like prek.
 
 The module has a `condition` option to select the affected pull requests.
 

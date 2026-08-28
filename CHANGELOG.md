@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-28
+
+### Changed
+
+- **Audit**: The `pre-commit` subprocess call in the audit module is replaced by `prek`. The audit timeout setting is renamed from `precommit` to `prek` (`GHCI__AUDIT__TIMEOUTS__PREK`).
+- **Utils**: `create_commit_pull_request` parameters are renamed from `enable_pre_commit` / `skip_pre_commit_hooks` to `enable_prek` / `skip_prek_hooks`. The redundant `pre-commit` subprocess call is removed; only `prek` is now executed.
+- **CI**: GitHub Actions workflow now uses `prek run` instead of `pre-commit run`, with cache keys and artifact names updated accordingly.
+
+### Removed
+
+- **Dependencies**: `pre-commit` is no longer a dependency. `prek` (already present) is the sole Git hook manager.
+- **Settings**: The `_UtilsTimeouts.precommit_run` field is removed (redundant with `prek_run`).
+- **Settings**: The `_CacheCleanSettings.pre_commit_max_size` field is removed (redundant with `prek_max_size`). The `~/.cache/pre-commit` cache entry is removed from the `cache-clean` module.
+
 ## 2026-08-27
 
 ### Added
