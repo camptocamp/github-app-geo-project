@@ -27,7 +27,7 @@ _LOGGER = logging.getLogger(__name__)
 # Add timeout environment variables with defaults at module level
 _TIMEOUT_SUBPROCESS = settings.audit.timeouts.subprocess
 _TIMEOUT_PIP_FREEZE = settings.audit.timeouts.pip_freeze
-_TIMEOUT_PRECOMMIT = settings.audit.timeouts.precommit
+_TIMEOUT_PREK = settings.audit.timeouts.prek
 _TIMEOUT_GIT_DIFF = settings.audit.timeouts.git_diff
 _TIMEOUT_GRADLE = settings.audit.timeouts.gradle
 _TIMEOUT_GIT_LSFILES = settings.audit.timeouts.git_lsfiles
@@ -231,7 +231,7 @@ async def snyk(
     pre_commit_config = get_pre_commit_config(audit_config, audit_local_config)
     if pre_commit_config.get("enabled", True) and await (cwd / ".pre-commit-config.yaml").exists():
         command = [
-            "pre-commit",
+            "prek",
             "run",
             "--all-files",
             "--show-diff-on-failure",
@@ -249,10 +249,10 @@ async def snyk(
                 ),
             },
         )
-        async with asyncio.timeout(_TIMEOUT_PRECOMMIT.total_seconds()):
+        async with asyncio.timeout(_TIMEOUT_PREK.total_seconds()):
             stdout, stderr = await proc.communicate()
         message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
-        message.title = "Run pre-commit"
+        message.title = "Run prek"
         _LOGGER.debug(message)
 
     command = ["git", "diff", "--quiet"]

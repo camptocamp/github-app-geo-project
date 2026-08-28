@@ -51,7 +51,6 @@ asyncpg = "0.31.0"
 multi-repo-automation = "1.9.1"
 anyio = "4.14.2"
 itsdangerous = "2.2.0"
-"pre-commit" = "4.6.1"
 prek = "0.4.11"
 setuptools = "83.0.0"
 tinycss2 = "1.5.1"
@@ -116,7 +115,7 @@ authors = [{name = "Stéphane Brunner",email = "stephane.brunner@camptocamp.com"
 packages = [{ include = "github_app_geo_project" }]
 include = ["github_app_geo_project/py.typed"]
 requires-python = ">=3.12"
-dependencies = ["c2casgiutils[all]", "c2cciutils", "security-md", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aiointercept", "pytest-asyncio", "cryptography", "urllib3", "certifi", "sentry-sdk", "lxml-html-clean", "tag-publish", "aiohttp", "githubkit[auth-app]", "githubkit-schemas", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "multi-repo-automation", "anyio", "pre-commit", "prek", "setuptools", "itsdangerous", "tinycss2", "py-spy"]
+dependencies = ["c2casgiutils[all]", "c2cciutils", "security-md", "jsonmerge", "markdown", "pygments", "html-sanitizer", "ansi2html", "apt-repo", "debian-inspector", "codespell", "pydantic", "markdownify", "aiointercept", "pytest-asyncio", "cryptography", "urllib3", "certifi", "sentry-sdk", "lxml-html-clean", "tag-publish", "aiohttp", "githubkit[auth-app]", "githubkit-schemas", "deprecated", "aiomonitor", "sqlalchemy[asyncio]", "asyncpg", "multi-repo-automation", "anyio", "prek", "setuptools", "itsdangerous", "tinycss2", "py-spy"]
 
 [project.urls]
 repository = "https://github.com/camptocamp/github-app-geo-project"

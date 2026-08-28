@@ -49,16 +49,16 @@ jobs:
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
-          restore-keys: "pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}\npre-commit-"
-      - run: pre-commit run --all-files --color=always
-      - run: git diff --exit-code --patch > /tmp/pre-commit.patch; git diff --color; git reset --hard || true
+          path: ~/.cache/prek
+          key: prek-${{ hashFiles('.pre-commit-config.yaml') }}
+          restore-keys: "prek-${{ hashFiles('.pre-commit-config.yaml') }}\nprek-"
+      - run: prek run --all-files --color=always
+      - run: git diff --exit-code --patch > /tmp/prek.patch; git diff --color; git reset --hard || true
         if: failure()
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: Apply pre-commit fix.patch
-          path: /tmp/pre-commit.patch
+          name: Apply prek fix.patch
+          path: /tmp/prek.patch
           retention-days: 1
         if: failure()
 

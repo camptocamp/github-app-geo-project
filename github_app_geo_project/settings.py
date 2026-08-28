@@ -120,7 +120,7 @@ class _AuditTimeouts(BaseModel):
         minutes=1
     )
     pip_freeze: Annotated[Duration, Field(description="pip freeze timeout")] = datetime.timedelta(minutes=1)
-    precommit: Annotated[Duration, Field(description="pre-commit timeout")] = datetime.timedelta(minutes=20)
+    prek: Annotated[Duration, Field(description="prek timeout")] = datetime.timedelta(minutes=20)
     git_diff: Annotated[Duration, Field(description="git diff timeout")] = datetime.timedelta(minutes=1)
     gradle: Annotated[Duration, Field(description="Gradle timeout")] = datetime.timedelta(minutes=1)
     git_lsfiles: Annotated[Duration, Field(description="git ls-files timeout")] = datetime.timedelta(
@@ -159,9 +159,6 @@ class _UtilsTimeouts(BaseModel):
     git_add: Annotated[Duration, Field(description="git add timeout")] = datetime.timedelta(seconds=30)
     git_commit: Annotated[Duration, Field(description="git commit timeout")] = datetime.timedelta(seconds=600)
     prek_run: Annotated[Duration, Field(description="prek run timeout")] = datetime.timedelta(seconds=600)
-    precommit_run: Annotated[Duration, Field(description="pre-commit run timeout")] = datetime.timedelta(
-        seconds=600
-    )
     git_diff_print: Annotated[Duration, Field(description="git diff print timeout")] = datetime.timedelta(
         seconds=30
     )
@@ -413,9 +410,6 @@ class _CacheCleanSettings(BaseModel):
         "200M"
     )
     prek_max_size: Annotated[DataSize, Field(description="Max size for prek cache")] = parse_data_size("200M")
-    pre_commit_max_size: Annotated[DataSize, Field(description="Max size for pre-commit cache")] = (
-        parse_data_size("500M")
-    )
     npm_max_size: Annotated[DataSize, Field(description="Max size for npm cache")] = parse_data_size("500M")
     log_max: Annotated[DataSize, Field(description="Max size of log file")] = parse_data_size("10M")
     log_backup_count: Annotated[int, Field(description="Number of backup log files")] = 5

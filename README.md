@@ -9,7 +9,7 @@ This application will manage:
 - Manage auto review and auto merge of pull requests
 - Workflow trigger between repository
 - Delete old workflow jobs
-- Check and fix pre-commit hooks with less limitation than pre-commit.ci
+- Check and fix prek hooks with less limitation than pre-commit.ci
 
 [project configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/PROJECT-CONFIG.md).
 
@@ -89,11 +89,11 @@ ALTER TABLE job_log ADD COLUMN css_style TEXT;
 
 ## Contributing
 
-Install the pre-commit hooks:
+Install the prek hooks:
 
 ```bash
-pip install pre-commit
-pre-commit install --allow-missing-config
+pip install prek
+prek install --allow-missing-config
 ```
 
 The `prospector` tests should pass.

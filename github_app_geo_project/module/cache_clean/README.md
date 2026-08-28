@@ -1,6 +1,6 @@
 # Cache clean module
 
-Clean local tool caches (pip, poetry, pyenv, prek, pre-commit, npm) on the worker pod.
+Clean local tool caches (pip, poetry, pyenv, prek, npm) on the worker pod.
 
 ## Trigger
 
@@ -26,7 +26,6 @@ The module uses `PRIORITY_CRON + 10` to ensure it runs after standard cron jobs.
 | `~/.cache/pypoetry/virtualenvs/` | Poetry virtualenvs | Delete directly                                                                    |
 | `~/.pyenv/cache/`                | pyenv              | Delete directly                                                                    |
 | `~/.cache/prek/`                 | prek               | Delete directly                                                                    |
-| `~/.cache/pre-commit/`           | pre-commit         | Delete directly                                                                    |
 | `~/.npm/`                        | npm                | `npm cache clean`, then `npm cache clean --force`, then delete if still over limit |
 | `~/.cache/ghci/git/`             | Git worktree cache | `git worktree prune` + `git gc --auto --prune=all` on each cached repo             |
 
@@ -42,7 +41,6 @@ Thresholds are configured via environment variables in the
 | `GHCI__CACHE_CLEAN__POETRY_VIRTUALENVS_MAX_SIZE` | `500M`  | Max size for poetry virtualenvs |
 | `GHCI__CACHE_CLEAN__PYENV_MAX_SIZE`              | `200M`  | Max size for pyenv cache        |
 | `GHCI__CACHE_CLEAN__PREK_MAX_SIZE`               | `200M`  | Max size for prek cache         |
-| `GHCI__CACHE_CLEAN__PRE_COMMIT_MAX_SIZE`         | `500M`  | Max size for pre-commit cache   |
 | `GHCI__CACHE_CLEAN__NPM_MAX_SIZE`                | `500M`  | Max size for npm cache          |
 | `GHCI__CACHE_CLEAN__LOG_MAX`                     | `10M`   | Max size of log file            |
 | `GHCI__CACHE_CLEAN__LOG_BACKUP_COUNT`            | `5`     | Number of backup log files      |
