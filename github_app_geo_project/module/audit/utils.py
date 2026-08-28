@@ -183,83 +183,15 @@ async def snyk(
     _LOGGER.info(message)
 
     await _install_pipenv_dependencies(config, local_config, result, env, cwd)
-    await _install_poetry_dependencies(config, local_config, result, env, cwd)
+    poetry_install_dirs = await _install_poetry_dependencies(config, local_config, result, env, cwd)
 
-    env["FORCE_COLOR"] = "true"
-    env_no_debug = {**env}
-    env["DEBUG"] = "*snyk*"  # debug mode
+    try:
+        env["FORCE_COLOR"] = "true"
+        env_no_debug = {**env}
+        env["DEBUG"] = "*snyk*"  # debug mode
 
-    await _snyk_monitor(branch, config, local_config, result, env, cwd)
+        await _snyk_monitor(branch, config, local_config, result, env, cwd)
 
-    (
-        high_vulnerabilities,
-        fixable_vulnerabilities,
-        fixable_vulnerabilities_summary,
-        fixable_files_npm,
-        vulnerabilities_in_requirements,
-        file_vulnerabilities,
-    ) = await _snyk_test(branch, config, local_config, result, env_no_debug, cwd, ignore_policy=ignore_policy)
-
-    snyk_fix_success, snyk_fix_message = await _snyk_fix(
-        branch,
-        cwd,
-        config,
-        local_config,
-        logs_url,
-        result,
-        env_no_debug,
-        env,
-        fixable_vulnerabilities_summary,
-        vulnerabilities_in_requirements,
-    )
-    npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result, cwd)
-    fix_message: module_utils.HtmlMessage | None = None
-    if snyk_fix_message is None:
-        if npm_audit_fix_message:
-            fix_message = module_utils.HtmlMessage(npm_audit_fix_message)
-            fix_message.title = "Npm audit fix"
-    else:
-        fix_message = snyk_fix_message
-        if npm_audit_fix_message:
-            assert isinstance(fix_message, module_utils.HtmlMessage)
-            fix_message.html = f"{fix_message.html}<br>\n<br>\n{npm_audit_fix_message}"
-    fix_has_errors = len(fixable_vulnerabilities_summary) > 0 and not (
-        snyk_fix_success and npm_audit_fix_success
-    )
-    fix_success = True
-
-    pre_commit_config = get_pre_commit_config(audit_config, audit_local_config)
-    if pre_commit_config.get("enabled", True) and await (cwd / ".pre-commit-config.yaml").exists():
-        command = [
-            "prek",
-            "run",
-            "--all-files",
-            "--show-diff-on-failure",
-            "--config=.pre-commit-config.yaml",
-        ]
-        proc = await asyncio.create_subprocess_exec(
-            *command,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            cwd=cwd,
-            env={
-                **os.environ,
-                "SKIP": ",".join(
-                    pre_commit_config.get("skip-hooks", []),
-                ),
-            },
-        )
-        async with asyncio.timeout(_TIMEOUT_PREK.total_seconds()):
-            stdout, stderr = await proc.communicate()
-        message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
-        message.title = "Run prek"
-        _LOGGER.debug(message)
-
-    command = ["git", "diff", "--quiet"]
-    diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
-    async with asyncio.timeout(_TIMEOUT_GIT_DIFF.total_seconds()):
-        await diff_proc.wait()
-    if diff_proc.returncode != 0:
         (
             high_vulnerabilities,
             fixable_vulnerabilities,
@@ -271,16 +203,89 @@ async def snyk(
             branch, config, local_config, result, env_no_debug, cwd, ignore_policy=ignore_policy
         )
 
-    return_message = [
-        *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
-        *[
-            f"{number} {severity} vulnerabilities can be fixed"
-            for severity, number in fixable_vulnerabilities.items()
-        ],
-        *([] if not fix_has_errors else ["Error while fixing the vulnerabilities"]),
-    ]
+        snyk_fix_success, snyk_fix_message = await _snyk_fix(
+            branch,
+            cwd,
+            config,
+            local_config,
+            logs_url,
+            result,
+            env_no_debug,
+            env,
+            fixable_vulnerabilities_summary,
+            vulnerabilities_in_requirements,
+        )
+        npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result, cwd)
+        fix_message: module_utils.HtmlMessage | None = None
+        if snyk_fix_message is None:
+            if npm_audit_fix_message:
+                fix_message = module_utils.HtmlMessage(npm_audit_fix_message)
+                fix_message.title = "Npm audit fix"
+        else:
+            fix_message = snyk_fix_message
+            if npm_audit_fix_message:
+                assert isinstance(fix_message, module_utils.HtmlMessage)
+                fix_message.html = f"{fix_message.html}<br>\n<br>\n{npm_audit_fix_message}"
+        fix_has_errors = len(fixable_vulnerabilities_summary) > 0 and not (
+            snyk_fix_success and npm_audit_fix_success
+        )
+        fix_success = True
 
-    return result, fix_message, return_message, fix_success, file_vulnerabilities
+        pre_commit_config = get_pre_commit_config(audit_config, audit_local_config)
+        if pre_commit_config.get("enabled", True) and await (cwd / ".pre-commit-config.yaml").exists():
+            command = [
+                "prek",
+                "run",
+                "--all-files",
+                "--show-diff-on-failure",
+                "--config=.pre-commit-config.yaml",
+            ]
+            proc = await asyncio.create_subprocess_exec(
+                *command,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                cwd=cwd,
+                env={
+                    **os.environ,
+                    "SKIP": ",".join(
+                        pre_commit_config.get("skip-hooks", []),
+                    ),
+                },
+            )
+            async with asyncio.timeout(_TIMEOUT_PREK.total_seconds()):
+                stdout, stderr = await proc.communicate()
+            message = module_utils.AnsiProcessMessage.from_async_artifacts(command, proc, stdout, stderr)
+            message.title = "Run prek"
+            _LOGGER.debug(message)
+
+        command = ["git", "diff", "--quiet"]
+        diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
+        async with asyncio.timeout(_TIMEOUT_GIT_DIFF.total_seconds()):
+            await diff_proc.wait()
+        if diff_proc.returncode != 0:
+            (
+                high_vulnerabilities,
+                fixable_vulnerabilities,
+                fixable_vulnerabilities_summary,
+                fixable_files_npm,
+                vulnerabilities_in_requirements,
+                file_vulnerabilities,
+            ) = await _snyk_test(
+                branch, config, local_config, result, env_no_debug, cwd, ignore_policy=ignore_policy
+            )
+
+        return_message = [
+            *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
+            *[
+                f"{number} {severity} vulnerabilities can be fixed"
+                for severity, number in fixable_vulnerabilities.items()
+            ],
+            *([] if not fix_has_errors else ["Error while fixing the vulnerabilities"]),
+        ]
+
+        return result, fix_message, return_message, fix_success, file_vulnerabilities
+    finally:
+        await _cleanup_poetry_envs(poetry_install_dirs, env)
 
 
 async def _select_java_version(
@@ -436,7 +441,8 @@ async def _install_poetry_dependencies(
     result: list[module_utils.Message],
     env: dict[str, str],
     cwd: anyio.Path,
-) -> None:
+) -> list[anyio.Path]:
+    install_dirs: list[anyio.Path] = []
     command = ["git", "ls-files", "poetry.lock", "*/poetry.lock"]
     proc = await asyncio.create_subprocess_exec(
         *command,
@@ -458,6 +464,7 @@ async def _install_poetry_dependencies(
             if file in local_config.get("files-no-install", config.get("files-no-install", [])):
                 continue
 
+            install_dir = (await (cwd / file).resolve()).parent
             _, _, proc_message = await module_utils.run_timeout(
                 [
                     "poetry",
@@ -469,10 +476,29 @@ async def _install_poetry_dependencies(
                 f"Dependencies installed from {file}",
                 f"Error while installing the dependencies from {file}",
                 f"Timeout while installing the dependencies from {file}",
-                (await (cwd / file).resolve()).parent,
+                install_dir,
             )
+            install_dirs.append(install_dir)
             if proc_message is not None:
                 result.append(proc_message)
+    return install_dirs
+
+
+async def _cleanup_poetry_envs(
+    install_dirs: list[anyio.Path],
+    env: dict[str, str],
+) -> None:
+    for install_dir in install_dirs:
+        await module_utils.run_timeout(
+            ["poetry", "env", "remove", "python"],
+            env,
+            settings.audit.timeouts.poetry_env_remove,
+            success_message=f"Poetry virtual environment removed in {install_dir}",
+            error_message=f"Failed to remove poetry virtual environment in {install_dir}",
+            timeout_message=f"Poetry virtual environment removal timed out in {install_dir}",
+            cwd=install_dir,
+            error=False,
+        )
 
 
 async def _snyk_monitor(
