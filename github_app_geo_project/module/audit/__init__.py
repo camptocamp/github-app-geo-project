@@ -655,18 +655,6 @@ async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str,
         lambda: shutil.rmtree(f"/var/www/.local/lib/python{python_version}", ignore_errors=True)
     )
 
-    # Cleanup poetry virtual environments
-    await module_utils.run_timeout(
-        ["poetry", "env", "remove", "--all"],
-        env,
-        settings.audit.timeouts.poetry_env_remove,
-        success_message="Poetry virtual environments removed",
-        error_message="Failed to remove poetry virtual environments",
-        timeout_message="Poetry virtual environments removal timed out",
-        cwd=cwd,
-        error=False,
-    )
-
     return env
 
 
