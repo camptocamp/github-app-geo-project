@@ -852,6 +852,10 @@ class Audit(
         """Check if the module requires an issue dashboard."""
         return True
 
+    def jobs_unique_on(self) -> list[module.Fields] | None:
+        """Return the list of fields that should be unique for the jobs."""
+        return [module.Fields.OWNER, module.Fields.REPOSITORY, module.Fields.MODULE_EVENT_NAME]
+
     def get_actions(
         self,
         context: module.GetActionContext,
@@ -872,7 +876,7 @@ class Audit(
                     module.Action(
                         priority=module.PRIORITY_STANDARD,
                         data=_EventData(type="close-pull-request-issues"),
-                        title="close-pull-request-issues",
+                        title=f"close-pull-request-issues ({event_data_pull_request.pull_request.number})",
                     )
                 ]
 

@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import anyio
 import pytest
 
+from github_app_geo_project import module
 from github_app_geo_project.module.audit import Audit, _EventData, _process_renovate
 from github_app_geo_project.module.audit.utils import VulnerabilityData
 
@@ -272,6 +273,7 @@ def test_get_actions_pull_request_closed() -> None:
     event_data = Mock()
     event_data.action = "closed"
     event_data.pull_request = Mock()
+    event_data.pull_request.number = 1234
     event_data.pull_request.merged = False
     event_data.pull_request.base = Mock()
     event_data.pull_request.base.ref = "master"
@@ -281,6 +283,16 @@ def test_get_actions_pull_request_closed() -> None:
 
     assert len(actions) == 1
     assert actions[0].data == _EventData(type="close-pull-request-issues")
+    assert actions[0].title == "close-pull-request-issues (1234)"
+
+
+def test_jobs_unique_on() -> None:
+    """Test that the audit jobs are unique per owner, repository and event name."""
+    assert Audit().jobs_unique_on() == [
+        module.Fields.OWNER,
+        module.Fields.REPOSITORY,
+        module.Fields.MODULE_EVENT_NAME,
+    ]
 
 
 def test_get_actions_pull_request_closed_merged_default_branch_triggers_renovate() -> None:
