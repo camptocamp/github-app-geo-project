@@ -44,6 +44,21 @@ _SNYK_LOCK = asyncio.Lock()
 _OUTDATED = "Outdated version"
 _ADVISORY = False
 
+_PRIORITY_CLEANUP = module.PRIORITY_STANDARD + 1
+"""Priority of the audit `cleanup` jobs (fast, API calls only)."""
+_PRIORITY_OUTDATED = module.PRIORITY_STANDARD + 2
+"""Priority of the audit `outdated` jobs (fast, reads the `SECURITY.md` file)."""
+_PRIORITY_RENOVATE = module.PRIORITY_STANDARD + 3
+"""Priority of the audit `renovate` fan-out jobs."""
+_PRIORITY_FAN_OUT = module.PRIORITY_CRON
+"""Priority of the audit Snyk/dpkg fan-out parent jobs (short)."""
+_PRIORITY_RENOVATE_VERSION = module.PRIORITY_CRON + 1
+"""Priority of the audit per-version `renovate` jobs."""
+_PRIORITY_DPKG = module.PRIORITY_CRON + 2
+"""Priority of the audit `dpkg` jobs."""
+_PRIORITY_SNYK = module.PRIORITY_CRON + 3
+"""Priority of the audit `snyk` jobs (the slowest, serialized by `_SNYK_LOCK`)."""
+
 
 class _TransversalStatusTool(BaseModel):
     """Status data for a single check type, stored in transversal status."""
@@ -893,7 +908,7 @@ class Audit(
                 ):
                     return [
                         module.Action(
-                            priority=module.PRIORITY_CRON,
+                            priority=_PRIORITY_CLEANUP,
                             data=_EventData(type="cleanup"),
                             title="cleanup",
                         ),
@@ -906,19 +921,19 @@ class Audit(
                     if event_data_push.ref == f"refs/heads/{event_data_push.repository.default_branch}":
                         return [
                             module.Action(
-                                priority=module.PRIORITY_CRON,
+                                priority=_PRIORITY_OUTDATED,
                                 data=_EventData(type="outdated"),
                                 title="outdated",
                             ),
                             module.Action(
-                                priority=module.PRIORITY_CRON,
+                                priority=_PRIORITY_RENOVATE,
                                 data=_EventData(type="renovate"),
                                 title="renovate",
                             ),
                         ]
                     return [
                         module.Action(
-                            priority=module.PRIORITY_CRON,
+                            priority=_PRIORITY_OUTDATED,
                             data=_EventData(type="outdated"),
                             title="outdated",
                         ),
@@ -940,7 +955,7 @@ class Audit(
             ):
                 results.append(
                     module.Action(
-                        priority=module.PRIORITY_STANDARD,
+                        priority=_PRIORITY_OUTDATED,
                         data=_EventData(type="outdated"),
                         title="outdated",
                     ),
@@ -956,14 +971,14 @@ class Audit(
         ):
             results.append(
                 module.Action(
-                    priority=module.PRIORITY_CRON,
+                    priority=_PRIORITY_OUTDATED,
                     data=_EventData(type="outdated"),
                     title="outdated",
                 )
             )
             results.append(
                 module.Action(
-                    priority=module.PRIORITY_CRON,
+                    priority=_PRIORITY_RENOVATE,
                     data=_EventData(type="renovate"),
                     title="renovate",
                 )
@@ -974,7 +989,7 @@ class Audit(
         if dpkg or snyk:
             results.append(
                 module.Action(
-                    priority=module.PRIORITY_CRON + 10,
+                    priority=_PRIORITY_FAN_OUT,
                     data=_EventData(snyk=snyk, dpkg=dpkg, is_dashboard=is_dashboard),
                 ),
             )
@@ -1181,7 +1196,7 @@ class Audit(
                 actions.extend(
                     [
                         module.Action(
-                            priority=module.PRIORITY_CRON,
+                            priority=_PRIORITY_RENOVATE_VERSION,
                             data=_EventData(type="renovate", version=version, known_versions=mapped_versions),
                             title=f"renovate ({version})",
                         )
@@ -1212,7 +1227,7 @@ class Audit(
                 return module.ProcessOutput(
                     actions=[
                         module.Action(
-                            priority=module.PRIORITY_CRON,
+                            priority=_PRIORITY_CLEANUP,
                             data=_EventData(type="cleanup"),
                             title="cleanup",
                         )
@@ -1254,17 +1269,13 @@ class Audit(
                                 break
                         del issue_check.issue[found_start:section_end]
 
-            # Audit is relay slow than add 15 to the cron priority
-            priority = (
-                module.PRIORITY_STANDARD if context.module_event_data.is_dashboard else module.PRIORITY_CRON
-            )
             # Apply version mapping to get the actual branch names used
             mapped_versions = [
                 context.module_config.get("version-mapping", {}).get(version, version) for version in versions
             ]
             actions = [
                 module.Action(
-                    priority=module.PRIORITY_CRON,
+                    priority=_PRIORITY_CLEANUP,
                     data=_EventData(
                         type="cleanup",
                         known_versions=[*mapped_versions, await context.github_project.default_branch()],
@@ -1282,7 +1293,7 @@ class Audit(
                 ):
                     actions.append(
                         module.Action(
-                            priority=priority,
+                            priority=_PRIORITY_SNYK,
                             data=_EventData(type="snyk", version=version),
                             title=f"snyk ({version})",
                         ),
@@ -1296,7 +1307,7 @@ class Audit(
                 ):
                     actions.append(
                         module.Action(
-                            priority=priority,
+                            priority=_PRIORITY_DPKG,
                             data=_EventData(type="dpkg", version=version),
                             title=f"dpkg ({version})",
                         ),

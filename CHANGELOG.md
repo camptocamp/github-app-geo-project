@@ -6,6 +6,7 @@
 
 - **Audit**: Audit jobs of the same type on the same repository and branch are now deduplicated in the queue: when a new matching job is queued, the previous similar jobs in `new` status are replaced (marked as `skipped`), and their GitHub check runs are closed as `skipped`. For example, there can be at most one `snyk (1.21)` job in `new` status at a time for a repository.
 - **Audit**: The `close-pull-request-issues` job names now include the pull request number, to avoid deduplicating jobs concerning different pull requests.
+- **Audit**: The sub-job priorities are reordered to run the shortest jobs first: `cleanup` to `PRIORITY_STANDARD + 1` (31), `outdated` to `PRIORITY_STANDARD + 2` (32), `renovate` to `PRIORITY_STANDARD + 3` (33), the Snyk/dpkg fan-out to `PRIORITY_CRON` (40), `renovate (<version>)` to `PRIORITY_CRON + 1` (41), `dpkg (<version>)` to `PRIORITY_CRON + 2` (42) and `snyk (<version>)` to `PRIORITY_CRON + 3` (43, the slowest). The Snyk/dpkg fan-out priority is lowered from `PRIORITY_CRON + 10` to `PRIORITY_CRON`.
 - **Queue**: The `jobs_unique_on` deduplication mechanism is now also applied to the jobs created from module actions and from dashboard issue edits, previously only the jobs created by the dispatcher were deduplicated.
 
 ## 2026-08-28
