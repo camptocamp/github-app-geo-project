@@ -18,6 +18,10 @@ This module will be triggered by the `daily` event.
 It also reacts to `pull_request` events with action `closed` to close related issues.
 When `SECURITY.md` is changed on a `push` to the default branch, it also triggers the same `Renovate` workflow as the `daily` event.
 
+### Job deduplication
+
+To avoid piling up redundant audits, at most one audit job per type and branch can wait in the queue (`new` status) for a given repository: when a new matching job is queued, the previous similar jobs in `new` status are replaced (marked as `skipped`). For example, only one `snyk (1.21)` job at a time; the jobs to close the related issues are deduplicated per pull request.
+
 ### Other files used by the module
 
 - [`SECURITY.md`](https://github.com/camptocamp/c2cciutils/wiki/SECURITY.md) from the default branch to get the stabilization branches.

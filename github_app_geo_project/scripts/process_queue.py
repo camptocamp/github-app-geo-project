@@ -595,6 +595,12 @@ async def _process_job(
                     new_job.module_event_data = current_module.event_data_to_json(
                         action.data,
                     )
+                    await utils.apply_jobs_unique_on(
+                        session,
+                        current_module,
+                        new_job,
+                        github_project,
+                    )
                     session.add(new_job)
                     await utils.create_checks(
                         new_job,
@@ -910,6 +916,12 @@ async def _process_dashboard_issue(
                             job.module_event_name = action.title or "dashboard"
                             job.module_event_data = current_module.event_data_to_json(
                                 action.data,
+                            )
+                            await utils.apply_jobs_unique_on(
+                                session,
+                                current_module,
+                                job,
+                                github_project,
                             )
                             session.add(job)
                             await session.flush()

@@ -7,7 +7,6 @@ from typing import Any
 
 import githubkit.webhooks
 import sqlalchemy
-import sqlalchemy.dialects.postgresql
 from pydantic import BaseModel
 
 from github_app_geo_project import models, module, utils
@@ -149,73 +148,23 @@ async def process_event(
                 f"Create job for module {name} with action {action.title or 'Untitled'}",
             )
             number += 1
-            priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
-            github_event_name = context.github_event_name
-            module_event_name = action.title or context.module_event_name
-            module_data = current_module.event_data_to_json(action.data)
-
-            jobs_unique_on = current_module.jobs_unique_on()
-            if jobs_unique_on:
-                update = (
-                    sqlalchemy.update(models.Queue)
-                    .where(models.Queue.status == models.JobStatus.NEW.name)
-                    .where(models.Queue.application == application)
-                    .where(models.Queue.module == name)
-                )
-                for key in jobs_unique_on:
-                    if key == module.Fields.PRIORITY:
-                        update = update.where(models.Queue.priority == priority)
-                    elif key == module.Fields.OWNER:
-                        update = update.where(models.Queue.owner == owner)
-                    elif key == module.Fields.REPOSITORY:
-                        update = update.where(
-                            models.Queue.repository == repository,
-                        )
-                    elif key == module.Fields.GITHUB_EVENT_NAME:
-                        update = update.where(
-                            models.Queue.github_event_name == github_event_name,
-                        )
-                    elif key == module.Fields.MODULE_EVENT_NAME:
-                        update = update.where(
-                            models.Queue.module_event_name == module_event_name,
-                        )
-                    elif key == module.Fields.GITHUB_EVENT_DATA:
-                        update = update.where(
-                            sqlalchemy.cast(
-                                models.Queue.github_event_data,
-                                sqlalchemy.dialects.postgresql.JSONB,
-                            )
-                            == context.github_event_data,
-                        )
-                    elif key == module.Fields.MODULE_EVENT_DATA:
-                        update = update.where(
-                            sqlalchemy.cast(
-                                models.Queue.module_event_data,
-                                sqlalchemy.dialects.postgresql.JSONB,
-                            )
-                            == module_data,
-                        )
-                    else:
-                        _LOGGER.error("Unknown jobs_unique_on key: %s", key)
-
-                update = update.values(
-                    {
-                        "status": models.JobStatus.SKIPPED.name,
-                    },
-                )
-
-                await context.session.execute(update)
-
             job = models.Queue()
-            job.priority = priority
+            job.priority = action.priority if action.priority >= 0 else module.PRIORITY_STANDARD
             job.application = application
             job.owner = owner
             job.repository = repository
-            job.github_event_name = github_event_name
+            job.github_event_name = context.github_event_name
             job.github_event_data = context.github_event_data
             job.module = name
-            job.module_event_name = module_event_name
-            job.module_event_data = module_data
+            job.module_event_name = action.title or context.module_event_name
+            job.module_event_data = current_module.event_data_to_json(action.data)
+
+            await utils.apply_jobs_unique_on(
+                context.session,
+                current_module,
+                job,
+                context.github_project,
+            )
             context.session.add(job)
             await context.session.flush()
 

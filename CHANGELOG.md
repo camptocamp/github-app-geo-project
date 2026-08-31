@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-31
+
+### Changed
+
+- **Audit**: Audit jobs of the same type on the same repository and branch are now deduplicated in the queue: when a new matching job is queued, the previous similar jobs in `new` status are replaced (marked as `skipped`), and their GitHub check runs are closed as `skipped`. For example, there can be at most one `snyk (1.21)` job in `new` status at a time for a repository.
+- **Audit**: The `close-pull-request-issues` job names now include the pull request number, to avoid deduplicating jobs concerning different pull requests.
+- **Queue**: The `jobs_unique_on` deduplication mechanism is now also applied to the jobs created from module actions and from dashboard issue edits, previously only the jobs created by the dispatcher were deduplicated.
+
 ## 2026-08-28
 
 ### Changed

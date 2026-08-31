@@ -454,7 +454,7 @@ class Module[CONFIGURATION, EVENT_DATA, TRANSVERSAL_STATUS, INTERMEDIATE_STATUS]
         """
         Return the list of fields that should be unique for the jobs.
 
-        If not unique, the other jobs will be skipped.
+        If not unique, the previous new jobs are skipped and replaced by the new one.
         """
         return None
 

@@ -2,6 +2,7 @@
 
 """Application utility module."""
 
+import asyncio
 import datetime
 import json
 import logging
@@ -14,6 +15,7 @@ import githubkit.webhooks
 import githubkit_schemas.latest.models
 import pygments.formatters
 import pygments.lexers
+import sqlalchemy.dialects.postgresql
 import sqlalchemy.ext.asyncio
 import yaml
 from tinycss2 import parse_stylesheet, serialize
@@ -293,3 +295,102 @@ async def create_checks(
     await session.commit()
     await session.refresh(job)
     return check_run
+
+
+async def apply_jobs_unique_on(
+    session: sqlalchemy.ext.asyncio.AsyncSession,
+    current_module: module.Module[Any, Any, Any, Any],
+    job: models.Queue,
+    github_project: configuration.GithubProject | None = None,
+) -> None:
+    """
+    Mark the existing new jobs that correspond to the given job as skipped.
+
+    Based on the ``jobs_unique_on`` fields of the module, the new job replaces the previous one.
+    Must be called before the job is added to the session.
+    """
+    jobs_unique_on = current_module.jobs_unique_on()
+    if not jobs_unique_on:
+        return
+
+    conditions = [
+        models.Queue.status == models.JobStatus.NEW.name,
+        models.Queue.application == job.application,
+        models.Queue.module == job.module,
+    ]
+    for key in jobs_unique_on:
+        if key == module.Fields.PRIORITY:
+            conditions.append(models.Queue.priority == job.priority)
+        elif key == module.Fields.OWNER:
+            conditions.append(models.Queue.owner == job.owner)
+        elif key == module.Fields.REPOSITORY:
+            conditions.append(models.Queue.repository == job.repository)
+        elif key == module.Fields.GITHUB_EVENT_NAME:
+            conditions.append(models.Queue.github_event_name == job.github_event_name)
+        elif key == module.Fields.MODULE_EVENT_NAME:
+            conditions.append(models.Queue.module_event_name == job.module_event_name)
+        elif key == module.Fields.GITHUB_EVENT_DATA:
+            conditions.append(
+                sqlalchemy.cast(
+                    models.Queue.github_event_data,
+                    sqlalchemy.dialects.postgresql.JSONB,
+                )
+                == job.github_event_data,
+            )
+        elif key == module.Fields.MODULE_EVENT_DATA:
+            conditions.append(
+                sqlalchemy.cast(
+                    models.Queue.module_event_data,
+                    sqlalchemy.dialects.postgresql.JSONB,
+                )
+                == job.module_event_data,
+            )
+        else:
+            _LOGGER.error("Unknown jobs_unique_on key: %s", key)
+
+    result = await session.execute(
+        sqlalchemy.update(models.Queue)
+        .where(*conditions)
+        .values(status=models.JobStatus.SKIPPED.name)
+        .returning(models.Queue.id, models.Queue.check_run_id),
+    )
+    skipped_jobs = result.all()
+    if not skipped_jobs:
+        return
+    _LOGGER.info(
+        "%i job(s) skipped, replaced by the new job '%s' for module %s",
+        len(skipped_jobs),
+        job.module_event_name,
+        job.module,
+    )
+    if (
+        github_project is None
+        or github_project.aio_github is None
+        or job.owner is None
+        or job.repository is None
+    ):
+        return
+    aio_github = github_project.aio_github
+    owner = job.owner
+    repository = job.repository
+
+    async def _skip_check_run(check_run_id: int) -> None:
+        try:
+            await aio_github.rest.checks.async_update(
+                owner=owner,
+                repo=repository,
+                check_run_id=check_run_id,
+                status="completed",
+                conclusion="skipped",
+            )
+        except githubkit.exception.RequestFailed:
+            # The job is already skipped, completing the check run is only cosmetic
+            _LOGGER.warning(
+                "Failed to mark the check run %s as skipped, the corresponding job is skipped",
+                check_run_id,
+            )
+
+    async with asyncio.TaskGroup() as task_group:
+        for _, check_run_id in skipped_jobs:
+            if check_run_id is not None:
+                task_group.create_task(_skip_check_run(check_run_id))
