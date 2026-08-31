@@ -22,6 +22,23 @@ When `SECURITY.md` is changed on a `push` to the default branch, it also trigger
 
 To avoid piling up redundant audits, at most one audit job per type and branch can wait in the queue (`new` status) for a given repository: when a new matching job is queued, the previous similar jobs in `new` status are replaced (marked as `skipped`). For example, only one `snyk (1.21)` job at a time; the jobs to close the related issues are deduplicated per pull request.
 
+### Job priorities
+
+The lower the priority number, the sooner the job is processed. The priorities are ordered to run the shortest jobs first, to not block the fast jobs behind the slower audit scans:
+
+| Job                         | Priority                | Value |
+| --------------------------- | ----------------------- | ----- |
+| `close-pull-request-issues` | `PRIORITY_STANDARD`     | 30    |
+| `cleanup`                   | `PRIORITY_STANDARD + 1` | 31    |
+| `outdated`                  | `PRIORITY_STANDARD + 2` | 32    |
+| `renovate`                  | `PRIORITY_STANDARD + 3` | 33    |
+| Snyk/dpkg fan-out           | `PRIORITY_CRON`         | 40    |
+| `renovate (<version>)`      | `PRIORITY_CRON + 1`     | 41    |
+| `dpkg (<version>)`          | `PRIORITY_CRON + 2`     | 42    |
+| `snyk (<version>)`          | `PRIORITY_CRON + 3`     | 43    |
+
+The `snyk (<version>)` jobs are the slowest and are serialized (`_SNYK_LOCK`), that is why they have the highest priority number.
+
 ### Other files used by the module
 
 - [`SECURITY.md`](https://github.com/camptocamp/c2cciutils/wiki/SECURITY.md) from the default branch to get the stabilization branches.
