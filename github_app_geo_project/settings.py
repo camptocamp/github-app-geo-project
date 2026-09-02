@@ -196,6 +196,9 @@ class _BackportTimeouts(BaseModel):
 
 class _CleanTimeouts(BaseModel):
     tree: Annotated[Duration, Field(description="tree command timeout")] = datetime.timedelta(seconds=10)
+    git_ls_tree: Annotated[Duration, Field(description="git ls-tree timeout")] = datetime.timedelta(
+        seconds=60
+    )
     git_rm: Annotated[Duration, Field(description="git rm timeout")] = datetime.timedelta(seconds=10)
     git_commit: Annotated[Duration, Field(description="git commit timeout")] = datetime.timedelta(seconds=120)
     git_push: Annotated[Duration, Field(description="git push timeout")] = datetime.timedelta(seconds=120)

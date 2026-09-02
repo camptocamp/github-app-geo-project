@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-02
+
+### Changed
+
+- **Clean**: The `clean` module now checks the folders existence on the target branch (with `git ls-tree`) before creating the worktree, and skips the worktree creation and the final `git push` when there is nothing to clean. Previously, a full worktree was created and a no-op push was done even when none of the folders to clean existed.
+
 ## 2026-08-31
 
 ### Changed

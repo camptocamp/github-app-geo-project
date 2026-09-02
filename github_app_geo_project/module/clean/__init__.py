@@ -392,15 +392,30 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
             return
 
         branch = git.get("branch", configuration.BRANCH_DEFAULT)
+        folders = [
+            git.get("folder", configuration.FOLDER_DEFAULT).format(name=name)
+            for name in context.module_event_data.names
+        ]
+
+        if not await module_utils.GIT_WORKTREE_CACHE.any_path_exists(
+            context.github_project,
+            branch,
+            folders,
+        ):
+            _LOGGER.info(
+                "The folders %s do not exist in the branch '%s', nothing to do",
+                ", ".join(f"'{folder}'" for folder in folders),
+                branch,
+            )
+            return
 
         _LOGGER.debug("Create worktree for branch: %s", branch)
         async with module_utils.GIT_WORKTREE_CACHE.working_tree(
             context.github_project,
             branch,
         ) as cwd:
-            for name in context.module_event_data.names:
-                folder = git.get("folder", configuration.FOLDER_DEFAULT).format(name=name)
-
+            has_changes = False
+            for name, folder in zip(context.module_event_data.names, folders, strict=True):
                 try:
                     command = ["tree"]
                     tree_proc = await asyncio.create_subprocess_exec(
@@ -465,6 +480,13 @@ class Clean(module.Module[configuration.CleanConfiguration, _ActionData, None, N
                 if not success:
                     error_message = f"Failed to commit removal of '{folder}' in branch '{branch}'"
                     raise CleanError(error_message)
+                has_changes = True
+            if not has_changes:
+                _LOGGER.info(
+                    "No folder removed in the branch '%s', skip the push",
+                    branch,
+                )
+                return
             _, success, _ = await module_utils.run_timeout(
                 [
                     "git",
