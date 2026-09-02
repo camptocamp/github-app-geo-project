@@ -163,6 +163,18 @@ def _sanitize_command_arguments(command: list[str]) -> list[str]:
     return [_sanitize_command_argument(str(argument)) for argument in command]
 
 
+def _sanitize_command_env(env: dict[str, str] | None) -> dict[str, str]:
+    if not env:
+        return {}
+    result = {}
+    for name, value in env.items():
+        if "TOKEN" in name.upper().split("_"):
+            result[name] = "***"
+        else:
+            result[name] = value
+    return result
+
+
 def _sanitize_command_for_log(command: list[str]) -> str:
     return shlex.join(_sanitize_command_arguments(command))
 
@@ -509,9 +521,11 @@ class AnsiProcessMessage(AnsiMessage):
         stdout: str | bytes,
         stderr: str | bytes,
         error: str | None = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         """Initialize the process message."""
         self.args = _sanitize_command_arguments(args)
+        self.env = _sanitize_command_env(env)
 
         self.returncode = returncode
         if isinstance(stdout, bytes):
@@ -529,6 +543,10 @@ class AnsiProcessMessage(AnsiMessage):
         self.stderr, stderr_css = _to_html_css(stderr or "")
 
         message = [f"Command: {shlex.join(self.args)}"]
+        if self.env:
+            message.append("Environment variable:")
+            for name, value in self.env.items():
+                message.append(f"  {name}: {value}")
         if error:
             message.append(f"Error: {error}")
         if returncode is not None:
@@ -554,6 +572,11 @@ class AnsiProcessMessage(AnsiMessage):
                     "<details>",
                     f"<summary>{self.title}</summary>",
                     f"Command: {shlex.join(self.args)}",
+                    *(
+                        ["Environment variables:", *[f"{name}: {value}" for name, value in self.env.items()]]
+                        if self.env
+                        else []
+                    ),
                     f"Return code: {self.returncode}",
                     *(
                         [
@@ -583,6 +606,11 @@ class AnsiProcessMessage(AnsiMessage):
                 else [
                     *([f"#### {self.title}"] if self.title else []),
                     f"Command: {shlex.join(self.args)}",
+                    *(
+                        ["Environment variables:", *[f"{name}: {value}" for name, value in self.env.items()]]
+                        if self.env
+                        else []
+                    ),
                     f"Return code: {self.returncode}",
                     *(
                         [
@@ -616,6 +644,7 @@ class AnsiProcessMessage(AnsiMessage):
         proc: asyncio.subprocess.Process,  # pylint: disable=no-member
         stdout: bytes | None,
         stderr: bytes | None,
+        env: dict[str, str] | None = None,
     ) -> "AnsiProcessMessage":
         """Create an AnsiProcessMessage from async artifacts."""
         return AnsiProcessMessage(
@@ -623,6 +652,7 @@ class AnsiProcessMessage(AnsiMessage):
             -999 if proc.returncode is None else proc.returncode,
             "" if stdout is None else stdout.decode(),
             "" if stderr is None else stderr.decode(),
+            env=env,
         )
 
 
@@ -698,6 +728,7 @@ async def run_timeout(
                 async_proc,
                 stdout,
                 stderr,
+                env=env,
             )
             success = async_proc.returncode == 0
             if success:
@@ -721,7 +752,7 @@ async def run_timeout(
         )
         async with asyncio.timeout(settings.utils.timeouts.find_command.total_seconds()):
             stdout, stderr = await proc.communicate()
-        message = AnsiProcessMessage.from_async_artifacts(cmd, proc, stdout, stderr)
+        message = AnsiProcessMessage.from_async_artifacts(cmd, proc, stdout, stderr, env=env)
         message.title = f"Find {command[0]}"
         _LOGGER.debug(message)
         return None, False, message
@@ -737,6 +768,7 @@ async def run_timeout(
                 ("" if async_proc.stdout is None else (await async_proc.stdout.read()).decode()),
                 ("" if async_proc.stderr is None else (await async_proc.stderr.read()).decode()),
                 error=str(exception),
+                env=env,
             )
             message.title = timeout_message
             _LOGGER.warning(message)
@@ -749,7 +781,7 @@ async def run_timeout(
             )
         else:
             _LOGGER.warning("TimeoutError for %s", command[0])
-        return None, False, AnsiProcessMessage(command, None, "", "", str(exception))
+        return None, False, AnsiProcessMessage(command, None, "", "", str(exception), env=env)
 
 
 async def has_changes(cwd: anyio.Path, include_un_followed: bool = False) -> bool:
