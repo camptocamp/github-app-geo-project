@@ -477,30 +477,12 @@ class Versions(
                 _LOGGER.debug(message)
                 out_dir = cwd / "renovate-graph-out"
                 await anyio.Path(out_dir).mkdir(parents=True, exist_ok=True)
-                if await _get_dependencies(
+                await _get_dependencies(
                     context,
                     intermediate_status.version_dependencies_by_datasource,
                     cwd,
                     out_dir,
-                ):
-                    assert context.module_event_data.retry is not None
-                    # Retry
-                    return ProcessOutput(
-                        actions=[
-                            module.Action(
-                                data=_EventData(
-                                    step=context.module_event_data.step,
-                                    version=context.module_event_data.version,
-                                    alternate_versions=context.module_event_data.alternate_versions,
-                                    retry=context.module_event_data.retry - 1,
-                                    previous_jobs=[
-                                        *(context.module_event_data.previous_jobs or []),
-                                        context.job_id,
-                                    ],
-                                ),
-                            ),
-                        ],
-                    )
+                )
                 message = module_utils.HtmlMessage(
                     utils.format_json(
                         json.loads(intermediate_status.model_dump_json())[
@@ -1151,7 +1133,7 @@ async def _get_dependencies(
     result: dict[str, _TransversalStatusNameInDatasource],
     cwd: anyio.Path,
     out_dir: anyio.Path,
-) -> bool:
+) -> None:
     """
     Extract dependencies using renovate-graph.
 
@@ -1210,17 +1192,10 @@ async def _get_dependencies(
             stdout,
             stderr,
         )
-        if (
-            proc.returncode != 0
-            and context.module_event_data.retry is not None
-            and context.module_event_data.retry > 0
-        ):
-            message.title = "Failed to get the dependencies (will retry)"
+        if proc.returncode != 0:
+            message.title = "Failed to get the dependencies"
             _LOGGER.info(message)
-            await asyncio.sleep(
-                settings.versions.renovate_graph_retry_delay.total_seconds(),
-            )
-            return True
+            return
 
         if proc.returncode != 0:
             message.title = "Failed to get the dependencies"
@@ -1254,7 +1229,6 @@ async def _get_dependencies(
     _LOGGER.debug(message)
     data = json.loads(content)
     _read_dependencies(context, {"config": data.get("packageData", {})}, result)
-    return False
 
 
 def _read_dependencies(
