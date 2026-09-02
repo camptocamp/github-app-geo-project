@@ -1241,6 +1241,48 @@ class GitWorktreeCache:
 
         return cache_path
 
+    async def any_path_exists(
+        self,
+        github_project: configuration.GithubProject,
+        branch: str,
+        paths: list[str],
+    ) -> bool:
+        """Check if any of the given paths exist on the origin branch.
+
+        Arguments:
+        ---------
+        github_project: The GitHub project information
+        branch: The branch to check the paths on
+        paths: The paths to check the existence of
+
+        Returns
+        -------
+        True if at least one of the paths exists, also returns True when the
+        check fails to let the caller use the working tree that will raise
+        the error.
+        """
+        cache_key = f"{github_project.owner}/{github_project.repository}"
+        branch_key = f"{cache_key}/{branch}"
+        branch_lock = await self._get_branch_lock(branch_key)
+        lock = await self._get_lock(cache_key)
+
+        async with branch_lock, lock:
+            cache_path = await self._ensure_cache(github_project)
+
+            output, success, _ = await run_timeout(
+                ["git", "ls-tree", "--name-only", f"origin/{branch}", "--", *paths],
+                None,
+                settings.clean.timeouts.git_ls_tree,
+                f"Check paths existence on {branch}",
+                f"Error checking paths existence on {branch}",
+                f"Timeout checking paths existence on {branch}",
+                cache_path,
+                error=False,
+            )
+            if not success:
+                return True
+            return bool(output and output.strip())
+
     @asynccontextmanager
     async def working_tree(
         self,
