@@ -1174,7 +1174,7 @@ async def _get_dependencies(
         application = github_project.application
         username = application.slug + "[bot]"
         user = (await github_project.aio_github.rest.users.async_get_by_username(username)).parsed_data
-        command = ["renovate-graph", "--platform=local"]
+        command = ["/app/node_modules/.bin/renovate-graph", "--platform=local"]
         proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
             *command,
             env={
