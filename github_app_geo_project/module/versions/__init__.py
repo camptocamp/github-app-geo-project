@@ -27,7 +27,7 @@ import yaml
 from pydantic import BaseModel, Field, model_validator
 
 from github_app_geo_project import module, utils
-from github_app_geo_project.module import ProcessOutput
+from github_app_geo_project.module import GHCIError, ProcessOutput
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.versions import configuration
 from github_app_geo_project.settings import settings
@@ -1157,8 +1157,9 @@ async def _get_dependencies(
         username = application.slug + "[bot]"
         user = (await github_project.aio_github.rest.users.async_get_by_username(username)).parsed_data
         command = ["/app/node_modules/.bin/renovate-graph", "--platform=local"]
-        proc = await asyncio.create_subprocess_exec(  # pylint: disable=subprocess-run-check
-            *command,
+        error_message = "Failed to get the dependencies"
+        _, success, _ = await module_utils.run_timeout(
+            command,
             env={
                 **os.environ,
                 "RG_LOCAL_PLATFORM": "github",
@@ -1174,35 +1175,14 @@ async def _get_dependencies(
                 "LOG_LEVEL": settings.versions.renovate_graph_log_level,
                 "RENOVATE_REQUIRE_CONFIG": "required",
             },
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
+            timeout=settings.versions.timeouts.renovate,
+            success_message="Got the dependencies",
+            error_message=error_message,
+            timeout_message="Timeout to get the dependencies",
             cwd=cwd,
         )
-        try:
-            async with asyncio.timeout(settings.versions.timeouts.renovate.total_seconds()):
-                stdout, stderr = await proc.communicate()
-        except TimeoutError:
-            # Kill the process, otherwise it keeps running after the timeout
-            proc.kill()
-            await proc.wait()
-            raise
-        message: module_utils.HtmlMessage = module_utils.AnsiProcessMessage.from_async_artifacts(
-            command,
-            proc,
-            stdout,
-            stderr,
-        )
-        if proc.returncode != 0:
-            message.title = "Failed to get the dependencies"
-            _LOGGER.info(message)
-            return
-
-        if proc.returncode != 0:
-            message.title = "Failed to get the dependencies"
-            _LOGGER.error(message)
-            raise VersionError(message.title)
-        message.title = "Got the dependencies"
-        _LOGGER.debug(message)
+        if not success:
+            raise GHCIError(error_message)
 
         await module_utils.run_timeout(
             ["ls", "-l", str(out_dir)],
@@ -1216,9 +1196,9 @@ async def _get_dependencies(
 
         output_file = out_dir / f"github-{github_project.owner}-{github_project.repository}.json"
         if not await output_file.exists():
-            message.title = "No output file found from renovate-graph"
-            _LOGGER.error(message)
-            raise VersionError(message.title)
+            error_message = "No output file found from renovate-graph"
+            _LOGGER.error(error_message)
+            raise GHCIError(error_message)
         async with await anyio.open_file(output_file, encoding="utf-8") as file:
             content = await file.read()
     else:
