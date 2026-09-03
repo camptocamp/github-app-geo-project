@@ -1152,9 +1152,6 @@ async def _get_dependencies(
     """
     if os.environ.get("TEST") != "TRUE":
         github_project = context.github_project
-        application = github_project.application
-        username = application.slug + "[bot]"
-        user = (await github_project.aio_github.rest.users.async_get_by_username(username)).parsed_data
         command = ["/app/node_modules/.bin/renovate-graph", "--platform=local"]
         error_message = "Failed to get the dependencies"
         _, success, _ = await module_utils.run_timeout(
@@ -1163,11 +1160,6 @@ async def _get_dependencies(
                 "RG_LOCAL_PLATFORM": "github",
                 "RG_LOCAL_ORGANISATION": github_project.owner,
                 "RG_LOCAL_REPO": github_project.repository,
-                "RG_GITHUB_APP_ID": str(application.id),
-                "RG_GITHUB_APP_KEY": application.private_key,
-                "RENOVATE_USERNAME": username,
-                "RENOVATE_GIT_AUTHOR": f"{username} <{user.id}+{username}@users.noreply.github.com>",
-                "RENOVATE_REPOSITORIES": f"{github_project.owner}/{github_project.repository}",
                 "OUT_DIR": str(out_dir),
                 "RENOVATE_GITHUB_COM_TOKEN": github_project.token,
                 "LOG_LEVEL": settings.versions.renovate_graph_log_level,
