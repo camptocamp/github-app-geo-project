@@ -1030,7 +1030,6 @@ async def _get_names(
                     match = re.match(r'^ *name ?= ?[\'"](.*)[\'"],?$', line)
                     if match and match.group(1) not in names:
                         names.append(match.group(1))
-    os.environ["GITHUB_REPOSITORY"] = f"{context.github_project.owner}/{context.github_project.repository}"
     docker_config = {}
     repository_default = {}
     if await (cwd / ".github" / "publish.yaml").exists():
@@ -1161,7 +1160,6 @@ async def _get_dependencies(
         _, success, _ = await module_utils.run_timeout(
             command,
             env={
-                **os.environ,
                 "RG_LOCAL_PLATFORM": "github",
                 "RG_LOCAL_ORGANISATION": github_project.owner,
                 "RG_LOCAL_REPO": github_project.repository,
