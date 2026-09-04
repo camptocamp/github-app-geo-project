@@ -168,7 +168,8 @@ def _sanitize_command_env(env: dict[str, str] | None) -> dict[str, str]:
         return {}
     result = {}
     for name, value in env.items():
-        if "TOKEN" in name.upper().split("_"):
+        name_split = name.upper().split("_")
+        if "TOKEN" in name_split or "KEY" in name_split or "SECRET" in name_split:
             result[name] = "***"
         else:
             result[name] = value
