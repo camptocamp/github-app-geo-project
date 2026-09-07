@@ -94,20 +94,7 @@ WORKDIR /app/
 # The final part
 FROM base AS runner
 
-ENV PATH=/pyenv/shims:/pyenv/bin:/var/www/.local/bin/:${PATH} \
-    PYENV_ROOT=/pyenv
-
-# Install different Python version with pyenv
-# hadolint ignore=SC2086
-RUN --mount=type=cache,target=/var/lib/apt/lists \
-    --mount=type=cache,target=/var/cache,sharing=locked \
-    DEV_PACKAGES="libcurses-ocaml-dev libreadline-dev jq" \
-    && apt-get update \
-    && apt-get install --assume-yes --no-install-recommends ${DEV_PACKAGES} \
-    && git clone --depth=1 https://github.com/pyenv/pyenv.git /pyenv \
-    && PYTHON_VERSIONS="$(curl -fsSL https://endoflife.date/api/v1/products/python/ | jq -r '.result.releases[] | select(.isMaintained == true) | .name')" \
-    && pyenv install ${PYTHON_VERSIONS} \
-    && apt-get remove --purge --autoremove --yes ${DEV_PACKAGES}
+ENV PATH=/var/www/.pyenv/shims:/var/www/.pyenv/bin:/var/www/.local/bin/:${PATH}
 
 ENV PATH=${PATH}:/app/node_modules/.bin
 
@@ -123,14 +110,24 @@ RUN --mount=type=cache,target=/root/.cache \
     POETRY_DYNAMIC_VERSIONING_BYPASS=${VERSION} python3 -m pip install --disable-pip-version-check --no-deps --editable=. \
     && python3 -m compileall
 
-# Set the default Python version to the version present on Ubuntu LTS
-RUN pyenv global $(python --version | awk '{print $2}' | cut -d. -f1,2) \
-    && chmod a+rw -R /pyenv/
-
 # Create the home of www-data
 RUN mkdir /var/www \
     && chmod a+rwx /var/www \
     && chown -R 33:33 /var/www
+
+# Install pyenv, the Python versions are lazily installed at runtime on first use.
+# The build dependencies are kept in the image so pyenv can compile from source
+# when no prebuilt binary is available.
+# HOME is forced because the build user root would otherwise resolve `$HOME/.pyenv` to `/root/.pyenv`.
+RUN --mount=type=cache,target=/var/lib/apt/lists \
+    --mount=type=cache,target=/var/cache,sharing=locked \
+    apt-get update \
+    && apt-get install --assume-yes --no-install-recommends \
+        zlib1g-dev libreadline-dev libssl-dev libffi-dev libsqlite3-dev libbz2-dev liblzma-dev libncurses-dev \
+    && git clone --depth=1 https://github.com/pyenv/pyenv.git /var/www/.pyenv \
+    && HOME=/var/www pyenv global system \
+    && chown -R 33:33 /var/www/.pyenv \
+    && chmod -R a+rwX /var/www/.pyenv
 
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics

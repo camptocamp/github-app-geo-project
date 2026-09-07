@@ -978,6 +978,41 @@ async def auto_merge_pull_request(
         raise exception
 
 
+_PYENV_INSTALL_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def get_pyenv_root() -> Path:
+    """Get the pyenv root directory, same resolution as pyenv itself."""
+    return Path(os.environ.get("PYENV_ROOT") or Path.home() / ".pyenv")
+
+
+async def pyenv_python_installed(python_version: str) -> bool:
+    """Check if a Python version is installed with pyenv."""
+    versions_path = anyio.Path(get_pyenv_root() / "versions")
+    return bool([path async for path in versions_path.glob(f"{python_version}*")])
+
+
+async def ensure_pyenv_python(python_version: str) -> None:
+    """Install a Python version with pyenv if not already installed."""
+    if await pyenv_python_installed(python_version):
+        return
+    # The lock creation is safe: asyncio is single-threaded and setdefault doesn't await.
+    lock = _PYENV_INSTALL_LOCKS.setdefault(python_version, asyncio.Lock())
+    async with lock:
+        # Double check, another task may have installed the version while waiting for the lock.
+        if await pyenv_python_installed(python_version):
+            return
+        await run_timeout(
+            ["pyenv", "install", python_version],
+            None,
+            settings.utils.timeouts.pyenv_install,
+            f"Install the Python version {python_version} with pyenv",
+            f"Error while installing the Python version {python_version} with pyenv",
+            f"Timeout while installing the Python version {python_version} with pyenv",
+            anyio.Path(get_pyenv_root()),
+        )
+
+
 async def create_commit_pull_request(
     branch: str,
     new_branch: str,
@@ -995,15 +1030,13 @@ async def create_commit_pull_request(
         env = dict(os.environ)
         python_version_file = cwd / ".python-version"
         if await python_version_file.exists():
-            # We search for pyenv in the PATH
-            pyenv_proc = await asyncio.create_subprocess_exec(
-                "pyenv",
-                "root",
-                stdout=asyncio.subprocess.PIPE,
-            )
-            stdout, _ = await pyenv_proc.communicate()
-            pyenv_root = stdout.decode().strip()
-            env["PYENV_ROOT"] = pyenv_root
+            async with await python_version_file.open("r", encoding="utf-8") as file:
+                python_version = (await file.readline()).strip()
+            # Only a plain version like `3.13` or `3.13.1` can be installed on demand,
+            # a pyenv virtualenv name requires its base version to be created first.
+            if re.match(r"^\d+\.\d+(\.\d+)?$", python_version):
+                await ensure_pyenv_python(python_version)
+            pyenv_root = get_pyenv_root()
             env["PATH"] = f"{Path(pyenv_root) / 'shims'!s}:{Path(pyenv_root) / 'bin'!s}:{env['PATH']}"
         env["SKIP"] = ",".join(skip_prek_hooks)
         await run_timeout(

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-07
+
+### Changed
+
+- **Docker**: The Python versions are no more compiled with `pyenv` during the image build. `pyenv` is cloned in `/var/www/.pyenv` (the default root, `$HOME/.pyenv`) and the versions are lazily installed on first use (by the `audit` module before `pyenv local`, and before running `prek` when the target repository has a `.python-version` file). The `PYENV_ROOT` environment variable is no more set in the image, `pyenv global` is set to `system`, and the CPython build dependencies (`zlib1g-dev`, `libreadline-dev`, `libssl-dev`, `libffi-dev`, `libsqlite3-dev`, `libbz2-dev`, `liblzma-dev`, `libncurses-dev`) stay installed for source builds.
+- **Utils**: New `get_pyenv_root`, `pyenv_python_installed` and `ensure_pyenv_python` helpers. `create_commit_pull_request` installs a plain Python version (`X.Y` or `X.Y.Z`) from the repository `.python-version` before running `prek` (a pyenv virtualenv name is left untouched), and resolves the `pyenv` root without a `pyenv root` subprocess call.
+
+### Added
+
+- **Settings**: The `utils.timeouts.pyenv_install` timeout (`GHCI__UTILS__TIMEOUTS__PYENV_INSTALL`, default 30 minutes) for the lazy `pyenv install` calls.
+
 ## 2026-09-02
 
 ### Changed

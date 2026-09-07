@@ -177,6 +177,9 @@ class _UtilsTimeouts(BaseModel):
     git_worktree_remove: Annotated[Duration, Field(description="git worktree remove timeout")] = (
         datetime.timedelta(seconds=60)
     )
+    pyenv_install: Annotated[Duration, Field(description="pyenv install timeout")] = datetime.timedelta(
+        seconds=1800
+    )
 
 
 class _BackportTimeouts(BaseModel):

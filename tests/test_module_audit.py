@@ -642,3 +642,29 @@ async def test_process_archived_repository() -> None:
         owner="camptocamp",
         repo="archived-repo",
     )
+
+
+@pytest.mark.asyncio
+async def test_use_python_version_lazy_install(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """_use_python_version should lazily install the Python version and add the pyenv bin to PATH."""
+    from github_app_geo_project.module.audit import _use_python_version
+
+    monkeypatch.setenv("PYENV_ROOT", str(tmp_path))
+    bin_dir = tmp_path / "versions" / "3.12.10" / "bin"
+    bin_dir.mkdir(parents=True)
+
+    mock_proc = MagicMock()
+    mock_proc.communicate = AsyncMock(return_value=(b"Python 3.12.10", b""))
+    mock_proc.returncode = 0
+
+    with (
+        patch(
+            "github_app_geo_project.module.audit.module_utils.ensure_pyenv_python",
+            new=AsyncMock(),
+        ) as mock_ensure,
+        patch("asyncio.create_subprocess_exec", new=AsyncMock(return_value=mock_proc)),
+    ):
+        env = await _use_python_version("3.12", anyio.Path(str(tmp_path)))
+
+    mock_ensure.assert_awaited_once_with("3.12")
+    assert str(bin_dir) in env["PATH"]
