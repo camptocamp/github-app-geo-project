@@ -11,6 +11,10 @@
 
 - **Settings**: The `utils.timeouts.pyenv_install` timeout (`GHCI__UTILS__TIMEOUTS__PYENV_INSTALL`, default 30 minutes) for the lazy `pyenv install` calls.
 
+### Fixed
+
+- **Docker**: The image now installs Node.js 24 (instead of 22), as required by `renovate` 44 / `@jamietanna/renovate-graph` 0.40 (`engines.node: ^24.11.0`). On Node.js 22, the `versions` module failed at runtime with `TypeError: RegExp.escape is not a function`. The Docker build now runs `npm install` with `--engine-strict=true` and a smoke test importing the `renovate` module chain, so similar incompatibilities fail the image build instead of production jobs.
+
 ## 2026-09-02
 
 ### Changed
