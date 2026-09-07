@@ -2,8 +2,10 @@
 
 import asyncio
 import datetime
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
+import anyio
 import pytest
 
 from github_app_geo_project import utils as app_utils
@@ -590,3 +592,142 @@ async def test_git_worktree_cache_branch_lock_allows_different_branches() -> Non
         )
 
     assert execution_order == ["a_start", "b_start", "a_end", "b_end"]
+
+
+@pytest.fixture(autouse=True)
+def _clear_pyenv_install_locks():
+    utils._PYENV_INSTALL_LOCKS.clear()
+    yield
+    utils._PYENV_INSTALL_LOCKS.clear()
+
+
+def test_get_pyenv_root_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """get_pyenv_root should default to `$HOME/.pyenv`, like pyenv itself."""
+    monkeypatch.delenv("PYENV_ROOT", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+
+    assert utils.get_pyenv_root() == tmp_path / ".pyenv"
+
+
+def test_get_pyenv_root_env_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """get_pyenv_root should honor the PYENV_ROOT environment variable."""
+    monkeypatch.setenv("PYENV_ROOT", str(tmp_path / "custom-pyenv"))
+
+    assert utils.get_pyenv_root() == tmp_path / "custom-pyenv"
+
+
+@pytest.mark.asyncio
+async def test_ensure_pyenv_python_already_installed(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """ensure_pyenv_python should do nothing when a matching version directory exists."""
+    monkeypatch.setenv("PYENV_ROOT", str(tmp_path))
+    (tmp_path / "versions" / "3.12.10").mkdir(parents=True)
+
+    with patch("github_app_geo_project.module.utils.run_timeout", new=AsyncMock()) as mock_run_timeout:
+        await utils.ensure_pyenv_python("3.12")
+
+    mock_run_timeout.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ensure_pyenv_python_installs(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """ensure_pyenv_python should run `pyenv install` when the version is missing."""
+    monkeypatch.setenv("PYENV_ROOT", str(tmp_path))
+    (tmp_path / "versions").mkdir()
+
+    async def fake_run_timeout(command, *args, **kwargs):
+        (tmp_path / "versions" / "3.13.1").mkdir()
+        return ("", True, None)
+
+    with patch(
+        "github_app_geo_project.module.utils.run_timeout",
+        side_effect=fake_run_timeout,
+    ) as mock_run_timeout:
+        await utils.ensure_pyenv_python("3.13")
+
+    assert mock_run_timeout.await_count == 1
+    assert mock_run_timeout.await_args_list[0].args[0] == ["pyenv", "install", "3.13"]
+
+
+@pytest.mark.asyncio
+async def test_ensure_pyenv_python_concurrent_single_install(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Concurrent ensures of the same version should trigger only one install."""
+    monkeypatch.setenv("PYENV_ROOT", str(tmp_path))
+    versions = tmp_path / "versions"
+    versions.mkdir()
+
+    async def fake_run_timeout(command, *args, **kwargs):
+        await asyncio.sleep(0.01)
+        (versions / "3.11.12").mkdir()
+        return ("", True, None)
+
+    with patch(
+        "github_app_geo_project.module.utils.run_timeout",
+        side_effect=fake_run_timeout,
+    ) as mock_run_timeout:
+        await asyncio.gather(
+            utils.ensure_pyenv_python("3.11"),
+            utils.ensure_pyenv_python("3.11"),
+        )
+
+    assert mock_run_timeout.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_create_commit_pull_request_python_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A plain version in `.python-version` should be installed and the pyenv shims activated."""
+    monkeypatch.setenv("PYENV_ROOT", str(tmp_path / "pyenv"))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".pre-commit-config.yaml").write_text("repos: []\n", encoding="utf-8")
+    (repo / ".python-version").write_text("3.12\n", encoding="utf-8")
+    cwd = anyio.Path(str(repo))
+
+    with (
+        patch.object(utils, "ensure_pyenv_python", new=AsyncMock()) as mock_ensure,
+        patch(
+            "github_app_geo_project.module.utils.run_timeout",
+            new=AsyncMock(return_value=("", True, None)),
+        ) as mock_run_timeout,
+        patch.object(utils, "create_commit", new=AsyncMock(return_value=False)),
+    ):
+        result = await utils.create_commit_pull_request(
+            "branch", "new-branch", "msg", "body", MagicMock(), cwd
+        )
+
+    assert result == (False, None)
+    mock_ensure.assert_awaited_once_with("3.12")
+    prek_env = mock_run_timeout.await_args_list[0].args[1]
+    assert str(tmp_path / "pyenv" / "shims") in prek_env["PATH"]
+
+
+@pytest.mark.asyncio
+async def test_create_commit_pull_request_pyenv_virtualenv_name(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A pyenv virtualenv name in `.python-version` should not trigger an install."""
+    monkeypatch.setenv("PYENV_ROOT", str(tmp_path / "pyenv"))
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".pre-commit-config.yaml").write_text("repos: []\n", encoding="utf-8")
+    (repo / ".python-version").write_text("my-virtualenv\n", encoding="utf-8")
+    cwd = anyio.Path(str(repo))
+
+    with (
+        patch.object(utils, "ensure_pyenv_python", new=AsyncMock()) as mock_ensure,
+        patch(
+            "github_app_geo_project.module.utils.run_timeout",
+            new=AsyncMock(return_value=("", True, None)),
+        ) as mock_run_timeout,
+        patch.object(utils, "create_commit", new=AsyncMock(return_value=False)),
+    ):
+        await utils.create_commit_pull_request("branch", "new-branch", "msg", "body", MagicMock(), cwd)
+
+    mock_ensure.assert_not_awaited()
+    prek_env = mock_run_timeout.await_args_list[0].args[1]
+    assert str(tmp_path / "pyenv" / "shims") in prek_env["PATH"]

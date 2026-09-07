@@ -42,7 +42,7 @@ The `snyk (<version>)` jobs are the slowest and are serialized (`_SNYK_LOCK`), t
 ### Other files used by the module
 
 - [`SECURITY.md`](https://github.com/camptocamp/c2cciutils/wiki/SECURITY.md) from the default branch to get the stabilization branches.
-- `.tools-version` on the stabilization branch to get the used minor Python version.
+- `.tools-version` on the stabilization branch to get the used minor Python version. The matching `pyenv` Python version is lazily installed at runtime if missing.
 - `.github/ghci.yaml` on the stabilization branch to get some branch-specific configuration.
 
 ### Functionality Details

@@ -619,6 +619,8 @@ async def _process_snyk_dpkg(
 
 
 async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str, str]:
+    # Lazily install the Python version, pyenv versions are no more installed at image build.
+    await module_utils.ensure_pyenv_python(python_version)
     command = ["pyenv", "local", python_version]
     proc = await asyncio.create_subprocess_exec(
         *command,
@@ -650,9 +652,10 @@ async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str,
     async with asyncio.timeout(settings.audit.timeouts.python_version.total_seconds()):
         stdout, stderr = await proc.communicate()
 
-    # Get path from /pyenv/versions/{python_version}.*/bin/
+    # Get path from <pyenv root>/versions/{python_version}.*/bin/
     env = os.environ.copy()
-    bin_paths = [path async for path in anyio.Path("/pyenv/versions/").glob(f"{python_version}.*/bin")]
+    versions_path = anyio.Path(module_utils.get_pyenv_root() / "versions")
+    bin_paths = [path async for path in versions_path.glob(f"{python_version}.*/bin")]
     if bin_paths:
         env["PATH"] = f"{bin_paths[0]}:{env['PATH']}"
 
