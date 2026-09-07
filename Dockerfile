@@ -100,9 +100,16 @@ ENV PATH=${PATH}:/app/node_modules/.bin
 
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.cache \
-    npm install \
+    npm install --engine-strict=true \
     && ln -s node_modules/@jamietanna/renovate-graph/patches/ . \
     && node_modules/.bin/patch-package
+
+# Smoke tests reproducing the `renovate-graph` startup import chain, so a runtime incompatibility
+# between the installed Node.js and the `renovate` distribution (like `RegExp.escape` missing on
+# Node.js older than 24), or a broken `patch-package` patch, fails the image build instead of
+# failing the production jobs.
+RUN node -e "require('renovate/dist/workers/global/initialize'); require('renovate/dist/workers/global/index')" \
+    && node -e "require('@jamietanna/renovate-graph/dist/check-if-patched').ensureRenovateDependencyIsPatched(false)"
 
 COPY . /app/
 ARG VERSION=dev
