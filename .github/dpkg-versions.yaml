@@ -193,6 +193,8 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_26_04/libmount1: 2.41.3-3ubuntu2
   ubuntu_26_04/libmpc3: 1.3.1-3
   ubuntu_26_04/libmpfr6: 4.2.2-3
+  ubuntu_26_04/libncurses-dev: 6.6+20251231-1
+  ubuntu_26_04/libncurses6: 6.6+20251231-1
   ubuntu_26_04/libncursesw6: 6.6+20251231-1
   ubuntu_26_04/libnetfilter-conntrack3: 1.1.1-1
   ubuntu_26_04/libnettle8t64: 3.10.2-1
@@ -238,6 +240,7 @@ camptocamp/github-app-geo-project:latest:
   ubuntu_26_04/libpython3.14-minimal: 3.14.4-1ubuntu0.1
   ubuntu_26_04/libpython3.14-stdlib: 3.14.4-1ubuntu0.1
   ubuntu_26_04/libquadmath0: 16-20260322-1ubuntu1
+  ubuntu_26_04/libreadline-dev: 8.3-4
   ubuntu_26_04/libreadline8t64: 8.3-4
   ubuntu_26_04/librtmp-dev: 2.4+20151223.gitfa8646d.1-3
   ubuntu_26_04/librtmp1: 2.4+20151223.gitfa8646d.1-3
