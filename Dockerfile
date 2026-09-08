@@ -94,7 +94,12 @@ WORKDIR /app/
 # The final part
 FROM base AS runner
 
-ENV PATH=/var/www/.pyenv/shims:/var/www/.pyenv/bin:/var/www/.local/bin/:${PATH}
+# pyenv is installed in `/opt/pyenv` (`PYENV_ROOT`). In production, only the
+# `/opt/pyenv/versions` sub folder is mounted as an `emptyDir` volume on the worker
+# pods, so the lazily installed Python versions survive the container restarts
+# without masking the pyenv sources baked in the image.
+ENV PYENV_ROOT=/opt/pyenv \
+    PATH=/opt/pyenv/shims:/opt/pyenv/bin:/var/www/.local/bin/:${PATH}
 
 ENV PATH=${PATH}:/app/node_modules/.bin
 
@@ -122,19 +127,25 @@ RUN mkdir /var/www \
     && chmod a+rwx /var/www \
     && chown -R 33:33 /var/www
 
-# Install pyenv, the Python versions are lazily installed at runtime on first use.
-# The build dependencies are kept in the image so pyenv can compile from source
-# when no prebuilt binary is available.
-# HOME is forced because the build user root would otherwise resolve `$HOME/.pyenv` to `/root/.pyenv`.
+# Install pyenv, the Python versions are lazily installed at runtime on first use
+# into `PYENV_ROOT/versions` (`/opt/pyenv/versions`, the `emptyDir` volume in
+# production). The build dependencies are kept in the image so pyenv can compile
+# from source when no prebuilt binary is available.
+# The bootstrap `python` shim makes `<pyenv root>/shims/python` (used by the Snyk
+# `--command` arguments) always resolvable, even on a fresh volume before any lazy
+# `pyenv install`; it delegates to `pyenv exec` and is replaced by the real shims
+# on the first `pyenv install` (rehash).
 RUN --mount=type=cache,target=/var/lib/apt/lists \
     --mount=type=cache,target=/var/cache,sharing=locked \
     apt-get update \
     && apt-get install --assume-yes --no-install-recommends \
         zlib1g-dev libreadline-dev libssl-dev libffi-dev libsqlite3-dev libbz2-dev liblzma-dev libncurses-dev \
-    && git clone --depth=1 https://github.com/pyenv/pyenv.git /var/www/.pyenv \
-    && HOME=/var/www pyenv global system \
-    && chown -R 33:33 /var/www/.pyenv \
-    && chmod -R a+rwX /var/www/.pyenv
+    && git clone --depth=1 https://github.com/pyenv/pyenv.git /opt/pyenv \
+    && pyenv global system \
+    && mkdir --parents /opt/pyenv/versions /opt/pyenv/shims \
+    && printf '#!/bin/sh\nexec pyenv exec "$(basename "$0")" "$@"\n' > /opt/pyenv/shims/python \
+    && chown --recursive 33:33 /opt/pyenv \
+    && chmod --recursive a+rwX /opt/pyenv
 
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics

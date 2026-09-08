@@ -79,65 +79,7 @@ class CacheClean(module.Module[None, _EventData, None, None]):
 
         home = await anyio.Path.home()
 
-        cache_configs = [
-            CacheConfig(
-                path=home / ".cache" / "pip",
-                max_size=settings.cache_clean.pip_max_size,
-                commands=[
-                    CacheCommand(["pip", "cache", "purge"], "pip cache purge"),
-                ],
-                delete=True,
-                label="pip",
-            ),
-            CacheConfig(
-                path=home / ".cache" / "pypoetry" / "artifacts",
-                max_size=settings.cache_clean.poetry_artifacts_max_size,
-                commands=[
-                    CacheCommand(
-                        ["poetry", "cache", "clear", "--all"],
-                        "poetry cache clear --all",
-                    ),
-                ],
-                delete=True,
-                label="poetry artifacts",
-            ),
-            CacheConfig(
-                path=home / ".cache" / "pypoetry" / "virtualenvs",
-                max_size=settings.cache_clean.poetry_virtualenvs_max_size,
-                commands=[],
-                delete=True,
-                label="poetry virtualenvs",
-            ),
-            CacheConfig(
-                path=home / ".pyenv" / "cache",
-                max_size=settings.cache_clean.pyenv_max_size,
-                commands=[],
-                delete=True,
-                label="pyenv cache",
-            ),
-            CacheConfig(
-                path=home / ".cache" / "prek",
-                max_size=settings.cache_clean.prek_max_size,
-                commands=[],
-                delete=True,
-                label="prek",
-            ),
-            CacheConfig(
-                path=home / ".npm",
-                max_size=settings.cache_clean.npm_max_size,
-                commands=[
-                    CacheCommand(["npm", "cache", "clean"], "npm cache clean"),
-                    CacheCommand(
-                        ["npm", "cache", "clean", "--force"],
-                        "npm cache clean --force",
-                    ),
-                ],
-                delete=True,
-                label="npm",
-            ),
-        ]
-
-        for config in cache_configs:
+        for config in _get_cache_configs(home):
             await _process_cache_config(config)
 
         # Clean the git worktree cache: prune stale worktrees and run gc
@@ -171,6 +113,67 @@ class CacheConfig:
         self.commands = commands
         self.delete = delete
         self.label = label
+
+
+def _get_cache_configs(home: anyio.Path) -> list[CacheConfig]:
+    """Get the configuration of the caches to clean."""
+    return [
+        CacheConfig(
+            path=home / ".cache" / "pip",
+            max_size=settings.cache_clean.pip_max_size,
+            commands=[
+                CacheCommand(["pip", "cache", "purge"], "pip cache purge"),
+            ],
+            delete=True,
+            label="pip",
+        ),
+        CacheConfig(
+            path=home / ".cache" / "pypoetry" / "artifacts",
+            max_size=settings.cache_clean.poetry_artifacts_max_size,
+            commands=[
+                CacheCommand(
+                    ["poetry", "cache", "clear", "--all"],
+                    "poetry cache clear --all",
+                ),
+            ],
+            delete=True,
+            label="poetry artifacts",
+        ),
+        CacheConfig(
+            path=home / ".cache" / "pypoetry" / "virtualenvs",
+            max_size=settings.cache_clean.poetry_virtualenvs_max_size,
+            commands=[],
+            delete=True,
+            label="poetry virtualenvs",
+        ),
+        CacheConfig(
+            path=anyio.Path(module_utils.get_pyenv_root() / "cache"),
+            max_size=settings.cache_clean.pyenv_max_size,
+            commands=[],
+            delete=True,
+            label="pyenv cache",
+        ),
+        CacheConfig(
+            path=home / ".cache" / "prek",
+            max_size=settings.cache_clean.prek_max_size,
+            commands=[],
+            delete=True,
+            label="prek",
+        ),
+        CacheConfig(
+            path=home / ".npm",
+            max_size=settings.cache_clean.npm_max_size,
+            commands=[
+                CacheCommand(["npm", "cache", "clean"], "npm cache clean"),
+                CacheCommand(
+                    ["npm", "cache", "clean", "--force"],
+                    "npm cache clean --force",
+                ),
+            ],
+            delete=True,
+            label="npm",
+        ),
+    ]
 
 
 async def _setup_logger() -> None:
