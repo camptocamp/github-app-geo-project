@@ -5,6 +5,7 @@
 import asyncio
 import datetime
 import html
+import html.parser
 import logging
 import math
 import os
@@ -333,6 +334,48 @@ def html_to_markdown(html: str) -> str:
     return markdownify.markdownify(html)
 
 
+class _PlainTextHTMLParser(html.parser.HTMLParser):
+    """HTML parser that extracts the text content, replacing block tags with new lines."""
+
+    def __init__(self) -> None:
+        """Initialize the parser."""
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, _attrs: list[tuple[str, str | None]]) -> None:
+        """Handle a start tag."""
+        if tag in ("script", "style"):
+            self._skip_depth += 1
+        elif tag in ("br", "p"):
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        """Handle an end tag."""
+        if tag in ("script", "style") and self._skip_depth > 0:
+            self._skip_depth -= 1
+
+    def handle_data(self, data: str) -> None:
+        """Handle text data."""
+        if self._skip_depth == 0:
+            self.parts.append(data)
+
+
+def _html_to_text(html_content: str) -> str:
+    """Convert HTML to plain text in linear time."""
+    parser = _PlainTextHTMLParser()
+    parser.feed(html_content)
+    parser.close()
+    return "".join(parser.parts)
+
+
+def _truncate_message_content(content: str, max_size: int) -> str:
+    """Truncate a message content to a maximum size, adding a marker when truncated."""
+    if len(content) <= max_size:
+        return content
+    return f"{content[:max_size]}\n... truncated (original size: {len(content)} characters)"
+
+
 class HtmlMessage(Message):
     """Utility class to convert HTML messages to HTML/markdown."""
 
@@ -341,6 +384,8 @@ class HtmlMessage(Message):
         self.html = html
         self.css = css
         self.title = title
+        self._plain_text: str | None = None
+        self._html_cache: dict[tuple[str, str], str] = {}
 
     @staticmethod
     def _collapse_html(content: str, title: str, suffix: int) -> str:
@@ -372,7 +417,12 @@ class HtmlMessage(Message):
         """Get a safe escaped fallback HTML representation."""
         global _suffix  # noqa: PLW0603
 
-        escaped_html = html.escape(self.html.replace("{pre}", "").replace("{post}", ""))
+        escaped_html = html.escape(
+            _truncate_message_content(
+                self.html.replace("{pre}", "").replace("{post}", ""),
+                settings.log_message_max_size,
+            )
+        )
         escaped_title = html.escape(self.title)
 
         body = f"<pre>{escaped_html}</pre>"
@@ -388,17 +438,27 @@ class HtmlMessage(Message):
         return body
 
     def to_html(self, style: str = "h3") -> str:
+        """Convert the ANSI message to HTML, the result is cached by style and title."""
+        cache_key = (style, self.title)
+        if cache_key not in self._html_cache:
+            self._html_cache[cache_key] = self._to_html(style)
+        return self._html_cache[cache_key]
+
+    def _to_html(self, style: str = "h3") -> str:
         """Convert the ANSI message to HTML."""
         global _suffix  # noqa: PLW0603
         collapse_suffix: int | None = None
 
         # interpret template parameters
-        html = self.html.replace(
-            "{pre}",
-            "<pre>" if style != "collapse" else "",
-        ).replace(
-            "{post}",
-            "</pre>" if style != "collapse" else "",
+        html = _truncate_message_content(
+            self.html.replace(
+                "{pre}",
+                "<pre>" if style != "collapse" else "",
+            ).replace(
+                "{post}",
+                "</pre>" if style != "collapse" else "",
+            ),
+            settings.log_message_max_size,
         )
         if self.title and style != "no-title":
             if style == "collapse":
@@ -450,21 +510,15 @@ class HtmlMessage(Message):
         return self.to_plain_text()
 
     def to_plain_text(self) -> str:
-        """Get the ANSI message."""
-        sanitizer = html_sanitizer.Sanitizer(
-            {
-                "tags": {
-                    "unexisting",
-                },
-                "attributes": {},
-                "empty": set(),
-                "separate": set(),
-                "keep_typographic_whitespace": True,
-            },
-        )
-        message = cast(
-            "str",
-            sanitizer.sanitize(self.html.replace("<p>", "\n<p>").replace("<br>", "\n")),
+        """Get the plain text message, the result is cached."""
+        if self._plain_text is None:
+            self._plain_text = self._to_plain_text()
+        return self._plain_text
+
+    def _to_plain_text(self) -> str:
+        """Get the plain text message."""
+        message = _html_to_text(
+            _truncate_message_content(self.html, settings.log_message_max_size),
         ).strip()
 
         if self.title:
@@ -507,9 +561,9 @@ class AnsiMessage(HtmlMessage):
             return f"<details><summary>{self.title}</summary>{html_to_markdown(self.raw_html)}</details>"
         return html_to_markdown(self.raw_html)
 
-    def to_plain_text(self) -> str:
+    def _to_plain_text(self) -> str:
         """Get the process message."""
-        return self.to_markdown()
+        return _truncate_message_content(self.to_markdown(), settings.log_message_max_size)
 
 
 class AnsiProcessMessage(AnsiMessage):

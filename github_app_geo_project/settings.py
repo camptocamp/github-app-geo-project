@@ -468,6 +468,15 @@ class ApplicationSettings(BaseSettings):
     log_level_other: Annotated[LogLevel, Field(description="Log level for other (library) loggers")] = (
         LogLevel.WARNING
     )
+    log_message_max_size: Annotated[
+        int,
+        Field(
+            description=(
+                "Maximum size in characters of an HTML message content used in logs, "
+                "longer messages are truncated"
+            )
+        ),
+    ] = 10_000
     session_secret: Annotated[str, Field(description="Session secret")] = "change-me"  # noqa: S105
     configuration: Annotated[str | None, Field(description="Config YAML path")] = None
     sqlalchemy: Annotated[_SqlAlchemySettings, Field(description="Database settings")] = _SqlAlchemySettings()

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-08
+
+### Fixed
+
+- **Queue**: Fix the event loop blocked for minutes by huge `HtmlMessage` log entries (for example the `versions` module dumping the full pygments-highlighted transversal status JSON). `HtmlMessage.to_plain_text` used a throwaway `html_sanitizer.Sanitizer` whose final `lxml` cleaner pass called `drop_tag()` on every element, which is quadratic for highlighted contents with thousands of sibling `<span>`, and every message was fully sanitized twice (console handler + job logs handler). The job timeout could not fire while the loop was blocked and the watchdog reported `event loop is blocked`. The plain text extraction is now linear, based on `html.parser` from the standard library, and the `to_html` / `to_plain_text` conversion results are cached per message instance.
+
+### Added
+
+- **Settings**: New `log_message_max_size` setting (`GHCI__LOG_MESSAGE_MAX_SIZE`, default `10000` characters): the HTML message contents are truncated, with a `... truncated (original size: N characters)` marker, in the log conversion paths (`to_html`, `to_plain_text` and the escaped fallback).
+
 ## 2026-09-07
 
 ### Changed
