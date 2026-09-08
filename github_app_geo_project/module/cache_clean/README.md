@@ -24,7 +24,7 @@ The module uses `PRIORITY_CRON + 10` to ensure it runs after standard cron jobs.
 | `~/.cache/pip/`                  | pip                | `pip cache purge`, then delete if still over limit                                 |
 | `~/.cache/pypoetry/artifacts/`   | Poetry artifacts   | `poetry cache clear --all`, then delete if still over limit                        |
 | `~/.cache/pypoetry/virtualenvs/` | Poetry virtualenvs | Delete directly                                                                    |
-| `~/.pyenv/cache/`                | pyenv              | Delete directly                                                                    |
+| `${PYENV_ROOT}/cache/`           | pyenv              | Delete directly                                                                    |
 | `~/.cache/prek/`                 | prek               | Delete directly                                                                    |
 | `~/.npm/`                        | npm                | `npm cache clean`, then `npm cache clean --force`, then delete if still over limit |
 | `~/.cache/ghci/git/`             | Git worktree cache | `git worktree prune` + `git gc --auto --prune=all` on each cached repo             |
@@ -73,5 +73,5 @@ cache-max-size = 1000  # [Mo]
 The following directories should be persisted across worker pod restarts:
 
 - `~/.cache`
-- `~/.pyenv/cache`
+- `${PYENV_ROOT}/cache`
 - `~/.npm`

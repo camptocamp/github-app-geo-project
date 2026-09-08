@@ -4,6 +4,8 @@
 
 ### Fixed
 
+- **Docker**: Fix `pyenv` not found at runtime (`FileNotFoundError: 'pyenv'` in the `audit` module): the production worker pods mount an `emptyDir` volume on `/var/www/.pyenv`, masking the `pyenv` sources cloned at that path in the image. `pyenv` is now installed in `/opt/pyenv` (`PYENV_ROOT`), and only the `/opt/pyenv/versions` sub folder should be mounted as a volume in production, so the lazily installed Python versions still survive the container restarts without masking the `pyenv` sources. The image also bakes a bootstrap `python` shim (replaced by the real shims on the first `pyenv install`), so the Snyk `--command=<pyenv root>/shims/python` arguments always resolve.
+- **Cache clean**: The `pyenv` cache is cleaned at `<pyenv root>/cache` (based on `PYENV_ROOT`, `/opt/pyenv/cache` with the Docker image) instead of `~/.pyenv/cache`.
 - **Queue**: Fix the event loop blocked for minutes by huge `HtmlMessage` log entries (for example the `versions` module dumping the full pygments-highlighted transversal status JSON). `HtmlMessage.to_plain_text` used a throwaway `html_sanitizer.Sanitizer` whose final `lxml` cleaner pass called `drop_tag()` on every element, which is quadratic for highlighted contents with thousands of sibling `<span>`, and every message was fully sanitized twice (console handler + job logs handler). The job timeout could not fire while the loop was blocked and the watchdog reported `event loop is blocked`. The plain text extraction is now linear, based on `html.parser` from the standard library, and the `to_html` / `to_plain_text` conversion results are cached per message instance.
 
 ### Added
