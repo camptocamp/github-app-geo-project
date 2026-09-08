@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
@@ -178,6 +179,66 @@ def test_html_message_to_html_escape_on_sanitizer_error(monkeypatch: pytest.Monk
     assert '<div class="collapse" id="element11">' in html
     assert "Title &lt;b&gt;" in html
     assert "&lt;span style=&quot;color:red&quot;&gt;broken&lt;/span&gt; &lt; not-a-tag" in html
+
+
+def test_html_message_to_plain_text() -> None:
+    message = utils.HtmlMessage(
+        "<p>first &amp; line</p><p>second<br>third</p><span>span text</span>",
+        title="The title",
+    )
+    assert message.to_plain_text() == "The title\nfirst & line\nsecond\nthirdspan text"
+
+    message = utils.HtmlMessage("<div>visible</div><script>hidden()</script>-<style>also{}</style>end")
+    assert message.to_plain_text() == "visible-end"
+
+
+def test_html_message_to_plain_text_many_spans(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Check that the plain text extraction is linear, the old sanitizer based one was quadratic."""
+    monkeypatch.setattr(utils.settings, "log_message_max_size", 10_000_000)
+    content = "".join(f"<span>token {index}</span>" for index in range(30_000))
+    message = utils.HtmlMessage(f"<pre>{content}</pre>")
+
+    start = time.perf_counter()
+    text = message.to_plain_text()
+    elapsed = time.perf_counter() - start
+
+    assert "token 0" in text
+    assert "token 29999" in text
+    assert elapsed < 10
+
+
+def test_html_message_conversion_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    sanitize_calls: list[str] = []
+    original_sanitize = utils._SANITIZER.sanitize
+
+    def _counting_sanitize(html_content: str) -> str:
+        sanitize_calls.append(html_content)
+        return original_sanitize(html_content)
+
+    monkeypatch.setattr(utils._SANITIZER, "sanitize", _counting_sanitize)
+
+    message = utils.HtmlMessage("<p>content</p>", title="Title")
+    assert message.to_html(style="collapse") == message.to_html(style="collapse")
+    assert len(sanitize_calls) == 1
+    assert message.to_plain_text() == message.to_plain_text()
+
+
+def test_html_message_truncation(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(utils.settings, "log_message_max_size", 1_000)
+    message = utils.HtmlMessage("a" * 5_000, title="Title")
+
+    html = message.to_html()
+    assert "... truncated (original size: 5000 characters)" in html
+    assert len(html) < 2_000
+
+    text = message.to_plain_text()
+    assert "... truncated (original size: 5000 characters)" in text
+    assert len(text) < 2_000
+
+    ansi_message = utils.AnsiProcessMessage(["command"], 0, "line\n" * 500, "")
+    ansi_text = ansi_message.to_plain_text()
+    assert "truncated" in ansi_text
+    assert len(ansi_text) < 2_000
 
 
 def test_ansi_process_message() -> None:
