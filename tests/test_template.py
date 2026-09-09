@@ -16,8 +16,8 @@ from github_app_geo_project.templates import (
 
 _PACKAGE_DIR = anyio.Path(__file__).parent.parent / "github_app_geo_project"
 
-_ELEMENT_RE = re.compile(r"<(style|script)\b([^>]*)>")
-_STYLE_ATTRIBUTE_RE = re.compile(r"<[a-zA-Z][^>]*\sstyle\s*=")
+_ELEMENT_RE = re.compile(r"<(style|script)\b([^>]*)>", re.IGNORECASE)
+_STYLE_ATTRIBUTE_RE = re.compile(r"<[a-zA-Z][^>]*\sstyle\s*=", re.IGNORECASE)
 _NONCE_ATTRIBUTE = 'nonce="{{ nonce }}"'
 
 
