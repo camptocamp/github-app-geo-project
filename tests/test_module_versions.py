@@ -3,8 +3,10 @@
 import datetime
 import json
 import os
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock
 
+import anyio
 import githubkit.exception
 import pytest
 from aiointercept import aiointercept
@@ -18,6 +20,7 @@ from github_app_geo_project.module.versions import (
     _Dependency,
     _DependencyReverse,
     _EventData,
+    _get_dependencies,
     _IntermediateStatus,
     _is_supported,
     _order_versions,
@@ -2224,3 +2227,48 @@ async def test_process_archived_repository() -> None:
         owner="camptocamp",
         repo="archived-repo",
     )
+
+
+@pytest.mark.asyncio
+async def test_get_dependencies_node_options(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """_get_dependencies passes NODE_OPTIONS with the configured Node.js max old space size."""
+    from github_app_geo_project.module import versions as versions_module
+    from github_app_geo_project.module.utils import Message
+    from github_app_geo_project.settings import settings
+
+    captured_envs: list[dict[str, str] | None] = []
+
+    async def fake_run_timeout(
+        command: list[str],
+        env: dict[str, str] | None = None,
+        timeout: datetime.timedelta | int = 0,
+        success_message: str = "",
+        error_message: str = "",
+        timeout_message: str = "",
+        cwd: anyio.Path | None = None,
+        error: bool = True,
+    ) -> tuple[str | None, bool, Message | None]:
+        del command, timeout, success_message, error_message, timeout_message, cwd, error
+        captured_envs.append(env)
+        return "", True, None
+
+    monkeypatch.setattr(versions_module.module_utils, "run_timeout", fake_run_timeout)
+    monkeypatch.delenv("TEST", raising=False)
+
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    out_dir = cwd / "renovate-graph-out"
+    out_dir.mkdir()
+    (out_dir / "github-camptocamp-test.json").write_text(json.dumps({"packageData": {}}), encoding="utf-8")
+
+    context = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "test"
+    context.github_project.token = "token"
+
+    result: dict[str, _TransversalStatusNameInDatasource] = {}
+    await _get_dependencies(context, result, anyio.Path(cwd), anyio.Path(out_dir))
+
+    expected_mb = settings.versions.renovate_graph_max_old_space_size // (1024**2)
+    assert captured_envs[0] is not None
+    assert captured_envs[0]["NODE_OPTIONS"] == f"--max-old-space-size={expected_mb}"

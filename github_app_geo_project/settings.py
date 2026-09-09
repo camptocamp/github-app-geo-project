@@ -396,6 +396,10 @@ class _VersionsSettings(BaseModel):
     renovate_graph_log_level: Annotated[RenovateLogLevel, Field(description="Renovate graph log level")] = (
         RenovateLogLevel.INFO
     )
+    renovate_graph_max_old_space_size: Annotated[
+        DataSize,
+        Field(description="Renovate graph Node.js max old space size (--max-old-space-size)"),
+    ] = parse_data_size("3G")
     external_packages_update_period: Annotated[Duration, Field(description="Update period")] = (
         datetime.timedelta(days=30)
     )
