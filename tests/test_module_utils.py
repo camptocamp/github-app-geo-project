@@ -163,6 +163,22 @@ def test_html_to_markdown() -> None:
     assert utils.html_to_markdown(html) == expected
 
 
+def test_sanitizer_removes_the_style_attributes() -> None:
+    """The inline style attributes are not allowed by the Content-Security-Policy of the UI."""
+    message = utils.HtmlMessage(
+        '<p style="color:red" class="a">text</p>'
+        '<span style="font-weight: bold">bold</span>'
+        '<a href="/link" style="color:blue" title="the title">link</a>',
+    )
+
+    html = message.to_html(style="no-title")
+
+    assert "style=" not in html
+    assert '<p class="a">text</p>' in html
+    assert "<span>bold</span>" in html
+    assert '<a href="/link" title="the title">link</a>' in html
+
+
 def test_html_message_to_html_escape_on_sanitizer_error(monkeypatch: pytest.MonkeyPatch) -> None:
     def _failing_sanitize(_: str) -> str:
         raise ValueError("Invalid tag name")

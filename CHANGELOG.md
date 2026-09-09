@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-09
+
+### Fixed
+
+- **UI**: The inline `<style>` element of the `versions` module repository dashboard (`/dashboard/versions?repository=<owner>/<repository>`) had no `nonce`, its rules (for example `.dep-unsupported`) were then blocked by the `style-src-elem` Content-Security-Policy directive. The dashboard view now transmits `request.state.nonce` to the module renderers: `render_template` has a new `nonce` parameter because the `Jinja2Templates` context processors are not applied to the `jinja2.Environment` it builds. This also fixes the `audit` module dashboard styles, which were rendered with an empty `nonce` and then blocked too.
+- **UI**: The inline `style` attributes are no more emitted: the `limit` input of the `jobs` page filter form uses a rule of the `head_styles` block, and the HTML sanitizer no more allows the `style` attribute on the `a`, `span`, `p`, `div` and `em` elements. The inline style attributes cannot be nonced, they were already blocked by the Content-Security-Policy and allowing them would require an `'unsafe-inline'` source.
+
 ## 2026-09-08
 
 ### Fixed

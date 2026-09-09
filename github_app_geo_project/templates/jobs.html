@@ -45,6 +45,9 @@ div.alert-danger a[data-bs-toggle="tooltip"] {
 .filter-form {
   margin-bottom: 1rem;
 }
+.filter-form #limit {
+  width: 100px;
+}
 {% endblock %}
 <!---->
 {% block content %}
@@ -86,7 +89,7 @@ div.alert-danger a[data-bs-toggle="tooltip"] {
   </div>
   <div class="col-auto">
     <label for="limit" class="col-form-label">Limit</label>
-    <input type="number" id="limit" name="limit" class="form-control" value="{{ limit | default(50) }}" style="width: 100px" />
+    <input type="number" id="limit" name="limit" class="form-control" value="{{ limit | default(50) }}" />
   </div>
   <div class="col-auto d-flex align-items-end">
     <button type="submit" class="btn btn-primary">Filter</button>

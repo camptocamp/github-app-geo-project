@@ -92,8 +92,15 @@ def pprint_duration(duration: datetime.timedelta | None) -> str:
     return f"{round(duration.total_seconds() / 86400)} day{plural}"
 
 
-async def render_template(renderer: str, data: dict[str, Any]) -> str:
-    """Render a template from a renderer string in the format 'package:path'."""
+async def render_template(renderer: str, data: dict[str, Any], nonce: str = "") -> str:
+    """
+    Render a template from a renderer string in the format 'package:path'.
+
+    The nonce is the CSP nonce of the current request, it must be added to the inline
+    `<style>` and `<script>` elements of the rendered template. It cannot be provided by
+    the `Jinja2Templates` context processors because this function uses its own
+    `jinja2.Environment`.
+    """
     package, path = renderer.split(":", 1)
     package_dir = anyio.Path(__file__).parent.parent.parent / package
     template_path = package_dir / path
@@ -108,4 +115,4 @@ async def render_template(renderer: str, data: dict[str, Any]) -> str:
     env.filters["pprint_full_date"] = pprint_full_date
     env.filters["pprint_duration"] = pprint_duration
     template = env.get_template(template_path.name)
-    return template.render(data)
+    return template.render({**data, "nonce": nonce})

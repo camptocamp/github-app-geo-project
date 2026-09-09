@@ -1,8 +1,63 @@
 # Copyright (c) 2026, Camptocamp SA
 
+import re
 from datetime import UTC, datetime, timedelta
 
-from github_app_geo_project.templates import markdown, pprint_date, pprint_duration, sanitizer
+import anyio
+import pytest
+
+from github_app_geo_project.templates import (
+    markdown,
+    pprint_date,
+    pprint_duration,
+    render_template,
+    sanitizer,
+)
+
+_PACKAGE_DIR = anyio.Path(__file__).parent.parent / "github_app_geo_project"
+
+_ELEMENT_RE = re.compile(r"<(style|script)\b([^>]*)>", re.IGNORECASE)
+_STYLE_ATTRIBUTE_RE = re.compile(r"<[a-zA-Z][^>]*\sstyle\s*=", re.IGNORECASE)
+_NONCE_ATTRIBUTE = 'nonce="{{ nonce }}"'
+
+
+@pytest.mark.asyncio
+async def test_render_template_nonce() -> None:
+    """The module templates must receive the Content-Security-Policy nonce of the request."""
+    html = await render_template(
+        "github_app_geo_project:module/versions/repository.html",
+        {"url": "https://example.com/owner/repository", "branches": [], "data": "{}"},
+        nonce="the-nonce",
+    )
+
+    assert '<style nonce="the-nonce">' in html
+
+
+@pytest.mark.asyncio
+async def test_templates_content_security_policy() -> None:
+    """
+    Check the Content-Security-Policy compliance of the templates.
+
+    The inline `<style>` and `<script>` elements must have the nonce, and the inline `style`
+    attributes are forbidden because they cannot be nonced (that would require `'unsafe-inline'`).
+    """
+    errors: list[str] = []
+    async for template in _PACKAGE_DIR.rglob("*.html"):
+        content = await template.read_text(encoding="utf-8")
+        for element in _ELEMENT_RE.finditer(content):
+            attributes = element.group(2)
+            if "src=" in attributes:
+                continue
+            if _NONCE_ATTRIBUTE not in attributes:
+                errors.append(f"{template}: <{element.group(1)}> without the nonce")
+        errors.extend(
+            [
+                f"{template}: inline style attribute: {style_attribute.group(0)}"
+                for style_attribute in _STYLE_ATTRIBUTE_RE.finditer(content)
+            ],
+        )
+
+    assert errors == []
 
 
 def test_sanitizer() -> None:
