@@ -2,6 +2,14 @@
 
 ## 2026-09-09
 
+### Added
+
+- **Settings**: New `renovate_graph_max_old_space_size` setting (`GHCI__VERSIONS__RENOVATE_GRAPH_MAX_OLD_SPACE_SIZE`, default `3G`): the Node.js V8 heap limit (`--max-old-space-size`) used when running `renovate-graph`. It is passed via `NODE_OPTIONS` so the subprocess is not limited by Node.js's default heap size, which is derived from the host available memory (not the container limit) and can be lower than what big repositories need.
+
+### Fixed
+
+- **Versions**: Fix `renovate-graph` crashing with `FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory` (return code `-6`, a V8 heap abort, not a Kubernetes/container OOM kill) on large repositories. The subprocess is now run with `NODE_OPTIONS=--max-old-space-size=<MB>` derived from the `renovate_graph_max_old_space_size` setting.
+
 ### Changed
 
 - **Utils**: The subprocess log messages (`AnsiProcessMessage`) no more list the environment variables that are identical to the system ones. Since callers usually build the subprocess environment from a copy of `os.environ` plus a few overrides, only the added or overridden variables are now shown in the `Environment variable` section (the `TOKEN`/`KEY`/`SECRET` masking is preserved), which removes a lot of noise from the job logs.
