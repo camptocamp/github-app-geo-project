@@ -2,6 +2,10 @@
 
 ## 2026-09-09
 
+### Changed
+
+- **Utils**: The subprocess log messages (`AnsiProcessMessage`) no more list the environment variables that are identical to the system ones. Since callers usually build the subprocess environment from a copy of `os.environ` plus a few overrides, only the added or overridden variables are now shown in the `Environment variable` section (the `TOKEN`/`KEY`/`SECRET` masking is preserved), which removes a lot of noise from the job logs.
+
 ### Fixed
 
 - **UI**: The inline `<style>` element of the `versions` module repository dashboard (`/dashboard/versions?repository=<owner>/<repository>`) had no `nonce`, its rules (for example `.dep-unsupported`) were then blocked by the `style-src-elem` Content-Security-Policy directive. The dashboard view now transmits `request.state.nonce` to the module renderers: `render_template` has a new `nonce` parameter because the `Jinja2Templates` context processors are not applied to the `jinja2.Environment` it builds. This also fixes the `audit` module dashboard styles, which were rendered with an empty `nonce` and then blocked too.

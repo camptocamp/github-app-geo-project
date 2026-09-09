@@ -296,6 +296,69 @@ message</pre>"""
     )
 
 
+def test_sanitize_command_env_filters_system_identical(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Environment variables identical to the system ones must be dropped from the logs."""
+    monkeypatch.setenv("GHCI_TEST_SAME", "same-value")
+    monkeypatch.setenv("GHCI_TEST_OVERRIDDEN", "system-value")
+    monkeypatch.setenv("GHCI_TEST_SECRET_TOKEN", "system-token")
+    monkeypatch.delenv("GHCI_TEST_ADDED", raising=False)
+    monkeypatch.delenv("GHCI_TEST_NEW_TOKEN", raising=False)
+
+    env = {
+        "GHCI_TEST_SAME": "same-value",
+        "GHCI_TEST_OVERRIDDEN": "new-value",
+        "GHCI_TEST_ADDED": "added-value",
+        "GHCI_TEST_SECRET_TOKEN": "system-token",
+        "GHCI_TEST_NEW_TOKEN": "new-token",
+    }
+
+    result = utils._sanitize_command_env(env)
+
+    assert result == {
+        "GHCI_TEST_OVERRIDDEN": "new-value",
+        "GHCI_TEST_ADDED": "added-value",
+        "GHCI_TEST_NEW_TOKEN": "***",
+    }
+
+
+def test_ansi_process_message_omits_system_identical_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When every variable matches the system env, the environment section is not rendered."""
+    monkeypatch.setenv("GHCI_TEST_INHERITED", "inherited-value")
+
+    message = utils.AnsiProcessMessage(
+        ["command"],
+        0,
+        "stdout",
+        "",
+        env={"GHCI_TEST_INHERITED": "inherited-value"},
+    )
+
+    assert message.env == {}
+    assert "Environment variable" not in message.to_plain_text()
+    assert "Environment variables" not in message.to_markdown()
+
+
+def test_ansi_process_message_keeps_overridden_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only added/overridden variables are rendered in the environment section."""
+    monkeypatch.setenv("GHCI_TEST_INHERITED", "inherited-value")
+    monkeypatch.setenv("GHCI_TEST_OVERRIDDEN", "system-value")
+
+    message = utils.AnsiProcessMessage(
+        ["command"],
+        0,
+        "stdout",
+        "",
+        env={
+            "GHCI_TEST_INHERITED": "inherited-value",
+            "GHCI_TEST_OVERRIDDEN": "new-value",
+        },
+    )
+
+    assert message.env == {"GHCI_TEST_OVERRIDDEN": "new-value"}
+    assert "GHCI_TEST_OVERRIDDEN: new-value" in message.to_markdown()
+    assert "GHCI_TEST_INHERITED" not in message.to_markdown()
+
+
 def test_manage_updated_separated():
     updated = {
         "key2": datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=23),
