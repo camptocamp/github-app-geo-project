@@ -267,15 +267,15 @@ async def output_route(request: Request, data: OutputByNameData) -> HTMLResponse
     renderer = data.pop("renderer", None)
     renderer_data = data.pop("renderer_data", None)
     data.pop("request", None)
+    nonce = getattr(request.state, "nonce", "")
     template_kwargs = {**data}
     if renderer_data:
         template_kwargs["renderer_data"] = renderer_data
-    template_kwargs["nonce"] = getattr(request.state, "nonce", "")
-    html = await render_template(renderer, template_kwargs)
+    html = await render_template(renderer, template_kwargs, nonce=nonce)
     return templates.TemplateResponse(
         request,
         "output.html",
-        {**data, "html": html, "nonce": getattr(request.state, "nonce", "")},
+        {**data, "html": html, "nonce": nonce},
     )
 
 

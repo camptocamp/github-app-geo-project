@@ -56,7 +56,11 @@ async def dashboard(
         data.setdefault("styles", HTML_FORMATTER.get_style_defs())
 
         if output.renderer:
-            data["html"] = await render_template(output.renderer, data)
+            data["html"] = await render_template(
+                output.renderer,
+                data,
+                nonce=getattr(request.state, "nonce", ""),
+            )
 
     return {
         "request": request,

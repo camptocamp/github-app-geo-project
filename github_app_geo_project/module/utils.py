@@ -39,6 +39,9 @@ _ANSI_STYLES = get_styles()
 
 _SANITIZER_SETTINGS: dict[str, Any] = {
     "tags": html_sanitizer.sanitizer.DEFAULT_SETTINGS["tags"] | {"span", "div", "pre", "code"},
+    # The `style` attribute is not allowed: the UI Content-Security-Policy only allows
+    # nonce based `style-src-elem`, and inline style attributes cannot be nonced
+    # (they would require the `'unsafe-inline'` source).
     "attributes": {
         "a": (
             "id",
@@ -47,17 +50,16 @@ _SANITIZER_SETTINGS: dict[str, Any] = {
             "target",
             "title",
             "rel",
-            "style",
             "class",
             "data-bs-toggle",
             "role",
             "aria-expanded",
             "aria-controls",
         ),
-        "span": ("id", "style", "class"),
-        "p": ("id", "style", "class"),
-        "div": ("id", "style", "class"),
-        "em": ("id", "style", "class"),
+        "span": ("id", "class"),
+        "p": ("id", "class"),
+        "div": ("id", "class"),
+        "em": ("id", "class"),
     },
     "separate": html_sanitizer.sanitizer.DEFAULT_SETTINGS["separate"] | {"pre", "code", "span", "div", "em"},
     "empty": {"hr", "br"},
