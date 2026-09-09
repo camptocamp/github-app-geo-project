@@ -171,6 +171,10 @@ def _sanitize_command_env(env: dict[str, str] | None) -> dict[str, str]:
         return {}
     result = {}
     for name, value in env.items():
+        # Skip the variables that are identical to the system ones: they are inherited
+        # unchanged and only add noise to the logs, keep just the added/overridden ones.
+        if os.environ.get(name) == value:
+            continue
         name_split = name.upper().split("_")
         if "TOKEN" in name_split or "KEY" in name_split or "SECRET" in name_split:
             result[name] = "***"
