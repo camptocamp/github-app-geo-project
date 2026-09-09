@@ -9,6 +9,7 @@
 ### Fixed
 
 - **Versions**: Fix `renovate-graph` crashing with `FATAL ERROR: Ineffective mark-compacts near heap limit Allocation failed - JavaScript heap out of memory` (return code `-6`, a V8 heap abort, not a Kubernetes/container OOM kill) on large repositories. The subprocess is now run with `NODE_OPTIONS=--max-old-space-size=<MB>` derived from the `renovate_graph_max_old_space_size` setting.
+- **Versions**: The `renovate-graph` executions are now serialized by an in-process lock: each instance can use up to `renovate_graph_max_old_space_size` (default `3G`) of Node.js heap, so two concurrent runs could exhaust the container memory. A `versions` job that needs `renovate-graph` while another one is running now waits for it to finish (a debug message is logged while waiting).
 
 ### Changed
 
