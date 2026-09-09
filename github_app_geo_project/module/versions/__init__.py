@@ -37,6 +37,11 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+# Don't run renovate-graph in parallel: each instance can use up to
+# settings.versions.renovate_graph_max_old_space_size of Node.js heap, so two
+# concurrent runs can exhaust the container memory.
+_RENOVATE_GRAPH_LOCK = asyncio.Lock()
+
 _UNSUPPORTED_CLASS = "dep-unsupported"
 _SUPPORTED_CLASS = "dep-supported"
 
@@ -1154,28 +1159,31 @@ async def _get_dependencies(
         github_project = context.github_project
         command = ["/app/node_modules/.bin/renovate-graph", "--platform=local"]
         error_message = "Failed to get the dependencies"
-        _, success, _ = await module_utils.run_timeout(
-            command,
-            env={
-                "RG_LOCAL_PLATFORM": "github",
-                "RG_LOCAL_ORGANISATION": github_project.owner,
-                "RG_LOCAL_REPO": github_project.repository,
-                "OUT_DIR": str(out_dir),
-                "RENOVATE_GITHUB_COM_TOKEN": github_project.token,
-                "LOG_LEVEL": settings.versions.renovate_graph_log_level,
-                "RENOVATE_REQUIRE_CONFIG": "required",
-                # Without this, Node.js uses its own default V8 heap limit
-                # (based on the host available memory, not the container limit)
-                # and renovate-graph can die with a JavaScript heap OOM.
-                "NODE_OPTIONS": "--max-old-space-size="
-                f"{settings.versions.renovate_graph_max_old_space_size // (1024**2)}",
-            },
-            timeout=settings.versions.timeouts.renovate,
-            success_message="Got the dependencies",
-            error_message=error_message,
-            timeout_message="Timeout to get the dependencies",
-            cwd=cwd,
-        )
+        if _RENOVATE_GRAPH_LOCK.locked():
+            _LOGGER.debug("Waiting for another renovate-graph to finish")
+        async with _RENOVATE_GRAPH_LOCK:
+            _, success, _ = await module_utils.run_timeout(
+                command,
+                env={
+                    "RG_LOCAL_PLATFORM": "github",
+                    "RG_LOCAL_ORGANISATION": github_project.owner,
+                    "RG_LOCAL_REPO": github_project.repository,
+                    "OUT_DIR": str(out_dir),
+                    "RENOVATE_GITHUB_COM_TOKEN": github_project.token,
+                    "LOG_LEVEL": settings.versions.renovate_graph_log_level,
+                    "RENOVATE_REQUIRE_CONFIG": "required",
+                    # Without this, Node.js uses its own default V8 heap limit
+                    # (based on the host available memory, not the container limit)
+                    # and renovate-graph can die with a JavaScript heap OOM.
+                    "NODE_OPTIONS": "--max-old-space-size="
+                    f"{settings.versions.renovate_graph_max_old_space_size // (1024**2)}",
+                },
+                timeout=settings.versions.timeouts.renovate,
+                success_message="Got the dependencies",
+                error_message=error_message,
+                timeout_message="Timeout to get the dependencies",
+                cwd=cwd,
+            )
         if not success:
             raise GHCIError(error_message)
 

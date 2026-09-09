@@ -1,5 +1,6 @@
 # Copyright (c) 2026, Camptocamp SA
 
+import asyncio
 import datetime
 import json
 import os
@@ -2272,3 +2273,62 @@ async def test_get_dependencies_node_options(tmp_path: Path, monkeypatch: pytest
     expected_mb = settings.versions.renovate_graph_max_old_space_size // (1024**2)
     assert captured_envs[0] is not None
     assert captured_envs[0]["NODE_OPTIONS"] == f"--max-old-space-size={expected_mb}"
+
+
+@pytest.mark.asyncio
+async def test_get_dependencies_serialized(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two concurrent _get_dependencies calls never run renovate-graph in parallel."""
+    from github_app_geo_project.module import versions as versions_module
+    from github_app_geo_project.module.utils import Message
+
+    # Fresh lock bound to this test's event loop, avoiding cross-test loop binding.
+    monkeypatch.setattr(versions_module, "_RENOVATE_GRAPH_LOCK", asyncio.Lock())
+
+    active = 0
+    max_active = 0
+
+    async def fake_run_timeout(
+        command: list[str],
+        env: dict[str, str] | None = None,
+        timeout: datetime.timedelta | int = 0,
+        success_message: str = "",
+        error_message: str = "",
+        timeout_message: str = "",
+        cwd: anyio.Path | None = None,
+        error: bool = True,
+    ) -> tuple[str | None, bool, Message | None]:
+        del env, timeout, success_message, error_message, timeout_message, cwd, error
+        nonlocal active, max_active
+        if command and command[0].endswith("renovate-graph"):
+            active += 1
+            max_active = max(max_active, active)
+            # Long enough that both calls overlap if they are not serialized.
+            await asyncio.sleep(0.05)
+            active -= 1
+        return "", True, None
+
+    monkeypatch.setattr(versions_module.module_utils, "run_timeout", fake_run_timeout)
+    monkeypatch.delenv("TEST", raising=False)
+
+    contexts = []
+    calls = []
+    for index in range(2):
+        cwd = tmp_path / f"repo{index}"
+        cwd.mkdir()
+        out_dir = cwd / "renovate-graph-out"
+        out_dir.mkdir()
+        (out_dir / "github-camptocamp-test.json").write_text(
+            json.dumps({"packageData": {}}),
+            encoding="utf-8",
+        )
+        context = Mock()
+        context.github_project.owner = "camptocamp"
+        context.github_project.repository = "test"
+        context.github_project.token = "token"
+        result: dict[str, _TransversalStatusNameInDatasource] = {}
+        contexts.append(context)
+        calls.append(_get_dependencies(context, result, anyio.Path(cwd), anyio.Path(out_dir)))
+
+    await asyncio.gather(*calls)
+
+    assert max_active == 1

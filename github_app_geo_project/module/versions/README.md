@@ -19,5 +19,6 @@ You can configure the versions module using the `.github/ghci.yaml` file.
 - Ensure the [`SECURITY.md`](https://github.com/camptocamp/c2cciutils/wiki/SECURITY.md) file from default branch is up-to-date to accurately reflect stabilization branches.
 - Use Renovate to automate dependency updates and reduce maintenance overhead.
 - Regularly review the dashboard to identify outdated or vulnerable dependencies.
+- The `renovate-graph` executions are serialized (never two in parallel, `_RENOVATE_GRAPH_LOCK`) because each one can use up to `GHCI__VERSIONS__RENOVATE_GRAPH_MAX_OLD_SPACE_SIZE` (default: `3G`) of memory; a concurrent job waits for the running one to finish.
 
 [Configuration reference](https://github.com/camptocamp/github-app-geo-project/blob/master/VERSIONS-CONFIG.md).
