@@ -72,38 +72,40 @@ def parse_duration(text: str | datetime.timedelta) -> datetime.timedelta:
 
 Duration = Annotated[datetime.timedelta, BeforeValidator(parse_duration)]
 
-_DATA_SIZE_RE = re.compile(r"^(\d+)([kKMGT]?)([i]?[bBo]?)$")
+_SI_UNIT_RE = re.compile(r"^(\d+(?:\.\d+)?)([kKMGT]?)(i)?([a-zA-Z]?)$")
 
 
-def parse_data_size(text: str | int) -> int:
+def parse_si_unit(text: str | float) -> float:
     """
-    Parse a data size string to bytes.
+    Parse an SI unit string to bytes.
 
-    Supports units: B/o (bytes), K/KB/KiB (kibibytes), M/MB/MiB (mebibytes),
-    G/GB/GiB (gigabytes), T/TB/TiB (terabytes).
+    Decimal prefixes (`K`/`KB`, `M`/`MB`, `G`/`GB`, `T`/`TB`) use a multiplier of 1000,
+    binary prefixes (`Ki`/`KiB`, `Mi`/`MiB`, `Gi`/`GiB`, `Ti`/`TiB`) use a multiplier of 1024.
+    The trailing unit letter is ignored (`B`, `o`, ...), fractional values are supported.
 
-    Examples: 1000, 1000M, 2G, 500MiB, 1T
+    Examples: 1000, 1000M, 1.5G, 2Go, 500MiB, 1T
     """
-    if isinstance(text, int):
-        return text
-    match = _DATA_SIZE_RE.match(text.strip())
+    if isinstance(text, (int, float)):
+        return float(text)
+    match = _SI_UNIT_RE.match(text.strip())
     if not match:
-        message = f"Invalid data size: {text}"
+        message = f"Invalid SI unit: {text}"
         raise ValueError(message)
-    value = int(match.group(1))
+    value = float(match.group(1))
     prefix = match.group(2)
+    base = 1024 if match.group(3) else 1000
     unit_map: dict[str, int] = {
         "": 1,
-        "k": 1024,
-        "K": 1024,
-        "M": 1024**2,
-        "G": 1024**3,
-        "T": 1024**4,
+        "k": base,
+        "K": base,
+        "M": base**2,
+        "G": base**3,
+        "T": base**4,
     }
     return value * unit_map[prefix]
 
 
-DataSize = Annotated[int, BeforeValidator(parse_data_size)]
+SiUnit = Annotated[float, BeforeValidator(parse_si_unit)]
 
 
 def _json_loads(value: str | dict[str, Any]) -> dict[str, Any]:
@@ -397,9 +399,9 @@ class _VersionsSettings(BaseModel):
         RenovateLogLevel.INFO
     )
     renovate_graph_max_old_space_size: Annotated[
-        DataSize,
+        SiUnit,
         Field(description="Renovate graph Node.js max old space size (--max-old-space-size)"),
-    ] = parse_data_size("3G")
+    ] = parse_si_unit("3G")
     external_packages_update_period: Annotated[Duration, Field(description="Update period")] = (
         datetime.timedelta(days=30)
     )
@@ -409,19 +411,17 @@ class _VersionsSettings(BaseModel):
 class _CacheCleanSettings(BaseModel):
     """Cache clean thresholds."""
 
-    pip_max_size: Annotated[DataSize, Field(description="Max size for pip cache")] = parse_data_size("1000M")
-    poetry_artifacts_max_size: Annotated[DataSize, Field(description="Max size for poetry artifacts")] = (
-        parse_data_size("500M")
+    pip_max_size: Annotated[SiUnit, Field(description="Max size for pip cache")] = parse_si_unit("1000M")
+    poetry_artifacts_max_size: Annotated[SiUnit, Field(description="Max size for poetry artifacts")] = (
+        parse_si_unit("500M")
     )
-    poetry_virtualenvs_max_size: Annotated[DataSize, Field(description="Max size for poetry virtualenvs")] = (
-        parse_data_size("500M")
+    poetry_virtualenvs_max_size: Annotated[SiUnit, Field(description="Max size for poetry virtualenvs")] = (
+        parse_si_unit("500M")
     )
-    pyenv_max_size: Annotated[DataSize, Field(description="Max size for pyenv cache")] = parse_data_size(
-        "200M"
-    )
-    prek_max_size: Annotated[DataSize, Field(description="Max size for prek cache")] = parse_data_size("200M")
-    npm_max_size: Annotated[DataSize, Field(description="Max size for npm cache")] = parse_data_size("500M")
-    log_max: Annotated[DataSize, Field(description="Max size of log file")] = parse_data_size("10M")
+    pyenv_max_size: Annotated[SiUnit, Field(description="Max size for pyenv cache")] = parse_si_unit("200M")
+    prek_max_size: Annotated[SiUnit, Field(description="Max size for prek cache")] = parse_si_unit("200M")
+    npm_max_size: Annotated[SiUnit, Field(description="Max size for npm cache")] = parse_si_unit("500M")
+    log_max: Annotated[SiUnit, Field(description="Max size of log file")] = parse_si_unit("10M")
     log_backup_count: Annotated[int, Field(description="Number of backup log files")] = 5
     timeouts: Annotated[_CacheCleanTimeouts, Field(description="Cache clean timeouts")] = (
         _CacheCleanTimeouts()

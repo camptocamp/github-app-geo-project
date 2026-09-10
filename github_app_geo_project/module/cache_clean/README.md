@@ -45,10 +45,11 @@ Thresholds are configured via environment variables in the
 | `GHCI__CACHE_CLEAN__LOG_MAX`                     | `10M`   | Max size of log file            |
 | `GHCI__CACHE_CLEAN__LOG_BACKUP_COUNT`            | `5`     | Number of backup log files      |
 
-Values are specified as a number followed by a unit:
-`B`/`o` (bytes), `K`/`KB`/`KiB` (kibibytes), `M`/`MB`/`MiB` (mebibytes),
-`G`/`GB`/`GiB` (gigabytes), `T`/`TB`/`TiB` (terabytes).
-A plain number without unit is treated as bytes.
+Values are specified as a number followed by a unit.
+Decimal prefixes (`K`/`KB`, `M`/`MB`, `G`/`GB`, `T`/`TB`) use a multiplier of 1000,
+binary prefixes (`Ki`/`KiB`, `Mi`/`MiB`, `Gi`/`GiB`, `Ti`/`TiB`) use a multiplier of 1024.
+The trailing unit letter is ignored (`B`, `o`, ...), fractional values are supported
+(for example `1.5G`). A plain number without unit is treated as bytes.
 
 ## Logging
 

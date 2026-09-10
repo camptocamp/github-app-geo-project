@@ -2270,7 +2270,7 @@ async def test_get_dependencies_node_options(tmp_path: Path, monkeypatch: pytest
     result: dict[str, _TransversalStatusNameInDatasource] = {}
     await _get_dependencies(context, result, anyio.Path(cwd), anyio.Path(out_dir))
 
-    expected_mb = settings.versions.renovate_graph_max_old_space_size // (1024**2)
+    expected_mb = int(settings.versions.renovate_graph_max_old_space_size // (1024**2))
     assert captured_envs[0] is not None
     assert captured_envs[0]["NODE_OPTIONS"] == f"--max-old-space-size={expected_mb}"
 
