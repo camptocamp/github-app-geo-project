@@ -103,7 +103,7 @@ class CacheConfig:
     def __init__(
         self,
         path: anyio.Path,
-        max_size: int,
+        max_size: float,
         commands: list[CacheCommand],
         delete: bool,
         label: str,
@@ -186,7 +186,7 @@ async def _setup_logger() -> None:
 
     file_handler = logging.handlers.RotatingFileHandler(
         log_path,
-        maxBytes=settings.cache_clean.log_max,
+        maxBytes=int(settings.cache_clean.log_max),
         backupCount=settings.cache_clean.log_backup_count,
     )
     file_handler.setFormatter(

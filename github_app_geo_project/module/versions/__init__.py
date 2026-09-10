@@ -1176,7 +1176,7 @@ async def _get_dependencies(
                     # (based on the host available memory, not the container limit)
                     # and renovate-graph can die with a JavaScript heap OOM.
                     "NODE_OPTIONS": "--max-old-space-size="
-                    f"{settings.versions.renovate_graph_max_old_space_size // (1024**2)}",
+                    f"{int(settings.versions.renovate_graph_max_old_space_size // (1024**2))}",
                 },
                 timeout=settings.versions.timeouts.renovate,
                 success_message="Got the dependencies",

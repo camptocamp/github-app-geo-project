@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-10
+
+### Changed
+
+- **Settings**: `parse_data_size` is renamed to `parse_si_unit` and returns a `float` instead of an `int`. It accepts fractional values (`1.5G`), any trailing unit letter (ignored: `Mo`, `Go`, `MiB`, `Tb`, ...), and uses a multiplier of `1000` when the `i` is absent (SI prefixes: `K`/`KB`, `M`/`MB`, `G`/`GB`, `T`/`TB`) or `1024` when it is present (binary prefixes: `Ki`/`KiB`, `Mi`/`MiB`, `Gi`/`GiB`, `Ti`/`TiB`). The `DataSize` type is renamed to `SiUnit`, and the settings using it (`renovate_graph_max_old_space_size`, the `cache_clean` `*_max_size` and `log_max`) are now floats, which changes their default effective values (for example `3G`: `3221225472` → `3000000000` bytes, `1000M`: `1048576000` → `1000000000` bytes).
+
 ## 2026-09-09
 
 ### Added
