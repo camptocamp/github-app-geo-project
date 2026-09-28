@@ -77,6 +77,15 @@ The Snyk/dpkg fan-out job additionally prunes the transversal dashboard entries 
 
 The `cleanup` job reports the resulting situation in the output of its check run (`Cleanup: Everything is clean`, or `Cleanup: N leftover(s) removed` with the details of what was removed) and as a `Cleanup` entry in the transversal dashboard.
 
+#### Snyk cloud cleanup
+
+When the Snyk REST API is configured (`snyk_token`/`SNYK_TOKEN` and `snyk_org`/`SNYK_ORG`, kill switch `GHCI__AUDIT__SNYK_API_CLEANUP`), the module also cleans the Snyk cloud side, which is structured as Target → Reference → Project:
+
+- After each successful `snyk monitor`, the projects of the branch reference that were not refreshed by the run (dependency files that are not scanned anymore) are deleted. A reference always contains exactly the current dependency files, without recreating the projects every day.
+- The daily `cleanup` job deletes all the projects whose `target_reference` is a version that is not in `SECURITY.md` anymore (all the references of the repository when `SECURITY.md` is removed). A reference that does not contain any project anymore disappears from the Snyk UI.
+
+Only the projects with the `cli` origin are deleted. The cleanup is best-effort: API errors are logged and never fail the audit job, and without a token or organization configured it is silently skipped. The removed references are part of the `cleanup` job clean situation report.
+
 ### Configuration Options
 
 You can configure the audit module behavior through the `.github/ghci.yaml` file.
