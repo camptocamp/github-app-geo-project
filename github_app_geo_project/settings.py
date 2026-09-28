@@ -137,6 +137,9 @@ class _AuditTimeouts(BaseModel):
         seconds=10
     )
     npm_audit: Annotated[Duration, Field(description="npm audit timeout")] = datetime.timedelta(minutes=5)
+    node_install: Annotated[Duration, Field(description="fnm Node.js install timeout")] = datetime.timedelta(
+        minutes=10
+    )
     pyenv_local: Annotated[Duration, Field(description="pyenv local timeout")] = datetime.timedelta(minutes=5)
     python_version: Annotated[Duration, Field(description="python --version timeout")] = datetime.timedelta(
         seconds=5

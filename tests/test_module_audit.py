@@ -2,6 +2,7 @@
 
 """Tests for the audit module."""
 
+import asyncio
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -11,6 +12,7 @@ import pytest
 
 from github_app_geo_project import module
 from github_app_geo_project.module.audit import Audit, _EventData, _process_renovate
+from github_app_geo_project.module.audit import utils as audit_utils
 from github_app_geo_project.module.audit.utils import VulnerabilityData
 
 
@@ -668,3 +670,199 @@ async def test_use_python_version_lazy_install(monkeypatch: pytest.MonkeyPatch, 
 
     mock_ensure.assert_awaited_once_with("3.12")
     assert str(bin_dir) in env["PATH"]
+
+
+def test_get_fnm_root_env_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """get_fnm_root should honor the FNM_DIR environment variable."""
+    monkeypatch.setenv("FNM_DIR", str(tmp_path / "custom-fnm"))
+
+    assert str(audit_utils.get_fnm_root()) == str(tmp_path / "custom-fnm")
+
+
+@pytest.mark.asyncio
+async def test_find_node_version_spec_nvmrc_priority(tmp_path: Path) -> None:
+    """`.nvmrc` should take precedence over `.node-version` and `.tool-versions`."""
+    (tmp_path / ".nvmrc").write_text("24\n")
+    (tmp_path / ".node-version").write_text("20.11.0\n")
+    (tmp_path / ".tool-versions").write_text("nodejs 18.20.0\n")
+
+    assert await audit_utils.find_node_version_spec(anyio.Path(str(tmp_path))) == "24"
+
+
+@pytest.mark.asyncio
+async def test_find_node_version_spec_fallbacks(tmp_path: Path) -> None:
+    """An empty `.nvmrc` should fall back to `.node-version`, then to the `.tool-versions` `nodejs` entry."""
+    (tmp_path / ".nvmrc").write_text("\n")
+    (tmp_path / ".node-version").write_text("v20.11.0\n")
+    assert await audit_utils.find_node_version_spec(anyio.Path(str(tmp_path))) == "v20.11.0"
+
+    (tmp_path / ".node-version").unlink()
+    (tmp_path / ".tool-versions").write_text("python 3.13.0\nnodejs 22.14.0\n")
+    assert await audit_utils.find_node_version_spec(anyio.Path(str(tmp_path))) == "22.14.0"
+
+
+@pytest.mark.asyncio
+async def test_find_node_version_spec_none(tmp_path: Path) -> None:
+    """Without any version file the Node.js version specification should be None."""
+    assert await audit_utils.find_node_version_spec(anyio.Path(str(tmp_path))) is None
+
+
+@pytest.mark.asyncio
+async def test_ensure_fnm_node(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """ensure_fnm_node should run `fnm install` in the fnm root."""
+    monkeypatch.setenv("FNM_DIR", str(tmp_path / "fnm"))
+    audit_utils._NODE_INSTALL_LOCKS.clear()
+
+    with patch(
+        "github_app_geo_project.module.utils.run_timeout",
+        new=AsyncMock(return_value=("", True, None)),
+    ) as mock_run_timeout:
+        assert await audit_utils.ensure_fnm_node("24.11.0") is True
+
+    assert mock_run_timeout.await_args_list[0].args[0] == ["fnm", "install", "24.11.0"]
+    assert (tmp_path / "fnm").is_dir()
+    audit_utils._NODE_INSTALL_LOCKS.clear()
+
+
+@pytest.mark.asyncio
+async def test_ensure_fnm_node_concurrent_single_install(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Concurrent ensures of the same version should be serialized by the per-version lock."""
+    monkeypatch.setenv("FNM_DIR", str(tmp_path / "fnm"))
+    audit_utils._NODE_INSTALL_LOCKS.clear()
+    running = 0
+    max_running = 0
+
+    async def fake_run_timeout(command, *args, **kwargs):
+        nonlocal running, max_running
+        running += 1
+        max_running = max(max_running, running)
+        await asyncio.sleep(0.01)
+        running -= 1
+        return ("", True, None)
+
+    with patch(
+        "github_app_geo_project.module.utils.run_timeout",
+        side_effect=fake_run_timeout,
+    ):
+        await asyncio.gather(
+            audit_utils.ensure_fnm_node("24.11.0"),
+            audit_utils.ensure_fnm_node("24.11.0"),
+        )
+
+    assert max_running == 1
+    audit_utils._NODE_INSTALL_LOCKS.clear()
+
+
+@pytest.mark.asyncio
+async def test_select_node_version_success(tmp_path: Path) -> None:
+    """_select_node_version should install the pinned version and prepend its bin directory to PATH."""
+    (tmp_path / ".nvmrc").write_text("24\n")
+    env = {"PATH": "/usr/bin"}
+
+    with (
+        patch(
+            "github_app_geo_project.module.audit.utils.ensure_fnm_node",
+            new=AsyncMock(return_value=True),
+        ) as mock_ensure,
+        patch(
+            "github_app_geo_project.module.utils.run_timeout",
+            new=AsyncMock(
+                return_value=("/opt/fnm/node-versions/v24.11.0/installation/bin/node\n", True, None),
+            ),
+        ) as mock_run_timeout,
+    ):
+        await audit_utils._select_node_version(env, anyio.Path(str(tmp_path)))
+
+    mock_ensure.assert_awaited_once_with("24")
+    assert mock_run_timeout.await_args_list[0].args[0] == [
+        "fnm",
+        "exec",
+        "--using=24",
+        "--",
+        "node",
+        "-p",
+        "process.execPath",
+    ]
+    assert env["PATH"] == "/opt/fnm/node-versions/v24.11.0/installation/bin:/usr/bin"
+
+
+@pytest.mark.asyncio
+async def test_select_node_version_no_file(tmp_path: Path) -> None:
+    """Without a version file _select_node_version should leave the environment untouched."""
+    env = {"PATH": "/usr/bin"}
+
+    with patch(
+        "github_app_geo_project.module.audit.utils.ensure_fnm_node",
+        new=AsyncMock(),
+    ) as mock_ensure:
+        await audit_utils._select_node_version(env, anyio.Path(str(tmp_path)))
+
+    mock_ensure.assert_not_awaited()
+    assert env["PATH"] == "/usr/bin"
+
+
+@pytest.mark.asyncio
+async def test_select_node_version_install_failure(tmp_path: Path) -> None:
+    """On fnm install failure the system Node.js should be kept."""
+    (tmp_path / ".nvmrc").write_text("24\n")
+    env = {"PATH": "/usr/bin"}
+
+    with (
+        patch(
+            "github_app_geo_project.module.audit.utils.ensure_fnm_node",
+            new=AsyncMock(return_value=False),
+        ),
+        patch("github_app_geo_project.module.utils.run_timeout", new=AsyncMock()) as mock_run_timeout,
+    ):
+        await audit_utils._select_node_version(env, anyio.Path(str(tmp_path)))
+
+    mock_run_timeout.assert_not_awaited()
+    assert env["PATH"] == "/usr/bin"
+
+
+@pytest.mark.asyncio
+async def test_select_node_version_resolve_failure(tmp_path: Path) -> None:
+    """If the installation directory cannot be resolved the system Node.js should be kept."""
+    (tmp_path / ".nvmrc").write_text("lts/*\n")
+    env = {"PATH": "/usr/bin"}
+
+    with (
+        patch(
+            "github_app_geo_project.module.audit.utils.ensure_fnm_node",
+            new=AsyncMock(return_value=True),
+        ),
+        patch(
+            "github_app_geo_project.module.utils.run_timeout",
+            new=AsyncMock(return_value=(None, False, None)),
+        ),
+    ):
+        await audit_utils._select_node_version(env, anyio.Path(str(tmp_path)))
+
+    assert env["PATH"] == "/usr/bin"
+
+
+@pytest.mark.asyncio
+async def test_npm_audit_fix_uses_env(tmp_path: Path) -> None:
+    """_npm_audit_fix should run npm with the given environment (the repository Node.js version)."""
+    (tmp_path / "package.json").write_text('{"dependencies": {"foo": "^1.0.0"}}')
+    (tmp_path / "package-lock.json").write_text("{}")
+    env = {"PATH": "/opt/fnm/node-versions/v24.11.0/installation/bin:/usr/bin"}
+
+    with patch(
+        "github_app_geo_project.module.utils.run_timeout",
+        new=AsyncMock(return_value=("", True, None)),
+    ) as mock_run_timeout:
+        messages, success = await audit_utils._npm_audit_fix(
+            {"package-lock.json": {"[HIGH] foo@1.0.0: SNYK-JS-FOO-1"}},
+            [],
+            anyio.Path(str(tmp_path)),
+            env,
+        )
+
+    assert success is True
+    assert messages == "[HIGH] foo@1.0.0: SNYK-JS-FOO-1"
+    assert mock_run_timeout.await_args_list[0].args[0] == ["npm", "audit", "fix"]
+    assert mock_run_timeout.await_args_list[0].args[1] is env
