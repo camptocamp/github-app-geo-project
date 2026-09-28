@@ -8,7 +8,7 @@
 
 ### Added
 
-- **Docker**: The image installs `fnm` (Fast Node Manager, pinned with the `FNM_VERSION` build argument) in `/usr/local/bin`, with `FNM_DIR=/opt/fnm`. Like `/opt/pyenv/versions`, the `/opt/fnm/node-versions` sub folder should be mounted as an `emptyDir` volume on the worker pods in production, so the lazily installed Node.js versions survive the container restarts. The Node.js installed from the project `.nvmrc` (used by `renovate-graph`) is unchanged.
+- **Docker**: The image installs `fnm` (Fast Node Manager, pinned with the `FNM_VERSION` build argument, updated by `Renovate` from the GitHub releases with a regex manager) in `/usr/local/bin`, with `FNM_DIR=/opt/fnm`. Like `/opt/pyenv/versions`, the `/opt/fnm/node-versions` sub folder should be mounted as an `emptyDir` volume on the worker pods in production, so the lazily installed Node.js versions survive the container restarts. The Node.js installed from the project `.nvmrc` (used by `renovate-graph`) is unchanged.
 - **Settings**: New `audit.timeouts.node_install` timeout (`GHCI__AUDIT__TIMEOUTS__NODE_INSTALL`, default 10 minutes) for the lazy `fnm install` calls.
 
 ## 2026-09-10

@@ -40,5 +40,13 @@
       ],
       managerFilePatterns: ['/^github_app_geo_project/module/updates/versions\\.yaml$/'],
     },
+    /** The fnm version used in the Docker image, from the GitHub releases */
+    {
+      fileMatch: ['^Dockerfile$'],
+      matchStrings: ['ARG FNM_VERSION=(?<currentValue>[0-9\\.]+)'],
+      managerFilePatterns: ['/^Dockerfile$/'],
+      datasourceTemplate: 'github-releases',
+      depNameTemplate: 'Schniz/fnm',
+    },
   ],
 }
