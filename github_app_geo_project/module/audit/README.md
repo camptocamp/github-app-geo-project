@@ -64,6 +64,19 @@ For projects using the `ci/dpkg.yaml` file format, the module checks for outdate
 
 If errors occur during the scanning or PR creation process, or if pull requests remain open for too long (> 5 days), the module creates issues to alert the project maintainers.
 
+#### Cleanup and Clean Situation Report
+
+The daily `cleanup` job (also triggered when `SECURITY.md` is removed from the default branch) removes the leftovers of versions that are no more supported:
+
+- Close the `ghci/audit/{snyk,dpkg,renovate}/<version>` branches and their pull requests, including the branches left behind by merged or manually closed pull requests.
+- Close the related bot issues (`Pull request Audit ... is open for N days`), including the `Cleanup Renovate configuration` ones.
+- Delete the persisted Snyk outputs (`/output/<owner>/<repository>/snyk-<version>`) of the removed versions.
+- Clear the dashboard checks when `SECURITY.md` is removed.
+
+The Snyk/dpkg fan-out job additionally prunes the transversal dashboard entries (`Snyk check/fix <version>`, `Dpkg <version>`) and the legacy vulnerability sections (`=== <version>` in the dashboard issue) of the versions removed from `SECURITY.md`.
+
+The `cleanup` job reports the resulting situation in the output of its check run (`Cleanup: Everything is clean`, or `Cleanup: N leftover(s) removed` with the details of what was removed) and as a `Cleanup` entry in the transversal dashboard.
+
 ### Configuration Options
 
 You can configure the audit module behavior through the `.github/ghci.yaml` file.

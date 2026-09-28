@@ -1151,12 +1151,17 @@ async def close_pull_request_issues(
             state="closed",
         )
 
-    if pull_requests:
+    try:
         await github_project.aio_github.rest.git.async_delete_ref(
             owner=github_project.owner,
             repo=github_project.repository,
             ref=new_branch,
         )
+    except githubkit.exception.RequestFailed as exception:
+        # The branch can already be deleted, e.g. by GitHub after the pull request merge,
+        # or when the pull request was manually closed and the branch removed.
+        if exception.response.status_code not in (404, 422):
+            raise
 
     title_start = f"Pull request {message} is open for "
     issue: githubkit_schemas.latest.models.Issue
