@@ -12,7 +12,7 @@ permissions:
 jobs:
   main1:
     name: Main 1
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 1
 
     steps:
@@ -20,7 +20,7 @@ jobs:
 
   main2:
     name: Main 2
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 1
 
     steps:
