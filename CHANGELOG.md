@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-28
+
+### Changed
+
+- **Audit**: `npm audit fix` and `snyk fix` now use the Node.js version pinned by the audited repository, from its `.nvmrc`, `.node-version` or `.tool-versions` (`nodejs` entry) file at the repository root, in this order of precedence. The version is lazily installed at runtime with `fnm` (`fnm install`, which is a no-op when the version is already installed) and its installation directory is prepended to the `PATH` of the Snyk flow. When no version file is present, or when the installation or the resolution fails, a warning is logged and the Node.js version of the Docker image is used, like before. Previously `npm audit fix` always ran with the image Node.js (and its `npm` major), which could rewrite the `package-lock.json` `lockfileVersion` or fail on the `engines` constraints of the audited project.
+
+### Added
+
+- **Docker**: The image installs `fnm` (Fast Node Manager, pinned with the `FNM_VERSION` build argument) in `/usr/local/bin`, with `FNM_DIR=/opt/fnm`. Like `/opt/pyenv/versions`, the `/opt/fnm/node-versions` sub folder should be mounted as an `emptyDir` volume on the worker pods in production, so the lazily installed Node.js versions survive the container restarts. The Node.js installed from the project `.nvmrc` (used by `renovate-graph`) is unchanged.
+- **Settings**: New `audit.timeouts.node_install` timeout (`GHCI__AUDIT__TIMEOUTS__NODE_INSTALL`, default 10 minutes) for the lazy `fnm install` calls.
+
 ## 2026-09-10
 
 ### Changed

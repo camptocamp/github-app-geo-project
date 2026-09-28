@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import subprocess
+from pathlib import Path
 from typing import NamedTuple
 
 import anyio
@@ -36,6 +37,7 @@ _TIMEOUT_SNYK = settings.audit.timeouts.snyk
 _TIMEOUT_SNYK_FIX = settings.audit.timeouts.snyk_fix
 _TIMEOUT_POETRY_VERSION = settings.audit.timeouts.poetry_version
 _TIMEOUT_NPM_AUDIT = settings.audit.timeouts.npm_audit
+_TIMEOUT_NODE_INSTALL = settings.audit.timeouts.node_install
 
 
 class VulnerabilityData(NamedTuple):
@@ -165,6 +167,8 @@ async def snyk(
 
     await _select_java_version(config, local_config, env, cwd)
 
+    await _select_node_version(env, cwd)
+
     _LOGGER.debug("Updated path: %s", env["PATH"])
 
     await _install_requirements_dependencies(config, local_config, result, env, cwd)
@@ -215,7 +219,9 @@ async def snyk(
             fixable_vulnerabilities_summary,
             vulnerabilities_in_requirements,
         )
-        npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(fixable_files_npm, result, cwd)
+        npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(
+            fixable_files_npm, result, cwd, env_no_debug
+        )
         fix_message: module_utils.HtmlMessage | None = None
         if snyk_fix_message is None:
             if npm_audit_fix_message:
@@ -339,6 +345,86 @@ async def _select_java_version(
         return
 
     env["PATH"] = f"{java_path_for_gradle[minor_gradle_version]}:{env['PATH']}"
+
+
+_NODE_INSTALL_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def get_fnm_root() -> anyio.Path:
+    """Get the fnm root directory, same resolution as fnm itself on Linux."""
+    # pathlib.Path is OK here: pure path manipulation, no I/O (like get_pyenv_root).
+    return anyio.Path(os.environ.get("FNM_DIR") or Path.home() / ".local" / "share" / "fnm")
+
+
+async def find_node_version_spec(cwd: anyio.Path) -> str | None:
+    """Get the Node.js version specification pinned by the repository, from its version files."""
+    for file_name in (".nvmrc", ".node-version"):
+        version_file = cwd / file_name
+        if await version_file.exists():
+            for line in (await version_file.read_text(encoding="utf-8")).splitlines():
+                if line.strip():
+                    return line.strip()
+    tool_versions = cwd / ".tool-versions"
+    if await tool_versions.exists():
+        for line in (await tool_versions.read_text(encoding="utf-8")).splitlines():
+            if line.startswith("nodejs "):
+                return line.split(" ", maxsplit=1)[1].strip()
+    return None
+
+
+async def ensure_fnm_node(node_version_spec: str) -> bool:
+    """Install a Node.js version with fnm if not already installed, and return the success."""
+    # The lock creation is safe: asyncio is single-threaded and setdefault doesn't await.
+    lock = _NODE_INSTALL_LOCKS.setdefault(node_version_spec, asyncio.Lock())
+    async with lock:
+        fnm_root = get_fnm_root()
+        await fnm_root.mkdir(parents=True, exist_ok=True)
+        _, success, _ = await module_utils.run_timeout(
+            ["fnm", "install", node_version_spec],
+            None,
+            _TIMEOUT_NODE_INSTALL,
+            f"Install the Node.js version {node_version_spec} with fnm",
+            f"Error while installing the Node.js version {node_version_spec} with fnm",
+            f"Timeout while installing the Node.js version {node_version_spec} with fnm",
+            fnm_root,
+        )
+    return success
+
+
+async def _select_node_version(
+    env: dict[str, str],
+    cwd: anyio.Path,
+) -> None:
+    """Add the Node.js version pinned by the repository to the PATH, lazily installed with fnm."""
+    node_version_spec = await find_node_version_spec(cwd)
+    if node_version_spec is None:
+        return
+    if not await ensure_fnm_node(node_version_spec):
+        _LOGGER.warning(
+            "Unable to install the Node.js version %s with fnm, the system Node.js will be used.",
+            node_version_spec,
+        )
+        return
+    # Resolve the installation directory, the specification can be an alias like `lts/*`.
+    command = ["fnm", "exec", f"--using={node_version_spec}", "--", "node", "-p", "process.execPath"]
+    stdout, success, _ = await module_utils.run_timeout(
+        command,
+        env,
+        _TIMEOUT_SUBPROCESS,
+        "Resolve the Node.js installation directory",
+        "Error while resolving the Node.js installation directory",
+        "Timeout while resolving the Node.js installation directory",
+        cwd,
+    )
+    if not success or not stdout or not stdout.strip():
+        _LOGGER.warning(
+            "Unable to resolve the Node.js version %s installed with fnm, the system Node.js will be used.",
+            node_version_spec,
+        )
+        return
+    node_bin = str(Path(stdout.strip()).parent)
+    env["PATH"] = f"{node_bin}:{env['PATH']}"
+    _LOGGER.info("Using the Node.js version %s from %s.", node_version_spec, node_bin)
 
 
 async def _install_requirements_dependencies(
@@ -808,6 +894,7 @@ async def _npm_audit_fix(
     fixable_files_npm: dict[str, set[str]],
     result: list[module_utils.Message],
     cwd: anyio.Path,
+    env: dict[str, str],
 ) -> tuple[str, bool]:
     messages: set[str] = set()
     fix_success = True
@@ -818,7 +905,7 @@ async def _npm_audit_fix(
         command = ["npm", "audit", "fix"]
         _, success, message = await module_utils.run_timeout(
             command,
-            os.environ.copy(),
+            env,
             _TIMEOUT_NPM_AUDIT,
             "Npm audit fix",
             "Error while fixing the project",

@@ -147,6 +147,32 @@ RUN --mount=type=cache,target=/var/lib/apt/lists \
     && chown --recursive 33:33 /opt/pyenv \
     && chmod --recursive a+rwX /opt/pyenv
 
+# fnm (Fast Node Manager) is used by the `audit` module to lazily install at
+# runtime the Node.js version pinned by the audited repositories (`.nvmrc`,
+# `.node-version`, `.tool-versions`). The versions are installed into
+# `FNM_DIR/node-versions` (`/opt/fnm/node-versions`), which should be mounted
+# as an `emptyDir` volume on the worker pods in production, like
+# `/opt/pyenv/versions`, so the lazily installed versions survive the
+# container restarts.
+ARG FNM_VERSION=1.39.0
+ENV FNM_DIR=/opt/fnm
+RUN case "$(uname -m)" in \
+        x86_64) FNM_ASSET=fnm-linux.zip ;; \
+        aarch64) FNM_ASSET=fnm-arm64.zip ;; \
+        armv7l) FNM_ASSET=fnm-arm32.zip ;; \
+        *) echo "Unsupported architecture: $(uname -m)" >&2 && exit 1 ;; \
+    esac \
+    && curl --location --fail --silent --show-error \
+        --output=/tmp/fnm.zip \
+        "https://github.com/Schniz/fnm/releases/download/v${FNM_VERSION}/${FNM_ASSET}" \
+    && unzip /tmp/fnm.zip -d /usr/local/bin \
+    && chmod +x /usr/local/bin/fnm \
+    && rm /tmp/fnm.zip \
+    && fnm --version \
+    && mkdir --parents /opt/fnm/node-versions \
+    && chown --recursive 33:33 /opt/fnm \
+    && chmod --recursive a+rwX /opt/fnm
+
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
 
