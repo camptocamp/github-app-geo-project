@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import anyio
+import githubkit.exception
 import pytest
 
 from github_app_geo_project import utils as app_utils
@@ -417,6 +418,70 @@ async def test_close_pull_request_issues_close_matching_issue() -> None:
         issue_number=101,
         state="closed",
     )
+
+
+def _make_request_failed_exception(status_code: int) -> githubkit.exception.RequestFailed:
+    response = MagicMock()
+    response.status_code = status_code
+    return githubkit.exception.RequestFailed(response)
+
+
+@pytest.mark.asyncio
+async def test_close_pull_request_issues_deletes_branch_without_open_pull_request() -> None:
+    """The branch is deleted even when no open pull request is found (merged or manually closed PR leftover)."""
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+    github_project.application.slug = "my-app"
+
+    github_project.aio_github.rest.pulls.async_list = AsyncMock(return_value=MagicMock(parsed_data=[]))
+    github_project.aio_github.rest.git.async_delete_ref = AsyncMock()
+    github_project.aio_github.paginate = MagicMock(return_value=_aiter([]))
+
+    await utils.close_pull_request_issues("ghci/audit/snyk/1.2", "Audit Snyk check/fix 1.2", github_project)
+
+    github_project.aio_github.rest.git.async_delete_ref.assert_awaited_once_with(
+        owner="owner",
+        repo="repo",
+        ref="ghci/audit/snyk/1.2",
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status_code", [404, 422])
+async def test_close_pull_request_issues_tolerates_already_deleted_branch(status_code: int) -> None:
+    """Deleting an already deleted branch (404/422 Reference does not exist) is tolerated."""
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+    github_project.application.slug = "my-app"
+
+    github_project.aio_github.rest.pulls.async_list = AsyncMock(return_value=MagicMock(parsed_data=[]))
+    github_project.aio_github.rest.git.async_delete_ref = AsyncMock(
+        side_effect=_make_request_failed_exception(status_code)
+    )
+    github_project.aio_github.paginate = MagicMock(return_value=_aiter([]))
+
+    await utils.close_pull_request_issues("ghci/audit/snyk/1.2", "Audit Snyk check/fix 1.2", github_project)
+
+
+@pytest.mark.asyncio
+async def test_close_pull_request_issues_reraises_other_delete_errors() -> None:
+    """Errors other than a missing reference are re-raised."""
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+    github_project.application.slug = "my-app"
+
+    github_project.aio_github.rest.pulls.async_list = AsyncMock(return_value=MagicMock(parsed_data=[]))
+    github_project.aio_github.rest.git.async_delete_ref = AsyncMock(
+        side_effect=_make_request_failed_exception(500)
+    )
+
+    with pytest.raises(githubkit.exception.RequestFailed):
+        await utils.close_pull_request_issues(
+            "ghci/audit/snyk/1.2", "Audit Snyk check/fix 1.2", github_project
+        )
 
 
 @pytest.mark.asyncio

@@ -3,15 +3,30 @@
 """Tests for the audit module."""
 
 import asyncio
+import base64
+import datetime
 import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import anyio
+import githubkit.exception
+import githubkit_schemas.latest.models
 import pytest
 
 from github_app_geo_project import module
-from github_app_geo_project.module.audit import Audit, _EventData, _process_renovate
+from github_app_geo_project.module import utils as module_utils
+from github_app_geo_project.module.audit import (
+    Audit,
+    _dashboard_vuln_section_versions,
+    _EventData,
+    _IntermediateStatus,
+    _process_renovate,
+    _remove_dashboard_vuln_section,
+    _TransversalStatus,
+    _TransversalStatusRepo,
+    _TransversalStatusTool,
+)
 from github_app_geo_project.module.audit import utils as audit_utils
 from github_app_geo_project.module.audit.utils import VulnerabilityData
 
@@ -866,3 +881,333 @@ async def test_npm_audit_fix_uses_env(tmp_path: Path) -> None:
     assert messages == "[HIGH] foo@1.0.0: SNYK-JS-FOO-1"
     assert mock_run_timeout.await_args_list[0].args[0] == ["npm", "audit", "fix"]
     assert mock_run_timeout.await_args_list[0].args[1] is env
+
+
+async def _aiter(items):
+    for item in items:
+        yield item
+
+
+def _make_request_failed_exception(status_code: int) -> githubkit.exception.RequestFailed:
+    response = MagicMock()
+    response.status_code = status_code
+    return githubkit.exception.RequestFailed(response)
+
+
+def _named_mock(**attributes) -> MagicMock:
+    mock = MagicMock()
+    for key, value in attributes.items():
+        setattr(mock, key, value)
+    return mock
+
+
+def _cleanup_context(known_versions, branches, issues, outputs) -> Mock:
+    """Build a mocked ProcessContext for the audit cleanup job."""
+    context = Mock()
+    context.module_event_data = _EventData(type="cleanup", known_versions=known_versions)
+    context.github_event_data = {}
+    context.issue_data = (
+        "- [ ] <!-- outdated --> Check outdated version\n"
+        "- [ ] <!-- snyk --> Check security vulnerabilities with Snyk\n"
+        "- [ ] <!-- dpkg --> Update dpkg packages\n"
+    )
+    context.service_url = "https://example.com/"
+    context.job_id = 42
+    context.github_project = MagicMock()
+    context.github_project.owner = "owner"
+    context.github_project.repository = "repo"
+    context.github_project.application.slug = "my-app"
+    context.github_project.aio_github.paginate = MagicMock(side_effect=[_aiter(branches), _aiter(issues)])
+    context.github_project.aio_github.rest.issues.async_update = AsyncMock()
+
+    outputs_result = MagicMock()
+    outputs_result.scalars.return_value = outputs
+    context.session = MagicMock()
+    context.session.execute = AsyncMock(return_value=outputs_result)
+    context.session.delete = AsyncMock()
+    context.session.commit = AsyncMock()
+    return context
+
+
+@pytest.mark.asyncio
+async def test_process_cleanup_everything_clean() -> None:
+    """Without leftovers the cleanup job reports a clean situation."""
+    context = _cleanup_context(
+        ["1.2", "master"],
+        [_named_mock(name="ghci/audit/snyk/1.2"), _named_mock(name="ghci/audit/renovate/master")],
+        [],
+        [_named_mock(name="snyk-1.2")],
+    )
+
+    with patch(
+        "github_app_geo_project.module.audit.module_utils.close_pull_request_issues",
+        new=AsyncMock(),
+    ) as mock_close:
+        result = await Audit().process(context)
+
+    mock_close.assert_not_awaited()
+    context.session.delete.assert_not_awaited()
+    assert result.success is True
+    assert result.check_output == {"summary": "Cleanup: Everything is clean"}
+    assert result.updated_transversal_status is True
+    assert result.intermediate_status is not None
+    cleanup_status = result.intermediate_status.status.types["Cleanup"]
+    assert cleanup_status.status == "success"
+    assert cleanup_status.summary == "Everything is clean"
+
+
+@pytest.mark.asyncio
+async def test_process_cleanup_removes_leftovers() -> None:
+    """The cleanup job closes the leftovers of versions removed from SECURITY.md and reports them."""
+    issues = [
+        _named_mock(
+            title="Pull request Audit Snyk check/fix 1.1 is open for 14 days",
+            number=101,
+            html_url="https://github.com/owner/repo/issues/101",
+        ),
+        _named_mock(
+            title="Pull request Audit Cleanup Renovate configuration for version 2.0 is open for 7 days",
+            number=102,
+            html_url="https://github.com/owner/repo/issues/102",
+        ),
+        _named_mock(
+            title="Pull request Audit Snyk check/fix 1.2 is open for 6 days",
+            number=103,
+            html_url="https://github.com/owner/repo/issues/103",
+        ),
+    ]
+    context = _cleanup_context(
+        ["1.2", "master"],
+        [
+            _named_mock(name="ghci/audit/snyk/1.1"),
+            _named_mock(name="ghci/audit/renovate/2.0"),
+            _named_mock(name="ghci/audit/snyk/1.2"),
+        ],
+        issues,
+        [_named_mock(name="snyk-1.1"), _named_mock(name="snyk-1.2")],
+    )
+
+    with patch(
+        "github_app_geo_project.module.audit.module_utils.close_pull_request_issues",
+        new=AsyncMock(),
+    ) as mock_close:
+        result = await Audit().process(context)
+
+    assert [list(call.args)[:2] for call in mock_close.await_args_list] == [
+        ["ghci/audit/snyk/1.1", "Audit Snyk check/fix 1.1"],
+        ["ghci/audit/renovate/2.0", "Audit Cleanup Renovate configuration for version 2.0"],
+    ]
+    closed_issues = [
+        call.kwargs["issue_number"]
+        for call in context.github_project.aio_github.rest.issues.async_update.await_args_list
+    ]
+    assert closed_issues == [101, 102]
+    context.session.delete.assert_awaited_once()
+    assert context.session.delete.await_args is not None
+    assert context.session.delete.await_args.args[0].name == "snyk-1.1"
+    context.session.commit.assert_awaited_once()
+    assert result.check_output is not None
+    assert result.check_output["summary"] == "Cleanup: 5 leftover(s) removed"
+    assert "snyk-1.1" in result.check_output["text"]
+    assert result.intermediate_status is not None
+    assert result.intermediate_status.status.types["Cleanup"].summary == "5 leftover(s) removed"
+
+
+@pytest.mark.asyncio
+async def test_process_cleanup_without_known_versions_clears_dashboard() -> None:
+    """Without any known version (SECURITY.md removed) all the checks are removed from the dashboard."""
+    context = _cleanup_context(None, [], [], [])
+
+    with patch(
+        "github_app_geo_project.module.audit.module_utils.close_pull_request_issues",
+        new=AsyncMock(),
+    ):
+        result = await Audit().process(context)
+
+    assert result.dashboard is not None
+    assert "<!-- outdated -->" not in result.dashboard
+    assert "<!-- snyk -->" not in result.dashboard
+    assert "<!-- dpkg -->" not in result.dashboard
+
+
+@pytest.mark.asyncio
+async def test_update_transversal_status_prunes_stale_types() -> None:
+    """The stale transversal status types are pruned when known_types is set."""
+    context = Mock()
+    context.github_project.owner = "owner"
+    context.github_project.repository = "repo"
+
+    transversal = _TransversalStatus(
+        updated={"owner/repo": datetime.datetime.now(datetime.UTC)},
+        repositories={
+            "owner/repo": _TransversalStatusRepo(
+                types={
+                    "Outdated version": _TransversalStatusTool(name="Outdated version", status="success"),
+                    "Snyk check/fix 1.1": _TransversalStatusTool(name="Snyk check/fix 1.1", status="success"),
+                    "Dpkg 1.1": _TransversalStatusTool(name="Dpkg 1.1", status="success"),
+                }
+            )
+        },
+    )
+    intermediate = _IntermediateStatus(
+        status=_TransversalStatusRepo(),
+        known_types=["Outdated version", "Snyk check/fix 1.2", "Cleanup"],
+    )
+
+    result = await Audit().update_transversal_status(context, intermediate, transversal)
+
+    types = result.repositories["owner/repo"].types
+    assert "Outdated version" in types
+    assert "Snyk check/fix 1.1" not in types
+    assert "Dpkg 1.1" not in types
+
+
+@pytest.mark.asyncio
+async def test_update_transversal_status_merges_without_known_types() -> None:
+    """Without known_types the transversal status types are only merged, never pruned."""
+    context = Mock()
+    context.github_project.owner = "owner"
+    context.github_project.repository = "repo"
+
+    transversal = _TransversalStatus(
+        updated={"owner/repo": datetime.datetime.now(datetime.UTC)},
+        repositories={
+            "owner/repo": _TransversalStatusRepo(
+                types={
+                    "Snyk check/fix 1.1": _TransversalStatusTool(name="Snyk check/fix 1.1", status="success"),
+                }
+            )
+        },
+    )
+    intermediate = _IntermediateStatus(
+        status=_TransversalStatusRepo(
+            types={
+                "Snyk check/fix 1.2": _TransversalStatusTool(name="Snyk check/fix 1.2", status="success"),
+            }
+        ),
+    )
+
+    result = await Audit().update_transversal_status(context, intermediate, transversal)
+
+    types = result.repositories["owner/repo"].types
+    assert "Snyk check/fix 1.1" in types
+    assert "Snyk check/fix 1.2" in types
+
+
+@pytest.mark.asyncio
+async def test_process_fan_out_prunes_stale_sections_and_types() -> None:
+    """The fan-out removes the legacy dashboard sections and prepares the transversal status pruning."""
+    context = Mock()
+    context.module_event_data = _EventData(snyk=True, dpkg=False)
+    context.github_event_data = {}
+    context.module_config = {"version-mapping": {}}
+    context.issue_data = (
+        "- [ ] <!-- outdated --> Check outdated version\n"
+        "- [ ] <!-- snyk --> Check security vulnerabilities with Snyk\n"
+        "\n"
+        "<!-- vulns-1.0 -->\n"
+        "- old vulnerability\n"
+        "<!-- /vulns-1.0 -->\n"
+        "=== 1.1\n"
+        "- [HIGH] foo@1.0\n"
+        "=== 1.2\n"
+        "- [HIGH] bar@2.0\n"
+    )
+    context.github_project = MagicMock()
+    context.github_project.owner = "owner"
+    context.github_project.repository = "repo"
+    context.github_project.default_branch = AsyncMock(return_value="master")
+
+    security_file = MagicMock(spec=githubkit_schemas.latest.models.ContentFile)
+    security_file.content = base64.b64encode(b"# Security policy").decode("utf-8")
+
+    async def async_get_content(owner, repo, path):
+        if path == "SECURITY.md":
+            return MagicMock(parsed_data=security_file)
+        raise _make_request_failed_exception(404)
+
+    context.github_project.aio_github.rest.repos.async_get_content = AsyncMock(side_effect=async_get_content)
+
+    with patch("github_app_geo_project.module.audit.security_md.Security") as mock_security:
+        mock_security.return_value.branches.return_value = ["1.2"]
+        result = await Audit().process(context)
+
+    assert result.dashboard is not None
+    assert "vulns-1.0" not in result.dashboard
+    assert "=== 1.1" not in result.dashboard
+    assert "foo@1.0" not in result.dashboard
+    assert "=== 1.2" in result.dashboard
+    assert result.intermediate_status is not None
+    assert result.intermediate_status.known_types == [
+        "Outdated version",
+        "Snyk check/fix 1.2",
+        "Cleanup",
+    ]
+    assert result.actions[0].data == _EventData(type="cleanup", known_versions=["1.2", "master"])
+    assert result.actions[1].data == _EventData(type="snyk", version="1.2")
+
+
+def test_get_transversal_dashboard_cleanup_is_global() -> None:
+    """Types without a version suffix (like Cleanup) are displayed as global types."""
+    context = module.TransversalDashboardContext(
+        status=_TransversalStatus(
+            updated={"owner/repo": datetime.datetime.now(datetime.UTC)},
+            repositories={
+                "owner/repo": _TransversalStatusRepo(
+                    types={
+                        "Cleanup": _TransversalStatusTool(
+                            name="Cleanup",
+                            summary="Everything is clean",
+                            status="success",
+                        ),
+                        "Snyk check/fix 1.2": _TransversalStatusTool(
+                            name="Snyk check/fix 1.2", status="success"
+                        ),
+                    }
+                )
+            },
+        ),
+        params={},
+    )
+
+    output = Audit().get_transversal_dashboard(context)
+
+    repository = output.data["repositories"][0]
+    assert [item["name"] for item in repository["global_types"]] == ["Cleanup"]
+    assert [branch["name"] for branch in repository["branches"]] == ["1.2"]
+
+
+def test_remove_dashboard_vuln_section() -> None:
+    """The legacy vulnerability sections are removed in both known formats."""
+    issue_check = module_utils.DashboardIssue(
+        "- [ ] <!-- snyk --> Check security vulnerabilities with Snyk\n"
+        "\n"
+        "<!-- vulns-1.0 -->\n"
+        "- old vulnerability\n"
+        "<!-- /vulns-1.0 -->\n"
+        "=== 1.1\n"
+        "- [HIGH] foo@1.0\n"
+        "=== 1.2\n"
+        "- [HIGH] bar@2.0\n"
+    )
+
+    assert _remove_dashboard_vuln_section(issue_check, "1.0") is True
+    assert _remove_dashboard_vuln_section(issue_check, "1.1") is True
+    assert _remove_dashboard_vuln_section(issue_check, "9.9") is False
+
+    result = issue_check.to_string()
+    assert "vulns-1.0" not in result
+    assert "old vulnerability" not in result
+    assert "=== 1.1" not in result
+    assert "foo@1.0" not in result
+    assert "=== 1.2" in result
+    assert "bar@2.0" in result
+
+
+def test_dashboard_vuln_section_versions() -> None:
+    """The versions of the legacy vulnerability sections are extracted from the dashboard issue."""
+    issue_check = module_utils.DashboardIssue(
+        "=== 1.1\n==== pyproject.toml\n- [HIGH] foo@1.0\n<!-- vulns-1.0 -->\n<!-- /vulns-1.0 -->\n"
+    )
+
+    assert _dashboard_vuln_section_versions(issue_check) == {"1.1", "1.0"}

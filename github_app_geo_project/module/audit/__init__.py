@@ -18,6 +18,7 @@ import githubkit.exception
 import githubkit.webhooks
 import githubkit_schemas.latest.models
 import security_md
+import sqlalchemy
 import yaml
 from githubkit.compat import type_validate_python
 from githubkit_schemas.v2026_03_10.models import RepositoryAdvisory
@@ -42,6 +43,7 @@ _LOGGER = logging.getLogger(__name__)
 _SNYK_LOCK = asyncio.Lock()
 
 _OUTDATED = "Outdated version"
+_CLEANUP = "Cleanup"
 _ADVISORY = False
 
 _PRIORITY_CLEANUP = module.PRIORITY_STANDARD + 1
@@ -113,6 +115,8 @@ class _IntermediateStatus(BaseModel):
     """The intermediate status."""
 
     status: _TransversalStatusRepo
+    known_types: list[str] | None = None
+    """When set, the transversal status types that are not in this list are pruned."""
 
 
 class _EventData(BaseModel):
@@ -169,6 +173,51 @@ async def _process_error(
     return _TransversalStatusTool(
         name=key, summary=message or "", status="error" if error_message else "success", logs_url=logs_url
     )
+
+
+def _remove_dashboard_vuln_section(issue_check: module_utils.DashboardIssue, version: str) -> bool:
+    """
+    Remove the legacy vulnerability section of a version from the dashboard issue.
+
+    Returns True if a section was found and removed.
+    """
+    vuln_section_start = f"<!-- vulns-{version} -->"
+    vuln_section_end = f"<!-- /vulns-{version} -->"
+    vuln_title = f"=== {version}"
+    found_start = None
+    found_end = None
+    for i, item in enumerate(issue_check.issue):
+        if isinstance(item, str) and item in {vuln_section_start, vuln_title}:
+            found_start = i
+        if isinstance(item, str) and item == vuln_section_end:
+            found_end = i
+            break
+    if found_start is not None and found_end is not None:
+        del issue_check.issue[found_start : found_end + 1]
+    elif found_start is not None:
+        # New format: remove from the title to the end or next ===
+        section_end = len(issue_check.issue)
+        for j in range(found_start + 1, len(issue_check.issue)):
+            item = issue_check.issue[j]
+            if isinstance(item, str) and item.startswith("==="):
+                section_end = j
+                break
+        del issue_check.issue[found_start:section_end]
+    else:
+        return False
+    return True
+
+
+def _dashboard_vuln_section_versions(issue_check: module_utils.DashboardIssue) -> set[str]:
+    """Get the versions that have a legacy vulnerability section in the dashboard issue."""
+    versions: set[str] = set()
+    for item in issue_check.issue:
+        if isinstance(item, str):
+            if item.startswith("=== "):
+                versions.add(item[len("=== ") :].strip())
+            elif item.startswith("<!-- vulns-") and item.endswith(" -->"):
+                versions.add(item[len("<!-- vulns-") : -len(" -->")])
+    return versions
 
 
 async def _process_renovate(
@@ -418,29 +467,7 @@ async def _process_snyk_dpkg(
             message.title = "Output URL"
             _LOGGER.debug(message)
             # Remove old vulnerability section (both old comment format and new format)
-            vuln_section_start = f"<!-- vulns-{branch} -->"
-            vuln_section_end = f"<!-- /vulns-{branch} -->"
-            vuln_title = f"=== {branch}"
-            found_start = None
-            found_end = None
-            for i, item in enumerate(issue_check.issue):
-                if isinstance(item, str) and item in {vuln_section_start, vuln_title}:
-                    found_start = i
-                if isinstance(item, str) and item == vuln_section_end:
-                    found_end = i
-                    break
-            if found_start is not None and found_end is not None:
-                del issue_check.issue[found_start : found_end + 1]
-            elif found_start is not None:
-                # New format: remove from the title to the end or next ===
-                section_end = len(issue_check.issue)
-                for j in range(found_start + 1, len(issue_check.issue)):
-                    item = issue_check.issue[j]
-                    if isinstance(item, str) and item.startswith("==="):
-                        section_end = j
-                        break
-                del issue_check.issue[found_start:section_end]
-            else:
+            if not _remove_dashboard_vuln_section(issue_check, branch):
                 # Remove all str entries (vulnerability lines, separators, module data)
                 issue_check.issue = [item for item in issue_check.issue if not isinstance(item, str)]
 
@@ -1044,6 +1071,7 @@ class Audit(
         if context.module_event_data.type == "cleanup":
             _LOGGER.info("Cleaning up audit-related pull requests and issues")
             known_versions = context.module_event_data.known_versions or []
+            cleaned: list[str] = []
             # Close all audit-related pull requests
             async for branch in context.github_project.aio_github.paginate(
                 context.github_project.aio_github.rest.repos.async_list_branches,
@@ -1053,23 +1081,24 @@ class Audit(
                 branch_name = branch.name
                 for key_prefix in ["snyk", "dpkg", "renovate"]:
                     if branch_name.startswith(f"ghci/audit/{key_prefix}/"):
-                        _LOGGER.debug("Closing pull requests for branch %s", branch_name)
-
                         version = branch_name.split("/", 3)[-1]
                         if version not in known_versions:
-                            issue_message_middle = (
-                                "Snyk check/fix"
+                            _LOGGER.debug("Closing pull requests for branch %s", branch_name)
+                            issue_message = (
+                                f"Audit Snyk check/fix {version}"
                                 if key_prefix == "snyk"
-                                else "Dpkg"
+                                else f"Audit Dpkg {version}"
                                 if key_prefix == "dpkg"
-                                else "Renovate"
+                                else f"Audit Cleanup Renovate configuration for version {version}"
                             )
                             await module_utils.close_pull_request_issues(
                                 branch_name,
-                                f"Audit {issue_message_middle} {version}",
+                                issue_message,
                                 context.github_project,
                             )
+                            cleaned.append(f"branch and pull requests of `{branch_name}`")
 
+            renovate_issue_prefix = "Pull request Audit Cleanup Renovate configuration for version "
             issue: githubkit_schemas.latest.models.Issue
             async for issue in context.github_project.aio_github.paginate(
                 context.github_project.aio_github.rest.issues.async_list_for_repo,
@@ -1079,18 +1108,37 @@ class Audit(
                 creator=f"{context.github_project.application.slug}[bot]",
             ):
                 issue_title: str = issue.title
-                for key_prefix in ["Snyk check/fix", "Dpkg", "Renovate"]:
+                issue_version: str | None = None
+                for key_prefix in ["Snyk check/fix", "Dpkg"]:
                     prefix = f"Pull request Audit {key_prefix} "
                     if issue_title.startswith(prefix):
-                        version = issue_title[len(prefix) :].split(" ", 1)[0]
-                        if version not in known_versions:
-                            _LOGGER.debug("Closing issue %s", issue.html_url)
-                            await context.github_project.aio_github.rest.issues.async_update(
-                                owner=context.github_project.owner,
-                                repo=context.github_project.repository,
-                                issue_number=issue.number,
-                                state="closed",
-                            )
+                        issue_version = issue_title[len(prefix) :].split(" ", 1)[0]
+                        break
+                if issue_version is None and issue_title.startswith(renovate_issue_prefix):
+                    issue_version = issue_title[len(renovate_issue_prefix) :].split(" ", 1)[0]
+                if issue_version is not None and issue_version not in known_versions:
+                    _LOGGER.debug("Closing issue %s", issue.html_url)
+                    await context.github_project.aio_github.rest.issues.async_update(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                        issue_number=issue.number,
+                        state="closed",
+                    )
+                    cleaned.append(f"issue #{issue.number} ({issue_title})")
+
+            # Remove the Snyk outputs of versions that are not supported anymore
+            outputs_result = await context.session.execute(
+                sqlalchemy.select(models.Output).where(
+                    models.Output.owner == context.github_project.owner,
+                    models.Output.repository == context.github_project.repository,
+                )
+            )
+            for output in outputs_result.scalars():
+                if output.name.startswith("snyk-") and output.name[len("snyk-") :] not in known_versions:
+                    _LOGGER.debug("Deleting output %s", output.name)
+                    await context.session.delete(output)
+                    cleaned.append(f"output `{output.name}`")
+            await context.session.commit()
 
             if not known_versions:
                 # Clear all checks from dashboard
@@ -1098,11 +1146,30 @@ class Audit(
                 issue_check.remove_check("snyk")
                 issue_check.remove_check("dpkg")
 
-                return module.ProcessOutput(
-                    dashboard=issue_check.to_string(),
-                    success=True,
-                )
-            return module.ProcessOutput(success=True)
+            logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
+            if cleaned:
+                summary = f"{len(cleaned)} leftover(s) removed"
+                check_text = "\n".join(f"- {item}" for item in cleaned)
+            else:
+                summary = "Everything is clean"
+                check_text = None
+            intermediate_status.status.types[_CLEANUP] = _TransversalStatusTool(
+                name=_CLEANUP,
+                summary=summary,
+                status="success",
+                logs_url=logs_url,
+            )
+            return module.ProcessOutput(
+                dashboard=issue_check.to_string(),
+                intermediate_status=intermediate_status,
+                updated_transversal_status=True,
+                success=True,
+                check_output=(
+                    {"summary": f"Cleanup: {summary}", "text": check_text}
+                    if check_text is not None
+                    else {"summary": f"Cleanup: {summary}"}
+                ),
+            )
 
         # If no SECURITY.md apply on default branch
         key_starts = []
@@ -1227,6 +1294,8 @@ class Audit(
                 _LOGGER.debug(
                     "No SECURITY.md file in the repository, nothing to audit",
                 )
+                # Prune all the per-version transversal status entries
+                intermediate_status.known_types = [_OUTDATED, _CLEANUP]
                 return module.ProcessOutput(
                     actions=[
                         module.Action(
@@ -1236,46 +1305,31 @@ class Audit(
                         )
                     ],
                     dashboard=issue_check.to_string(),
+                    intermediate_status=intermediate_status,
+                    updated_transversal_status=True,
                 )
             _LOGGER.debug("Versions: %s", ", ".join(versions))
+
+            # Apply version mapping to get the actual branch names used
+            mapped_versions = [
+                context.module_config.get("version-mapping", {}).get(version, version) for version in versions
+            ]
 
             all_key_starts = []
             for key in key_starts:
                 if key == _OUTDATED:
                     all_key_starts.append(_OUTDATED)
                 else:
-                    all_key_starts.extend([f"{key}{version}" for version in versions])
+                    all_key_starts.extend([f"{key}{version}" for version in mapped_versions])
 
-            for key in list(intermediate_status.status.types.keys()):
-                if key not in all_key_starts:
-                    intermediate_status.status.types.pop(key)
-                    version = key.split(" ")[-1]
-                    vuln_title = f"=== {version}"
-                    vuln_section_start = f"<!-- vulns-{version} -->"
-                    vuln_section_end = f"<!-- /vulns-{version} -->"
-                    found_start = None
-                    found_end = None
-                    for i, item in enumerate(issue_check.issue):
-                        if isinstance(item, str) and item in {vuln_section_start, vuln_title}:
-                            found_start = i
-                        if isinstance(item, str) and item == vuln_section_end:
-                            found_end = i
-                            break
-                    if found_start is not None and found_end is not None:
-                        del issue_check.issue[found_start : found_end + 1]
-                    elif found_start is not None:
-                        section_end = len(issue_check.issue)
-                        for j in range(found_start + 1, len(issue_check.issue)):
-                            item = issue_check.issue[j]
-                            if isinstance(item, str) and item.startswith("==="):
-                                section_end = j
-                                break
-                        del issue_check.issue[found_start:section_end]
+            # Remove the legacy dashboard vulnerability sections of versions that are not supported anymore
+            for version in sorted(_dashboard_vuln_section_versions(issue_check) - set(mapped_versions)):
+                _LOGGER.debug("Removing the dashboard vulnerability section of version %s", version)
+                _remove_dashboard_vuln_section(issue_check, version)
 
-            # Apply version mapping to get the actual branch names used
-            mapped_versions = [
-                context.module_config.get("version-mapping", {}).get(version, version) for version in versions
-            ]
+            # Prune the transversal status entries of versions that are not supported anymore
+            intermediate_status.known_types = [*all_key_starts, _CLEANUP]
+
             actions = [
                 module.Action(
                     priority=_PRIORITY_CLEANUP,
@@ -1317,6 +1371,7 @@ class Audit(
                     )
             return ProcessOutput(
                 actions=actions,
+                dashboard=issue_check.to_string(),
                 intermediate_status=intermediate_status,
                 updated_transversal_status=True,
             )
@@ -1349,6 +1404,11 @@ class Audit(
             key,
         )
         existing = transversal_status.repositories.get(key, _TransversalStatusRepo())
+        if intermediate_status.known_types is not None:
+            for type_key in list(existing.types.keys()):
+                if type_key not in intermediate_status.known_types:
+                    _LOGGER.debug("Remove the stale transversal status type %s", type_key)
+                    del existing.types[type_key]
         existing.types.update(intermediate_status.status.types)
         transversal_status.repositories[key] = existing
         return transversal_status
@@ -1394,7 +1454,7 @@ class Audit(
             global_types = []
             branches: dict[str, Any] = {}
             for type_key, type_data in data.types.items():
-                if type_key == _OUTDATED:
+                if type_key == _OUTDATED or " " not in type_key:
                     global_types.append(
                         {
                             "name": type_key,
