@@ -153,6 +153,9 @@ class _AuditTimeouts(BaseModel):
     snyk_files: Annotated[Duration, Field(description="git ls-files .snyk timeout")] = datetime.timedelta(
         seconds=30
     )
+    snyk_api: Annotated[Duration, Field(description="Snyk REST API request timeout")] = datetime.timedelta(
+        minutes=2
+    )
 
 
 class _UtilsTimeouts(BaseModel):
@@ -435,6 +438,28 @@ class _AuditSettings(BaseModel):
     dpkg_cache_duration: Annotated[Duration, Field(description="DPKG cache duration")] = datetime.timedelta(
         hours=3
     )
+    snyk_token: Annotated[
+        str | None,
+        Field(
+            description="Snyk REST API token, defaults to the SNYK_TOKEN environment variable used by the CLI"
+        ),
+    ] = os.environ.get("SNYK_TOKEN")
+    snyk_org: Annotated[
+        str | None,
+        Field(
+            description=(
+                "Snyk organization UUID or slug used by the REST API cleanup, "
+                "defaults to the SNYK_ORG environment variable used by the CLI"
+            )
+        ),
+    ] = os.environ.get("SNYK_ORG")
+    snyk_api_url: Annotated[str, Field(description="Snyk API base URL")] = "https://api.snyk.io"
+    snyk_api_cleanup: Annotated[
+        bool,
+        Field(
+            description="Clean the stale Snyk projects and the references of unsupported versions through the REST API"
+        ),
+    ] = True
     timeouts: Annotated[_AuditTimeouts, Field(description="Audit timeouts")] = _AuditTimeouts()
 
 

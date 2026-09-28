@@ -5,8 +5,10 @@
 import asyncio
 import base64
 import datetime
+import json
 import tempfile
 from pathlib import Path
+from typing import Any, Self
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import anyio
@@ -29,6 +31,7 @@ from github_app_geo_project.module.audit import (
 )
 from github_app_geo_project.module.audit import utils as audit_utils
 from github_app_geo_project.module.audit.utils import VulnerabilityData
+from github_app_geo_project.settings import settings
 
 
 def _make_worktree_mock(clone_path: Path) -> MagicMock:
@@ -939,10 +942,16 @@ async def test_process_cleanup_everything_clean() -> None:
         [_named_mock(name="snyk-1.2")],
     )
 
-    with patch(
-        "github_app_geo_project.module.audit.module_utils.close_pull_request_issues",
-        new=AsyncMock(),
-    ) as mock_close:
+    with (
+        patch(
+            "github_app_geo_project.module.audit.module_utils.close_pull_request_issues",
+            new=AsyncMock(),
+        ) as mock_close,
+        patch(
+            "github_app_geo_project.module.audit.utils.snyk_cleanup_removed_references",
+            new=AsyncMock(return_value=[]),
+        ),
+    ):
         result = await Audit().process(context)
 
     mock_close.assert_not_awaited()
@@ -987,10 +996,16 @@ async def test_process_cleanup_removes_leftovers() -> None:
         [_named_mock(name="snyk-1.1"), _named_mock(name="snyk-1.2")],
     )
 
-    with patch(
-        "github_app_geo_project.module.audit.module_utils.close_pull_request_issues",
-        new=AsyncMock(),
-    ) as mock_close:
+    with (
+        patch(
+            "github_app_geo_project.module.audit.module_utils.close_pull_request_issues",
+            new=AsyncMock(),
+        ) as mock_close,
+        patch(
+            "github_app_geo_project.module.audit.utils.snyk_cleanup_removed_references",
+            new=AsyncMock(return_value=["Snyk reference `1.1` (2 projects)"]),
+        ) as mock_snyk_cleanup,
+    ):
         result = await Audit().process(context)
 
     assert [list(call.args)[:2] for call in mock_close.await_args_list] == [
@@ -1006,11 +1021,13 @@ async def test_process_cleanup_removes_leftovers() -> None:
     assert context.session.delete.await_args is not None
     assert context.session.delete.await_args.args[0].name == "snyk-1.1"
     context.session.commit.assert_awaited_once()
+    mock_snyk_cleanup.assert_awaited_once_with("owner", "repo", ["1.2", "master"])
     assert result.check_output is not None
-    assert result.check_output["summary"] == "Cleanup: 5 leftover(s) removed"
+    assert result.check_output["summary"] == "Cleanup: 6 leftover(s) removed"
     assert "snyk-1.1" in result.check_output["text"]
+    assert "Snyk reference `1.1`" in result.check_output["text"]
     assert result.intermediate_status is not None
-    assert result.intermediate_status.status.types["Cleanup"].summary == "5 leftover(s) removed"
+    assert result.intermediate_status.status.types["Cleanup"].summary == "6 leftover(s) removed"
 
 
 @pytest.mark.asyncio
@@ -1018,12 +1035,19 @@ async def test_process_cleanup_without_known_versions_clears_dashboard() -> None
     """Without any known version (SECURITY.md removed) all the checks are removed from the dashboard."""
     context = _cleanup_context(None, [], [], [])
 
-    with patch(
-        "github_app_geo_project.module.audit.module_utils.close_pull_request_issues",
-        new=AsyncMock(),
+    with (
+        patch(
+            "github_app_geo_project.module.audit.module_utils.close_pull_request_issues",
+            new=AsyncMock(),
+        ),
+        patch(
+            "github_app_geo_project.module.audit.utils.snyk_cleanup_removed_references",
+            new=AsyncMock(return_value=[]),
+        ) as mock_snyk_cleanup,
     ):
         result = await Audit().process(context)
 
+    mock_snyk_cleanup.assert_awaited_once_with("owner", "repo", [])
     assert result.dashboard is not None
     assert "<!-- outdated -->" not in result.dashboard
     assert "<!-- snyk -->" not in result.dashboard
@@ -1211,3 +1235,296 @@ def test_dashboard_vuln_section_versions() -> None:
     )
 
     assert _dashboard_vuln_section_versions(issue_check) == {"1.1", "1.0"}
+
+
+_SNYK_ORG_UUID = "3e40ec98-5983-4b1d-828e-9be5e2f3f3bd"
+
+
+class _FakeSnykResponse:
+    """Fake aiohttp response for the Snyk REST API."""
+
+    def __init__(self, payload: Any = None, ok: bool = True, status: int = 200, text: str = "") -> None:
+        self.payload = payload
+        self.ok = ok
+        self.status = status
+        self.text_content = text
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args: object) -> bool:
+        return False
+
+    async def read(self) -> bytes:
+        return json.dumps(self.payload).encode("utf-8")
+
+    async def text(self) -> str:
+        return self.text_content
+
+
+class _FakeSnykSession:
+    """Fake aiohttp session recording the requests sent to the Snyk REST API."""
+
+    def __init__(self, get_payloads: list[Any] | None = None, delete_ok: bool = True) -> None:
+        self.get_payloads = list(get_payloads or [])
+        self.delete_ok = delete_ok
+        self.requests: list[tuple[str, str, Any]] = []
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *args: object) -> bool:
+        return False
+
+    def get(self, url: str, params: Any = None) -> _FakeSnykResponse:
+        self.requests.append(("GET", url, params))
+        return _FakeSnykResponse(self.get_payloads.pop(0) if self.get_payloads else {"data": []})
+
+    def delete(self, url: str, params: Any = None) -> _FakeSnykResponse:
+        self.requests.append(("DELETE", url, params))
+        return _FakeSnykResponse(None, ok=self.delete_ok, status=204 if self.delete_ok else 500)
+
+
+def _snyk_project(
+    project_id: str,
+    name: str,
+    target_reference: str,
+    origin: str = "cli",
+    target_file: str = "pyproject.toml",
+) -> dict[str, Any]:
+    return {
+        "id": project_id,
+        "attributes": {
+            "name": name,
+            "target_reference": target_reference,
+            "origin": origin,
+            "target_file": target_file,
+        },
+    }
+
+
+def test_snyk_api_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Snyk API cleanup requires the kill switch and a token."""
+    monkeypatch.setattr(settings.audit, "snyk_api_cleanup", True)
+    monkeypatch.setattr(settings.audit, "snyk_token", None)
+    assert audit_utils._snyk_api_config() is None
+
+    monkeypatch.setattr(settings.audit, "snyk_token", "test-token")
+    assert audit_utils._snyk_api_config() == ("test-token", "https://api.snyk.io")
+
+    monkeypatch.setattr(settings.audit, "snyk_api_cleanup", False)
+    assert audit_utils._snyk_api_config() is None
+
+
+@pytest.mark.asyncio
+async def test_snyk_api_get_all_pagination() -> None:
+    """The paginated collections are fully traversed following the next links."""
+    session = _FakeSnykSession(
+        get_payloads=[
+            {"data": [{"id": "1"}], "links": {"next": "/rest/orgs/org/projects?starting_after=1"}},
+            {"data": [{"id": "2"}], "links": {}},
+        ]
+    )
+
+    entries = await audit_utils._snyk_api_get_all(
+        session,
+        "https://api.snyk.io",
+        "/orgs/org/projects",
+        {"target_reference": "1.2"},
+    )
+
+    assert [entry["id"] for entry in entries] == ["1", "2"]
+    assert session.requests[0][1] == "https://api.snyk.io/rest/orgs/org/projects"
+    assert ("target_reference", "1.2") in session.requests[0][2]
+    assert ("version", audit_utils._SNYK_API_VERSION) in session.requests[0][2]
+    assert ("limit", "100") in session.requests[0][2]
+    assert session.requests[1][1] == "https://api.snyk.io/rest/orgs/org/projects?starting_after=1"
+    assert session.requests[1][2] is None
+
+
+@pytest.mark.asyncio
+async def test_snyk_api_get_all_error() -> None:
+    """An API error interrupts the pagination and returns an empty list."""
+
+    class _ErrorSession(_FakeSnykSession):
+        def get(self, url: str, params: Any = None) -> _FakeSnykResponse:
+            self.requests.append(("GET", url, params))
+            return _FakeSnykResponse(None, ok=False, status=500, text="Internal Server Error")
+
+    session = _ErrorSession()
+    entries = await audit_utils._snyk_api_get_all(session, "https://api.snyk.io", "/orgs", {})
+
+    assert entries == []
+    assert len(session.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_resolve_snyk_org_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The organization is used as-is when it is a UUID, resolved by slug otherwise."""
+    session = _FakeSnykSession(
+        get_payloads=[
+            {
+                "data": [
+                    {"id": "org-uuid-1", "attributes": {"slug": "my-org", "name": "My Org"}},
+                ],
+                "links": {},
+            }
+        ]
+    )
+
+    monkeypatch.setattr(settings.audit, "snyk_org", _SNYK_ORG_UUID)
+    assert await audit_utils._resolve_snyk_org_id(session, "https://api.snyk.io") == _SNYK_ORG_UUID
+    assert session.requests == []
+
+    monkeypatch.setattr(settings.audit, "snyk_org", "my-org")
+    assert await audit_utils._resolve_snyk_org_id(session, "https://api.snyk.io") == "org-uuid-1"
+
+    unknown_session = _FakeSnykSession(get_payloads=[{"data": [], "links": {}}])
+    monkeypatch.setattr(settings.audit, "snyk_org", "unknown-org")
+    assert await audit_utils._resolve_snyk_org_id(unknown_session, "https://api.snyk.io") is None
+
+    monkeypatch.setattr(settings.audit, "snyk_org", None)
+    assert await audit_utils._resolve_snyk_org_id(unknown_session, "https://api.snyk.io") is None
+
+
+@pytest.mark.asyncio
+async def test_resolve_snyk_target_ids() -> None:
+    """The targets of the repository are matched on their display name."""
+    session = _FakeSnykSession(
+        get_payloads=[
+            {
+                "data": [
+                    {"id": "target-1", "attributes": {"display_name": "owner/repo"}},
+                    {"id": "target-2", "attributes": {"display_name": "https://github.com/owner/repo.git"}},
+                    {"id": "target-3", "attributes": {"display_name": "owner/other"}},
+                    {"id": "target-4", "attributes": {}},
+                ],
+                "links": {},
+            }
+        ]
+    )
+
+    assert await audit_utils._resolve_snyk_target_ids(
+        session, "https://api.snyk.io", "org", "owner", "repo"
+    ) == ["target-1", "target-2"]
+
+
+@pytest.mark.asyncio
+async def test_snyk_cleanup_stale_projects(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Only the CLI projects of the reference not refreshed by the monitor run are deleted."""
+    monkeypatch.setattr(settings.audit, "snyk_api_cleanup", True)
+    monkeypatch.setattr(settings.audit, "snyk_token", "test-token")
+    monkeypatch.setattr(settings.audit, "snyk_org", _SNYK_ORG_UUID)
+
+    session = _FakeSnykSession()
+    projects = [
+        _snyk_project("project-1", "owner/repo/old", "1.2", target_file="old-requirements.txt"),
+        _snyk_project("project-2", "owner/repo/imported", "1.2", origin="github"),
+    ]
+    result: list[module_utils.Message] = []
+
+    with (
+        patch.object(audit_utils, "_snyk_api_session", return_value=session),
+        patch.object(audit_utils, "_resolve_snyk_target_ids", new=AsyncMock(return_value=["target-1"])),
+        patch.object(audit_utils, "_snyk_list_projects", new=AsyncMock(return_value=projects)) as mock_list,
+    ):
+        await audit_utils.snyk_cleanup_stale_projects(
+            "owner",
+            "repo",
+            "1.2",
+            datetime.datetime(2026, 9, 28, tzinfo=datetime.UTC),
+            result,
+        )
+
+    assert mock_list.await_args is not None
+    assert mock_list.await_args.args[4] == [
+        ("target_reference", "1.2"),
+        ("cli_monitored_before", "2026-09-28T00:00:00+00:00"),
+    ]
+    delete_requests = [request for request in session.requests if request[0] == "DELETE"]
+    assert len(delete_requests) == 1
+    assert delete_requests[0][1] == f"https://api.snyk.io/rest/orgs/{_SNYK_ORG_UUID}/projects/project-1"
+    assert len(result) == 1
+    assert result[0].title == "Snyk projects cleanup"
+    assert "old-requirements.txt" in result[0].to_markdown()
+
+
+@pytest.mark.asyncio
+async def test_snyk_cleanup_removed_references(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The CLI projects of the references that are not supported anymore are deleted and reported."""
+    monkeypatch.setattr(settings.audit, "snyk_api_cleanup", True)
+    monkeypatch.setattr(settings.audit, "snyk_token", "test-token")
+    monkeypatch.setattr(settings.audit, "snyk_org", _SNYK_ORG_UUID)
+
+    session = _FakeSnykSession()
+    projects = [
+        _snyk_project("project-1", "owner/repo/a", "1.1"),
+        _snyk_project("project-2", "owner/repo/b", "1.1"),
+        _snyk_project("project-3", "owner/repo/c", "1.2"),
+        _snyk_project("project-4", "owner/repo/d", "master"),
+        _snyk_project("project-5", "owner/repo/e", "custom-ref", origin="github"),
+    ]
+
+    with (
+        patch.object(audit_utils, "_snyk_api_session", return_value=session),
+        patch.object(audit_utils, "_resolve_snyk_target_ids", new=AsyncMock(return_value=["target-1"])),
+        patch.object(audit_utils, "_snyk_list_projects", new=AsyncMock(return_value=projects)),
+    ):
+        removed = await audit_utils.snyk_cleanup_removed_references("owner", "repo", ["1.2", "master"])
+
+    assert removed == ["Snyk reference `1.1` (2 projects)"]
+    assert sorted(request[1] for request in session.requests if request[0] == "DELETE") == [
+        f"https://api.snyk.io/rest/orgs/{_SNYK_ORG_UUID}/projects/project-1",
+        f"https://api.snyk.io/rest/orgs/{_SNYK_ORG_UUID}/projects/project-2",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_snyk_cleanup_without_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without an API token the cleanups are no-ops and no session is created."""
+    monkeypatch.setattr(settings.audit, "snyk_api_cleanup", True)
+    monkeypatch.setattr(settings.audit, "snyk_token", None)
+
+    session_factory = MagicMock()
+    result: list[module_utils.Message] = []
+    with patch.object(audit_utils, "_snyk_api_session", session_factory):
+        await audit_utils.snyk_cleanup_stale_projects(
+            "owner",
+            "repo",
+            "1.2",
+            datetime.datetime(2026, 9, 28, tzinfo=datetime.UTC),
+            result,
+        )
+        removed = await audit_utils.snyk_cleanup_removed_references("owner", "repo", ["1.2"])
+
+    session_factory.assert_not_called()
+    assert result == []
+    assert removed == []
+
+
+@pytest.mark.asyncio
+async def test_snyk_delete_projects_failure() -> None:
+    """A deletion failure is logged and the project is not reported as deleted."""
+    session = _FakeSnykSession(delete_ok=False)
+
+    deleted = await audit_utils._snyk_delete_projects(
+        session,
+        "https://api.snyk.io",
+        "org",
+        [_snyk_project("project-1", "owner/repo/a", "1.1")],
+    )
+
+    assert deleted == []
+
+
+@pytest.mark.asyncio
+async def test_snyk_monitor_returns_success() -> None:
+    """_snyk_monitor returns the success of the monitor command, used to gate the stale projects cleanup."""
+    with patch.object(
+        audit_utils.module_utils,
+        "run_timeout",
+        new=AsyncMock(return_value=("", False, None)),
+    ):
+        success = await audit_utils._snyk_monitor("1.2", {}, {}, [], {}, anyio.Path("."))
+
+    assert success is False

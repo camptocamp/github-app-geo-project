@@ -4,14 +4,17 @@
 
 import asyncio
 import datetime
+import html
 import io
 import json
 import logging
 import os
+import re
 import subprocess
 from pathlib import Path
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
+import aiohttp
 import anyio
 import apt_repo
 import debian_inspector.version
@@ -135,6 +138,8 @@ def get_pre_commit_config(
 
 async def snyk(
     branch: str,
+    owner: str,
+    repository: str,
     audit_config: configuration.AuditConfiguration,
     audit_local_config: configuration.AuditConfiguration,
     config: configuration.SnykConfiguration,
@@ -194,7 +199,18 @@ async def snyk(
         env_no_debug = {**env}
         env["DEBUG"] = "*snyk*"  # debug mode
 
-        await _snyk_monitor(branch, config, local_config, result, env, cwd)
+        monitor_started_at = datetime.datetime.now(datetime.UTC)
+        monitor_success = await _snyk_monitor(branch, config, local_config, result, env, cwd)
+        if monitor_success:
+            # Remove the projects that were not refreshed by this monitor run (dependency files
+            # that are not scanned anymore), with a tolerance for the clock desynchronization.
+            await snyk_cleanup_stale_projects(
+                owner,
+                repository,
+                branch,
+                monitor_started_at - _SNYK_MONITOR_SKEW,
+                result,
+            )
 
         (
             high_vulnerabilities,
@@ -594,7 +610,7 @@ async def _snyk_monitor(
     result: list[module_utils.Message],
     env: dict[str, str],
     cwd: anyio.Path,
-) -> None:
+) -> bool:
     command = [
         "snyk",
         "monitor",
@@ -626,7 +642,7 @@ async def _snyk_monitor(
             f"--project-tags={','.join(['='.join(tag) for tag in local_monitor_config.get('project-tags', monitor_config.get('project-tags', {}))])}",
         )
 
-    _, _, message = await module_utils.run_timeout(
+    _, success, message = await module_utils.run_timeout(
         command,
         env,
         _TIMEOUT_SNYK,
@@ -637,6 +653,279 @@ async def _snyk_monitor(
     )
     if message is not None:
         result.append(message)
+    return success
+
+
+_SNYK_API_VERSION = "2024-05-31"
+"""The Snyk REST API version used for the projects cleanup."""
+
+_SNYK_MONITOR_SKEW = datetime.timedelta(minutes=10)
+"""Tolerance applied on the monitor run start when looking for stale projects (clock desynchronization)."""
+
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
+
+
+def _snyk_api_config() -> tuple[str, str] | None:
+    """Get the Snyk REST API configuration, or None when the cleanup is disabled or not configured."""
+    if not settings.audit.snyk_api_cleanup:
+        _LOGGER.debug("The Snyk REST API cleanup is disabled")
+        return None
+    if not settings.audit.snyk_token:
+        _LOGGER.debug("No Snyk API token configured, skip the Snyk projects cleanup")
+        return None
+    return settings.audit.snyk_token, settings.audit.snyk_api_url
+
+
+async def _snyk_api_get(
+    session: aiohttp.ClientSession,
+    url: str,
+    params: dict[str, str] | list[tuple[str, str]] | None = None,
+) -> dict[str, Any] | None:
+    """
+    Perform a GET request on the Snyk REST API.
+
+    Returns None on error: the projects cleanup is best-effort and must not fail the audit job.
+    """
+    async with session.get(url, params=params) as response:
+        if not response.ok:
+            _LOGGER.warning(
+                "Snyk API error on %s: %s %s",
+                url,
+                response.status,
+                (await response.text())[:500],
+            )
+            return None
+        data: dict[str, Any] = json.loads(await response.read())
+        return data
+
+
+async def _snyk_api_get_all(
+    session: aiohttp.ClientSession,
+    api_url: str,
+    path: str,
+    params: dict[str, str] | list[tuple[str, str]] | None = None,
+) -> list[dict[str, Any]]:
+    """Get all the entries of a paginated Snyk REST API collection, empty list on error."""
+    entries: list[dict[str, Any]] = []
+    url: str | None = f"{api_url}/rest{path}"
+    request_params: dict[str, str] | list[tuple[str, str]] | None = [
+        *(params.items() if isinstance(params, dict) else params or []),
+        ("version", _SNYK_API_VERSION),
+        ("limit", "100"),
+    ]
+    while url is not None:
+        data = await _snyk_api_get(session, url, request_params)
+        if data is None:
+            return []
+        entries.extend(data.get("data", []))
+        next_url = (data.get("links") or {}).get("next")
+        if not next_url:
+            break
+        url = str(next_url) if str(next_url).startswith("http") else f"{api_url}{next_url}"
+        # The next link already contains the query parameters
+        request_params = None
+    return entries
+
+
+async def _resolve_snyk_org_id(session: aiohttp.ClientSession, api_url: str) -> str | None:
+    """Resolve the configured Snyk organization (UUID or slug) to its UUID."""
+    org = settings.audit.snyk_org
+    if not org:
+        _LOGGER.debug("No Snyk organization configured, skip the Snyk projects cleanup")
+        return None
+    if _UUID_RE.match(org):
+        return org
+    orgs = await _snyk_api_get_all(session, api_url, "/orgs")
+    for entry in orgs:
+        attributes = entry.get("attributes") or {}
+        if org in (attributes.get("slug"), attributes.get("name")):
+            return str(entry["id"])
+    _LOGGER.warning("The Snyk organization %s was not found through the API", org)
+    return None
+
+
+async def _resolve_snyk_target_ids(
+    session: aiohttp.ClientSession,
+    api_url: str,
+    org_id: str,
+    owner: str,
+    repository: str,
+) -> list[str]:
+    """Find the Snyk target IDs of a Git repository."""
+    repo_path = f"{owner}/{repository}".lower()
+    targets = await _snyk_api_get_all(session, api_url, f"/orgs/{org_id}/targets")
+    target_ids = []
+    for target in targets:
+        attributes = target.get("attributes") or {}
+        display_name = str(attributes.get("display_name") or "").lower()
+        if display_name == repo_path or display_name.endswith(
+            (f"/{repo_path}", f"{repo_path}.git", f":{repo_path}", f":{repo_path}.git")
+        ):
+            target_ids.append(str(target["id"]))
+    if not target_ids:
+        _LOGGER.debug("No Snyk target found for the repository %s", repo_path)
+    return target_ids
+
+
+async def _snyk_list_projects(
+    session: aiohttp.ClientSession,
+    api_url: str,
+    org_id: str,
+    target_ids: list[str],
+    extra_params: list[tuple[str, str]] | None = None,
+) -> list[dict[str, Any]]:
+    """List the Snyk projects of the given targets."""
+    return await _snyk_api_get_all(
+        session,
+        api_url,
+        f"/orgs/{org_id}/projects",
+        [
+            *[("target_id", target_id) for target_id in target_ids],
+            *(extra_params or []),
+        ],
+    )
+
+
+async def _snyk_delete_projects(
+    session: aiohttp.ClientSession,
+    api_url: str,
+    org_id: str,
+    projects: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Delete Snyk projects, returns the successfully deleted ones."""
+
+    async def delete_one(project: dict[str, Any]) -> dict[str, Any] | None:
+        project_id = str(project["id"])
+        url = f"{api_url}/rest/orgs/{org_id}/projects/{project_id}"
+        try:
+            async with session.delete(url, params={"version": _SNYK_API_VERSION}) as response:
+                if response.ok:
+                    _LOGGER.debug("Snyk project %s deleted", project_id)
+                    return project
+                # A deletion failure on one project must not prevent the cleanup of the others
+                _LOGGER.warning(
+                    "Failed to delete the Snyk project %s: %s %s",
+                    project_id,
+                    response.status,
+                    (await response.text())[:200],
+                )
+        except (aiohttp.ClientError, TimeoutError):
+            # A network error on one project must not prevent the cleanup of the others
+            _LOGGER.warning("Failed to delete the Snyk project %s", project_id, exc_info=True)
+        return None
+
+    deleted = await asyncio.gather(*(delete_one(project) for project in projects))
+    return [project for project in deleted if project is not None]
+
+
+def _snyk_project_description(project: dict[str, Any]) -> str:
+    """Build a short description of a Snyk project for the reports."""
+    attributes = project.get("attributes") or {}
+    name = str(attributes.get("name") or project["id"])
+    target_file = attributes.get("target_file")
+    return f"{name} [{target_file}]" if target_file else name
+
+
+def _snyk_api_session(token: str) -> aiohttp.ClientSession:
+    """Build an authenticated aiohttp session for the Snyk REST API."""
+    return aiohttp.ClientSession(
+        headers={"Authorization": f"token {token}"},
+        timeout=aiohttp.ClientTimeout(total=settings.audit.timeouts.snyk_api.total_seconds()),
+    )
+
+
+async def snyk_cleanup_stale_projects(
+    owner: str,
+    repository: str,
+    branch: str,
+    monitored_before: datetime.datetime,
+    result: list[module_utils.Message],
+) -> None:
+    """
+    Delete the Snyk projects of a reference that were not refreshed by the latest monitor run.
+
+    This removes the projects of the dependency files that are not scanned anymore,
+    a reference grouping disappears from the Snyk UI when it does not contain any project.
+    """
+    api_config = _snyk_api_config()
+    if api_config is None:
+        return
+    token, api_url = api_config
+    async with _snyk_api_session(token) as session:
+        org_id = await _resolve_snyk_org_id(session, api_url)
+        if org_id is None:
+            return
+        target_ids = await _resolve_snyk_target_ids(session, api_url, org_id, owner, repository)
+        if not target_ids:
+            return
+        projects = await _snyk_list_projects(
+            session,
+            api_url,
+            org_id,
+            target_ids,
+            [
+                ("target_reference", branch),
+                ("cli_monitored_before", monitored_before.isoformat()),
+            ],
+        )
+        stale_projects = [
+            project for project in projects if (project.get("attributes") or {}).get("origin") == "cli"
+        ]
+        if not stale_projects:
+            _LOGGER.debug("No stale Snyk project to remove for the reference %s", branch)
+            return
+        deleted = await _snyk_delete_projects(session, api_url, org_id, stale_projects)
+        if deleted:
+            message = module_utils.HtmlMessage(
+                f"Removed {len(deleted)} stale Snyk project(s) of the reference {html.escape(branch)}: "
+                + html.escape(", ".join(_snyk_project_description(project) for project in deleted))
+            )
+            message.title = "Snyk projects cleanup"
+            result.append(message)
+
+
+async def snyk_cleanup_removed_references(
+    owner: str, repository: str, known_versions: list[str]
+) -> list[str]:
+    """
+    Delete all the Snyk projects whose target reference is not a supported version anymore.
+
+    Emptying a reference makes it disappear from the Snyk UI,
+    returns the report entries of the removed references.
+    """
+    api_config = _snyk_api_config()
+    if api_config is None:
+        return []
+    token, api_url = api_config
+    async with _snyk_api_session(token) as session:
+        org_id = await _resolve_snyk_org_id(session, api_url)
+        if org_id is None:
+            return []
+        target_ids = await _resolve_snyk_target_ids(session, api_url, org_id, owner, repository)
+        if not target_ids:
+            return []
+        projects = await _snyk_list_projects(session, api_url, org_id, target_ids)
+        removed_projects = [
+            project
+            for project in projects
+            if (project.get("attributes") or {}).get("origin") == "cli"
+            and (project.get("attributes") or {}).get("target_reference") not in known_versions
+        ]
+        if not removed_projects:
+            _LOGGER.debug("No Snyk reference to remove for the repository %s/%s", owner, repository)
+            return []
+        deleted = await _snyk_delete_projects(session, api_url, org_id, removed_projects)
+        references: dict[str, int] = {}
+        for project in deleted:
+            reference = str((project.get("attributes") or {}).get("target_reference") or "")
+            references[reference] = references.get(reference, 0) + 1
+        return [
+            f"Snyk reference `{reference}` ({number} projects)"
+            for reference, number in sorted(references.items())
+        ]
 
 
 async def _snyk_test(

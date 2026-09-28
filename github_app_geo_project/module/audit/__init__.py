@@ -412,6 +412,8 @@ async def _process_snyk_dpkg(
 
                 result, body, short_message, new_success, file_vulnerabilities = await audit_utils.snyk(
                     branch,
+                    context.github_project.owner,
+                    context.github_project.repository,
                     context.module_config,
                     local_config,
                     context.module_config.get("snyk", {}),
@@ -1139,6 +1141,16 @@ class Audit(
                     await context.session.delete(output)
                     cleaned.append(f"output `{output.name}`")
             await context.session.commit()
+
+            # Remove the Snyk projects of the references that are not supported anymore,
+            # emptying a reference makes it disappear from the Snyk UI
+            cleaned.extend(
+                await audit_utils.snyk_cleanup_removed_references(
+                    context.github_project.owner,
+                    context.github_project.repository,
+                    known_versions,
+                )
+            )
 
             if not known_versions:
                 # Clear all checks from dashboard
