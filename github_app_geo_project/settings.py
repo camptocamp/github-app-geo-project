@@ -278,6 +278,16 @@ class _PullRequestSettings(BaseModel):
 
 class _PatchSettings(BaseModel):
     timeouts: Annotated[_PatchTimeouts, Field(description="Patch timeouts")] = _PatchTimeouts()
+    max_consecutive_commits: Annotated[
+        int,
+        Field(
+            description=(
+                "Maximum number of consecutive commits created by the patch module on a branch "
+                "(or of open `ghci/patch/` pull requests for a protected branch) before refusing "
+                "to apply new patches, to avoid infinite loops with unstable CI fixes"
+            ),
+        ),
+    ] = 10
 
 
 class _ProcessQueueSettings(BaseModel):

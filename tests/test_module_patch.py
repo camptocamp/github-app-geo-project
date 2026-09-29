@@ -9,6 +9,7 @@ import pytest
 
 from github_app_geo_project import module
 from github_app_geo_project.module.patch import Patch
+from github_app_geo_project.settings import settings
 
 
 @pytest.fixture
@@ -208,7 +209,31 @@ def _make_patch_zip_content(
     return buf.getvalue()
 
 
-def _setup_process_mocks(mock_context, mock_github_project, head_branch="main", run_id=12345):
+_PATCH_COMMIT_MESSAGE = "Apply HELM generated files\n\nFrom the artifact of the previous workflow run"
+
+
+def _make_commit(message: str):
+    commit = MagicMock()
+    commit.commit = MagicMock()
+    commit.commit.message = message
+    return commit
+
+
+def _make_open_pull_request(head_ref: str):
+    pull_request = MagicMock()
+    pull_request.head = MagicMock()
+    pull_request.head.ref = head_ref
+    return pull_request
+
+
+def _setup_process_mocks(
+    mock_context,
+    mock_github_project,
+    head_branch="main",
+    run_id=12345,
+    branch_commits=None,
+    open_pull_requests=None,
+):
     mock_context.module_event_name = "workflow_run"
     mock_context.github_event_data = {}
 
@@ -226,6 +251,18 @@ def _setup_process_mocks(mock_context, mock_github_project, head_branch="main", 
     )
 
     mock_github_project.aio_github.rest.repos.async_get_branch = AsyncMock()
+
+    if branch_commits is None:
+        branch_commits = [_make_commit("Some human commit")]
+    commits_response = MagicMock()
+    commits_response.parsed_data = branch_commits
+    mock_github_project.aio_github.rest.repos.async_list_commits = AsyncMock(return_value=commits_response)
+
+    if open_pull_requests is None:
+        open_pull_requests = []
+    pull_requests_response = MagicMock()
+    pull_requests_response.parsed_data = open_pull_requests
+    mock_github_project.aio_github.rest.pulls.async_list = AsyncMock(return_value=pull_requests_response)
 
     download_response = MagicMock()
     download_response.status_code = 200
@@ -403,3 +440,211 @@ class TestProcess:
             assert result.success is False
             assert "Failed to push the changes" in result.check_output["summary"]
             mock_create_pr.assert_not_called()
+
+
+class TestConsecutivePatchLimit:
+    @pytest.mark.asyncio
+    async def test_limit_reached_skips_patch(self, mock_context, mock_github_project, monkeypatch):
+        monkeypatch.setattr(settings.patch, "max_consecutive_commits", 3)
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            branch_commits=[_make_commit(_PATCH_COMMIT_MESSAGE)] * 3,
+        )
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+            ) as mock_working_tree,
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+            ) as mock_create_commit,
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is False
+        assert result.check_output is not None
+        assert "infinite loop" in result.check_output["summary"]
+        mock_create_commit.assert_not_called()
+        mock_working_tree.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_below_limit_applies_patch(self, mock_context, mock_github_project, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings.patch, "max_consecutive_commits", 3)
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            branch_commits=[
+                _make_commit(_PATCH_COMMIT_MESSAGE),
+                _make_commit(_PATCH_COMMIT_MESSAGE),
+                _make_commit("Some human commit"),
+            ],
+        )
+
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=anyio.Path(tmp_path))
+        mock_cm.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.has_changes",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_create_commit,
+        ):
+            mock_apply_proc = MagicMock()
+            mock_apply_proc.returncode = 0
+            mock_apply_proc.communicate = AsyncMock(return_value=(b"Applied cleanly", b""))
+
+            mock_push_proc = MagicMock()
+            mock_push_proc.returncode = 0
+            mock_push_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+            async def mock_create_subprocess_exec(*args, **kwargs):
+                if args[1] == "apply":
+                    return mock_apply_proc
+                if args[1] == "push":
+                    return mock_push_proc
+                return MagicMock()
+
+            with patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec):
+                result = await patch_module.process(mock_context)
+
+        assert result.success is not False
+        mock_create_commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_human_head_commit_resets_counter(
+        self, mock_context, mock_github_project, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(settings.patch, "max_consecutive_commits", 3)
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            branch_commits=[
+                _make_commit("Some human commit"),
+                *[_make_commit(_PATCH_COMMIT_MESSAGE)] * 5,
+            ],
+        )
+
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=anyio.Path(tmp_path))
+        mock_cm.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.has_changes",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_create_commit,
+        ):
+            mock_apply_proc = MagicMock()
+            mock_apply_proc.returncode = 0
+            mock_apply_proc.communicate = AsyncMock(return_value=(b"Applied cleanly", b""))
+
+            mock_push_proc = MagicMock()
+            mock_push_proc.returncode = 0
+            mock_push_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+            async def mock_create_subprocess_exec(*args, **kwargs):
+                if args[1] == "apply":
+                    return mock_apply_proc
+                if args[1] == "push":
+                    return mock_push_proc
+                return MagicMock()
+
+            with patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec):
+                result = await patch_module.process(mock_context)
+
+        assert result.success is not False
+        mock_create_commit.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_protected_branch_limit_reached(
+        self, mock_context, mock_github_project, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(settings.patch, "max_consecutive_commits", 3)
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            open_pull_requests=[_make_open_pull_request(f"ghci/patch/main-{index}") for index in range(3)],
+        )
+
+        mock_cm = MagicMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=anyio.Path(tmp_path))
+        mock_cm.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.has_changes",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_pull_request",
+                new_callable=AsyncMock,
+            ) as mock_create_pr,
+        ):
+            mock_apply_proc = MagicMock()
+            mock_apply_proc.returncode = 0
+            mock_apply_proc.communicate = AsyncMock(return_value=(b"Applied cleanly", b""))
+
+            mock_push_proc = MagicMock()
+            mock_push_proc.returncode = 1
+            mock_push_proc.communicate = AsyncMock(
+                return_value=(
+                    b"",
+                    b"remote: error: GH006: Protected branch update failed for refs/heads/main.\nremote: protected branch hook declined\n",
+                ),
+            )
+
+            async def mock_create_subprocess_exec(*args, **kwargs):
+                if args[1] == "apply":
+                    return mock_apply_proc
+                if args[1] == "push":
+                    return mock_push_proc
+                return MagicMock()
+
+            with patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec):
+                result = await patch_module.process(mock_context)
+
+        assert result.success is False
+        assert result.check_output is not None
+        assert "refusing to create" in result.check_output["summary"]
+        mock_create_pr.assert_not_called()

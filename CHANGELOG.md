@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-29
+
+### Added
+
+- **Patch**: Loop protection to avoid an infinite chain of commits when the CI fix is unstable (for example a non-deterministic `pre-commit`). The module refuses to apply a new patch when the last `patch.max_consecutive_commits` commits (default: `10`) of the branch were all created by the patch module (identified by the commit message trailer `From the artifact of the previous workflow run`), or, for a protected branch, when there are already that many open `ghci/patch/<branch>-*` pull requests created by the patch module. The module then fails with an explanatory summary and does not touch the branch; the counter is reset as soon as an other commit is pushed on the branch (or the pending pull requests are closed or merged).
+- **Settings**: New `patch.max_consecutive_commits` setting (`GHCI__PATCH__MAX_CONSECUTIVE_COMMITS`, default `10`).
+
 ## 2026-09-28
 
 ### Changed
