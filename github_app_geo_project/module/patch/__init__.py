@@ -20,10 +20,70 @@ from github_app_geo_project.settings import settings
 
 _LOGGER = logging.getLogger(__name__)
 _CODEQL_JOB_NAME_MATCHER = re.compile(r"^Analyze \([a-z]+\)$")
+_PATCH_COMMIT_TRAILER = "From the artifact of the previous workflow run"
+_PATCH_BRANCH_PREFIX = "ghci/patch/"
 
 
 class PatchError(Exception):
     """Error while applying the patch."""
+
+
+async def _count_consecutive_patch_commits(
+    context: module.ProcessContext[dict[str, Any], dict[str, Any]],
+    head_branch: str,
+    limit: int,
+) -> int:
+    """Count the consecutive commits created by the patch module at the head of the branch, up to `limit`."""
+    if limit <= 0:
+        return 0
+    commits = (
+        await context.github_project.aio_github.rest.repos.async_list_commits(
+            owner=context.github_project.owner,
+            repo=context.github_project.repository,
+            sha=head_branch,
+            per_page=limit,
+        )
+    ).parsed_data
+    count = 0
+    for commit in commits or []:
+        if commit.commit is not None and _PATCH_COMMIT_TRAILER in commit.commit.message:
+            count += 1
+        else:
+            break
+    return count
+
+
+async def _count_open_patch_pull_requests(
+    context: module.ProcessContext[dict[str, Any], dict[str, Any]],
+    head_branch: str,
+    limit: int,
+) -> int:
+    """Count the open pull requests created by the patch module for the branch, up to `limit`."""
+    if limit <= 0:
+        return 0
+    prefix = f"{_PATCH_BRANCH_PREFIX}{head_branch}-"
+    count = 0
+    page = 1
+    while count < limit:
+        pull_requests = (
+            await context.github_project.aio_github.rest.pulls.async_list(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                state="open",
+                per_page=100,
+                page=page,
+            )
+        ).parsed_data
+        if not pull_requests:
+            break
+        assert pull_requests is not None
+        for pull_request in pull_requests:
+            if pull_request.head is not None and pull_request.head.ref.startswith(prefix):
+                count += 1
+                if count >= limit:
+                    break
+        page += 1
+    return count
 
 
 async def _iter_artifact_patches(
@@ -278,6 +338,23 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     return module.ProcessOutput()
                 raise
 
+            max_consecutive_commits = settings.patch.max_consecutive_commits
+            consecutive_patch_commits = await _count_consecutive_patch_commits(
+                context,
+                head_branch,
+                max_consecutive_commits,
+            )
+            if consecutive_patch_commits >= max_consecutive_commits > 0:
+                summary = (
+                    f"The last {consecutive_patch_commits} commits on the branch '{head_branch}' were "
+                    f"created by the patch module (limit: {max_consecutive_commits}), "
+                    "refusing to apply new patches to avoid an infinite loop. "
+                    "This usually means that the CI fix is unstable (for example a non-deterministic "
+                    "pre-commit); fix the underlying issue or push a commit manually to reset the counter."
+                )
+                _LOGGER.warning(summary)
+                return module.ProcessOutput(success=False, check_output={"summary": summary})
+
             async with module_utils.GIT_WORKTREE_CACHE.working_tree(
                 context.github_project,
                 head_branch,
@@ -317,7 +394,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
 
                     if await module_utils.has_changes(cwd, include_un_followed=True):
                         success = await module_utils.create_commit(
-                            f"{artifact.name.removesuffix('.patch')}\n\nFrom the artifact of the previous workflow run",
+                            f"{artifact.name.removesuffix('.patch')}\n\n{_PATCH_COMMIT_TRAILER}",
                             cwd,
                         )
                         if not success:
@@ -345,11 +422,31 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     if proc.returncode != 0:
                         stderr_text = stderr.decode() if stderr else ""
                         if "protected branch hook declined" in stderr_text:
+                            open_patch_pull_requests = await _count_open_patch_pull_requests(
+                                context,
+                                head_branch,
+                                max_consecutive_commits,
+                            )
+                            if open_patch_pull_requests >= max_consecutive_commits > 0:
+                                summary = (
+                                    f"There are already {open_patch_pull_requests} open "
+                                    f"'{_PATCH_BRANCH_PREFIX}{head_branch}-*' pull requests created by the "
+                                    f"patch module (limit: {max_consecutive_commits}), refusing to create "
+                                    "a new one to avoid an infinite loop. "
+                                    "This usually means that the CI fix is unstable (for example a "
+                                    "non-deterministic pre-commit); fix the underlying issue or close "
+                                    "the pending pull requests."
+                                )
+                                _LOGGER.warning(summary)
+                                return module.ProcessOutput(
+                                    success=False,
+                                    check_output={"summary": summary},
+                                )
                             _LOGGER.info(
                                 "Branch '%s' is protected, creating a pull request instead",
                                 head_branch,
                             )
-                            new_branch = f"ghci/patch/{head_branch}-{run_id}"
+                            new_branch = f"{_PATCH_BRANCH_PREFIX}{head_branch}-{run_id}"
                             pr_title = last_artifact_name.removesuffix(".patch")
                             pr_body = (
                                 f"Automated patch from workflow run "
