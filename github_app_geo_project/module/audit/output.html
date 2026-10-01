@@ -19,10 +19,18 @@
     font-size: 0.9em;
     opacity: 0.8;
   }
+  .audit-no-vulnerability {
+    color: #28a745;
+  }
 </style>
 
 {% if renderer_data %}
 <h2>{{ renderer_data['branch'] }}</h2>
+{% if not renderer_data['vulnerabilities'] and not renderer_data['ignored_vulnerabilities'] and not
+renderer_data['low_severity_vulnerabilities'] %}
+<p class="audit-no-vulnerability">No vulnerability found.</p>
+{% endif %}
+<!---->
 {% if renderer_data['vulnerabilities'] %}
 <!---->
 {% for file_name, vulns in renderer_data['vulnerabilities'].items() %}

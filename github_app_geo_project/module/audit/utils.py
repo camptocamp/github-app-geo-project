@@ -136,6 +136,50 @@ def get_pre_commit_config(
     }
 
 
+def _vulnerability_key(vulnerability: VulnerabilityData) -> tuple[str, str, str, str]:
+    """Get the identity key of a vulnerability, used to compare the scans done before and after a fix."""
+    return (
+        vulnerability.file,
+        vulnerability.package_name,
+        vulnerability.package_version,
+        vulnerability.snyk_id,
+    )
+
+
+def _vulnerability_sort_key(vulnerability: VulnerabilityData) -> tuple[int, str, str]:
+    """Sort the vulnerabilities by descending severity, then by package name and version."""
+    return (
+        -SEVERITY_ORDER.get(vulnerability.severity, 0),
+        vulnerability.package_name,
+        vulnerability.package_version,
+    )
+
+
+def fixed_vulnerabilities(
+    before: dict[str, list[VulnerabilityData]],
+    after: dict[str, list[VulnerabilityData]],
+) -> dict[str, list[VulnerabilityData]]:
+    """
+    Get the file-grouped vulnerabilities that were fixed by the Snyk/npm fix.
+
+    They are the ones present in the scan done before the fix and not anymore in the scan done after it.
+    """
+    after_keys = {
+        _vulnerability_key(vulnerability)
+        for vulnerabilities in after.values()
+        for vulnerability in vulnerabilities
+    }
+    fixed: dict[str, list[VulnerabilityData]] = {}
+    for file_name, vulnerabilities in before.items():
+        for vulnerability in vulnerabilities:
+            if _vulnerability_key(vulnerability) in after_keys:
+                continue
+            fixed.setdefault(file_name, []).append(vulnerability)
+    for vulnerabilities in fixed.values():
+        vulnerabilities.sort(key=_vulnerability_sort_key)
+    return dict(sorted(fixed.items()))
+
+
 async def snyk(
     branch: str,
     owner: str,
@@ -154,6 +198,7 @@ async def snyk(
     list[str],
     bool,
     dict[str, list[VulnerabilityData]],
+    dict[str, list[VulnerabilityData]],
 ]:
     """
     Audit the code with Snyk.
@@ -165,6 +210,7 @@ async def snyk(
         the dashboard's message (with resume of the vulnerabilities),
         is on success (errors: vulnerability that can be fixed by upgrading the dependency).
         the file-grouped vulnerability data for dashboard display and advisory creation.
+        the file-grouped vulnerability data fixed by this run.
     """
     result: list[module_utils.Message] = []
 
@@ -218,7 +264,7 @@ async def snyk(
             fixable_vulnerabilities_summary,
             fixable_files_npm,
             vulnerabilities_in_requirements,
-            file_vulnerabilities,
+            vulnerabilities_before_fix,
         ) = await _snyk_test(
             branch, config, local_config, result, env_no_debug, cwd, ignore_policy=ignore_policy
         )
@@ -295,6 +341,11 @@ async def snyk(
             ) = await _snyk_test(
                 branch, config, local_config, result, env_no_debug, cwd, ignore_policy=ignore_policy
             )
+            fixed = fixed_vulnerabilities(vulnerabilities_before_fix, file_vulnerabilities)
+        else:
+            # The fix did not change anything, the vulnerabilities are the ones of the first scan.
+            file_vulnerabilities = vulnerabilities_before_fix
+            fixed = {}
 
         return_message = [
             *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
@@ -305,7 +356,7 @@ async def snyk(
             *([] if not fix_has_errors else ["Error while fixing the vulnerabilities"]),
         ]
 
-        return result, fix_message, return_message, fix_success, file_vulnerabilities
+        return result, fix_message, return_message, fix_success, file_vulnerabilities, fixed
     finally:
         await _cleanup_poetry_envs(poetry_install_dirs, env)
 
@@ -1151,6 +1202,7 @@ async def _snyk_fix(
             result.append(message)
         if fix_message:
             snyk_fix_message = module_utils.AnsiMessage(fix_message.strip())
+            snyk_fix_message.title = "snyk fix output"
         if not snyk_fix_success:
             await module_utils.run_timeout(
                 command,
