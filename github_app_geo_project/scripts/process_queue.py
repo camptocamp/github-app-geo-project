@@ -262,13 +262,28 @@ async def _process_job(
             )
             if job.check_run_id is not None:
                 _LOGGER.info("Get check run %s", job.check_run_id)
-                check_run = (
-                    await github_project.aio_github.rest.checks.async_get(
-                        owner=job.owner,
-                        repo=job.repository,
-                        check_run_id=job.check_run_id,
-                    )
-                ).parsed_data
+                try:
+                    check_run = (
+                        await github_project.aio_github.rest.checks.async_get(
+                            owner=job.owner,
+                            repo=job.repository,
+                            check_run_id=job.check_run_id,
+                        )
+                    ).parsed_data
+                except githubkit.exception.RequestFailed as exception:
+                    # The check run was deleted on GitHub (e.g. the branch was removed),
+                    # the job cannot report its result anymore, skip it.
+                    if exception.response.status_code == 404:
+                        _LOGGER.warning(
+                            "The check run %s does not exist anymore on repository %s/%s, skip the job",
+                            job.check_run_id,
+                            job.owner,
+                            job.repository,
+                        )
+                        job.status_enum = models.JobStatus.SKIPPED
+                        job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+                        return True
+                    raise
         else:
             github_project = configuration.GithubProject(
                 application=github_application,
