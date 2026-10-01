@@ -170,6 +170,7 @@ def normalize_workflow_run_event(event_data: Mapping[str, Any]) -> dict[str, Any
 
 
 _VALID_WORKFLOW_JOB_STEP_STATUSES = {"queued", "in_progress", "completed"}
+_WORKFLOW_JOB_PASSTHROUGH_ACTIONS = {"queued", "waiting"}
 
 
 def normalize_workflow_job_event(event_data: Mapping[str, Any]) -> dict[str, Any]:
@@ -179,11 +180,24 @@ def normalize_workflow_job_event(event_data: Mapping[str, Any]) -> dict[str, Any
     step status, but the githubkit Pydantic model only accepts ``queued``,
     ``in_progress`` and ``completed``. This function returns a copy with any
     invalid step status rewritten to ``queued``.
+
+    GitHub can also deliver a ``completed`` action with a stale snapshot of
+    the job (``conclusion`` and ``completed_at`` null), but the githubkit
+    ``WebhookWorkflowJobCompleted`` model requires both fields to be
+    non-null. In that case the action is rewritten from the actual job
+    status so the payload validates against the matching variant.
     """
     normalized: dict[str, Any] = dict(event_data)
     workflow_job = normalized.get("workflow_job")
     if not isinstance(workflow_job, dict):
         return normalized
+
+    if normalized.get("action") == "completed" and (
+        workflow_job.get("conclusion") is None or workflow_job.get("completed_at") is None
+    ):
+        status = workflow_job.get("status")
+        normalized["action"] = status if status in _WORKFLOW_JOB_PASSTHROUGH_ACTIONS else "in_progress"
+
     steps = workflow_job.get("steps")
     if not isinstance(steps, list):
         return normalized

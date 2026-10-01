@@ -8,7 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import anyio
 import githubkit.exception
+import githubkit.webhooks
+import pydantic
 import pytest
+from test_module_workflow import _REPOSITORY, _USER
 
 from github_app_geo_project import utils as app_utils
 from github_app_geo_project.module import utils
@@ -694,6 +697,147 @@ def test_normalize_workflow_job_event_no_steps() -> None:
 
     assert normalized["workflow_job"] == {"id": 1, "name": "build"}
     assert normalized is not event_data
+
+
+def test_normalize_workflow_job_event_inconsistent_completed_in_progress() -> None:
+    """normalize_workflow_job_event should rewrite a ``completed`` action on an in-progress snapshot."""
+    event_data = {
+        "action": "completed",
+        "workflow_job": {
+            "id": 1,
+            "status": "in_progress",
+            "conclusion": None,
+            "completed_at": None,
+            "steps": [{"number": 1, "status": "in_progress"}],
+        },
+    }
+    normalized = app_utils.normalize_workflow_job_event(event_data)
+
+    assert normalized["action"] == "in_progress"
+    assert normalized["workflow_job"]["status"] == "in_progress"
+    assert event_data["action"] == "completed"
+
+
+def test_normalize_workflow_job_event_inconsistent_completed_queued() -> None:
+    """normalize_workflow_job_event should rewrite a ``completed`` action on a queued snapshot."""
+    event_data = {
+        "action": "completed",
+        "workflow_job": {"id": 1, "status": "queued", "conclusion": None, "completed_at": None},
+    }
+    normalized = app_utils.normalize_workflow_job_event(event_data)
+
+    assert normalized["action"] == "queued"
+
+
+def test_normalize_workflow_job_event_inconsistent_completed_waiting() -> None:
+    """normalize_workflow_job_event should rewrite a ``completed`` action on a waiting snapshot."""
+    event_data = {
+        "action": "completed",
+        "workflow_job": {"id": 1, "status": "waiting", "conclusion": None, "completed_at": None},
+    }
+    normalized = app_utils.normalize_workflow_job_event(event_data)
+
+    assert normalized["action"] == "waiting"
+
+
+def test_normalize_workflow_job_event_inconsistent_completed_status_fallback() -> None:
+    """normalize_workflow_job_event should fallback to ``in_progress`` on a completed status snapshot."""
+    event_data = {
+        "action": "completed",
+        "workflow_job": {"id": 1, "status": "completed", "conclusion": None, "completed_at": None},
+    }
+    normalized = app_utils.normalize_workflow_job_event(event_data)
+
+    assert normalized["action"] == "in_progress"
+
+
+def test_normalize_workflow_job_event_missing_conclusion() -> None:
+    """normalize_workflow_job_event should rewrite a ``completed`` action without conclusion."""
+    event_data = {
+        "action": "completed",
+        "workflow_job": {"id": 1, "status": "in_progress", "completed_at": "2026-09-23T18:30:00Z"},
+    }
+    normalized = app_utils.normalize_workflow_job_event(event_data)
+
+    assert normalized["action"] == "in_progress"
+
+
+def test_normalize_workflow_job_event_keeps_consistent_completed_action() -> None:
+    """normalize_workflow_job_event should leave a consistent ``completed`` action untouched."""
+    event_data = {
+        "action": "completed",
+        "workflow_job": {
+            "id": 1,
+            "status": "completed",
+            "conclusion": "success",
+            "completed_at": "2026-09-23T18:30:00Z",
+            "steps": [{"number": 1, "status": "completed"}],
+        },
+    }
+    normalized = app_utils.normalize_workflow_job_event(event_data)
+
+    assert normalized["action"] == "completed"
+
+
+def test_normalize_workflow_job_event_inconsistent_completed_parse_obj() -> None:
+    """An inconsistent real-world payload should only validate against githubkit after normalization."""
+    event_data = {
+        "action": "completed",
+        "repository": _REPOSITORY,
+        "sender": _USER,
+        "workflow_job": {
+            "check_run_url": "https://api.github.com/repos/user/repo/check-runs/107319854155",
+            "completed_at": None,
+            "conclusion": None,
+            "created_at": "2026-09-23T18:21:23Z",
+            "head_sha": "38fc6e3e2ff8803cc69659f7a21b62e0745bdda4",
+            "html_url": "https://github.com/user/repo/actions/runs/35901880125/job/107319854155",
+            "id": 107319854155,
+            "labels": [],
+            "name": "Continuous integration",
+            "node_id": "CR_kwDOEsrzJ88AAAAY_MMESw",
+            "run_attempt": 1,
+            "run_id": 35901880125,
+            "run_url": "https://api.github.com/repos/user/repo/actions/runs/35901880125",
+            "runner_group_id": 1,
+            "runner_group_name": "Default",
+            "runner_id": 1,
+            "runner_name": "runner-1",
+            "started_at": "2026-09-23T18:21:47Z",
+            "status": "in_progress",
+            "head_branch": "ghci/audit/dpkg/1.7",
+            "workflow_name": "Continuous integration",
+            "steps": [
+                {
+                    "name": "Set up job",
+                    "status": "completed",
+                    "conclusion": "success",
+                    "number": 1,
+                    "started_at": "2026-09-23T18:21:48Z",
+                    "completed_at": "2026-09-23T18:21:49Z",
+                },
+                {
+                    "name": "Run tests",
+                    "status": "in_progress",
+                    "conclusion": None,
+                    "number": 2,
+                    "started_at": "2026-09-23T18:21:49Z",
+                    "completed_at": None,
+                },
+            ],
+            "url": "https://api.github.com/repos/user/repo/actions/jobs/107319854155",
+        },
+    }
+
+    with pytest.raises(pydantic.ValidationError):
+        githubkit.webhooks.parse_obj("workflow_job", event_data)
+
+    normalized = app_utils.normalize_workflow_job_event(event_data)
+    parsed = githubkit.webhooks.parse_obj("workflow_job", normalized)
+
+    assert parsed.action == "in_progress"
+    assert parsed.workflow_job.conclusion is None
+    assert parsed.workflow_job.completed_at is None
 
 
 @pytest.mark.asyncio

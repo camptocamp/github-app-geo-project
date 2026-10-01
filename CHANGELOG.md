@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-01
+
+### Fixed
+
+- **Queue**: Jobs whose referenced check run does not exist anymore on GitHub (for example when the branch was deleted after the pull request was closed) are no longer marked as `fail` with an unhandled `404` when they are (re)processed: like the GitHub App not installed on the repository, the job is now marked as `skipped` with a warning log.
+- **Dispatcher**: The `workflow_job` webhook events delivered by GitHub with `action: completed` but a stale snapshot of the job (`conclusion` and `completed_at` null, `status` not `completed`) are now normalized before parsing: the `action` is rewritten from the actual job status (`queued`/`waiting`, `in_progress` otherwise), so the payload validates against the matching `githubkit-schemas` webhook model instead of raising a Pydantic `ValidationError` that made the dispatch job fail on every (re)run.
+
 ## 2026-09-29
 
 ### Added
