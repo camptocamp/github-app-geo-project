@@ -44,6 +44,7 @@ The `snyk (<version>)` jobs are the slowest and are serialized (`_SNYK_LOCK`), t
 - [`SECURITY.md`](https://github.com/camptocamp/c2cciutils/wiki/SECURITY.md) from the default branch to get the stabilization branches.
 - `.tools-version` on the stabilization branch to get the used minor Python version. The matching `pyenv` Python version is lazily installed at runtime if missing.
 - `.nvmrc`, `.node-version` or `.tool-versions` (`nodejs` entry, in this order of precedence) on the stabilization branch to get the pinned Node.js version. The matching Node.js version is lazily installed at runtime with `fnm` if missing, and used for `snyk fix` and `npm audit fix`. Without any version file, or if the installation fails, the Node.js version of the Docker image is used.
+- `gradlew` on the stabilization branch to get the Gradle version. The Java version used to run Gradle is the one of the `java-path-for-gradle` configuration mapping when it defines the Gradle minor version, otherwise the newest installed OpenJDK compatible with that Gradle version (Gradle 8.x → Java 21, 7.x → Java 17, 6.x → Java 11, looked up in `/usr/lib/jvm`), otherwise the system default Java.
 - `.github/ghci.yaml` on the stabilization branch to get some branch-specific configuration.
 
 ### Functionality Details

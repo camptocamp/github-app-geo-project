@@ -1862,3 +1862,118 @@ async def test_audit_output_with_vulnerability() -> None:
 
     assert "No vulnerability found." not in html
     assert "SNYK-PYTHON-OAUTHLIB-123456" in html
+
+
+@pytest.mark.asyncio
+async def test_find_compatible_java_path(tmp_path: Path) -> None:
+    """The newest installed OpenJDK compatible with the Gradle version is selected."""
+    jvm_root = tmp_path / "jvm"
+    for version in (11, 17, 21, 25):
+        bin_dir = jvm_root / f"java-{version}-openjdk-amd64" / "bin"
+        bin_dir.mkdir(parents=True)
+        (bin_dir / "java").write_text("")
+    # An installation without the java binary is ignored
+    (jvm_root / "java-19-openjdk-amd64" / "bin").mkdir(parents=True)
+
+    jvm_root_path = anyio.Path(str(jvm_root))
+    assert await audit_utils.find_compatible_java_path("8.10.2", jvm_root=jvm_root_path) == str(
+        jvm_root / "java-21-openjdk-amd64" / "bin"
+    )
+    assert await audit_utils.find_compatible_java_path("7.6.4", jvm_root=jvm_root_path) == str(
+        jvm_root / "java-17-openjdk-amd64" / "bin"
+    )
+    assert await audit_utils.find_compatible_java_path("6.9.4", jvm_root=jvm_root_path) == str(
+        jvm_root / "java-11-openjdk-amd64" / "bin"
+    )
+    # Recent or unknown Gradle versions run with the system default Java
+    assert await audit_utils.find_compatible_java_path("9.1.0", jvm_root=jvm_root_path) is None
+    assert await audit_utils.find_compatible_java_path("abc", jvm_root=jvm_root_path) is None
+    # Missing JVM root
+    assert (
+        await audit_utils.find_compatible_java_path("8.10.2", jvm_root=anyio.Path(str(tmp_path / "missing")))
+        is None
+    )
+
+
+def _make_gradle_proc_mock(version_output: str) -> MagicMock:
+    mock_proc = MagicMock()
+    mock_proc.communicate = AsyncMock(return_value=(version_output.encode(), b""))
+    mock_proc.returncode = 0
+    return mock_proc
+
+
+@pytest.mark.asyncio
+async def test_select_java_version_fallback(tmp_path: Path) -> None:
+    """Without a java-path-for-gradle mapping, a compatible installed Java is selected."""
+    (tmp_path / "gradlew").write_text("")
+    env = {"PATH": "/usr/bin"}
+
+    with (
+        patch(
+            "asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=_make_gradle_proc_mock("Gradle 8.10.2\n")),
+        ),
+        patch.object(
+            audit_utils,
+            "find_compatible_java_path",
+            new=AsyncMock(return_value="/opt/java/21/bin"),
+        ) as mock_find,
+        patch.object(
+            audit_utils.module_utils,
+            "run_timeout",
+            new=AsyncMock(return_value=("", True, None)),
+        ) as mock_run_timeout,
+    ):
+        await audit_utils._select_java_version({}, {}, env, anyio.Path(str(tmp_path)))
+
+    mock_find.assert_awaited_once_with("8.10.2")
+    mock_run_timeout.assert_not_awaited()
+    assert env["PATH"] == "/opt/java/21/bin:/usr/bin"
+
+
+@pytest.mark.asyncio
+async def test_select_java_version_fallback_not_found(tmp_path: Path) -> None:
+    """Without a mapping and without a compatible Java, the environment is left untouched."""
+    (tmp_path / "gradlew").write_text("")
+    env = {"PATH": "/usr/bin"}
+
+    with (
+        patch(
+            "asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=_make_gradle_proc_mock("Gradle 8.10.2\n")),
+        ),
+        patch.object(audit_utils, "find_compatible_java_path", new=AsyncMock(return_value=None)),
+        patch.object(
+            audit_utils.module_utils,
+            "run_timeout",
+            new=AsyncMock(return_value=("", True, None)),
+        ) as mock_run_timeout,
+    ):
+        await audit_utils._select_java_version({}, {}, env, anyio.Path(str(tmp_path)))
+
+    mock_run_timeout.assert_awaited_once()
+    assert env["PATH"] == "/usr/bin"
+
+
+@pytest.mark.asyncio
+async def test_select_java_version_explicit_mapping(tmp_path: Path) -> None:
+    """The explicit java-path-for-gradle mapping takes precedence."""
+    (tmp_path / "gradlew").write_text("")
+    env = {"PATH": "/usr/bin"}
+
+    with (
+        patch(
+            "asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=_make_gradle_proc_mock("Gradle 8.10.2\n")),
+        ),
+        patch.object(audit_utils, "find_compatible_java_path", new=AsyncMock()) as mock_find,
+    ):
+        await audit_utils._select_java_version(
+            {"java-path-for-gradle": {"8.10": "/opt/java/configured/bin"}},
+            {},
+            env,
+            anyio.Path(str(tmp_path)),
+        )
+
+    mock_find.assert_not_awaited()
+    assert env["PATH"] == "/opt/java/configured/bin:/usr/bin"

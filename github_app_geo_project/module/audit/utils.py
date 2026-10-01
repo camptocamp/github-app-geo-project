@@ -361,6 +361,58 @@ async def snyk(
         await _cleanup_poetry_envs(poetry_install_dirs, env)
 
 
+_GRADLE_MAX_JAVA_VERSION = {6: 11, 7: 17, 8: 21}
+"""Maximum Java major version able to run each Gradle major version."""
+
+
+async def find_compatible_java_path(
+    gradle_version: str,
+    jvm_root: anyio.Path | None = None,
+) -> str | None:
+    """
+    Find the bin folder of the newest installed OpenJDK able to run the Gradle version.
+
+    Returns None when the system default Java should be used (recent or unknown Gradle
+    versions) or when no compatible Java installation is found.
+    """
+    try:
+        gradle_major = int(gradle_version.split(".", maxsplit=1)[0])
+    except ValueError:
+        _LOGGER.warning("Unable to parse the Gradle version %s", gradle_version)
+        return None
+    max_java = _GRADLE_MAX_JAVA_VERSION.get(gradle_major)
+    if max_java is None:
+        # The recent (or unknown) Gradle versions run with the system default Java
+        return None
+    if jvm_root is None:
+        jvm_root = anyio.Path("/usr/lib/jvm")
+    if not await jvm_root.exists():
+        _LOGGER.warning("The JVM root %s does not exist", jvm_root)
+        return None
+    best_version = 0
+    best_path: str | None = None
+    async for entry in jvm_root.iterdir():
+        match = re.match(r"^java-(\d+)-openjdk", entry.name)
+        if match is None:
+            continue
+        java_version = int(match.group(1))
+        if java_version > max_java or java_version <= best_version:
+            continue
+        if await (entry / "bin" / "java").exists():
+            best_version = java_version
+            best_path = str(entry / "bin")
+    if best_path is None:
+        _LOGGER.warning(
+            "No installed OpenJDK <= %s found in %s to run Gradle %s",
+            max_java,
+            jvm_root,
+            gradle_version,
+        )
+        return None
+    _LOGGER.info("Using Java %s to run Gradle %s: %s", best_version, gradle_version, best_path)
+    return best_path
+
+
 async def _select_java_version(
     config: configuration.SnykConfiguration,
     local_config: configuration.SnykConfiguration,
@@ -395,10 +447,15 @@ async def _select_java_version(
     java_path_for_gradle = local_config.get("java-path-for-gradle", config.get("java-path-for-gradle", {}))
     if minor_gradle_version not in java_path_for_gradle:
         _LOGGER.warning(
-            "Gradle version %s is not in the configuration: %s.",
+            "Gradle version %s is not in the configuration: %s, "
+            "trying to select a compatible installed Java version.",
             minor_gradle_version,
             ", ".join(java_path_for_gradle.keys()),
         )
+        java_path = await find_compatible_java_path(gradle_version)
+        if java_path is not None:
+            env["PATH"] = f"{java_path}:{env['PATH']}"
+            return
         _LOGGER.debug("Gradle version out: %s", "\n".join(gradle_version_out))
         await module_utils.run_timeout(
             ["./gradlew", "--version"],

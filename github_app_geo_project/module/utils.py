@@ -1414,6 +1414,29 @@ class GitWorktreeCache:
                 return True
             return bool(output and output.strip())
 
+    async def _get_worktree_path(
+        self,
+        github_project: configuration.GithubProject,
+        branch: str,
+    ) -> anyio.Path:
+        """
+        Get the deterministic worktree path of a repository branch.
+
+        The last element is the repository name because some tools derive the project
+        name from the folder name (e.g. Gradle, used by the Snyk monitor, names the
+        root project after the folder when `settings.gradle` has no `rootProject.name`),
+        a stable name avoids creating a new Snyk project on every run.
+        """
+        safe_branch = re.sub(r"[^A-Za-z0-9._-]", "-", branch)
+        return (
+            await self._get_cache_dir()
+            / "worktrees"
+            / github_project.owner
+            / github_project.repository
+            / safe_branch
+            / github_project.repository
+        )
+
     @asynccontextmanager
     async def working_tree(
         self,
@@ -1422,7 +1445,7 @@ class GitWorktreeCache:
     ) -> AsyncIterator[anyio.Path]:
         """Context manager that provides a working tree for the given branch.
 
-        The working tree is created from the cache and cleaned up on exit.
+        The working tree is created from the cache at a deterministic path and cleaned up on exit.
 
         Arguments:
         ---------
@@ -1442,7 +1465,34 @@ class GitWorktreeCache:
             async with lock:
                 cache_path = await self._ensure_cache(github_project)
 
-                worktree_path = anyio.Path(await anyio.mkdtemp())
+                worktree_path = await self._get_worktree_path(github_project, branch)
+                # Remove the leftovers of a previously interrupted run
+                if await worktree_path.exists():
+                    await run_timeout(
+                        ["git", "worktree", "remove", "--force", str(worktree_path)],
+                        None,
+                        settings.utils.timeouts.git_worktree_remove,
+                        f"Remove leftover worktree for {branch}",
+                        "Error removing the leftover worktree",
+                        "Timeout removing the leftover worktree",
+                        cache_path,
+                        error=False,
+                    )
+                    await anyio.to_thread.run_sync(
+                        lambda: shutil.rmtree(worktree_path, ignore_errors=True),
+                    )
+                # Remove the worktree registrations of directories that do not exist anymore
+                await run_timeout(
+                    ["git", "worktree", "prune"],
+                    None,
+                    settings.utils.timeouts.git_worktree_remove,
+                    "Prune the worktrees",
+                    "Error pruning the worktrees",
+                    "Timeout pruning the worktrees",
+                    cache_path,
+                    error=False,
+                )
+                await worktree_path.parent.mkdir(parents=True, exist_ok=True)
                 # Create worktree in detached HEAD to avoid conflicts with other worktrees
                 _, success, _ = await run_timeout(
                     ["git", "worktree", "add", "--detach", str(worktree_path), f"origin/{branch}"],

@@ -854,9 +854,9 @@ async def test_git_worktree_cache_get_branch_lock() -> None:
 
 
 @pytest.mark.asyncio
-async def test_git_worktree_cache_branch_lock_serializes_same_branch() -> None:
+async def test_git_worktree_cache_branch_lock_serializes_same_branch(tmp_path: Path) -> None:
     """Two concurrent working_tree calls on the same branch should be serialized."""
-    cache = utils.GitWorktreeCache()
+    cache = utils.GitWorktreeCache(cache_dir=anyio.Path(str(tmp_path)))
     execution_order: list[str] = []
 
     github_project = MagicMock()
@@ -869,10 +869,7 @@ async def test_git_worktree_cache_branch_lock_serializes_same_branch() -> None:
     async def mock_run_timeout(*args, **kwargs):
         return ("", True, "")
 
-    async def mock_mkdtemp():
-        return "/tmp/test"
-
-    async def mock_run_sync(func, *args):
+    async def mock_run_sync(func, *args, **kwargs):
         return func(*args) if args else func()
 
     async def use_worktree(label: str) -> None:
@@ -887,7 +884,6 @@ async def test_git_worktree_cache_branch_lock_serializes_same_branch() -> None:
             "github_app_geo_project.module.utils.run_timeout",
             side_effect=mock_run_timeout,
         ),
-        patch("github_app_geo_project.module.utils.anyio.mkdtemp", side_effect=mock_mkdtemp),
         patch("github_app_geo_project.module.utils.anyio.to_thread.run_sync", side_effect=mock_run_sync),
     ):
         await asyncio.gather(
@@ -899,9 +895,9 @@ async def test_git_worktree_cache_branch_lock_serializes_same_branch() -> None:
 
 
 @pytest.mark.asyncio
-async def test_git_worktree_cache_branch_lock_allows_different_branches() -> None:
+async def test_git_worktree_cache_branch_lock_allows_different_branches(tmp_path: Path) -> None:
     """Two concurrent working_tree calls on different branches should run in parallel."""
-    cache = utils.GitWorktreeCache()
+    cache = utils.GitWorktreeCache(cache_dir=anyio.Path(str(tmp_path)))
     execution_order: list[str] = []
 
     github_project = MagicMock()
@@ -914,10 +910,7 @@ async def test_git_worktree_cache_branch_lock_allows_different_branches() -> Non
     async def mock_run_timeout(*args, **kwargs):
         return ("", True, "")
 
-    async def mock_mkdtemp():
-        return "/tmp/test"
-
-    async def mock_run_sync(func, *args):
+    async def mock_run_sync(func, *args, **kwargs):
         return func(*args) if args else func()
 
     async def use_worktree(label: str, branch: str) -> None:
@@ -932,7 +925,6 @@ async def test_git_worktree_cache_branch_lock_allows_different_branches() -> Non
             "github_app_geo_project.module.utils.run_timeout",
             side_effect=mock_run_timeout,
         ),
-        patch("github_app_geo_project.module.utils.anyio.mkdtemp", side_effect=mock_mkdtemp),
         patch("github_app_geo_project.module.utils.anyio.to_thread.run_sync", side_effect=mock_run_sync),
     ):
         await asyncio.gather(
@@ -941,6 +933,84 @@ async def test_git_worktree_cache_branch_lock_allows_different_branches() -> Non
         )
 
     assert execution_order == ["a_start", "b_start", "a_end", "b_end"]
+
+
+@pytest.mark.asyncio
+async def test_git_worktree_cache_stable_path(tmp_path: Path) -> None:
+    """The worktree path is deterministic, sanitized and ends with the repository name."""
+    cache = utils.GitWorktreeCache(cache_dir=anyio.Path(str(tmp_path)))
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+
+    commands: list[list[str]] = []
+
+    async def mock_ensure_cache(_project):
+        return anyio.Path(str(tmp_path))
+
+    async def mock_run_timeout(command, *args, **kwargs):
+        commands.append(command)
+        return ("", True, "")
+
+    async def mock_run_sync(func, *args, **kwargs):
+        return func(*args) if args else func()
+
+    with (
+        patch.object(cache, "_ensure_cache", side_effect=mock_ensure_cache),
+        patch("github_app_geo_project.module.utils.run_timeout", side_effect=mock_run_timeout),
+        patch("github_app_geo_project.module.utils.anyio.to_thread.run_sync", side_effect=mock_run_sync),
+    ):
+        async with cache.working_tree(github_project, "feature/x") as worktree_path:
+            first = str(worktree_path)
+        async with cache.working_tree(github_project, "feature/x") as worktree_path:
+            second = str(worktree_path)
+
+    assert first == second
+    assert first == str(tmp_path / "worktrees" / "owner" / "repo" / "feature-x" / "repo")
+    assert ["git", "worktree", "add", "--detach", first, "origin/feature/x"] in commands
+
+
+@pytest.mark.asyncio
+async def test_git_worktree_cache_leftover_pre_cleanup(tmp_path: Path) -> None:
+    """The leftovers of an interrupted run are removed before adding the worktree."""
+    cache = utils.GitWorktreeCache(cache_dir=anyio.Path(str(tmp_path)))
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+
+    leftover = tmp_path / "worktrees" / "owner" / "repo" / "main" / "repo"
+    leftover.mkdir(parents=True)
+    (leftover / "file.txt").write_text("leftover")
+
+    commands: list[list[str]] = []
+
+    async def mock_ensure_cache(_project):
+        return anyio.Path(str(tmp_path))
+
+    async def mock_run_timeout(command, *args, **kwargs):
+        commands.append(command)
+        return ("", True, "")
+
+    async def mock_run_sync(func, *args, **kwargs):
+        return func(*args) if args else func()
+
+    with (
+        patch.object(cache, "_ensure_cache", side_effect=mock_ensure_cache),
+        patch("github_app_geo_project.module.utils.run_timeout", side_effect=mock_run_timeout),
+        patch("github_app_geo_project.module.utils.anyio.to_thread.run_sync", side_effect=mock_run_sync),
+    ):
+        async with cache.working_tree(github_project, "main") as worktree_path:
+            pass
+
+    remove_command = ["git", "worktree", "remove", "--force", str(leftover)]
+    prune_command = ["git", "worktree", "prune"]
+    add_command = ["git", "worktree", "add", "--detach", str(worktree_path), "origin/main"]
+    assert remove_command in commands
+    assert prune_command in commands
+    assert add_command in commands
+    assert commands.index(remove_command) < commands.index(add_command)
+    assert commands.index(prune_command) < commands.index(add_command)
+    assert not leftover.exists()
 
 
 @pytest.fixture(autouse=True)
