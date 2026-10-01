@@ -89,12 +89,15 @@ The `cleanup` job reports the resulting situation in the output of its check run
 
 #### Snyk cloud cleanup
 
-When the Snyk REST API is configured (`snyk_token`/`SNYK_TOKEN` and `snyk_org`/`SNYK_ORG`, kill switch `GHCI__AUDIT__SNYK_API_CLEANUP`), the module also cleans the Snyk cloud side, which is structured as Target → Reference → Project:
+When the Snyk REST API is configured (`snyk_token`/`SNYK_TOKEN` and optionally `snyk_org`/`SNYK_ORG`, kill switch `GHCI__AUDIT__SNYK_API_CLEANUP`), the module also cleans the Snyk cloud side, which is structured as Target → Reference → Project:
 
 - After each successful `snyk monitor`, the projects of the branch reference that were not refreshed by the run (dependency files that are not scanned anymore) are deleted. A reference always contains exactly the current dependency files, without recreating the projects every day.
 - The daily `cleanup` job deletes all the projects whose `target_reference` is a version that is not in `SECURITY.md` anymore (all the references of the repository when `SECURITY.md` is removed). A reference that does not contain any project anymore disappears from the Snyk UI.
+- The daily `cleanup` job also deletes the projects that were not re-monitored since too long (`snyk_api_stale_age` setting, default 7 days), independently of the monitor runs result. This removes the leftovers of the runs that created projects with unstable names, and the projects of references whose monitor fails for a long time.
 
-Only the projects with the `cli` origin are deleted. The cleanup is best-effort: API errors are logged and never fail the audit job, and without a token or organization configured it is silently skipped. The removed references are part of the `cleanup` job clean situation report.
+When no organization is configured, the single organization accessible with the API token is used, otherwise a warning is logged and the cleanup is skipped.
+
+Only the projects with the `cli` origin are deleted. The cleanup is best-effort: API errors are logged and never fail the audit job, and without a token the cleanup is silently skipped. The removed references and stale projects are part of the `cleanup` job clean situation report.
 
 ### Configuration Options
 

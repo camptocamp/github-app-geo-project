@@ -1163,6 +1163,15 @@ class Audit(
                 )
             )
 
+            # Remove the Snyk projects that were not re-monitored for too long,
+            # independently of the monitor runs result
+            cleaned.extend(
+                await audit_utils.snyk_cleanup_stale_projects_by_age(
+                    context.github_project.owner,
+                    context.github_project.repository,
+                )
+            )
+
             if not known_versions:
                 # Clear all checks from dashboard
                 issue_check.remove_check("outdated")
