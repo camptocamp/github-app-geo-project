@@ -25,7 +25,7 @@ repos:
     hooks:
       - id: prettier
         additional_dependencies:
-          - prettier@3.9.6 # npm
+          - prettier@3.9.9 # npm
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
     hooks:
@@ -47,7 +47,7 @@ repos:
     hooks:
       - id: poetry2-lock
         additional_dependencies:
-          - poetry==2.4.1 # pypi
+          - poetry==2.5.1 # pypi
         language_version: '3.12'
       - id: canonicalize
       - id: prospector-to-ruff
@@ -70,7 +70,7 @@ repos:
     hooks:
       - id: shellcheck
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.38.0
+    rev: 0.38.2
     hooks:
       - id: check-github-workflows
       - id: check-jsonschema
@@ -98,8 +98,8 @@ repos:
         additional_dependencies:
           - prospector-profile-duplicated==1.12.0 # pypi
           - prospector-profile-utils==1.27.0 # pypi
-          - pylint[spelling]==4.0.7 # pypi
-          - ruff==0.16.4 # pypi
+          - pylint[spelling]==4.0.9 # pypi
+          - ruff==0.16.8 # pypi
         exclude: |-
           (?x)(
             ^tests?/?
@@ -117,8 +117,8 @@ repos:
           - --profile=utils:pre-commit
         additional_dependencies:
           - prospector-profile-utils==1.27.0 # pypi
-          - ruff==0.16.4 # pypi
-          - pylint[spelling]==4.0.7 # pypi
+          - ruff==0.16.8 # pypi
+          - pylint[spelling]==4.0.9 # pypi
   - repo: https://github.com/camptocamp/jsonschema-gentypes
     rev: 2.13.0
     hooks:
@@ -221,11 +221,11 @@ repos:
   #          - --ignore-acronyms
   #          - --en-us
   - repo: https://github.com/renovatebot/pre-commit-hooks
-    rev: 44.46.4
+    rev: 44.111.4
     hooks:
       - id: renovate-config-validator
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.4
+    rev: v0.16.8
     hooks:
       - id: ruff-format
   - repo: https://github.com/sbrunner/python-versions-hook
