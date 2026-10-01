@@ -958,6 +958,10 @@ async def test_process_cleanup_everything_clean() -> None:
             "github_app_geo_project.module.audit.utils.snyk_cleanup_removed_references",
             new=AsyncMock(return_value=[]),
         ),
+        patch(
+            "github_app_geo_project.module.audit.utils.snyk_cleanup_stale_projects_by_age",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         result = await Audit().process(context)
 
@@ -1012,6 +1016,10 @@ async def test_process_cleanup_removes_leftovers() -> None:
             "github_app_geo_project.module.audit.utils.snyk_cleanup_removed_references",
             new=AsyncMock(return_value=["Snyk reference `1.1` (2 projects)"]),
         ) as mock_snyk_cleanup,
+        patch(
+            "github_app_geo_project.module.audit.utils.snyk_cleanup_stale_projects_by_age",
+            new=AsyncMock(return_value=["2 stale Snyk project(s) not monitored since 7 days"]),
+        ) as mock_snyk_stale,
     ):
         result = await Audit().process(context)
 
@@ -1029,12 +1037,14 @@ async def test_process_cleanup_removes_leftovers() -> None:
     assert context.session.delete.await_args.args[0].name == "snyk-1.1"
     context.session.commit.assert_awaited_once()
     mock_snyk_cleanup.assert_awaited_once_with("owner", "repo", ["1.2", "master"])
+    mock_snyk_stale.assert_awaited_once_with("owner", "repo")
     assert result.check_output is not None
-    assert result.check_output["summary"] == "Cleanup: 6 leftover(s) removed"
+    assert result.check_output["summary"] == "Cleanup: 7 leftover(s) removed"
     assert "snyk-1.1" in result.check_output["text"]
     assert "Snyk reference `1.1`" in result.check_output["text"]
+    assert "2 stale Snyk project(s)" in result.check_output["text"]
     assert result.intermediate_status is not None
-    assert result.intermediate_status.status.types["Cleanup"].summary == "6 leftover(s) removed"
+    assert result.intermediate_status.status.types["Cleanup"].summary == "7 leftover(s) removed"
 
 
 @pytest.mark.asyncio
@@ -1051,6 +1061,10 @@ async def test_process_cleanup_without_known_versions_clears_dashboard() -> None
             "github_app_geo_project.module.audit.utils.snyk_cleanup_removed_references",
             new=AsyncMock(return_value=[]),
         ) as mock_snyk_cleanup,
+        patch(
+            "github_app_geo_project.module.audit.utils.snyk_cleanup_stale_projects_by_age",
+            new=AsyncMock(return_value=[]),
+        ),
     ):
         result = await Audit().process(context)
 
@@ -1535,6 +1549,67 @@ async def test_snyk_monitor_returns_success() -> None:
         success = await audit_utils._snyk_monitor("1.2", {}, {}, [], {}, anyio.Path("."))
 
     assert success is False
+
+
+@pytest.mark.asyncio
+async def test_snyk_cleanup_stale_projects_by_age(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The projects not re-monitored since too long are deleted, whatever the monitor run result."""
+    monkeypatch.setattr(settings.audit, "snyk_api_cleanup", True)
+    monkeypatch.setattr(settings.audit, "snyk_token", "test-token")
+    monkeypatch.setattr(settings.audit, "snyk_org", _SNYK_ORG_UUID)
+    monkeypatch.setattr(settings.audit, "snyk_api_stale_age", datetime.timedelta(days=7))
+
+    session = _FakeSnykSession()
+    projects = [
+        _snyk_project("project-1", "tmpab12cd34", "3.31"),
+        _snyk_project("project-2", "tmpab12cd34/core", "3.31"),
+        _snyk_project("project-3", "owner/repo/imported", "3.31", origin="github"),
+    ]
+
+    with (
+        patch.object(audit_utils, "_snyk_api_session", return_value=session),
+        patch.object(audit_utils, "_resolve_snyk_target_ids", new=AsyncMock(return_value=["target-1"])),
+        patch.object(audit_utils, "_snyk_list_projects", new=AsyncMock(return_value=projects)) as mock_list,
+    ):
+        report = await audit_utils.snyk_cleanup_stale_projects_by_age("owner", "repo")
+
+    assert mock_list.await_args is not None
+    extra_params = dict(mock_list.await_args.args[4])
+    assert set(extra_params) == {"cli_monitored_before"}
+    monitored_before = datetime.datetime.fromisoformat(extra_params["cli_monitored_before"])
+    expected = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=7)
+    assert abs(monitored_before - expected) < datetime.timedelta(minutes=1)
+
+    assert sorted(request[1] for request in session.requests if request[0] == "DELETE") == [
+        f"https://api.snyk.io/rest/orgs/{_SNYK_ORG_UUID}/projects/project-1",
+        f"https://api.snyk.io/rest/orgs/{_SNYK_ORG_UUID}/projects/project-2",
+    ]
+    assert report == ["2 stale Snyk project(s) not monitored since 7 days"]
+
+
+@pytest.mark.asyncio
+async def test_resolve_snyk_org_id_single_org_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without a configured organization, the single accessible organization is used."""
+    monkeypatch.setattr(settings.audit, "snyk_org", None)
+
+    with patch.object(
+        audit_utils,
+        "_snyk_api_get_all",
+        new=AsyncMock(return_value=[{"id": "org-uuid-1", "attributes": {"slug": "my-org"}}]),
+    ):
+        assert await audit_utils._resolve_snyk_org_id(MagicMock(), "https://api.snyk.io") == "org-uuid-1"
+
+    with patch.object(
+        audit_utils,
+        "_snyk_api_get_all",
+        new=AsyncMock(
+            return_value=[
+                {"id": "org-uuid-1", "attributes": {"slug": "org-1"}},
+                {"id": "org-uuid-2", "attributes": {"slug": "org-2"}},
+            ]
+        ),
+    ):
+        assert await audit_utils._resolve_snyk_org_id(MagicMock(), "https://api.snyk.io") is None
 
 
 def _vulnerability(

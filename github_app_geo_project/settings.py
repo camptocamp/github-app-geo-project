@@ -470,6 +470,15 @@ class _AuditSettings(BaseModel):
             description="Clean the stale Snyk projects and the references of unsupported versions through the REST API"
         ),
     ] = True
+    snyk_api_stale_age: Annotated[
+        Duration,
+        Field(
+            description=(
+                "Age after which a Snyk project that was not re-monitored is considered stale "
+                "and deleted by the cleanup job"
+            )
+        ),
+    ] = datetime.timedelta(days=7)
     timeouts: Annotated[_AuditTimeouts, Field(description="Audit timeouts")] = _AuditTimeouts()
 
 

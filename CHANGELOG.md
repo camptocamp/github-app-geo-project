@@ -4,7 +4,13 @@
 
 ### Added
 
+- **Audit**: The daily `cleanup` job also deletes, through the Snyk REST API, the `cli` origin projects of the repository that were not re-monitored since too long (new `audit.snyk_api_stale_age` setting, `GHCI__AUDIT__SNYK_API_STALE_AGE`, default 7 days). Unlike the post-monitor pruning, this does not depend on the monitor run result: it removes the leftovers of runs that uploaded projects with unstable names (e.g. Gradle projects named after the random worktree folder) and the projects of references whose monitor fails for a long time. The removed projects are added to the clean situation report.
+- **Audit**: When no Snyk organization is configured (`audit.snyk_org` / `SNYK_ORG`), the single organization accessible with the API token is now used automatically; with several accessible organizations a warning is logged and the Snyk REST API cleanup is skipped.
 - **Audit**: The Snyk pull request body now lists the CVE fixed by the run in a `Fixed vulnerabilities` section: severity, package name and version, target file, links to the CVE (`nvd.nist.gov`) and to the Snyk vulnerability page, and the version the vulnerability is fixed in. The list is the difference between the `snyk test --json` scan done before `snyk fix`/`npm audit fix` and the one done after them, so it also reports the vulnerabilities fixed by `npm audit fix`. The raw output of the fix commands is moved into a collapsed `<details>` section so the fixed CVE stay readable.
+
+### Changed
+
+- **Audit**: The Snyk REST API cleanup skip reasons (no token, no organization, no target found) and its removals are now logged at the `INFO` level instead of `DEBUG`, so they are visible in the job logs.
 
 ### Fixed
 
