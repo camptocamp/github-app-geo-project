@@ -2,8 +2,13 @@
 
 ## 2026-10-01
 
+### Added
+
+- **Audit**: The Snyk pull request body now lists the CVE fixed by the run in a `Fixed vulnerabilities` section: severity, package name and version, target file, links to the CVE (`nvd.nist.gov`) and to the Snyk vulnerability page, and the version the vulnerability is fixed in. The list is the difference between the `snyk test --json` scan done before `snyk fix`/`npm audit fix` and the one done after them, so it also reports the vulnerabilities fixed by `npm audit fix`. The raw output of the fix commands is moved into a collapsed `<details>` section so the fixed CVE stay readable.
+
 ### Fixed
 
+- **Audit**: The Snyk pull request body links the generated/updated output again (`[Logs](...) | [Output](...)`), the `[Output]` link was dropped when the markdown links were removed from the dashboard summary. The `snyk-<version>` output is now created or updated by every `snyk (<version>)` job, even when every vulnerability was fixed or when only vulnerabilities below the dashboard threshold remain, so the link is always present and the URL is stable. Its page displays `No vulnerability found.` when there is nothing to report.
 - **Queue**: Jobs whose referenced check run does not exist anymore on GitHub (for example when the branch was deleted after the pull request was closed) are no longer marked as `fail` with an unhandled `404` when they are (re)processed: like the GitHub App not installed on the repository, the job is now marked as `skipped` with a warning log.
 - **Dispatcher**: The `workflow_job` webhook events delivered by GitHub with `action: completed` but a stale snapshot of the job (`conclusion` and `completed_at` null, `status` not `completed`) are now normalized before parsing: the `action` is rewritten from the actual job status (`queued`/`waiting`, `in_progress` otherwise), so the payload validates against the matching `githubkit-schemas` webhook model instead of raising a Pydantic `ValidationError` that made the dispatch job fail on every (re)run.
 

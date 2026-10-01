@@ -56,6 +56,16 @@ The module uses Snyk to scan for vulnerabilities in project dependencies. It foc
 
 When Snyk identifies vulnerabilities that can be automatically fixed, the module creates a pull request with the necessary changes. This helps maintain project security by streamlining the remediation process.
 
+The pull request body contains:
+
+- A `Fixed vulnerabilities` section listing the vulnerabilities that were fixed by this run, with their severity, package and version, target file, links to the CVE (`nvd.nist.gov`) and to the Snyk vulnerability page, and the version they are fixed in. The list is the difference between the `snyk test --json` scan done before `snyk fix`/`npm audit fix` and the one done after them.
+- The raw output of the fix commands (`snyk fix`, `npm audit fix`) in a collapsed `<details>` section.
+- A `Logs` link to the job logs and an `Output` link to the Snyk summary report of the branch.
+
+#### Snyk Summary Report Output
+
+Every `snyk (<version>)` job creates or updates the `/output/<owner>/<repository>/snyk-<version>` output, even when every vulnerability was fixed or when only vulnerabilities below the dashboard threshold remain. The page lists the remaining vulnerabilities, the ignored ones (with the reason found in the `.snyk` policy files) and, collapsed, the low severity ones. It displays `No vulnerability found.` when the three sections are empty. The output URL is stable, it is linked from the pull request body and from the transversal dashboard.
+
 #### Version Update Pull Requests
 
 For projects using the `ci/dpkg.yaml` file format, the module checks for outdated dependencies and creates pull requests with updated versions. This keeps dependencies up-to-date and reduces technical debt.

@@ -99,6 +99,27 @@ class _OutputRendererData(BaseModel):
     low_severity_vulnerabilities: dict[str, list[_VulnerabilityStatus]]
 
 
+def _vulnerability_status(
+    vulnerability: audit_utils.VulnerabilityData,
+    reason: str = "",
+) -> _VulnerabilityStatus:
+    """Convert a Snyk vulnerability to the data stored in the output."""
+    return _VulnerabilityStatus(
+        file=vulnerability.file,
+        package_name=vulnerability.package_name,
+        package_version=vulnerability.package_version,
+        package_manager=vulnerability.package_manager,
+        severity=vulnerability.severity,
+        snyk_id=vulnerability.snyk_id,
+        cve_ids=vulnerability.cve_ids,
+        cwe_ids=vulnerability.cwe_ids,
+        fixed_in=vulnerability.fixed_in,
+        is_upgradable=vulnerability.is_upgradable,
+        is_patchable=vulnerability.is_patchable,
+        reason=reason,
+    )
+
+
 class _TransversalStatusRepo(BaseModel):
     types: dict[str, _TransversalStatusTool] = {}
 
@@ -218,6 +239,38 @@ def _dashboard_vuln_section_versions(issue_check: module_utils.DashboardIssue) -
             elif item.startswith("<!-- vulns-") and item.endswith(" -->"):
                 versions.add(item[len("<!-- vulns-") : -len(" -->")])
     return versions
+
+
+def _details_markdown(summary: str, content: str) -> str:
+    """Build a collapsed markdown section, used for the raw fix command output."""
+    return f"<details>\n<summary>{summary}</summary>\n\n{content}\n\n</details>"
+
+
+def _fixed_vulnerabilities_markdown(
+    fixed_vulnerabilities: dict[str, list[audit_utils.VulnerabilityData]],
+) -> str:
+    """Build the markdown list of the vulnerabilities fixed by the current audit run."""
+    if not fixed_vulnerabilities:
+        return ""
+    lines = ["## Fixed vulnerabilities", ""]
+    for file_name, vulnerabilities in fixed_vulnerabilities.items():
+        for vulnerability in vulnerabilities:
+            identifiers = [
+                *[
+                    f"[{cve_id}](https://nvd.nist.gov/vuln/detail/{cve_id})"
+                    for cve_id in vulnerability.cve_ids
+                ],
+                f"[{vulnerability.snyk_id}](https://security.snyk.io/vuln/{vulnerability.snyk_id})",
+            ]
+            line = (
+                f"- **[{vulnerability.severity.upper()}]** `{vulnerability.package_name}`"
+                f" `{vulnerability.package_version}` in `{file_name}`"
+                f" — {', '.join(identifiers)}"
+            )
+            if vulnerability.fixed_in:
+                line += f" — fixed in {', '.join(f'`{version}`' for version in vulnerability.fixed_in)}"
+            lines.append(line)
+    return "\n".join(lines)
 
 
 async def _process_renovate(
@@ -410,7 +463,14 @@ async def _process_snyk_dpkg(
 
                 env = await _use_python_version(python_version, cwd) if python_version else os.environ.copy()
 
-                result, body, short_message, new_success, file_vulnerabilities = await audit_utils.snyk(
+                (
+                    result,
+                    body,
+                    short_message,
+                    new_success,
+                    file_vulnerabilities,
+                    fixed_vulns,
+                ) = await audit_utils.snyk(
                     branch,
                     context.github_project.owner,
                     context.github_project.repository,
@@ -453,7 +513,11 @@ async def _process_snyk_dpkg(
                     reasons = await audit_utils.parse_snyk_ignore_reasons(snyk_file)
                     snyk_ignore_reasons.update(reasons)
 
-            body_md = body.to_markdown() if body is not None else ""
+            body_md = _fixed_vulnerabilities_markdown(fixed_vulns)
+            if body is not None:
+                if body_md:
+                    body_md += "\n\n"
+                body_md += _details_markdown(body.title or "Fix output", body.to_markdown())
             del body
             success &= new_success
             output_tool = await _process_error(
@@ -463,11 +527,6 @@ async def _process_snyk_dpkg(
                 [{"title": m.title, "children": [m.to_html("no-title")]} for m in result],
                 ", ".join(short_message),
             )
-            message: module_utils.Message = module_utils.HtmlMessage(
-                f"<a href='{output_tool.output_url}'>Output</a>",
-            )
-            message.title = "Output URL"
-            _LOGGER.debug(message)
             # Remove old vulnerability section (both old comment format and new format)
             if not _remove_dashboard_vuln_section(issue_check, branch):
                 # Remove all str entries (vulnerability lines, separators, module data)
@@ -509,98 +568,48 @@ async def _process_snyk_dpkg(
                     if vuln_severity >= min_advisory_severity:
                         high_critical_vulns.append(vuln)
 
-            if filtered_vulns or ignored_vulns:
-                vuln_data = (
-                    {
-                        file_name: [
-                            _VulnerabilityStatus(
-                                file=vuln.file,
-                                package_name=vuln.package_name,
-                                package_version=vuln.package_version,
-                                package_manager=vuln.package_manager,
-                                severity=vuln.severity,
-                                snyk_id=vuln.snyk_id,
-                                cve_ids=vuln.cve_ids,
-                                cwe_ids=vuln.cwe_ids,
-                                fixed_in=vuln.fixed_in,
-                                is_upgradable=vuln.is_upgradable,
-                                is_patchable=vuln.is_patchable,
-                            )
-                            for vuln in vulns
-                        ]
-                        for file_name, vulns in sorted(filtered_vulns.items())
-                    }
-                    if filtered_vulns
-                    else {}
-                )
-                ignored_data = (
-                    {
-                        file_name: [
-                            _VulnerabilityStatus(
-                                file=vuln.file,
-                                package_name=vuln.package_name,
-                                package_version=vuln.package_version,
-                                package_manager=vuln.package_manager,
-                                severity=vuln.severity,
-                                snyk_id=vuln.snyk_id,
-                                cve_ids=vuln.cve_ids,
-                                cwe_ids=vuln.cwe_ids,
-                                fixed_in=vuln.fixed_in,
-                                is_upgradable=vuln.is_upgradable,
-                                is_patchable=vuln.is_patchable,
-                                reason=snyk_ignore_reasons.get(vuln.snyk_id, "No reason provided"),
-                            )
-                            for vuln in vulns
-                        ]
-                        for file_name, vulns in sorted(ignored_vulns.items())
-                    }
-                    if ignored_vulns
-                    else {}
-                )
-                low_severity_data = (
-                    {
-                        file_name: [
-                            _VulnerabilityStatus(
-                                file=vuln.file,
-                                package_name=vuln.package_name,
-                                package_version=vuln.package_version,
-                                package_manager=vuln.package_manager,
-                                severity=vuln.severity,
-                                snyk_id=vuln.snyk_id,
-                                cve_ids=vuln.cve_ids,
-                                cwe_ids=vuln.cwe_ids,
-                                fixed_in=vuln.fixed_in,
-                                is_upgradable=vuln.is_upgradable,
-                                is_patchable=vuln.is_patchable,
-                            )
-                            for vuln in vulns
-                        ]
-                        for file_name, vulns in sorted(low_severity_vulns.items())
-                    }
-                    if low_severity_vulns
-                    else {}
-                )
-                output_renderer_data = _OutputRendererData(
-                    branch=branch,
-                    vulnerabilities=vuln_data,
-                    ignored_vulnerabilities=ignored_data,
-                    low_severity_vulnerabilities=low_severity_data,
-                )
+            vuln_data = {
+                file_name: [_vulnerability_status(vuln) for vuln in vulns]
+                for file_name, vulns in sorted(filtered_vulns.items())
+            }
+            ignored_data = {
+                file_name: [
+                    _vulnerability_status(vuln, snyk_ignore_reasons.get(vuln.snyk_id, "No reason provided"))
+                    for vuln in vulns
+                ]
+                for file_name, vulns in sorted(ignored_vulns.items())
+            }
+            low_severity_data = {
+                file_name: [_vulnerability_status(vuln) for vuln in vulns]
+                for file_name, vulns in sorted(low_severity_vulns.items())
+            }
+            output_renderer_data = _OutputRendererData(
+                branch=branch,
+                vulnerabilities=vuln_data,
+                ignored_vulnerabilities=ignored_data,
+                low_severity_vulnerabilities=low_severity_data,
+            )
 
-                # Create output for vulnerabilities
-                output_name = f"snyk-{branch}"
-                await module_utils.add_output(
-                    context,
-                    f"Snyk summary report {branch}",
-                    output_name,
-                    "github_app_geo_project:module/audit/output.html",
-                    status=models.OutputStatus.SUCCESS,
-                    renderer_data=output_renderer_data,
-                )
-                output_tool.output_url = urllib.parse.urljoin(
-                    context.service_url,
-                    f"output/{context.github_project.owner}/{context.github_project.repository}/{output_name}",
-                )
+            # Create output for vulnerabilities, even when everything was fixed,
+            # to have a stable output URL to link in the pull request body.
+            output_name = f"snyk-{branch}"
+            await module_utils.add_output(
+                context,
+                f"Snyk summary report {branch}",
+                output_name,
+                "github_app_geo_project:module/audit/output.html",
+                status=models.OutputStatus.SUCCESS,
+                renderer_data=output_renderer_data,
+            )
+            output_tool.output_url = urllib.parse.urljoin(
+                context.service_url,
+                f"output/{context.github_project.owner}/{context.github_project.repository}/{output_name}",
+            )
+            message: module_utils.Message = module_utils.HtmlMessage(
+                f"<a href='{output_tool.output_url}'>Output</a>",
+            )
+            message.title = "Output URL"
+            _LOGGER.debug(message)
 
             # Create security advisories for HIGH and CRITICAL CVEs
             if high_critical_vulns and _ADVISORY:
@@ -619,8 +628,10 @@ async def _process_snyk_dpkg(
                     cwd,
                 )
 
-        body_md += "\n" if body_md else ""
+        body_md += "\n\n" if body_md else ""
         body_md += f"[Logs]({logs_url})"
+        if output_tool.output_url:
+            body_md += f" | [Output]({output_tool.output_url})"
 
         new_success, pr_messages = await _create_pull_request_if_changes(
             branch,

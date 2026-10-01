@@ -21,17 +21,24 @@ from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import (
     Audit,
     _dashboard_vuln_section_versions,
+    _details_markdown,
     _EventData,
+    _fixed_vulnerabilities_markdown,
     _IntermediateStatus,
+    _OutputRendererData,
     _process_renovate,
+    _process_snyk_dpkg,
     _remove_dashboard_vuln_section,
     _TransversalStatus,
     _TransversalStatusRepo,
     _TransversalStatusTool,
+    _vulnerability_status,
+    _VulnerabilityStatus,
 )
 from github_app_geo_project.module.audit import utils as audit_utils
 from github_app_geo_project.module.audit.utils import VulnerabilityData
 from github_app_geo_project.settings import settings
+from github_app_geo_project.templates import render_template
 
 
 def _make_worktree_mock(clone_path: Path) -> MagicMock:
@@ -1528,3 +1535,255 @@ async def test_snyk_monitor_returns_success() -> None:
         success = await audit_utils._snyk_monitor("1.2", {}, {}, [], {}, anyio.Path("."))
 
     assert success is False
+
+
+def _vulnerability(
+    file_name: str = "pyproject.toml",
+    package_name: str = "oauthlib",
+    package_version: str = "3.2.2",
+    severity: str = "high",
+    snyk_id: str = "SNYK-PYTHON-OAUTHLIB-123456",
+    cve_ids: list[str] | None = None,
+    fixed_in: list[str] | None = None,
+) -> VulnerabilityData:
+    """Build a vulnerability for the tests."""
+    return VulnerabilityData(
+        file=file_name,
+        package_name=package_name,
+        package_version=package_version,
+        package_manager="pip",
+        severity=severity,
+        snyk_id=snyk_id,
+        cve_ids=["CVE-2026-12345"] if cve_ids is None else cve_ids,
+        cwe_ids=["CWE-79"],
+        title=f"[{severity.upper()}] {package_name}@{package_version}: {snyk_id}",
+        fixed_in=["4.0.0"] if fixed_in is None else fixed_in,
+        is_upgradable=True,
+        is_patchable=False,
+    )
+
+
+def test_fixed_vulnerabilities_diff() -> None:
+    """Only the vulnerabilities that disappeared between the two scans are reported as fixed."""
+    fixed_vuln = _vulnerability()
+    remaining_vuln = _vulnerability(
+        package_name="django",
+        package_version="3.2.0",
+        severity="medium",
+        snyk_id="SNYK-PYTHON-DJANGO-654321",
+        cve_ids=["CVE-2026-54321"],
+    )
+    before = {"pyproject.toml": [fixed_vuln, remaining_vuln]}
+    after = {"pyproject.toml": [remaining_vuln]}
+
+    fixed = audit_utils.fixed_vulnerabilities(before, after)
+
+    assert list(fixed) == ["pyproject.toml"]
+    assert fixed["pyproject.toml"] == [fixed_vuln]
+
+
+def test_fixed_vulnerabilities_empty_when_nothing_changed() -> None:
+    """Without any change between the two scans nothing is reported as fixed."""
+    vulnerabilities = {"pyproject.toml": [_vulnerability()]}
+
+    assert audit_utils.fixed_vulnerabilities(vulnerabilities, vulnerabilities) == {}
+    assert audit_utils.fixed_vulnerabilities({}, vulnerabilities) == {}
+
+
+def test_fixed_vulnerabilities_upgraded_version_is_fixed() -> None:
+    """A vulnerability still present on an upgraded version is not the fixed one."""
+    before = {"requirements.txt": [_vulnerability(package_version="3.2.2")]}
+    after = {"requirements.txt": [_vulnerability(package_version="4.0.0")]}
+
+    fixed = audit_utils.fixed_vulnerabilities(before, after)
+
+    assert [vuln.package_version for vuln in fixed["requirements.txt"]] == ["3.2.2"]
+
+
+def test_fixed_vulnerabilities_sorted_by_severity() -> None:
+    """The fixed vulnerabilities are sorted by descending severity, then by package name."""
+    low = _vulnerability(package_name="aaa", severity="low", snyk_id="SNYK-1")
+    critical = _vulnerability(package_name="zzz", severity="critical", snyk_id="SNYK-2")
+    high = _vulnerability(package_name="mmm", severity="high", snyk_id="SNYK-3")
+
+    fixed = audit_utils.fixed_vulnerabilities({"b.txt": [low], "a.txt": [high, critical]}, {})
+
+    assert list(fixed) == ["a.txt", "b.txt"]
+    assert [vuln.severity for vuln in fixed["a.txt"]] == ["critical", "high"]
+
+
+def test_fixed_vulnerabilities_markdown() -> None:
+    """The fixed vulnerabilities are rendered as a markdown list of the pull request body."""
+    markdown = _fixed_vulnerabilities_markdown(
+        {
+            "pyproject.toml": [
+                _vulnerability(cve_ids=["CVE-2026-12345", "CVE-2026-67890"]),
+            ],
+        },
+    )
+
+    assert markdown == (
+        "## Fixed vulnerabilities\n"
+        "\n"
+        "- **[HIGH]** `oauthlib` `3.2.2` in `pyproject.toml` — "
+        "[CVE-2026-12345](https://nvd.nist.gov/vuln/detail/CVE-2026-12345), "
+        "[CVE-2026-67890](https://nvd.nist.gov/vuln/detail/CVE-2026-67890), "
+        "[SNYK-PYTHON-OAUTHLIB-123456](https://security.snyk.io/vuln/SNYK-PYTHON-OAUTHLIB-123456)"
+        " — fixed in `4.0.0`"
+    )
+
+
+def test_fixed_vulnerabilities_markdown_without_identifier() -> None:
+    """A vulnerability without CVE and without fixed version is rendered with the Snyk identifier only."""
+    markdown = _fixed_vulnerabilities_markdown(
+        {"package-lock.json": [_vulnerability(cve_ids=[], fixed_in=[])]},
+    )
+
+    assert markdown == (
+        "## Fixed vulnerabilities\n"
+        "\n"
+        "- **[HIGH]** `oauthlib` `3.2.2` in `package-lock.json` — "
+        "[SNYK-PYTHON-OAUTHLIB-123456](https://security.snyk.io/vuln/SNYK-PYTHON-OAUTHLIB-123456)"
+    )
+
+
+def test_fixed_vulnerabilities_markdown_empty() -> None:
+    """Nothing is added to the pull request body when no vulnerability was fixed."""
+    assert _fixed_vulnerabilities_markdown({}) == ""
+
+
+def test_details_markdown() -> None:
+    """The raw fix output is rendered in a collapsed markdown section."""
+    assert _details_markdown("snyk fix output", "Done") == (
+        "<details>\n<summary>snyk fix output</summary>\n\nDone\n\n</details>"
+    )
+
+
+def test_vulnerability_status() -> None:
+    """The Snyk vulnerability is fully converted to the data stored in the output."""
+    status = _vulnerability_status(_vulnerability(), "Not compatible with the used Poetry version")
+
+    assert status.model_dump() == {
+        "file": "pyproject.toml",
+        "package_name": "oauthlib",
+        "package_version": "3.2.2",
+        "package_manager": "pip",
+        "severity": "high",
+        "snyk_id": "SNYK-PYTHON-OAUTHLIB-123456",
+        "cve_ids": ["CVE-2026-12345"],
+        "cwe_ids": ["CWE-79"],
+        "fixed_in": ["4.0.0"],
+        "is_upgradable": True,
+        "is_patchable": False,
+        "reason": "Not compatible with the used Poetry version",
+    }
+
+
+@pytest.mark.asyncio
+async def test_process_snyk_pull_request_body() -> None:
+    """The Snyk pull request body lists the fixed CVE and links the logs and the generated output."""
+    context = Mock()
+    context.module_event_data = _EventData(type="snyk", version="1.21")
+    context.module_config = {}
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "tilecloud-chain"
+    context.service_url = "https://example.com/"
+    context.job_id = 123
+
+    fix_output = module_utils.AnsiMessage("1 items were successfully fixed")
+    fix_output.title = "snyk fix output"
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        clone_path = Path(tmpdirname) / "repo"
+        clone_path.mkdir()
+        mock_cm = _make_worktree_mock(clone_path)
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr,
+            patch.object(
+                audit_utils,
+                "snyk",
+                new=AsyncMock(
+                    return_value=(
+                        [],
+                        fix_output,
+                        ["1 high vulnerabilities can be fixed"],
+                        True,
+                        {},
+                        {"pyproject.toml": [_vulnerability()]},
+                    ),
+                ),
+            ),
+            patch.object(audit_utils, "snyk_test_ignored", new=AsyncMock(return_value={})),
+            patch.object(audit_utils, "find_snyk_files", new=AsyncMock(return_value=[])),
+            patch(
+                "github_app_geo_project.module.audit.module_utils.add_output",
+                new=AsyncMock(),
+            ) as mock_add_output,
+        ):
+            mock_create_pr.return_value = (True, [])
+
+            short_message, success = await _process_snyk_dpkg(
+                context,
+                module_utils.DashboardIssue("- [ ] <!-- snyk --> Check security vulnerabilities with Snyk\n"),
+                _IntermediateStatus(status=_TransversalStatusRepo()),
+            )
+
+    assert success is True
+    assert short_message == ["1 high vulnerabilities can be fixed"]
+
+    # The output is created even when every vulnerability was fixed
+    mock_add_output.assert_awaited_once()
+    assert mock_add_output.await_args is not None
+    assert mock_add_output.await_args.args[2] == "snyk-1.21"
+
+    assert mock_create_pr.await_args is not None
+    body_md = mock_create_pr.await_args.args[3]
+    assert "## Fixed vulnerabilities" in body_md
+    assert "[CVE-2026-12345](https://nvd.nist.gov/vuln/detail/CVE-2026-12345)" in body_md
+    assert "<summary>snyk fix output</summary>" in body_md
+    assert "1 items were successfully fixed" in body_md
+    assert body_md.endswith(
+        "[Logs](https://example.com/logs/123) | "
+        "[Output](https://example.com/output/camptocamp/tilecloud-chain/snyk-1.21)",
+    )
+
+
+async def _render_audit_output(**vulnerabilities: dict[str, list[_VulnerabilityStatus]]) -> str:
+    """Render the Snyk summary report output page."""
+    renderer_data = _OutputRendererData(
+        branch="1.21",
+        vulnerabilities=vulnerabilities.get("vulnerabilities", {}),
+        ignored_vulnerabilities=vulnerabilities.get("ignored_vulnerabilities", {}),
+        low_severity_vulnerabilities=vulnerabilities.get("low_severity_vulnerabilities", {}),
+    )
+    return await render_template(
+        "github_app_geo_project:module/audit/output.html",
+        {"renderer_data": renderer_data.model_dump()},
+        nonce="the-nonce",
+    )
+
+
+@pytest.mark.asyncio
+async def test_audit_output_without_vulnerability() -> None:
+    """The output page reports that no vulnerability was found when everything was fixed."""
+    html = await _render_audit_output()
+
+    assert '<style nonce="the-nonce">' in html
+    assert "<h2>1.21</h2>" in html
+    assert "No vulnerability found." in html
+
+
+@pytest.mark.asyncio
+async def test_audit_output_with_vulnerability() -> None:
+    """The output page lists the remaining vulnerabilities without the empty report message."""
+    html = await _render_audit_output(
+        vulnerabilities={"pyproject.toml": [_vulnerability_status(_vulnerability())]},
+    )
+
+    assert "No vulnerability found." not in html
+    assert "SNYK-PYTHON-OAUTHLIB-123456" in html
