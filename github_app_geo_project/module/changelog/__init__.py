@@ -6,12 +6,14 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import githubkit.exception
 import githubkit.webhooks
 import githubkit_schemas.latest.models
+import githubkit_schemas.latest.types
 import packaging.version
+from pydantic import BaseModel
 
 from github_app_geo_project import module
 from github_app_geo_project.configuration import GithubProject
@@ -22,6 +24,15 @@ if TYPE_CHECKING:
     from collections.abc import AsyncIterable, Callable
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class _EventData(BaseModel):
+    """The event data of the changelog module."""
+
+    type: Literal["tag", "tag-delete", "discussion"] | None = None
+    """The kind of the event, None to just (re)generate the changelog of a version."""
+    version: str | None = None
+    """The tag name of the affected version."""
 
 
 class Author:
@@ -317,14 +328,157 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Tag | None:
     return None
 
 
-def get_release(
-    tag: githubkit_schemas.latest.models.Tag,
-) -> githubkit_schemas.latest.models.Repository | None:  # wrong type
-    """Get the release from the tag."""
-    for release in tag.get_repo().get_releases():  # type: ignore[attr-defined]
-        if release.tag_name == tag.name:
-            return release  # type: ignore[no-any-return]
-    return None
+async def _get_release(
+    github_project: GithubProject,
+    tag_str: str,
+) -> githubkit_schemas.latest.models.Release | None:
+    """Get the release of a tag, None if there is no release for this tag."""
+    try:
+        return (
+            await github_project.aio_github.rest.repos.async_get_release_by_tag(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                tag=tag_str,
+            )
+        ).parsed_data
+    except githubkit.exception.RequestFailed as exception:
+        # GitHub answers 404 when the tag has no release, that's a normal situation
+        if exception.response.status_code != 404:
+            raise
+        return None
+
+
+async def _tag_exists(github_project: GithubProject, tag_str: str) -> bool:
+    """Check that the Git tag still exists on the repository."""
+    try:
+        await github_project.aio_github.rest.git.async_get_ref(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            ref=f"tags/{tag_str}",
+        )
+    except githubkit.exception.RequestFailed as exception:
+        # GitHub answers 404 when the reference doesn't exists (anymore)
+        if exception.response.status_code != 404:
+            raise
+        return False
+    return True
+
+
+async def _delete_releases(github_project: GithubProject, tag_str: str) -> None:
+    """Delete all the releases that point to the given, deleted, tag."""
+    repository = f"{github_project.owner}/{github_project.repository}"
+    async for release in github_project.aio_github.rest.paginate(
+        github_project.aio_github.rest.repos.async_list_releases,
+        owner=github_project.owner,
+        repo=github_project.repository,
+        per_page=100,
+    ):
+        if release.tag_name != tag_str:
+            continue
+        _LOGGER.info(
+            "Deleting the release '%s' (id: %s) of the deleted tag %s on repository %s",
+            release.name,
+            release.id,
+            tag_str,
+            repository,
+        )
+        try:
+            await github_project.aio_github.rest.repos.async_delete_release(
+                owner=github_project.owner,
+                repo=github_project.repository,
+                release_id=release.id,
+            )
+        except githubkit.exception.RequestFailed as exception:
+            # The release can already be deleted, by GitHub with the tag or by an other job
+            if exception.response.status_code != 404:
+                raise
+            _LOGGER.info(
+                "The release '%s' (id: %s) of the tag %s is already deleted on repository %s",
+                release.name,
+                release.id,
+                tag_str,
+                repository,
+            )
+
+
+async def _update_release(
+    github_project: GithubProject,
+    release: githubkit_schemas.latest.models.Release,
+    tag_str: str,
+    body: str,
+    *,
+    make_latest: bool | None = None,
+) -> None:
+    """Update the name, the body and the latest flag of an existing release."""
+    data: githubkit_schemas.latest.types.ReposOwnerRepoReleasesReleaseIdPatchBodyType = {
+        "name": tag_str,
+        "body": body,
+    }
+    if make_latest is not None:
+        data["make_latest"] = "true" if make_latest else "false"
+    await github_project.aio_github.rest.repos.async_update_release(
+        owner=github_project.owner,
+        repo=github_project.repository,
+        release_id=release.id,
+        data=data,
+    )
+
+
+async def _create_release(
+    github_project: GithubProject,
+    tag_str: str,
+    body: str,
+    *,
+    make_latest: bool | None = None,
+) -> None:
+    """
+    Create the release of a tag, or update it if an other job created it in the mean time.
+
+    The tag should exists, creating a release on a missing tag also creates the Git tag.
+    """
+    data: githubkit_schemas.latest.types.ReposOwnerRepoReleasesPostBodyType = {
+        "tag_name": tag_str,
+        "name": tag_str,
+        "body": body,
+    }
+    if make_latest is not None:
+        data["make_latest"] = "true" if make_latest else "false"
+    try:
+        await github_project.aio_github.rest.repos.async_create_release(
+            owner=github_project.owner,
+            repo=github_project.repository,
+            data=data,
+        )
+    except githubkit.exception.RequestFailed as exception:
+        # On concurrent jobs GitHub answers 422 already_exists on the tag_name,
+        # in that case update the release created by the other job in place of failing
+        if exception.response.status_code != 422:
+            raise
+        release = await _get_release(github_project, tag_str)
+        if release is None:
+            raise
+        _LOGGER.info(
+            "The release of the tag %s is already created on repository %s/%s, update it",
+            tag_str,
+            github_project.owner,
+            github_project.repository,
+        )
+        await _update_release(github_project, release, tag_str, body, make_latest=make_latest)
+
+
+async def _create_or_update_release(
+    github_project: GithubProject,
+    tag_str: str,
+    body: str,
+    *,
+    make_latest: bool | None = None,
+) -> None:
+    """Create the release of a tag, or update it if it already exists."""
+    release = await _get_release(github_project, tag_str)
+    if release is None:
+        await _create_release(github_project, tag_str, body, make_latest=make_latest)
+    else:
+        await _update_release(github_project, release, tag_str, body, make_latest=make_latest)
 
 
 async def _get_discussion_url(github_project: GithubProject, tag: str) -> str | None:
@@ -625,7 +779,7 @@ async def generate_changelog(
 class Changelog(
     module.Module[
         configuration.Changelog,
-        dict[str, Any],
+        _EventData,
         dict[str, Any],
         None,
     ],
@@ -651,7 +805,7 @@ class Changelog(
     def get_actions(
         self,
         context: module.GetActionContext,
-    ) -> list[module.Action[dict[str, Any]]]:
+    ) -> list[module.Action[_EventData]]:
         """
         Get the action related to the module and the event.
 
@@ -667,7 +821,7 @@ class Changelog(
                 return [
                     module.Action(
                         priority=module.PRIORITY_STATUS,
-                        data={"version": event_data_release.release.tag_name},
+                        data=_EventData(version=event_data_release.release.tag_name),
                     ),
                 ]
         if context.module_event_name == "create":
@@ -679,7 +833,7 @@ class Changelog(
                 return [
                     module.Action(
                         priority=module.PRIORITY_STATUS,
-                        data={"type": "tag", "version": event_data_create.ref},
+                        data=_EventData(type="tag", version=event_data_create.ref),
                     ),
                 ]
         if context.module_event_name == "delete":
@@ -687,11 +841,13 @@ class Changelog(
                 "delete",
                 context.github_event_data,
             )
+            # A deleted tag should never be recreated, it's explicitly a different action
+            # than the tag creation to not resurrect the tag and its release
             if event_data_delete.ref_type == "tag":
                 return [
                     module.Action(
                         priority=module.PRIORITY_STATUS,
-                        data={"type": "tag", "version": event_data_delete.ref},
+                        data=_EventData(type="tag-delete", version=event_data_delete.ref),
                     ),
                 ]
         if context.module_event_name == "pull_request":
@@ -734,7 +890,7 @@ class Changelog(
                 return [
                     module.Action(
                         priority=module.PRIORITY_CRON,
-                        data={"version": version},
+                        data=_EventData(version=version),
                     )
                     for version in versions
                 ]
@@ -756,7 +912,7 @@ class Changelog(
                 return [
                     module.Action(
                         priority=module.PRIORITY_CRON,
-                        data={"version": version},
+                        data=_EventData(version=version),
                     )
                     for version in versions
                 ]
@@ -769,7 +925,7 @@ class Changelog(
                 return [
                     module.Action(
                         priority=module.PRIORITY_STATUS,
-                        data={"type": "discussion"},
+                        data=_EventData(type="discussion"),
                     ),
                 ]
             if (
@@ -780,7 +936,7 @@ class Changelog(
                 return [
                     module.Action(
                         priority=module.PRIORITY_STATUS,
-                        data={"type": "discussion"},
+                        data=_EventData(type="discussion"),
                     ),
                 ]
 
@@ -790,9 +946,9 @@ class Changelog(
         self,
         context: module.ProcessContext[
             configuration.Changelog,
-            dict[str, Any],
+            _EventData,
         ],
-    ) -> module.ProcessOutput[dict[str, Any], None]:
+    ) -> module.ProcessOutput[_EventData, None]:
         """
         Process the action.
 
@@ -830,76 +986,7 @@ class Changelog(
                         },
                     )
 
-        tag_str = cast("str", context.module_event_data.get("version"))
-        if context.module_event_data.get("type") == "tag":
-            if not context.module_config.get(
-                "create-release",
-                configuration.CREATE_RELEASE_DEFAULT,
-            ):
-                return module.ProcessOutput()
-
-            latest = False
-            try:
-                latest_release = await context.github_project.aio_github.rest.repos.async_get_latest_release(
-                    context.github_project.owner,
-                    context.github_project.repository,
-                )
-                if latest_release is not None:
-                    latest = packaging.version.Version(
-                        tag_str,
-                    ) > packaging.version.Version(
-                        latest_release.parsed_data.tag_name,
-                    )
-                else:
-                    latest = True
-            except githubkit.exception.RequestFailed as exception:
-                if exception.response.status_code != 404:
-                    raise
-            release = None
-            try:
-                release = (
-                    await context.github_project.aio_github.rest.repos.async_get_release_by_tag(
-                        context.github_project.owner,
-                        context.github_project.repository,
-                        tag_str,
-                    )
-                ).parsed_data
-            except githubkit.exception.RequestFailed as exception:
-                if exception.response.status_code != 404:
-                    raise
-            if release is None:
-                await context.github_project.aio_github.rest.repos.async_create_release(
-                    context.github_project.owner,
-                    context.github_project.repository,
-                    data={
-                        "tag_name": tag_str,
-                        "name": tag_str,
-                        "body": "",
-                        "make_latest": "true" if latest else "false",
-                    },
-                )
-            else:
-                await context.github_project.aio_github.rest.repos.async_update_release(
-                    context.github_project.owner,
-                    context.github_project.repository,
-                    release.id,
-                    data={
-                        "tag_name": tag_str,
-                        "name": tag_str,
-                        "body": "",
-                        "make_latest": "true" if latest else "false",
-                    },
-                )
-            return module.ProcessOutput(
-                actions=[
-                    module.Action(
-                        priority=module.PRIORITY_CRON,
-                        data={"version": tag_str},
-                        title=tag_str,
-                    ),
-                ],
-            )
-        if context.module_event_data.get("type") == "discussion":
+        if context.module_event_data.type == "discussion":
             assert context.module_event_name == "discussion"
             event_data = githubkit.webhooks.parse_obj(
                 "discussion",
@@ -937,7 +1024,68 @@ class Changelog(
                 actions=[
                     module.Action(
                         priority=module.PRIORITY_CRON,
-                        data={"version": tags[0].name},
+                        data=_EventData(version=tags[0].name),
+                    ),
+                ],
+            )
+
+        tag_str = context.module_event_data.version
+        if tag_str is None:
+            _LOGGER.error(
+                "No version in the event data of the job %s on repository %s",
+                context.module_event_name,
+                repository,
+            )
+            return module.ProcessOutput()
+
+        if context.module_event_data.type == "tag-delete":
+            # The tag is deleted by someone, never recreate it nor its release,
+            # just remove the release that can still point to the deleted tag
+            await _delete_releases(context.github_project, tag_str)
+            return module.ProcessOutput()
+
+        if context.module_event_data.type == "tag":
+            if not context.module_config.get(
+                "create-release",
+                configuration.CREATE_RELEASE_DEFAULT,
+            ):
+                return module.ProcessOutput()
+
+            if not await _tag_exists(context.github_project, tag_str):
+                # Creating a release also creates the missing Git tag on the default branch,
+                # never resurrect a tag deleted since the job was queued
+                _LOGGER.warning(
+                    "The tag %s doesn't exists on repository %s, skip the release creation",
+                    tag_str,
+                    repository,
+                )
+                return module.ProcessOutput()
+
+            latest = False
+            try:
+                latest_release = await context.github_project.aio_github.rest.repos.async_get_latest_release(
+                    context.github_project.owner,
+                    context.github_project.repository,
+                )
+                if latest_release is not None:
+                    latest = packaging.version.Version(
+                        tag_str,
+                    ) > packaging.version.Version(
+                        latest_release.parsed_data.tag_name,
+                    )
+                else:
+                    latest = True
+            except githubkit.exception.RequestFailed as exception:
+                # The repository can have no release at all yet
+                if exception.response.status_code != 404:
+                    raise
+            await _create_or_update_release(context.github_project, tag_str, "", make_latest=latest)
+            return module.ProcessOutput(
+                actions=[
+                    module.Action(
+                        priority=module.PRIORITY_CRON,
+                        data=_EventData(version=tag_str),
+                        title=tag_str,
                     ),
                 ],
             )
@@ -982,50 +1130,27 @@ class Changelog(
             )
             return module.ProcessOutput()
 
-        try:
-            release = (
-                await context.github_project.aio_github.rest.repos.async_get_release_by_tag(
-                    context.github_project.owner,
-                    context.github_project.repository,
+        body = await generate_changelog(
+            context.github_project,
+            context.module_config,
+            tag_str,
+            tags_map,
+        )
+        release = await _get_release(context.github_project, tag_str)
+        if release is not None:
+            try:
+                await _update_release(context.github_project, release, tag_str, body, make_latest=False)
+                return module.ProcessOutput()
+            except githubkit.exception.RequestFailed as exception:
+                # The release can be deleted between the get and the update, create it again
+                if exception.response.status_code != 404:
+                    raise
+                _LOGGER.info(
+                    "The release of the tag %s doesn't exists anymore on repository %s, create it",
                     tag_str,
+                    repository,
                 )
-            ).parsed_data
-
-            assert release is not None
-            await context.github_project.aio_github.rest.repos.async_update_release(
-                context.github_project.owner,
-                context.github_project.repository,
-                release.id,
-                data={
-                    "tag_name": tag_str,
-                    "name": tag_str,
-                    "body": await generate_changelog(
-                        context.github_project,
-                        context.module_config,
-                        tag_str,
-                        tags_map,
-                    ),
-                    "make_latest": "false",
-                },
-            )
-        except githubkit.exception.RequestFailed as exception:
-            if exception.response.status_code != 404:
-                raise
-
-            await context.github_project.aio_github.rest.repos.async_create_release(
-                context.github_project.owner,
-                context.github_project.repository,
-                data={
-                    "tag_name": tag_str,
-                    "name": tag_str,
-                    "body": await generate_changelog(
-                        context.github_project,
-                        context.module_config,
-                        tag_str,
-                        tags_map,
-                    ),
-                },
-            )
+        await _create_release(context.github_project, tag_str, body)
 
         return module.ProcessOutput()
 

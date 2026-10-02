@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-10-02
+
+### Fixed
+
+- **Changelog**: Deleting a tag no longer recreates it with a new release. The `delete` webhook on a tag was dispatched with the same event data as the `create` webhook (`{"type": "tag"}`), and the release creation of that event data calls `POST /releases` which also creates the missing Git tag on the default branch: a tag removed by mistake (or on purpose) was immediately resurrected with an empty release, the recreated tag fired a new `create` webhook and the new release a `release: created` webhook, which queued more jobs and piled up releases named after the tag. The tag deletion is now a distinct `tag-delete` event data that never creates anything and deletes the releases still pointing to the deleted tag (`404` tolerated, GitHub generally removes the release with the tag).
+- **Changelog**: A release is never created for a tag that doesn't exist on the repository anymore. The tag is checked with `git.get_ref` before the creation, so a job queued from a `create` webhook and processed after the tag deletion doesn't resurrect the tag on the default branch anymore.
+- **Changelog**: The concurrent release creations don't fail the job anymore. When GitHub answers `422 already_exists` on the `tag_name` because another job created the release in the mean time, the existing release is fetched and updated in place of raising, and the `tag_name` is no longer sent in the release updates (it never changes and is what triggers the `422`).
+
+### Changed
+
+- **Changelog**: The module event data is now a typed Pydantic model (`type`, `version`) in place of an untyped `dict`, the serialized JSON payloads are unchanged and the jobs already in the queue are still loaded.
+
 ## 2026-10-01
 
 ### Added
