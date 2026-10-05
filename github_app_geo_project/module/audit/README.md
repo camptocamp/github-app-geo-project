@@ -98,7 +98,7 @@ When the Snyk REST API is configured (`snyk_token`/`SNYK_TOKEN` and optionally `
 
 When no organization is configured, the single organization accessible with the API token is used, otherwise a warning is logged and the cleanup is skipped.
 
-Only the projects with the `cli` origin are deleted. The cleanup is best-effort: API errors are logged and never fail the audit job, and without a token the cleanup is silently skipped. The removed references and stale projects are part of the `cleanup` job clean situation report.
+Only the projects with the `cli` origin are deleted. The cleanup is best-effort: API errors never fail the audit job, but they are reported — the `cleanup` job check run summary and its `Cleanup` transversal dashboard entry display `Snyk API error(s)` (with the `error` status), and the post-monitor pruning adds a `Snyk projects cleanup failed` message to the job output. Without a token the cleanup is skipped, and the skip reasons are logged at the `INFO` level. The removed references and stale projects are part of the `cleanup` job clean situation report.
 
 ### Configuration Options
 

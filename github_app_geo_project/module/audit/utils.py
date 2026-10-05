@@ -776,6 +776,26 @@ _UUID_RE = re.compile(
 )
 
 
+class _SnykApiError(Exception):
+    """Raised when a Snyk REST API call fails, the cleanups are best-effort and report it."""
+
+    def __init__(self, url: str, status: int | None = None, detail: str = "") -> None:
+        self.url = url
+        self.status = status
+        self.detail = detail[:500]
+        super().__init__(" ".join(part for part in (url, str(status) if status else "", self.detail) if part))
+
+
+def _snyk_api_datetime(moment: datetime.datetime) -> str:
+    """
+    Format a datetime for the Snyk REST API query parameters.
+
+    The `Z` UTC suffix is used instead of the `+00:00` ISO offset because the `+` is
+    rejected by the API query parameters validation (SNYK-OPENAPI-0001, 400 Bad request).
+    """
+    return moment.astimezone(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
 def _snyk_api_config() -> tuple[str, str] | None:
     """Get the Snyk REST API configuration, or None when the cleanup is disabled or not configured."""
     if not settings.audit.snyk_api_cleanup:
@@ -791,23 +811,23 @@ async def _snyk_api_get(
     session: aiohttp.ClientSession,
     url: str,
     params: dict[str, str] | list[tuple[str, str]] | None = None,
-) -> dict[str, Any] | None:
+) -> dict[str, Any]:
     """
     Perform a GET request on the Snyk REST API.
 
-    Returns None on error: the projects cleanup is best-effort and must not fail the audit job.
+    Raises `_SnykApiError` on failure, the callers report it without failing the audit job.
     """
-    async with session.get(url, params=params) as response:
-        if not response.ok:
-            _LOGGER.warning(
-                "Snyk API error on %s: %s %s",
-                url,
-                response.status,
-                (await response.text())[:500],
-            )
-            return None
-        data: dict[str, Any] = json.loads(await response.read())
-        return data
+    try:
+        async with session.get(url, params=params) as response:
+            if not response.ok:
+                detail = await response.text()
+                _LOGGER.warning("Snyk API error on %s: %s %s", url, response.status, detail[:500])
+                raise _SnykApiError(url, response.status, detail)
+            data: dict[str, Any] = json.loads(await response.read())
+            return data
+    except (aiohttp.ClientError, TimeoutError) as error:
+        _LOGGER.warning("Snyk API request error on %s: %s", url, error)
+        raise _SnykApiError(url, None, str(error)) from error
 
 
 async def _snyk_api_get_all(
@@ -816,7 +836,7 @@ async def _snyk_api_get_all(
     path: str,
     params: dict[str, str] | list[tuple[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Get all the entries of a paginated Snyk REST API collection, empty list on error."""
+    """Get all the entries of a paginated Snyk REST API collection, raises `_SnykApiError` on failure."""
     entries: list[dict[str, Any]] = []
     url: str | None = f"{api_url}/rest{path}"
     request_params: dict[str, str] | list[tuple[str, str]] | None = [
@@ -826,8 +846,6 @@ async def _snyk_api_get_all(
     ]
     while url is not None:
         data = await _snyk_api_get(session, url, request_params)
-        if data is None:
-            return []
         entries.extend(data.get("data", []))
         next_url = (data.get("links") or {}).get("next")
         if not next_url:
@@ -932,8 +950,8 @@ async def _snyk_delete_projects(
     api_url: str,
     org_id: str,
     projects: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Delete Snyk projects, returns the successfully deleted ones."""
+) -> tuple[list[dict[str, Any]], int]:
+    """Delete Snyk projects, returns the successfully deleted ones and the number of failures."""
 
     async def delete_one(project: dict[str, Any]) -> dict[str, Any] | None:
         project_id = str(project["id"])
@@ -956,7 +974,8 @@ async def _snyk_delete_projects(
         return None
 
     deleted = await asyncio.gather(*(delete_one(project) for project in projects))
-    return [project for project in deleted if project is not None]
+    successfully_deleted = [project for project in deleted if project is not None]
+    return successfully_deleted, len(deleted) - len(successfully_deleted)
 
 
 def _snyk_project_description(project: dict[str, Any]) -> str:
@@ -981,138 +1000,164 @@ async def snyk_cleanup_stale_projects(
     branch: str,
     monitored_before: datetime.datetime,
     result: list[module_utils.Message],
-) -> None:
+) -> bool:
     """
     Delete the Snyk projects of a reference that were not refreshed by the latest monitor run.
 
     This removes the projects of the dependency files that are not scanned anymore,
     a reference grouping disappears from the Snyk UI when it does not contain any project.
+    Returns False when the cleanup could not be performed (Snyk API error).
     """
     api_config = _snyk_api_config()
     if api_config is None:
-        return
+        return True
     token, api_url = api_config
-    async with _snyk_api_session(token) as session:
-        targets = await _snyk_resolve_targets(session, api_url, owner, repository)
-        if targets is None:
-            return
-        org_id, target_ids = targets
-        projects = await _snyk_list_projects(
-            session,
-            api_url,
-            org_id,
-            target_ids,
-            [
-                ("target_reference", branch),
-                ("cli_monitored_before", monitored_before.isoformat()),
-            ],
-        )
-        stale_projects = [
-            project for project in projects if (project.get("attributes") or {}).get("origin") == "cli"
-        ]
-        if not stale_projects:
-            _LOGGER.debug("No stale Snyk project to remove for the reference %s", branch)
-            return
-        deleted = await _snyk_delete_projects(session, api_url, org_id, stale_projects)
-        if deleted:
-            _LOGGER.info(
-                "Removed %s stale Snyk project(s) of the reference %s",
-                len(deleted),
-                branch,
+    try:
+        async with _snyk_api_session(token) as session:
+            targets = await _snyk_resolve_targets(session, api_url, owner, repository)
+            if targets is None:
+                return True
+            org_id, target_ids = targets
+            projects = await _snyk_list_projects(
+                session,
+                api_url,
+                org_id,
+                target_ids,
+                [
+                    ("target_reference", branch),
+                    ("cli_monitored_before", _snyk_api_datetime(monitored_before)),
+                ],
             )
-            message = module_utils.HtmlMessage(
-                f"Removed {len(deleted)} stale Snyk project(s) of the reference {html.escape(branch)}: "
-                + html.escape(", ".join(_snyk_project_description(project) for project in deleted))
-            )
-            message.title = "Snyk projects cleanup"
-            result.append(message)
+            stale_projects = [
+                project for project in projects if (project.get("attributes") or {}).get("origin") == "cli"
+            ]
+            if not stale_projects:
+                _LOGGER.debug("No stale Snyk project to remove for the reference %s", branch)
+                return True
+            deleted, failures = await _snyk_delete_projects(session, api_url, org_id, stale_projects)
+            if deleted:
+                _LOGGER.info(
+                    "Removed %s stale Snyk project(s) of the reference %s",
+                    len(deleted),
+                    branch,
+                )
+                message = module_utils.HtmlMessage(
+                    f"Removed {len(deleted)} stale Snyk project(s) of the reference {html.escape(branch)}: "
+                    + html.escape(", ".join(_snyk_project_description(project) for project in deleted))
+                )
+                message.title = "Snyk projects cleanup"
+                result.append(message)
+            return failures == 0
+    except _SnykApiError as error:
+        # The cleanup is best-effort: report the error instead of failing the audit job
+        _LOGGER.exception("The Snyk stale projects cleanup failed for %s/%s (%s)", owner, repository, branch)
+        message = module_utils.HtmlMessage(html.escape(f"Snyk projects cleanup failed: {error}"))
+        message.title = "Snyk projects cleanup"
+        result.append(message)
+        return False
 
 
 async def snyk_cleanup_removed_references(
     owner: str, repository: str, known_versions: list[str]
-) -> list[str]:
+) -> tuple[list[str], bool]:
     """
     Delete all the Snyk projects whose target reference is not a supported version anymore.
 
-    Emptying a reference makes it disappear from the Snyk UI,
-    returns the report entries of the removed references.
+    Emptying a reference makes it disappear from the Snyk UI, returns the report entries
+    of the removed references and False when the cleanup could not be performed (Snyk API error).
     """
     api_config = _snyk_api_config()
     if api_config is None:
-        return []
+        return [], True
     token, api_url = api_config
-    async with _snyk_api_session(token) as session:
-        targets = await _snyk_resolve_targets(session, api_url, owner, repository)
-        if targets is None:
-            return []
-        org_id, target_ids = targets
-        projects = await _snyk_list_projects(session, api_url, org_id, target_ids)
-        removed_projects = [
-            project
-            for project in projects
-            if (project.get("attributes") or {}).get("origin") == "cli"
-            and (project.get("attributes") or {}).get("target_reference") not in known_versions
-        ]
-        if not removed_projects:
-            _LOGGER.debug("No Snyk reference to remove for the repository %s/%s", owner, repository)
-            return []
-        deleted = await _snyk_delete_projects(session, api_url, org_id, removed_projects)
-        references: dict[str, int] = {}
-        for project in deleted:
-            reference = str((project.get("attributes") or {}).get("target_reference") or "")
-            references[reference] = references.get(reference, 0) + 1
-        return [
-            f"Snyk reference `{reference}` ({number} projects)"
-            for reference, number in sorted(references.items())
-        ]
+    try:
+        async with _snyk_api_session(token) as session:
+            targets = await _snyk_resolve_targets(session, api_url, owner, repository)
+            if targets is None:
+                return [], True
+            org_id, target_ids = targets
+            projects = await _snyk_list_projects(session, api_url, org_id, target_ids)
+            removed_projects = [
+                project
+                for project in projects
+                if (project.get("attributes") or {}).get("origin") == "cli"
+                and (project.get("attributes") or {}).get("target_reference") not in known_versions
+            ]
+            if not removed_projects:
+                _LOGGER.debug("No Snyk reference to remove for the repository %s/%s", owner, repository)
+                return [], True
+            deleted, failures = await _snyk_delete_projects(session, api_url, org_id, removed_projects)
+            references: dict[str, int] = {}
+            for project in deleted:
+                reference = str((project.get("attributes") or {}).get("target_reference") or "")
+                references[reference] = references.get(reference, 0) + 1
+            return (
+                [
+                    f"Snyk reference `{reference}` ({number} projects)"
+                    for reference, number in sorted(references.items())
+                ],
+                failures == 0,
+            )
+    except _SnykApiError:
+        # The cleanup is best-effort: report the error instead of failing the audit job
+        _LOGGER.exception("The Snyk references cleanup failed for %s/%s", owner, repository)
+        return [], False
 
 
-async def snyk_cleanup_stale_projects_by_age(owner: str, repository: str) -> list[str]:
+async def snyk_cleanup_stale_projects_by_age(owner: str, repository: str) -> tuple[list[str], bool]:
     """
     Delete the Snyk projects of the repository that were not re-monitored for too long.
 
     This removes, independently of the monitor runs result, the leftovers of dependency
     files that are not scanned anymore (e.g. projects created with random names by past
     runs) and the projects of references whose monitor fails for a long time.
-    Returns the report entries of the removed projects.
+    Returns the report entries of the removed projects and False when the cleanup
+    could not be performed (Snyk API error).
     """
     api_config = _snyk_api_config()
     if api_config is None:
-        return []
+        return [], True
     token, api_url = api_config
     stale_age = settings.audit.snyk_api_stale_age
-    async with _snyk_api_session(token) as session:
-        targets = await _snyk_resolve_targets(session, api_url, owner, repository)
-        if targets is None:
-            return []
-        org_id, target_ids = targets
-        monitored_before = datetime.datetime.now(datetime.UTC) - stale_age
-        projects = await _snyk_list_projects(
-            session,
-            api_url,
-            org_id,
-            target_ids,
-            [("cli_monitored_before", monitored_before.isoformat())],
-        )
-        stale_projects = [
-            project for project in projects if (project.get("attributes") or {}).get("origin") == "cli"
-        ]
-        if not stale_projects:
-            _LOGGER.debug(
-                "No stale Snyk project by age to remove for the repository %s/%s", owner, repository
+    try:
+        async with _snyk_api_session(token) as session:
+            targets = await _snyk_resolve_targets(session, api_url, owner, repository)
+            if targets is None:
+                return [], True
+            org_id, target_ids = targets
+            monitored_before = datetime.datetime.now(datetime.UTC) - stale_age
+            projects = await _snyk_list_projects(
+                session,
+                api_url,
+                org_id,
+                target_ids,
+                [("cli_monitored_before", _snyk_api_datetime(monitored_before))],
             )
-            return []
-        deleted = await _snyk_delete_projects(session, api_url, org_id, stale_projects)
-        if not deleted:
-            return []
-        _LOGGER.info(
-            "Removed %s stale Snyk project(s) of %s/%s not monitored since %s days",
-            len(deleted),
-            owner,
-            repository,
-            stale_age.days,
-        )
-        return [f"{len(deleted)} stale Snyk project(s) not monitored since {stale_age.days} days"]
+            stale_projects = [
+                project for project in projects if (project.get("attributes") or {}).get("origin") == "cli"
+            ]
+            if not stale_projects:
+                _LOGGER.debug(
+                    "No stale Snyk project by age to remove for the repository %s/%s", owner, repository
+                )
+                return [], True
+            deleted, failures = await _snyk_delete_projects(session, api_url, org_id, stale_projects)
+            if not deleted:
+                return [], failures == 0
+            _LOGGER.info(
+                "Removed %s stale Snyk project(s) of %s/%s not monitored since %s days",
+                len(deleted),
+                owner,
+                repository,
+                stale_age.days,
+            )
+            return [f"{len(deleted)} stale Snyk project(s) not monitored since {stale_age.days} days"], (
+                failures == 0
+            )
+    except _SnykApiError:
+        # The cleanup is best-effort: report the error instead of failing the audit job
+        _LOGGER.exception("The Snyk stale projects by age cleanup failed for %s/%s", owner, repository)
+        return [], False
 
 
 async def _snyk_test(

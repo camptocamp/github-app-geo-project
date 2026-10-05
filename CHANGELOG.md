@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-05
+
+### Fixed
+
+- **Audit**: Fix the Snyk REST API cleanup always failing with HTTP `400` (`SNYK-OPENAPI-0001`, "Parameter 'cli_monitored_before' must be url encoded"): the `cli_monitored_before` query parameter was sent with the `+00:00` ISO offset, the datetimes are now formatted with the URL-safe `Z` UTC suffix (`%Y-%m-%dT%H:%M:%SZ`). Both the post-monitor stale projects pruning and the age-based cleanup of the `cleanup` job were impacted and never deleted anything.
+- **Audit**: The Snyk REST API cleanup errors are no more silent: the API failures raise an internal error caught at the cleanup functions boundary, the `cleanup` job reports `Snyk API error(s)` in its check run summary and clean situation report, and its `Cleanup` transversal dashboard entry switches to the `error` status (previously a failing cleanup still reported `Everything is clean`). The post-monitor pruning also adds a `Snyk projects cleanup failed` message to the job output. Failed project deletions are counted and reported as errors too.
+- **Docker**: The image installs JDKs instead of JREs (`default-jdk-headless`, `openjdk-{11,17,21}-jdk-headless`): the Gradle builds of the audited repositories use Java toolchains requiring a compiler, and the JRE-only installations made the Gradle dependency analysis fail with `Toolchain installation '/usr/lib/jvm/java-21-openjdk-amd64' does not provide the required capabilities: [JAVA_COMPILER]` (e.g. `mapfish-print`, task `:docs:compileJava`), so `snyk monitor`/`snyk test` failed every day on the Gradle repositories.
+
 ## 2026-10-02
 
 ### Fixed
