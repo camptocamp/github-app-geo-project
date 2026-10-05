@@ -1155,22 +1155,21 @@ class Audit(
 
             # Remove the Snyk projects of the references that are not supported anymore,
             # emptying a reference makes it disappear from the Snyk UI
-            cleaned.extend(
-                await audit_utils.snyk_cleanup_removed_references(
-                    context.github_project.owner,
-                    context.github_project.repository,
-                    known_versions,
-                )
+            snyk_reports, snyk_success = await audit_utils.snyk_cleanup_removed_references(
+                context.github_project.owner,
+                context.github_project.repository,
+                known_versions,
             )
+            cleaned.extend(snyk_reports)
 
             # Remove the Snyk projects that were not re-monitored for too long,
             # independently of the monitor runs result
-            cleaned.extend(
-                await audit_utils.snyk_cleanup_stale_projects_by_age(
-                    context.github_project.owner,
-                    context.github_project.repository,
-                )
+            stale_reports, stale_success = await audit_utils.snyk_cleanup_stale_projects_by_age(
+                context.github_project.owner,
+                context.github_project.repository,
             )
+            cleaned.extend(stale_reports)
+            snyk_success &= stale_success
 
             if not known_versions:
                 # Clear all checks from dashboard
@@ -1179,16 +1178,24 @@ class Audit(
                 issue_check.remove_check("dpkg")
 
             logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
+            summary_parts = []
             if cleaned:
-                summary = f"{len(cleaned)} leftover(s) removed"
-                check_text = "\n".join(f"- {item}" for item in cleaned)
+                summary_parts.append(f"{len(cleaned)} leftover(s) removed")
+            if not snyk_success:
+                summary_parts.append("Snyk API error(s)")
+            if summary_parts:
+                summary = ", ".join(summary_parts)
+                text_items = [*cleaned]
+                if not snyk_success:
+                    text_items.append("Snyk API error(s), see the logs")
+                check_text: str | None = "\n".join(f"- {item}" for item in text_items)
             else:
                 summary = "Everything is clean"
                 check_text = None
             intermediate_status.status.types[_CLEANUP] = _TransversalStatusTool(
                 name=_CLEANUP,
                 summary=summary,
-                status="success",
+                status="success" if snyk_success else "error",
                 logs_url=logs_url,
             )
             return module.ProcessOutput(
