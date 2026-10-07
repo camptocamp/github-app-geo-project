@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-07
+
+### Added
+
+- **Patch**: A `.patch` artifact can now target another branch than the branch of the workflow run, with the name `<message> [<branch>].patch`: the artifacts of a run are grouped per target branch, and each group gets its own worktree, its own push and its own pull request. This lets a scheduled workflow that runs on the default branch produce changes for the stabilization branches, like the `.po` files refreshed from the running instances, without giving the workflow a personal access token to push a branch and to open the pull request. The override is only honoured for the workflow run events listed in the new `patch.branch_override_events` setting (`GHCI__PATCH__BRANCH_OVERRIDE_EVENTS`, default `schedule`, `workflow_dispatch` and `repository_dispatch`); on any other event, typically a pull request, the artifact is skipped and the reason is reported in the check output summary.
+- **Patch**: When the direct push is rejected because the target branch is protected, an open `ghci/patch/<branch>-*` pull request whose head commit was created by the patch module is now reused: the new commit is force pushed on its head branch instead of opening a new pull request. A scheduled workflow that runs daily no more piles up one pull request per run while the previous one is still open, and a pull request whose head commit was pushed by somebody else is never reused. The lookup of the open pull requests also stops on the last partial page instead of asking for one more.
+
 ## 2026-10-05
 
 ### Fixed

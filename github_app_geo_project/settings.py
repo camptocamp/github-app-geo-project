@@ -288,6 +288,15 @@ class _PatchSettings(BaseModel):
             ),
         ),
     ] = 10
+    branch_override_events: Annotated[
+        StringList,
+        Field(
+            description=(
+                "Workflow run events allowed to apply a patch on another branch than the run one, "
+                "with an artifact named `<message> [<branch>].patch`"
+            ),
+        ),
+    ] = ["schedule", "workflow_dispatch", "repository_dispatch"]
 
 
 class _ProcessQueueSettings(BaseModel):
