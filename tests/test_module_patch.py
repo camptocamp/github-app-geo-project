@@ -8,7 +8,7 @@ import anyio
 import pytest
 
 from github_app_geo_project import module
-from github_app_geo_project.module.patch import Patch
+from github_app_geo_project.module.patch import Patch, _resolve_artifact_target
 from github_app_geo_project.settings import settings
 
 
@@ -233,6 +233,8 @@ def _setup_process_mocks(
     run_id=12345,
     branch_commits=None,
     open_pull_requests=None,
+    artifacts=None,
+    head_commit=None,
 ):
     mock_context.module_event_name = "workflow_run"
     mock_context.github_event_data = {}
@@ -245,12 +247,18 @@ def _setup_process_mocks(
     event_data.workflow = workflow_def
 
     artifacts_response = MagicMock()
-    artifacts_response.parsed_data.artifacts = [_make_artifact()]
+    artifacts_response.parsed_data.artifacts = [_make_artifact()] if artifacts is None else artifacts
     mock_github_project.aio_github.rest.actions.async_list_workflow_run_artifacts = AsyncMock(
         return_value=artifacts_response,
     )
 
     mock_github_project.aio_github.rest.repos.async_get_branch = AsyncMock()
+
+    if head_commit is None:
+        head_commit = _make_commit("Some human commit")
+    commit_response = MagicMock()
+    commit_response.parsed_data = head_commit
+    mock_github_project.aio_github.rest.repos.async_get_commit = AsyncMock(return_value=commit_response)
 
     if branch_commits is None:
         branch_commits = [_make_commit("Some human commit")]
@@ -648,3 +656,300 @@ class TestConsecutivePatchLimit:
         assert result.check_output is not None
         assert "refusing to create" in result.check_output["summary"]
         mock_create_pr.assert_not_called()
+
+
+class TestResolveArtifactTarget:
+    def test_plain_artifact_uses_the_run_branch(self):
+        target = _resolve_artifact_target(
+            "Apply HELM generated files.patch",
+            "main",
+            "push",
+            ["schedule"],
+        )
+        assert target.branch == "main"
+        assert target.message == "Apply HELM generated files"
+        assert target.error is None
+
+    def test_branch_suffix_on_an_allowed_event(self):
+        target = _resolve_artifact_target(
+            "Update the l10n files [prod-2-9].patch",
+            "main",
+            "schedule",
+            ["schedule", "workflow_dispatch", "repository_dispatch"],
+        )
+        assert target.branch == "prod-2-9"
+        assert target.message == "Update the l10n files"
+        assert target.error is None
+
+    def test_branch_suffix_on_a_forbidden_event(self):
+        target = _resolve_artifact_target(
+            "Update the l10n files [prod-2-9].patch",
+            "feature-branch",
+            "push",
+            ["schedule"],
+        )
+        assert target.branch is None
+        assert target.error is not None
+        assert "prod-2-9" in target.error
+        assert "push" in target.error
+
+    def test_branch_suffix_without_event(self):
+        target = _resolve_artifact_target(
+            "Update the l10n files [prod-2-9].patch",
+            "main",
+            None,
+            ["schedule"],
+        )
+        assert target.branch is None
+        assert target.error is not None
+
+    def test_brackets_in_the_middle_are_not_a_branch(self):
+        target = _resolve_artifact_target(
+            "Fix the [ci] configuration.patch",
+            "main",
+            "schedule",
+            ["schedule"],
+        )
+        assert target.branch == "main"
+        assert target.message == "Fix the [ci] configuration"
+        assert target.error is None
+
+
+def _mock_working_tree(tmp_path):
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=anyio.Path(tmp_path))
+    mock_cm.__aexit__ = AsyncMock(return_value=None)
+    return mock_cm
+
+
+def _mock_subprocess(push_returncode: int = 0, push_stderr: bytes = b""):
+    mock_apply_proc = MagicMock()
+    mock_apply_proc.returncode = 0
+    mock_apply_proc.communicate = AsyncMock(return_value=(b"Applied cleanly", b""))
+
+    mock_push_proc = MagicMock()
+    mock_push_proc.returncode = push_returncode
+    mock_push_proc.communicate = AsyncMock(return_value=(b"", push_stderr))
+
+    pushed_commands = []
+
+    async def mock_create_subprocess_exec(*args, **kwargs):
+        if args[1] == "apply":
+            return mock_apply_proc
+        if args[1] == "push":
+            pushed_commands.append(list(args))
+            return mock_push_proc
+        return MagicMock()
+
+    return mock_create_subprocess_exec, pushed_commands
+
+
+_PROTECTED_STDERR = (
+    b"remote: error: GH006: Protected branch update failed for refs/heads/prod-2-9.\n"
+    b"remote: protected branch hook declined\n"
+)
+
+
+class TestBranchOverride:
+    @pytest.mark.asyncio
+    async def test_patch_applied_on_the_requested_branch(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            head_branch="main",
+            run_id=42,
+            artifacts=[_make_artifact("Update the l10n files [prod-2-9].patch")],
+        )
+        event_data.workflow_run.event = "schedule"
+
+        mock_create_subprocess_exec, pushed_commands = _mock_subprocess()
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ) as mock_working_tree,
+            patch(
+                "github_app_geo_project.module.patch.module_utils.has_changes",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_create_commit,
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is not False
+        assert mock_working_tree.call_args[0][1] == "prod-2-9"
+        assert pushed_commands[-1][-1] == "HEAD:prod-2-9"
+        assert mock_create_commit.call_args[0][0] == (
+            "Update the l10n files\n\nFrom the artifact of the previous workflow run"
+        )
+
+    @pytest.mark.asyncio
+    async def test_branch_override_refused_on_a_pull_request_run(
+        self, mock_context, mock_github_project, tmp_path
+    ):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            artifacts=[_make_artifact("Update the l10n files [prod-2-9].patch")],
+        )
+        event_data.workflow_run.event = "pull_request"
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ) as mock_working_tree,
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is False
+        assert result.check_output is not None
+        assert "not allowed to target another branch" in result.check_output["summary"]
+        mock_working_tree.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_artifacts_grouped_per_branch(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            artifacts=[
+                _make_artifact("Update the l10n files [prod-2-9].patch"),
+                _make_artifact("Update the l10n files [prod-2-10].patch"),
+            ],
+        )
+        event_data.workflow_run.event = "schedule"
+
+        mock_create_subprocess_exec, pushed_commands = _mock_subprocess()
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ) as mock_working_tree,
+            patch(
+                "github_app_geo_project.module.patch.module_utils.has_changes",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is not False
+        assert mock_working_tree.call_count == 2
+        assert sorted(call[0][1] for call in mock_working_tree.call_args_list) == ["prod-2-10", "prod-2-9"]
+        assert sorted(command[-1] for command in pushed_commands) == ["HEAD:prod-2-10", "HEAD:prod-2-9"]
+
+
+class TestReusablePullRequest:
+    @pytest.mark.asyncio
+    async def test_existing_patch_pull_request_is_updated(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            head_branch="prod-2-9",
+            run_id=43,
+            artifacts=[_make_artifact("Update the l10n files.patch")],
+            open_pull_requests=[_make_open_pull_request("ghci/patch/prod-2-9-41")],
+            head_commit=_make_commit(_PATCH_COMMIT_MESSAGE),
+        )
+
+        mock_create_subprocess_exec, _ = _mock_subprocess(push_returncode=1, push_stderr=_PROTECTED_STDERR)
+        mock_pull_request = MagicMock()
+        mock_pull_request.html_url = "https://github.com/camptocamp/test-repo/pull/4"
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.has_changes",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_pull_request",
+                new_callable=AsyncMock,
+                return_value=(True, mock_pull_request),
+            ) as mock_create_pr,
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is not False
+        mock_create_pr.assert_called_once()
+        assert mock_create_pr.call_args[0][0] == "prod-2-9"
+        assert mock_create_pr.call_args[0][1] == "ghci/patch/prod-2-9-41"
+        assert mock_create_pr.call_args[0][2] == "Update the l10n files"
+
+    @pytest.mark.asyncio
+    async def test_human_pull_request_is_not_reused(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            head_branch="prod-2-9",
+            run_id=43,
+            artifacts=[_make_artifact("Update the l10n files.patch")],
+            open_pull_requests=[_make_open_pull_request("ghci/patch/prod-2-9-41")],
+            head_commit=_make_commit("A commit pushed by a human"),
+        )
+
+        mock_create_subprocess_exec, _ = _mock_subprocess(push_returncode=1, push_stderr=_PROTECTED_STDERR)
+        mock_pull_request = MagicMock()
+        mock_pull_request.html_url = "https://github.com/camptocamp/test-repo/pull/5"
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.has_changes",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_pull_request",
+                new_callable=AsyncMock,
+                return_value=(True, mock_pull_request),
+            ) as mock_create_pr,
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is not False
+        mock_create_pr.assert_called_once()
+        assert mock_create_pr.call_args[0][1] == "ghci/patch/prod-2-9-43"
