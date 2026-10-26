@@ -44,6 +44,24 @@ from github_app_geo_project.module.versions import (
     _update_upstream_versions,
 )
 
+_Json = dict[str, "_Json"] | list["_Json"] | str | int | float | bool | None
+
+
+def _without_order(value: _Json) -> _Json:
+    """
+    Recursively sort the lists of a JSON structure.
+
+    The statuses are compared as JSON, and the module collects the names and the versions from
+    the repository files and from the Renovate graph, whose order is not part of the contract.
+    Sorting both sides of a comparison makes it independent from that order.
+    """
+    if isinstance(value, dict):
+        return {key: _without_order(item) for key, item in value.items()}
+    if isinstance(value, list):
+        items = [_without_order(item) for item in value]
+        return sorted(items, key=lambda item: json.dumps(item, sort_keys=True, default=str))
+    return value
+
 
 def test_get_actions() -> None:
     versions = Versions()
@@ -112,7 +130,7 @@ async def test_process_step_2() -> None:
     output = await versions.process(context)
     assert output.updated_transversal_status is True
     assert isinstance(output.intermediate_status, _IntermediateStatus)
-    assert json.loads(output.intermediate_status.model_dump_json(indent=2)) == {
+    expected_status: _Json = {
         "external_repositories": {},
         "has_security_policy": False,
         "stabilization_versions": [],
@@ -154,6 +172,8 @@ async def test_process_step_2() -> None:
         },
         "version_support": {},
     }
+    intermediate_status = json.loads(output.intermediate_status.model_dump_json(indent=2))
+    assert _without_order(intermediate_status) == _without_order(expected_status)
     transversal_status = await versions.update_transversal_status(
         context,
         output.intermediate_status,
@@ -171,7 +191,7 @@ async def test_process_step_2() -> None:
     )
     assert isinstance(transversal_status, _TransversalStatus)
     transversal_status_json = versions.transversal_status_to_json(transversal_status)
-    assert transversal_status_json.get("repositories") == {
+    expected_repositories: _Json = {
         "camptocamp/test": {
             "dependencies_index": {
                 "by_datasource": {
@@ -263,6 +283,8 @@ async def test_process_step_2() -> None:
             },
         },
     }
+    repositories = _without_order(transversal_status_json.get("repositories"))
+    assert repositories == _without_order(expected_repositories)
 
 
 def test_get_transversal_dashboard() -> None:
