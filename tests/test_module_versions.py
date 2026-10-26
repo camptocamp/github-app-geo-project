@@ -23,6 +23,7 @@ from github_app_geo_project.module.versions import (
     _EventData,
     _get_dependencies,
     _IntermediateStatus,
+    _is_package_file,
     _is_supported,
     _order_versions,
     _parse_support_date,
@@ -1393,6 +1394,19 @@ def test_get_transversal_dashboard_repo_reverse_other(datasource: str, package: 
 def test_canonical_minor_version(datasource, version, expected) -> None:
     result = _canonical_minor_version(datasource, version)
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    ("filename", "expected"),
+    [
+        ("pyproject.toml", True),
+        ("app/pyproject.toml", True),
+        ("setup.py", True),
+        (".github/publish/pyproject.toml", False),
+    ],
+)
+def test_is_package_file(filename, expected) -> None:
+    assert _is_package_file(filename) is expected
 
 
 @pytest.mark.asyncio

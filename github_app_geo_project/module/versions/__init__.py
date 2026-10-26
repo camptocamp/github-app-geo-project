@@ -937,6 +937,16 @@ def _do_get_config(cwd: anyio.Path) -> dict[str, Any]:
         os.chdir("/")
 
 
+def _is_package_file(filename: str) -> bool:
+    """
+    Tell if a package definition file declares a published package.
+
+    The `.github` folder contains the continuous integration configuration, like the uv project
+    that installs the publishing tool, which is not a published package.
+    """
+    return not filename.startswith(".github/")
+
+
 async def _get_names(
     context: module.ProcessContext[configuration.VersionsConfiguration, _EventData],
     names_by_datasource: dict[str, _TransversalStatusNameByDatasource],
@@ -987,6 +997,8 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
+            if not _is_package_file(filename):
+                continue
             async with await anyio.open_file(cwd / filename, encoding="utf-8") as file:
                 data = tomllib.loads(await file.read())
                 name = data.get("project", {}).get("name")
@@ -1026,6 +1038,8 @@ async def _get_names(
         _LOGGER.error(message)
     else:
         for filename in stdout.decode().splitlines():
+            if not _is_package_file(filename):
+                continue
             async with await anyio.open_file(cwd / filename, encoding="utf-8") as file:
                 names = names_by_datasource.setdefault(
                     "pypi",
