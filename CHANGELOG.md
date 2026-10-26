@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-26
+
+### Fixed
+
+- **Versions**: The `pyproject.toml` and `setup.py` files under the `.github` folder are no more collected as published packages. `git ls-files "*/pyproject.toml"` matches at any depth because the Git wildmatch `*` crosses the `/`, so the uv project that installs the publishing tool, `.github/publish/pyproject.toml` added by the separate publishing job pattern, was reported as a PyPI package named after its `[project].name`, and the transversal dashboard listed a package that is published nowhere.
+
 ## 2026-10-07
 
 ### Added
