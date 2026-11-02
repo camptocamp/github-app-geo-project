@@ -2,7 +2,7 @@
 
 """Tests for the clean module."""
 
-import datetime
+import datetime as dt
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -33,7 +33,7 @@ def _make_fake_run_timeout(commands: list[list[str]]):
     async def fake_run_timeout(
         command: list[str],
         env: dict[str, str] | None,
-        timeout: datetime.timedelta | int,
+        timeout: dt.timedelta | int,
         success_message: str,
         error_message: str,
         timeout_message: str,

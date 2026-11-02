@@ -3,7 +3,7 @@
 """Tests for the process-queue script."""
 
 import asyncio
-import datetime
+import datetime as dt
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -137,5 +137,5 @@ async def test_process_job_skip_on_deleted_check_run() -> None:
 
     assert result is True
     assert job.status_enum == models.JobStatus.SKIPPED
-    assert isinstance(job.finished_at, datetime.datetime)
+    assert isinstance(job.finished_at, dt.datetime)
     assert handler not in root_logger.handlers

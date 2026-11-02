@@ -3,7 +3,7 @@
 """Module utility functions for the modules."""
 
 import asyncio
-import datetime
+import datetime as dt
 import html
 import html.parser
 import logging
@@ -732,7 +732,7 @@ async def get_cwd() -> anyio.Path | None:
 async def run_timeout(
     command: list[str],
     env: dict[str, str] | None,
-    timeout: datetime.timedelta | int,  # noqa: ASYNC109
+    timeout: dt.timedelta | int,  # noqa: ASYNC109
     success_message: str,
     error_message: str,
     timeout_message: str,
@@ -757,7 +757,7 @@ async def run_timeout(
     ------
     The standard output, the success, the logged message
     """
-    timeout_seconds = timeout.total_seconds() if isinstance(timeout, datetime.timedelta) else timeout
+    timeout_seconds = timeout.total_seconds() if isinstance(timeout, dt.timedelta) else timeout
     sanitized_command = _sanitize_command_for_log(command)
     log_message = "Run command: %s"
     args: list[Any] = [sanitized_command]
@@ -769,7 +769,7 @@ async def run_timeout(
         args.append(int(timeout_seconds))
     _LOGGER.info(log_message, *args)
     async_proc = None
-    start = datetime.datetime.now(datetime.UTC)
+    start = dt.datetime.now(dt.UTC)
     try:
         async with asyncio.timeout(timeout_seconds):
             try:
@@ -793,10 +793,10 @@ async def run_timeout(
             )
             success = async_proc.returncode == 0
             if success:
-                message.title = f"{success_message}, in {datetime.datetime.now(datetime.UTC) - start}s."
+                message.title = f"{success_message}, in {dt.datetime.now(dt.UTC) - start}s."
                 _LOGGER.info(message)
             else:
-                message.title = f"{error_message}, in {datetime.datetime.now(datetime.UTC) - start}s."
+                message.title = f"{error_message}, in {dt.datetime.now(dt.UTC) - start}s."
                 _LOGGER.warning(message)
             return stdout.decode(), success, message
     except FileNotFoundError as exception:
@@ -946,10 +946,10 @@ async def create_pull_request(
                 body=body,
             )
         # Create an issue if the pull request is open for 5 days
-        if pull_request.created_at < datetime.datetime.now(
-            tz=datetime.UTC,
-        ) - datetime.timedelta(days=5):
-            nb_days = (datetime.datetime.now(tz=datetime.UTC) - pull_request.created_at).days
+        if pull_request.created_at < dt.datetime.now(
+            tz=dt.UTC,
+        ) - dt.timedelta(days=5):
+            nb_days = (dt.datetime.now(tz=dt.UTC) - pull_request.created_at).days
             _LOGGER.warning("Pull request #%s is open for %d days", pull_request.number, nb_days)
             title_start = f"Pull request {message} is open for "
             title = f"{title_start}{nb_days} days"
@@ -1567,29 +1567,29 @@ def manage_updated(status: dict[str, Any], key: str, days_old: int = 2) -> None:
 
     Add an updated field to the status and remove the old status.
     """
-    status.setdefault(key, {})["updated"] = datetime.datetime.now(
-        datetime.UTC,
+    status.setdefault(key, {})["updated"] = dt.datetime.now(
+        dt.UTC,
     ).isoformat()
     for other_key, other_object in list(status.items()):
         if (
             not isinstance(other_object, dict)
             or "updated" not in other_object
             or utils.datetime_with_timezone(
-                datetime.datetime.fromisoformat(other_object["updated"]),
+                dt.datetime.fromisoformat(other_object["updated"]),
             )
-            < datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
+            < dt.datetime.now(dt.UTC) - dt.timedelta(days=days_old)
         ):
             _LOGGER.debug(
                 "Remove old status %s (%s < %s)",
                 other_key,
                 other_object.get("updated", "-"),
-                datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old),
+                dt.datetime.now(dt.UTC) - dt.timedelta(days=days_old),
             )
             del status[other_key]
 
 
 def manage_updated_separated(
-    updated: dict[str, datetime.datetime],
+    updated: dict[str, dt.datetime],
     data: dict[str, Any],
     key: str,
     days_old: int = 2,
@@ -1599,9 +1599,9 @@ def manage_updated_separated(
 
     Add an updated field to the status and remove the old status.
     """
-    updated[key] = datetime.datetime.now(datetime.UTC)
+    updated[key] = dt.datetime.now(dt.UTC)
     _LOGGER.debug("Set updated %s to %s", key, updated[key])
-    min_date = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=days_old)
+    min_date = dt.datetime.now(dt.UTC) - dt.timedelta(days=days_old)
     for other_key, date in list(updated.items()):
         date = utils.datetime_with_timezone(date)  # noqa: PLW2901
         if date < min_date:

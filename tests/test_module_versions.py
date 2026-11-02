@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Camptocamp SA
 
 import asyncio
-import datetime
+import datetime as dt
 import json
 import os
 from pathlib import Path
@@ -2141,7 +2141,7 @@ def test_apply_additional_packages_least_support():
     # Existing repo with two versions, each with a different support
     transversal_status = _TransversalStatus(
         updated={
-            "repo1": datetime.datetime.now(datetime.UTC),
+            "repo1": dt.datetime.now(dt.UTC),
         },
         repositories={
             "repo1": _TransversalStatusRepo(
@@ -2198,7 +2198,7 @@ def test_apply_additional_packages_least_support():
     repo2 = transversal_status.repositories["repo2"]
     main_version = repo2.versions["main"]
     assert main_version.support.type.value == "Date"
-    assert main_version.support.until == datetime.date(2023, 6, 1)
+    assert main_version.support.until == dt.date(2023, 6, 1)
     assert repo2.names_index.model_dump(mode="json") == {
         "by_datasource": {
             "pypi": {
@@ -2278,7 +2278,7 @@ async def test_get_dependencies_node_options(tmp_path: Path, monkeypatch: pytest
     async def fake_run_timeout(
         command: list[str],
         env: dict[str, str] | None = None,
-        timeout: datetime.timedelta | int = 0,
+        timeout: dt.timedelta | int = 0,
         success_message: str = "",
         error_message: str = "",
         timeout_message: str = "",
@@ -2326,7 +2326,7 @@ async def test_get_dependencies_serialized(tmp_path: Path, monkeypatch: pytest.M
     async def fake_run_timeout(
         command: list[str],
         env: dict[str, str] | None = None,
-        timeout: datetime.timedelta | int = 0,
+        timeout: dt.timedelta | int = 0,
         success_message: str = "",
         error_message: str = "",
         timeout_message: str = "",

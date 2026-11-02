@@ -7,7 +7,7 @@ import asyncio
 import concurrent
 import contextlib
 import contextvars
-import datetime
+import datetime as dt
 import html
 import inspect
 import io
@@ -221,7 +221,7 @@ async def _process_job(
                         job.repository,
                     )
                     job.status_enum = models.JobStatus.SKIPPED
-                    job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+                    job.finished_at = dt.datetime.now(tz=dt.UTC)
                     return True
                 raise
             # Get Rate limit status
@@ -281,7 +281,7 @@ async def _process_job(
                             job.repository,
                         )
                         job.status_enum = models.JobStatus.SKIPPED
-                        job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+                        job.finished_at = dt.datetime.now(tz=dt.UTC)
                         return True
                     raise
         else:
@@ -361,7 +361,7 @@ async def _process_job(
             )
             result = None
             try:
-                start = datetime.datetime.now(tz=datetime.UTC)
+                start = dt.datetime.now(tz=dt.UTC)
                 job_timeout = settings.process_queue.job_timeout.total_seconds()
                 transversal_status = None
                 async with asyncio.timeout(job_timeout):
@@ -443,7 +443,7 @@ async def _process_job(
                 _LOGGER.debug(
                     "Module %s took %s",
                     job.module,
-                    datetime.datetime.now(tz=datetime.UTC) - start,
+                    dt.datetime.now(tz=dt.UTC) - start,
                 )
 
                 if result is not None:
@@ -582,7 +582,7 @@ async def _process_job(
             job.status_enum = (
                 models.JobStatus.DONE if result is None or result.success else models.JobStatus.REPORT_ERROR
             )
-            job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+            job.finished_at = dt.datetime.now(tz=dt.UTC)
 
             job.log = None
             if result is not None and github_project is not None and github_project.aio_github is not None:
@@ -629,7 +629,7 @@ async def _process_job(
             _LOGGER.debug("Job queue updated")
         except githubkit.exception.RequestFailed as exception:
             job.status_enum = models.JobStatus.FAIL
-            job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+            job.finished_at = dt.datetime.now(tz=dt.UTC)
             if check_run is not None:
                 try:
                     if github_project is not None and github_project.aio_github is not None:
@@ -664,7 +664,7 @@ async def _process_job(
                 raise
         except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as proc_error:
             job.status_enum = models.JobStatus.FAIL
-            job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+            job.finished_at = dt.datetime.now(tz=dt.UTC)
             if check_run is not None:
                 try:
                     if github_project is not None and github_project.aio_github is not None:
@@ -695,7 +695,7 @@ async def _process_job(
             raise
         except Exception as exception:
             job.status_enum = models.JobStatus.FAIL
-            job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+            job.finished_at = dt.datetime.now(tz=dt.UTC)
             if check_run is not None and github_project is not None and github_project.aio_github is not None:
                 try:
                     await github_project.aio_github.rest.checks.async_update(
@@ -1005,7 +1005,7 @@ async def _get_process_one_job(
 
             # Very long pending job => error
             # Calculate the timestamp threshold for marking jobs as error
-            error_threshold = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(
+            error_threshold = dt.datetime.now(tz=dt.UTC) - dt.timedelta(
                 seconds=settings.process_queue.job_timeout_error.total_seconds(),
             )
             result = await session.execute(
@@ -1025,7 +1025,7 @@ async def _get_process_one_job(
 
             # Steal long pending jobs
             # Calculate the timestamp threshold for stealing long pending jobs
-            steal_threshold = datetime.datetime.now(tz=datetime.UTC) - datetime.timedelta(
+            steal_threshold = dt.datetime.now(tz=dt.UTC) - dt.timedelta(
                 seconds=settings.process_queue.job_timeout.total_seconds() + 60,
             )
             statement = (
@@ -1119,7 +1119,7 @@ async def _process_one_job(
     if make_pending:
         _LOGGER.info("Make job ID %s pending", job.id)
         job.status_enum = models.JobStatus.PENDING
-        job.started_at = datetime.datetime.now(tz=datetime.UTC)
+        job.started_at = dt.datetime.now(tz=dt.UTC)
         await session.commit()
         await session.refresh(job)
         _LOGGER.debug("Process one job (max priority: %i): Make pending", max_priority)
@@ -1127,7 +1127,7 @@ async def _process_one_job(
 
     try:
         job.status_enum = models.JobStatus.PENDING
-        job.started_at = datetime.datetime.now(tz=datetime.UTC)
+        job.started_at = dt.datetime.now(tz=dt.UTC)
         await session.commit()
         await session.refresh(job)
         pending_count = await session.scalar(
@@ -1157,11 +1157,11 @@ async def _process_one_job(
                     job.status_enum = models.JobStatus.DONE
                 else:
                     job.status_enum = models.JobStatus.FAIL
-                job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+                job.finished_at = dt.datetime.now(tz=dt.UTC)
             else:
                 _LOGGER.error("Unknown event name: %s", job.module_event_name)
                 job.status_enum = models.JobStatus.FAIL
-                job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+                job.finished_at = dt.datetime.now(tz=dt.UTC)
                 success = False
         else:
             success = await _validate_job(
@@ -1205,7 +1205,7 @@ async def _process_one_job(
                 root_logger.removeHandler(handler)
             job.status_enum = models.JobStatus.FAIL
         await _flush_job_logs(log_session_factory, handler, job.id)
-        job.finished_at = datetime.datetime.now(tz=datetime.UTC)
+        job.finished_at = dt.datetime.now(tz=dt.UTC)
         _RUNNING_JOBS.pop(job.id)
         await asyncio.shield(session.commit())
 
@@ -1414,9 +1414,9 @@ class _WatchDog:
                 "w",
                 encoding="utf-8",
             ) as file_:
-                await file_.write(datetime.datetime.now(datetime.UTC).isoformat())
+                await file_.write(dt.datetime.now(dt.UTC).isoformat())
                 await file_.write("\n")
-                await file_.write(datetime.datetime.now(datetime.UTC).isoformat())
+                await file_.write(dt.datetime.now(dt.UTC).isoformat())
                 await file_.write("\n")
             await asyncio.sleep(60)
 

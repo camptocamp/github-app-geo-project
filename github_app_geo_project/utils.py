@@ -3,7 +3,7 @@
 """Application utility module."""
 
 import asyncio
-import datetime
+import datetime as dt
 import json
 import logging
 import urllib.parse
@@ -95,11 +95,11 @@ def format_yaml(yaml_data: dict[str, Any]) -> str:
     )
 
 
-def datetime_with_timezone(date: datetime.datetime) -> datetime.datetime:
+def datetime_with_timezone(date: dt.datetime) -> dt.datetime:
     """Add the timezone to a date."""
     if date.tzinfo:
         return date
-    return date.replace(tzinfo=datetime.UTC)
+    return date.replace(tzinfo=dt.UTC)
 
 
 def merge_css_blocks(css_blocks: Iterable[str]) -> str:
