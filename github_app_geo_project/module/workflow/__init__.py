@@ -3,7 +3,7 @@
 """Module to display the status of the workflows in the transversal dashboard."""
 
 import base64
-import datetime
+import datetime as dt
 import logging
 from collections.abc import Mapping
 from typing import Any
@@ -118,7 +118,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
 
         module_utils.manage_updated(transversal_status, full_repo, days_old=30)
 
-        cutoff = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=30)
+        cutoff = dt.datetime.now(dt.UTC) - dt.timedelta(days=30)
         for repo_key, repo_data_cleanup in list(transversal_status.items()):
             if not isinstance(repo_data_cleanup, dict):
                 continue
@@ -135,7 +135,7 @@ class Workflow(module.Module[None, dict[str, Any], dict[str, Any], None]):
                     if workflow_date:
                         try:
                             parsed_date = utils.datetime_with_timezone(
-                                datetime.datetime.fromisoformat(workflow_date)
+                                dt.datetime.fromisoformat(workflow_date)
                             )
                             if parsed_date < cutoff:
                                 del branch_data[workflow_key]

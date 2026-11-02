@@ -1,7 +1,7 @@
 # Copyright (c) 2026, Camptocamp SA
 
 import asyncio
-import datetime
+import datetime as dt
 import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
@@ -365,8 +365,8 @@ def test_ansi_process_message_keeps_overridden_env(monkeypatch: pytest.MonkeyPat
 
 def test_manage_updated_separated():
     updated = {
-        "key2": datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=23),
-        "key3": datetime.datetime.now(datetime.UTC) - datetime.timedelta(hours=25),
+        "key2": dt.datetime.now(dt.UTC) - dt.timedelta(hours=23),
+        "key3": dt.datetime.now(dt.UTC) - dt.timedelta(hours=25),
     }
     data = {
         "key1": {},
@@ -379,8 +379,8 @@ def test_manage_updated_separated():
     utils.manage_updated_separated(updated, data, key, days_old)
 
     assert key in updated
-    assert updated[key] >= datetime.datetime.now(datetime.UTC) - datetime.timedelta(minutes=1)
-    assert updated[key] <= datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=1)
+    assert updated[key] >= dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1)
+    assert updated[key] <= dt.datetime.now(dt.UTC) + dt.timedelta(minutes=1)
     assert key not in data
 
     assert "key1" not in updated

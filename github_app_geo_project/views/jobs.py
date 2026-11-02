@@ -2,7 +2,7 @@
 
 """Jobs view - list jobs across repositories."""
 
-import datetime
+import datetime as dt
 import logging
 from typing import Annotated, Any
 
@@ -17,7 +17,7 @@ from github_app_geo_project.utils import HTML_FORMATTER
 _LOGGER = logging.getLogger(__name__)
 
 
-def _pprint_date(date: datetime.datetime) -> str:
+def _pprint_date(date: dt.datetime) -> str:
     short_date = pprint_short_date(date)
     full_date = pprint_full_date(date)
     return f"{short_date} ({full_date})"

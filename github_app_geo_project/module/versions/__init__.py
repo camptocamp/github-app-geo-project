@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import datetime
+import datetime as dt
 import io
 import json
 import logging
@@ -112,7 +112,7 @@ class _TransversalStatusNamesIndex(BaseModel):
 
 class _Support(BaseModel):
     type: _SupportType = _SupportType.NO_SUPPORT_DEFINED
-    until: datetime.date | None = None
+    until: dt.date | None = None
 
     @property
     def display(self) -> str:
@@ -138,7 +138,7 @@ class _TransversalStatusRepo(BaseModel):
     """Transversal dashboard repo."""
 
     versions: dict[str, _TransversalStatusVersion] = {}
-    upstream_updated: datetime.datetime | None = None
+    upstream_updated: dt.datetime | None = None
     url: str | None = None
     has_security_policy: bool = False
     names_index: _TransversalStatusNamesIndex = Field(
@@ -166,7 +166,7 @@ class _Names(BaseModel):
 
 
 class _TransversalStatus(BaseModel):
-    updated: dict[str, datetime.datetime] = {}
+    updated: dict[str, dt.datetime] = {}
     """Repository updated time"""
     repositories: dict[str, _TransversalStatusRepo] = {}
 
@@ -386,9 +386,7 @@ class Versions(
                         if version in intermediate_status.version_support:
                             try:
                                 support_date = (
-                                    datetime.datetime.strptime(support, "%d/%m/%Y")
-                                    .astimezone(datetime.UTC)
-                                    .date()
+                                    dt.datetime.strptime(support, "%d/%m/%Y").astimezone(dt.UTC).date()
                                 )
                                 intermediate_status.version_support[version] = _Support(
                                     type=_SupportType.DATE,
@@ -1349,10 +1347,10 @@ async def _update_upstream_versions(
 
         if package_status.upstream_updated and (
             package_status.upstream_updated
-            > datetime.datetime.now(datetime.UTC) - settings.versions.external_packages_update_period
+            > dt.datetime.now(dt.UTC) - settings.versions.external_packages_update_period
         ):
             return
-        package_status.upstream_updated = datetime.datetime.now(datetime.UTC)
+        package_status.upstream_updated = dt.datetime.now(dt.UTC)
 
         async with (
             aiohttp.ClientSession() as session,
@@ -1376,13 +1374,13 @@ async def _update_upstream_versions(
                 if not isinstance(eol, str):
                     continue
                 parsed_eol = utils.datetime_with_timezone(
-                    datetime.datetime.fromisoformat(eol),
+                    dt.datetime.fromisoformat(eol),
                 )
-                if parsed_eol < datetime.datetime.now(datetime.UTC):
+                if parsed_eol < dt.datetime.now(dt.UTC):
                     continue
                 support = _Support(
                     type=_SupportType.DATE,
-                    until=parsed_eol.astimezone(datetime.UTC).date(),
+                    until=parsed_eol.astimezone(dt.UTC).date(),
                 )
             package_status.versions[cycle["cycle"]] = _TransversalStatusVersion(
                 support=support,
@@ -1394,33 +1392,33 @@ async def _update_upstream_versions(
             )
 
 
-def _parse_support_date(text: str) -> datetime.datetime | None:
+def _parse_support_date(text: str) -> dt.datetime | None:
     if not isinstance(text, str):
         return None
     # Try ISO and DD/MM/YYYY date formats
     try:
-        date = datetime.datetime.fromisoformat(text)
+        date = dt.datetime.fromisoformat(text)
         if date.tzinfo is None:
-            date = date.replace(tzinfo=datetime.UTC)
+            date = date.replace(tzinfo=dt.UTC)
     except Exception:  # noqa: BLE001,S110
         pass
     else:
         return date
     try:
-        return datetime.datetime.strptime(text, "%d/%m/%Y").replace(tzinfo=datetime.UTC)
+        return dt.datetime.strptime(text, "%d/%m/%Y").replace(tzinfo=dt.UTC)
     except Exception:  # noqa: BLE001,S110
         pass
     return None
 
 
-def _parse_support_date_value(text: str) -> datetime.date | None:
+def _parse_support_date_value(text: str) -> dt.date | None:
     parsed = _parse_support_date(text)
     if parsed is None:
         return None
-    return parsed.astimezone(datetime.UTC).date()
+    return parsed.astimezone(dt.UTC).date()
 
 
-def _support_category(s: str, support_until: datetime.date | None = None) -> _SupportCategory:
+def _support_category(s: str, support_until: dt.date | None = None) -> _SupportCategory:
     if not isinstance(s, str):
         s = ""
     s = s.strip().lower()
@@ -1770,9 +1768,7 @@ def _apply_additional_packages(
                         else:
                             try:
                                 parsed_date = (
-                                    datetime.datetime.strptime(support, "%d/%m/%Y")
-                                    .replace(tzinfo=datetime.UTC)
-                                    .date()
+                                    dt.datetime.strptime(support, "%d/%m/%Y").replace(tzinfo=dt.UTC).date()
                                 )
                                 support = _Support(type=_SupportType.DATE, until=parsed_date)
                             except ValueError:

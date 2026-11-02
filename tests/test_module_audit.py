@@ -4,7 +4,7 @@
 
 import asyncio
 import base64
-import datetime
+import datetime as dt
 import json
 import tempfile
 from pathlib import Path
@@ -1114,7 +1114,7 @@ async def test_update_transversal_status_prunes_stale_types() -> None:
     context.github_project.repository = "repo"
 
     transversal = _TransversalStatus(
-        updated={"owner/repo": datetime.datetime.now(datetime.UTC)},
+        updated={"owner/repo": dt.datetime.now(dt.UTC)},
         repositories={
             "owner/repo": _TransversalStatusRepo(
                 types={
@@ -1146,7 +1146,7 @@ async def test_update_transversal_status_merges_without_known_types() -> None:
     context.github_project.repository = "repo"
 
     transversal = _TransversalStatus(
-        updated={"owner/repo": datetime.datetime.now(datetime.UTC)},
+        updated={"owner/repo": dt.datetime.now(dt.UTC)},
         repositories={
             "owner/repo": _TransversalStatusRepo(
                 types={
@@ -1227,7 +1227,7 @@ def test_get_transversal_dashboard_cleanup_is_global() -> None:
     """Types without a version suffix (like Cleanup) are displayed as global types."""
     context = module.TransversalDashboardContext(
         status=_TransversalStatus(
-            updated={"owner/repo": datetime.datetime.now(datetime.UTC)},
+            updated={"owner/repo": dt.datetime.now(dt.UTC)},
             repositories={
                 "owner/repo": _TransversalStatusRepo(
                     types={
@@ -1412,10 +1412,10 @@ async def test_snyk_api_get_all_error() -> None:
 
 def test_snyk_api_datetime() -> None:
     """The API datetimes are formatted with the URL-safe `Z` UTC suffix (no `+00:00` offset)."""
-    moment = datetime.datetime(2026, 10, 2, 8, 30, 15, 123456, tzinfo=datetime.UTC)
+    moment = dt.datetime(2026, 10, 2, 8, 30, 15, 123456, tzinfo=dt.UTC)
     assert audit_utils._snyk_api_datetime(moment) == "2026-10-02T08:30:15Z"
 
-    cet = datetime.datetime(2026, 10, 2, 10, 30, 15, tzinfo=datetime.timezone(datetime.timedelta(hours=2)))
+    cet = dt.datetime(2026, 10, 2, 10, 30, 15, tzinfo=dt.timezone(dt.timedelta(hours=2)))
     assert audit_utils._snyk_api_datetime(cet) == "2026-10-02T08:30:15Z"
 
 
@@ -1493,7 +1493,7 @@ async def test_snyk_cleanup_stale_projects(monkeypatch: pytest.MonkeyPatch) -> N
             "owner",
             "repo",
             "1.2",
-            datetime.datetime(2026, 9, 28, tzinfo=datetime.UTC),
+            dt.datetime(2026, 9, 28, tzinfo=dt.UTC),
             result,
         )
 
@@ -1557,7 +1557,7 @@ async def test_snyk_cleanup_without_token(monkeypatch: pytest.MonkeyPatch) -> No
             "owner",
             "repo",
             "1.2",
-            datetime.datetime(2026, 9, 28, tzinfo=datetime.UTC),
+            dt.datetime(2026, 9, 28, tzinfo=dt.UTC),
             result,
         )
         removed, removed_success = await audit_utils.snyk_cleanup_removed_references("owner", "repo", ["1.2"])
@@ -1605,7 +1605,7 @@ async def test_snyk_cleanup_stale_projects_by_age(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(settings.audit, "snyk_api_cleanup", True)
     monkeypatch.setattr(settings.audit, "snyk_token", "test-token")
     monkeypatch.setattr(settings.audit, "snyk_org", _SNYK_ORG_UUID)
-    monkeypatch.setattr(settings.audit, "snyk_api_stale_age", datetime.timedelta(days=7))
+    monkeypatch.setattr(settings.audit, "snyk_api_stale_age", dt.timedelta(days=7))
 
     session = _FakeSnykSession()
     projects = [
@@ -1624,11 +1624,11 @@ async def test_snyk_cleanup_stale_projects_by_age(monkeypatch: pytest.MonkeyPatc
     assert mock_list.await_args is not None
     extra_params = dict(mock_list.await_args.args[4])
     assert set(extra_params) == {"cli_monitored_before"}
-    monitored_before = datetime.datetime.strptime(
+    monitored_before = dt.datetime.strptime(
         extra_params["cli_monitored_before"], "%Y-%m-%dT%H:%M:%SZ"
-    ).replace(tzinfo=datetime.UTC)
-    expected = datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=7)
-    assert abs(monitored_before - expected) < datetime.timedelta(minutes=1)
+    ).replace(tzinfo=dt.UTC)
+    expected = dt.datetime.now(dt.UTC) - dt.timedelta(days=7)
+    assert abs(monitored_before - expected) < dt.timedelta(minutes=1)
 
     assert sorted(request[1] for request in session.requests if request[0] == "DELETE") == [
         f"https://api.snyk.io/rest/orgs/{_SNYK_ORG_UUID}/projects/project-1",
@@ -1659,7 +1659,7 @@ async def test_snyk_cleanup_api_error_reported(monkeypatch: pytest.MonkeyPatch) 
             "owner",
             "repo",
             "1.2",
-            datetime.datetime(2026, 10, 2, tzinfo=datetime.UTC),
+            dt.datetime(2026, 10, 2, tzinfo=dt.UTC),
             result,
         )
 

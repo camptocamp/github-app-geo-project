@@ -4,7 +4,7 @@
 
 import asyncio
 import base64
-import datetime
+import datetime as dt
 import json
 import logging
 import os
@@ -127,7 +127,7 @@ class _TransversalStatusRepo(BaseModel):
 class _TransversalStatus(BaseModel):
     """The transversal status."""
 
-    updated: dict[str, datetime.datetime] = {}
+    updated: dict[str, dt.datetime] = {}
     """Repository updated time"""
     repositories: dict[str, _TransversalStatusRepo] = {}
 
