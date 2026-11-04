@@ -3,7 +3,7 @@
 """The auditing functions."""
 
 import asyncio
-import datetime
+import datetime as dt
 import html
 import io
 import json
@@ -245,7 +245,7 @@ async def snyk(
         env_no_debug = {**env}
         env["DEBUG"] = "*snyk*"  # debug mode
 
-        monitor_started_at = datetime.datetime.now(datetime.UTC)
+        monitor_started_at = dt.datetime.now(dt.UTC)
         monitor_success = await _snyk_monitor(branch, config, local_config, result, env, cwd)
         if monitor_success:
             # Remove the projects that were not refreshed by this monitor run (dependency files
@@ -767,7 +767,7 @@ async def _snyk_monitor(
 _SNYK_API_VERSION = "2024-05-31"
 """The Snyk REST API version used for the projects cleanup."""
 
-_SNYK_MONITOR_SKEW = datetime.timedelta(minutes=10)
+_SNYK_MONITOR_SKEW = dt.timedelta(minutes=10)
 """Tolerance applied on the monitor run start when looking for stale projects (clock desynchronization)."""
 
 _UUID_RE = re.compile(
@@ -786,14 +786,14 @@ class _SnykApiError(Exception):
         super().__init__(" ".join(part for part in (url, str(status) if status else "", self.detail) if part))
 
 
-def _snyk_api_datetime(moment: datetime.datetime) -> str:
+def _snyk_api_datetime(moment: dt.datetime) -> str:
     """
     Format a datetime for the Snyk REST API query parameters.
 
     The `Z` UTC suffix is used instead of the `+00:00` ISO offset because the `+` is
     rejected by the API query parameters validation (SNYK-OPENAPI-0001, 400 Bad request).
     """
-    return moment.astimezone(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return moment.astimezone(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def _snyk_api_config() -> tuple[str, str] | None:
@@ -998,7 +998,7 @@ async def snyk_cleanup_stale_projects(
     owner: str,
     repository: str,
     branch: str,
-    monitored_before: datetime.datetime,
+    monitored_before: dt.datetime,
     result: list[module_utils.Message],
 ) -> bool:
     """
@@ -1125,7 +1125,7 @@ async def snyk_cleanup_stale_projects_by_age(owner: str, repository: str) -> tup
             if targets is None:
                 return [], True
             org_id, target_ids = targets
-            monitored_before = datetime.datetime.now(datetime.UTC) - stale_age
+            monitored_before = dt.datetime.now(dt.UTC) - stale_age
             projects = await _snyk_list_projects(
                 session,
                 api_url,
@@ -1466,8 +1466,8 @@ def outdated_versions(
     for row in security.data:
         str_date = row[date_index]
         if str_date not in ("Unsupported", "Best effort", "To be defined"):
-            date = datetime.datetime.strptime(row[date_index], "%d/%m/%Y").replace(tzinfo=datetime.UTC)
-            if date < datetime.datetime.now(datetime.UTC):
+            date = dt.datetime.strptime(row[date_index], "%d/%m/%Y").replace(tzinfo=dt.UTC)
+            if date < dt.datetime.now(dt.UTC):
                 errors.append(
                     f"The version '{row[version_index]}' is outdated, it can be set to "
                     "'Unsupported', 'Best effort' or 'To be defined'",
@@ -1531,11 +1531,11 @@ async def _get_packages_version(
     global _GENERATION_TIME  # noqa: PLW0603
     if (
         _GENERATION_TIME is None
-        or datetime.datetime.now(datetime.UTC) - settings.audit.dpkg_cache_duration > _GENERATION_TIME
+        or dt.datetime.now(dt.UTC) - settings.audit.dpkg_cache_duration > _GENERATION_TIME
     ):
         _PACKAGE_VERSION.clear()
         _SOURCES.clear()
-        _GENERATION_TIME = datetime.datetime.now(datetime.UTC)
+        _GENERATION_TIME = dt.datetime.now(dt.UTC)
     if package not in _PACKAGE_VERSION:
         dist = package.split("/", maxsplit=1)[0]
         await asyncio.to_thread(_get_sources, dist, config, local_config)

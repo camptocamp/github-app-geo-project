@@ -2,7 +2,7 @@
 
 """The mako templates to render the pages."""
 
-import datetime
+import datetime as dt
 import logging
 from typing import Any
 
@@ -28,12 +28,12 @@ def markdown(text: str | None) -> Markup:
     return sanitizer(markdown_lib.markdown(text))
 
 
-def pprint_short_date(date: datetime.datetime | None) -> str:
+def pprint_short_date(date: dt.datetime | None) -> str:
     """Pretty print a short date (essentially time to current time)."""
     if date is None:
         return "-"
 
-    delta = datetime.datetime.now(datetime.UTC) - date
+    delta = dt.datetime.now(dt.UTC) - date
     if delta.total_seconds() < 1:
         short_date = "now"
     elif delta.total_seconds() < 60:
@@ -50,15 +50,15 @@ def pprint_short_date(date: datetime.datetime | None) -> str:
     return short_date
 
 
-def pprint_full_date(date: datetime.datetime | None) -> str:
+def pprint_full_date(date: dt.datetime | None) -> str:
     """Pretty print a full date."""
     if date is None:
         return "-"
 
-    return datetime.datetime.strftime(date, "%Y-%m-%d %H:%M:%S")
+    return dt.datetime.strftime(date, "%Y-%m-%d %H:%M:%S")
 
 
-def pprint_date(date: datetime.datetime | None) -> Markup:
+def pprint_date(date: dt.datetime | None) -> Markup:
     """
     Pretty print a date.
 
@@ -73,7 +73,7 @@ def pprint_date(date: datetime.datetime | None) -> Markup:
     return Markup('<span title="{}">{}</span>').format(full_date, short_date)
 
 
-def pprint_duration(duration: datetime.timedelta | None) -> str:
+def pprint_duration(duration: dt.timedelta | None) -> str:
     """Pretty print a duration."""
     if duration is None:
         return "-"

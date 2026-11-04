@@ -2,7 +2,7 @@
 
 """Utility functions for the auto* modules."""
 
-import datetime
+import datetime as dt
 import json
 import logging
 from pathlib import Path
@@ -124,7 +124,7 @@ class DeleteOldWorkflowRuns(
             status = rule.get("status")
 
             arguments: _ListWorkflowRunsForRepoArguments = {
-                "created": f"<{datetime.datetime.now(datetime.UTC) - datetime.timedelta(days=older_than_days):%Y-%m-%d}",
+                "created": f"<{dt.datetime.now(dt.UTC) - dt.timedelta(days=older_than_days):%Y-%m-%d}",
             }
             if actor:
                 arguments["actor"] = actor
