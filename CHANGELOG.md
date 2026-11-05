@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-05
+
+### Changed
+
+- **Patch**: An expired artifact, flagged as expired in the run or whose download answers `410 Gone`, is no more silently skipped: the reason is reported in the check output summary, the check run gets a `failure` conclusion and the job ends in `report error` instead of `done`. The other artifacts of the run are still applied, and any other download error still raises and fails the job. An artifact with an empty patch is still ignored without error, because an empty patch means that the workflow produced no change to apply.
+
 ## 2026-10-26
 
 ### Fixed
