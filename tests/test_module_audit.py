@@ -85,7 +85,7 @@ async def test_process_renovate_default_branch_success():
             with patch(
                 "github_app_geo_project.module.audit._create_pull_request_if_changes"
             ) as mock_create_pr:
-                mock_create_pr.return_value = (True, [])
+                mock_create_pr.return_value = (True, [], None)
 
                 result = await _process_renovate(context, known_versions)
 
@@ -140,7 +140,7 @@ async def test_process_renovate_default_branch_no_security_file():
             with patch(
                 "github_app_geo_project.module.audit._create_pull_request_if_changes"
             ) as mock_create_pr:
-                mock_create_pr.return_value = (True, [])
+                mock_create_pr.return_value = (True, [], None)
 
                 result = await _process_renovate(context, known_versions)
 
@@ -198,7 +198,7 @@ async def test_process_renovate_version_cleanup_success():
             ),
             patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr,
         ):
-            mock_create_pr.return_value = (True, [])
+            mock_create_pr.return_value = (True, [], None)
 
             result = await _process_renovate(context, None)
 
@@ -252,7 +252,7 @@ async def test_process_renovate_version_cleanup_files_not_exist():
             ),
             patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr,
         ):
-            mock_create_pr.return_value = (True, [])
+            mock_create_pr.return_value = (True, [], None)
 
             result = await _process_renovate(context, None)
 
@@ -281,7 +281,7 @@ async def test_process_renovate_version_cleanup_pr_creation_failure():
             ),
             patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr,
         ):
-            mock_create_pr.return_value = (False, ["Error creating PR"])
+            mock_create_pr.return_value = (False, ["Error creating PR"], None)
 
             result = await _process_renovate(context, None)
 
@@ -1884,7 +1884,7 @@ async def test_process_snyk_pull_request_body() -> None:
                 new=AsyncMock(),
             ) as mock_add_output,
         ):
-            mock_create_pr.return_value = (True, [])
+            mock_create_pr.return_value = (True, [], None)
 
             short_message, success = await _process_snyk_dpkg(
                 context,
@@ -1910,6 +1910,146 @@ async def test_process_snyk_pull_request_body() -> None:
         "[Logs](https://example.com/logs/123) | "
         "[Output](https://example.com/output/camptocamp/tilecloud-chain/snyk-1.21)",
     )
+
+
+@pytest.mark.asyncio
+async def test_process_snyk_pull_request_transversal_status() -> None:
+    """The transversal status stores the pull request URL and the summary stays plain text."""
+    context = Mock()
+    context.module_event_data = _EventData(type="snyk", version="1.21")
+    context.module_config = {}
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "tilecloud-chain"
+    context.service_url = "https://example.com/"
+    context.job_id = 123
+
+    fix_output = module_utils.AnsiMessage("1 items were successfully fixed")
+    fix_output.title = "snyk fix output"
+
+    intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        clone_path = Path(tmpdirname) / "repo"
+        clone_path.mkdir()
+        mock_cm = _make_worktree_mock(clone_path)
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr,
+            patch.object(
+                audit_utils,
+                "snyk",
+                new=AsyncMock(
+                    return_value=(
+                        [],
+                        fix_output,
+                        ["1 high vulnerabilities can be fixed"],
+                        True,
+                        {},
+                        {"pyproject.toml": [_vulnerability()]},
+                    ),
+                ),
+            ),
+            patch.object(audit_utils, "snyk_test_ignored", new=AsyncMock(return_value={})),
+            patch.object(audit_utils, "find_snyk_files", new=AsyncMock(return_value=[])),
+            patch(
+                "github_app_geo_project.module.audit.module_utils.add_output",
+                new=AsyncMock(),
+            ),
+        ):
+            mock_create_pr.return_value = (
+                True,
+                ["[Pull request](https://github.com/camptocamp/tilecloud-chain/pull/42)"],
+                "https://github.com/camptocamp/tilecloud-chain/pull/42",
+            )
+
+            short_message, success = await _process_snyk_dpkg(
+                context,
+                module_utils.DashboardIssue("- [ ] <!-- snyk --> Check security vulnerabilities with Snyk\n"),
+                intermediate_status,
+            )
+
+    assert success is True
+    # The markdown link is kept for the check run output summary
+    assert short_message == [
+        "1 high vulnerabilities can be fixed",
+        "[Pull request](https://github.com/camptocamp/tilecloud-chain/pull/42)",
+    ]
+
+    tool = intermediate_status.status.types["Snyk check/fix 1.21"]
+    assert tool.pull_request_url == "https://github.com/camptocamp/tilecloud-chain/pull/42"
+    assert tool.summary == "1 high vulnerabilities can be fixed"
+
+
+def test_get_transversal_dashboard_pull_request_url() -> None:
+    """The pull request URL is exposed to the dashboard renderer for global and branch types."""
+    context = module.TransversalDashboardContext(
+        status=_TransversalStatus(
+            updated={"owner/repo": dt.datetime.now(dt.UTC)},
+            repositories={
+                "owner/repo": _TransversalStatusRepo(
+                    types={
+                        "Cleanup": _TransversalStatusTool(
+                            name="Cleanup",
+                            summary="Everything is clean",
+                            status="success",
+                            pull_request_url="https://github.com/owner/repo/pull/1",
+                        ),
+                        "Snyk check/fix 1.2": _TransversalStatusTool(
+                            name="Snyk check/fix 1.2",
+                            status="success",
+                            pull_request_url="https://github.com/owner/repo/pull/2",
+                        ),
+                    }
+                )
+            },
+        ),
+        params={},
+    )
+
+    output = Audit().get_transversal_dashboard(context)
+
+    repository = output.data["repositories"][0]
+    assert repository["global_types"][0]["pull_request_url"] == "https://github.com/owner/repo/pull/1"
+    assert repository["branches"][0]["types"][0]["pull_request_url"] == "https://github.com/owner/repo/pull/2"
+
+
+@pytest.mark.asyncio
+async def test_dashboard_renders_pull_request_link() -> None:
+    """The dashboard renders the pull request URL as a link, not as raw markdown."""
+    context = module.TransversalDashboardContext(
+        status=_TransversalStatus(
+            updated={"owner/repo": dt.datetime.now(dt.UTC)},
+            repositories={
+                "owner/repo": _TransversalStatusRepo(
+                    types={
+                        "Cleanup": _TransversalStatusTool(
+                            name="Cleanup",
+                            summary="Everything is clean",
+                            status="success",
+                            pull_request_url="https://github.com/owner/repo/pull/1",
+                        ),
+                        "Snyk check/fix 1.2": _TransversalStatusTool(
+                            name="Snyk check/fix 1.2",
+                            summary="1 high vulnerabilities can be fixed",
+                            status="success",
+                            pull_request_url="https://github.com/owner/repo/pull/2",
+                        ),
+                    }
+                )
+            },
+        ),
+        params={},
+    )
+
+    output = Audit().get_transversal_dashboard(context)
+    html = await render_template(output.renderer, output.data, nonce="the-nonce")
+
+    assert '<a href="https://github.com/owner/repo/pull/1">Pull request</a>' in html
+    assert '<a href="https://github.com/owner/repo/pull/2">Pull request</a>' in html
+    assert "[Pull request](" not in html
 
 
 async def _render_audit_output(**vulnerabilities: dict[str, list[_VulnerabilityStatus]]) -> str:

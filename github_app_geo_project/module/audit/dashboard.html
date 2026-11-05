@@ -25,7 +25,8 @@
   {% endif %}
   <!---->
   {% if type_['logs_url'] %}<a href="{{ type_['logs_url'] }}">Logs</a>{% endif %}{% if type_['output_url'] %},
-  <a href="{{ type_['output_url'] }}">Output</a>{% endif %}
+  <a href="{{ type_['output_url'] }}">Output</a>{% endif %}{% if type_['pull_request_url'] %},
+  <a href="{{ type_['pull_request_url'] }}">Pull request</a>{% endif %}
 </p>
 {% endfor %}
 <!---->
@@ -37,7 +38,8 @@
   type_['status'] == 'error' %}
   <span class="text-danger">[Error]</span>
   {% endif %} {% if type_['logs_url'] %}<a href="{{ type_['logs_url'] }}">Logs</a>{% endif %}{% if
-  type_['output_url'] %}, <a href="{{ type_['output_url'] }}">Output</a>{% endif %}
+  type_['output_url'] %}, <a href="{{ type_['output_url'] }}">Output</a>{% endif %}{% if
+  type_['pull_request_url'] %}, <a href="{{ type_['pull_request_url'] }}">Pull request</a>{% endif %}
 </p>
 <!-- type -->
 {% endfor %}
