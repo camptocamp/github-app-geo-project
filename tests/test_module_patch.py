@@ -5,10 +5,11 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import anyio
+import githubkit.exception
 import pytest
 
 from github_app_geo_project import module
-from github_app_geo_project.module.patch import Patch, _resolve_artifact_target
+from github_app_geo_project.module.patch import Patch, PatchError, _resolve_artifact_target
 from github_app_geo_project.settings import settings
 
 
@@ -187,11 +188,11 @@ class TestGetActions:
         assert len(actions) == 0
 
 
-def _make_artifact(name: str = "Apply HELM generated files.patch"):
+def _make_artifact(name: str = "Apply HELM generated files.patch", expired: bool = False):
     artifact = MagicMock()
     artifact.name = name
     artifact.id = 999
-    artifact.expired = False
+    artifact.expired = expired
     artifact.created_at = MagicMock()
     artifact.created_at.timestamp.return_value = 1000.0
     return artifact
@@ -953,3 +954,189 @@ class TestReusablePullRequest:
         assert result.success is not False
         mock_create_pr.assert_called_once()
         assert mock_create_pr.call_args[0][1] == "ghci/patch/prod-2-9-43"
+
+
+class TestArtifactErrors:
+    @pytest.mark.asyncio
+    async def test_expired_artifact_reports_error(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            artifacts=[_make_artifact(expired=True)],
+        )
+
+        mock_create_subprocess_exec, _ = _mock_subprocess()
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_create_commit,
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is False
+        assert "is expired" in result.check_output["summary"]
+        mock_create_commit.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_download_410_expired_reports_error(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(mock_context, mock_github_project)
+
+        failed_response = MagicMock()
+        failed_response.status_code = 410
+        mock_github_project.aio_github.rest.actions.async_download_artifact = AsyncMock(
+            side_effect=githubkit.exception.RequestFailed(failed_response),
+        )
+
+        mock_create_subprocess_exec, _ = _mock_subprocess()
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ),
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is False
+        assert "is expired" in result.check_output["summary"]
+
+    @pytest.mark.asyncio
+    async def test_download_other_status_raises(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(mock_context, mock_github_project)
+
+        failed_response = MagicMock()
+        failed_response.status_code = 404
+        mock_github_project.aio_github.rest.actions.async_download_artifact = AsyncMock(
+            side_effect=githubkit.exception.RequestFailed(failed_response),
+        )
+
+        mock_create_subprocess_exec, _ = _mock_subprocess()
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ),
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+            pytest.raises(githubkit.exception.RequestFailed),
+        ):
+            await patch_module.process(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_download_non_200_raises(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(mock_context, mock_github_project)
+
+        download_response = MagicMock()
+        download_response.status_code = 404
+        mock_github_project.aio_github.rest.actions.async_download_artifact = AsyncMock(
+            return_value=download_response,
+        )
+
+        mock_create_subprocess_exec, _ = _mock_subprocess()
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ),
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+            pytest.raises(PatchError),
+        ):
+            await patch_module.process(mock_context)
+
+    @pytest.mark.asyncio
+    async def test_valid_and_expired_artifacts(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            artifacts=[
+                _make_artifact(expired=True),
+                _make_artifact(name="Update the dpkg versions list.patch"),
+            ],
+        )
+
+        mock_create_subprocess_exec, _ = _mock_subprocess()
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.has_changes",
+                new_callable=AsyncMock,
+                return_value=True,
+            ),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.create_commit",
+                new_callable=AsyncMock,
+                return_value=True,
+            ) as mock_create_commit,
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is False
+        assert "is expired" in result.check_output["summary"]
+        mock_create_commit.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_clone_expired_artifact_reports_error(self, mock_context, mock_github_project):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(
+            mock_context,
+            mock_github_project,
+            artifacts=[_make_artifact(expired=True)],
+        )
+        event_data.workflow_run.head_repository.owner.login = "fork-owner"
+
+        with patch("githubkit.webhooks.parse_obj", return_value=event_data):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is False
+        assert "is expired" in result.check_output["summary"]
+
+    @pytest.mark.asyncio
+    async def test_empty_patch_is_not_an_error(self, mock_context, mock_github_project, tmp_path):
+        patch_module = Patch()
+        event_data = _setup_process_mocks(mock_context, mock_github_project)
+
+        download_response = MagicMock()
+        download_response.status_code = 200
+        download_response.content = _make_patch_zip_content(patch_content="")
+        mock_github_project.aio_github.rest.actions.async_download_artifact = AsyncMock(
+            return_value=download_response,
+        )
+
+        mock_create_subprocess_exec, _ = _mock_subprocess()
+
+        with (
+            patch("githubkit.webhooks.parse_obj", return_value=event_data),
+            patch(
+                "github_app_geo_project.module.patch.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=_mock_working_tree(tmp_path),
+            ),
+            patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
+        ):
+            result = await patch_module.process(mock_context)
+
+        assert result.success is not False

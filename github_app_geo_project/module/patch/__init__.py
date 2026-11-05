@@ -176,22 +176,45 @@ async def _find_reusable_patch_pull_request(
 async def _iter_artifact_patches(
     context: module.ProcessContext[dict[str, Any], dict[str, Any]],
     artifacts: list[Any],
+    error_messages: list[str],
 ) -> AsyncIterator[tuple[Any, str]]:
-    """Iterate over artifacts and yield (artifact, patch_input) for valid patches."""
+    """
+    Iterate over artifacts and yield (artifact, patch_input) for valid patches.
+
+    The expired artifacts are reported in `error_messages` to make the job fail instead of being silently
+    skipped; any other download error raises and fails the job with an exception.
+    """
     for artifact in artifacts:
         if not artifact.name.endswith(".patch"):
             continue
 
         if artifact.expired:
-            _LOGGER.info("Artifact %s is expired", artifact.name)
+            _LOGGER.error("Artifact %s is expired", artifact.name)
+            error_messages.append(
+                f"The artifact '{artifact.name}' is expired, its patch could not be applied",
+            )
             continue
 
-        download_response = await context.github_project.aio_github.rest.actions.async_download_artifact(
-            owner=context.github_project.owner,
-            repo=context.github_project.repository,
-            artifact_id=artifact.id,
-            archive_format="zip",
-        )
+        try:
+            download_response = await context.github_project.aio_github.rest.actions.async_download_artifact(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                artifact_id=artifact.id,
+                archive_format="zip",
+            )
+        except githubkit.exception.RequestFailed as exception:
+            # githubkit raises on 4xx/5xx; 410 Gone is the only documented error of the download endpoint
+            # and means that the artifact expired between the listing and the download; any other status
+            # is an unexpected failure and is raised to fail the job with an exception.
+            if exception.response.status_code != 410:
+                raise
+            # An expired artifact is an expected condition reported in the check output,
+            # log it without a traceback.
+            _LOGGER.error("Artifact %s is expired", artifact.name)  # noqa: TRY400
+            error_messages.append(
+                f"The artifact '{artifact.name}' is expired, its patch could not be applied",
+            )
+            continue
 
         status = download_response.status_code
         if status != 200:
@@ -200,7 +223,8 @@ async def _iter_artifact_patches(
                 artifact.name,
                 status,
             )
-            continue
+            exception_message = f"Failed to download the artifact '{artifact.name}', status: {status}"
+            raise PatchError(exception_message)
 
         with zipfile.ZipFile(io.BytesIO(download_response.content)) as diff:
             if len(diff.namelist()) != 1:
@@ -300,6 +324,7 @@ async def _apply_patches(
         async for artifact, patch_input in _iter_artifact_patches(
             context,
             artifacts,
+            error_messages,
         ):
             command = ["git", "apply", "--allow-empty", "--index", "--verbose"]
             proc = await asyncio.create_subprocess_exec(
@@ -594,18 +619,22 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
         error_messages: list[str] = []
 
         if is_clone:
+            clone_error_messages: list[str] = []
             async for _artifact, patch_input in _iter_artifact_patches(
                 context,
                 artifacts,
+                clone_error_messages,
             ):
                 result_message.extend(["```diff", patch_input, "```"])
+            summary_lines: list[str] = []
             if result_message:
+                summary_lines = ["", "Patch to be applied", *result_message]
+            summary_lines.extend(clone_error_messages)
+            if summary_lines:
                 return module.ProcessOutput(
                     success=False,
                     check_output={
-                        "summary": "\n".join(
-                            ["", "Patch to be applied", *result_message],
-                        ),
+                        "summary": "\n".join(summary_lines),
                     },
                 )
             return module.ProcessOutput()
