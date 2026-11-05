@@ -70,6 +70,7 @@ class _TransversalStatusTool(BaseModel):
     status: str = ""
     logs_url: str | None = None
     output_url: str | None = None
+    pull_request_url: str | None = None
 
 
 class _VulnerabilityStatus(BaseModel):
@@ -319,7 +320,7 @@ async def _process_renovate(
                 context.service_url,
                 f"logs/{context.job_id}",
             )
-            success, _ = await _create_pull_request_if_changes(
+            success, _, _ = await _create_pull_request_if_changes(
                 default_branch,
                 f"ghci/audit/renovate/{default_branch}",
                 "Update Renovate configuration",
@@ -360,7 +361,7 @@ async def _process_renovate(
             context.service_url,
             f"logs/{context.job_id}",
         )
-        success, _ = await _create_pull_request_if_changes(
+        success, _, _ = await _create_pull_request_if_changes(
             context.module_event_data.version,
             f"ghci/audit/renovate/{context.module_event_data.version}",
             f"Cleanup Renovate configuration for version {context.module_event_data.version}",
@@ -633,7 +634,7 @@ async def _process_snyk_dpkg(
         if output_tool.output_url:
             body_md += f" | [Output]({output_tool.output_url})"
 
-        new_success, pr_messages = await _create_pull_request_if_changes(
+        new_success, pr_messages, pull_request_url = await _create_pull_request_if_changes(
             branch,
             new_branch,
             key,
@@ -644,15 +645,18 @@ async def _process_snyk_dpkg(
             issue_check,
         )
         success &= new_success
+        # The transversal dashboard summary is plain text, the pull request link is
+        # rendered by the dashboard template from `pull_request_url`.
+        transversal_message = ", ".join(short_message)
         short_message.extend(pr_messages)
 
-    transversal_message = ", ".join(short_message)
     intermediate_status.status.types[key] = _TransversalStatusTool(
         name=key,
         summary=transversal_message,
         status="success" if success else "error",
         logs_url=logs_url,
         output_url=output_tool.output_url,
+        pull_request_url=pull_request_url,
     )
 
     return short_message, success
@@ -725,10 +729,11 @@ async def _create_pull_request_if_changes(
     local_config: configuration.AuditConfiguration,
     cwd: anyio.Path,
     issue_check: module_utils.DashboardIssue | None,
-) -> tuple[bool, list[str]]:
+) -> tuple[bool, list[str], str | None]:
     """Create a pull request if there are changes to commit."""
     success = True
     short_message: list[str] = []
+    pull_request_url: str | None = None
 
     command = ["git", "diff", "--quiet"]
     diff_proc = await asyncio.create_subprocess_exec(*command, cwd=cwd)
@@ -767,14 +772,16 @@ async def _create_pull_request_if_changes(
                 _LOGGER.error(
                     "Error while create commit or pull request",
                 )
-            elif pull_request is not None and issue_check is not None:
-                issue_check.set_title(
-                    key,
-                    f"{key} ([Pull request]({pull_request.html_url}))",
-                )
-                short_message.append(
-                    f"[Pull request]({pull_request.html_url})",
-                )
+            elif pull_request is not None:
+                pull_request_url = pull_request.html_url
+                if issue_check is not None:
+                    issue_check.set_title(
+                        key,
+                        f"{key} ([Pull request]({pull_request.html_url}))",
+                    )
+                    short_message.append(
+                        f"[Pull request]({pull_request.html_url})",
+                    )
 
         else:
             _LOGGER.debug("No changes to commit")
@@ -792,7 +799,7 @@ async def _create_pull_request_if_changes(
             )
         raise
 
-    return success, short_message
+    return success, short_message, pull_request_url
 
 
 def _add_missing_fields(item: dict[str, Any]) -> dict[str, Any]:
@@ -1501,6 +1508,7 @@ class Audit(
                             "status": type_data.status,
                             "logs_url": type_data.logs_url,
                             "output_url": type_data.output_url,
+                            "pull_request_url": type_data.pull_request_url,
                         }
                     )
                 else:
@@ -1515,6 +1523,7 @@ class Audit(
                                 "status": type_data.status,
                                 "logs_url": type_data.logs_url,
                                 "output_url": type_data.output_url,
+                                "pull_request_url": type_data.pull_request_url,
                             }
                         )
 

@@ -110,6 +110,8 @@ You can configure the audit module behavior through the `.github/ghci.yaml` file
 
 The vulnerability dashboard is displayed on the web UI at `/dashboard/audit` (the transversal dashboard).
 
+Each check entry displays a plain text summary and links to the job `Logs` and to the `Output` report; when the audit job created a pull request, a `Pull request` link is displayed as well.
+
 You can control which vulnerabilities appear on the dashboard with:
 
 - `snyk.dashboard-severity-threshold` — minimum severity level to display on the transversal dashboard (default: `medium`)
