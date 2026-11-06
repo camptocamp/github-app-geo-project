@@ -932,6 +932,10 @@ class Audit(
         """Check if the module requires an issue dashboard."""
         return True
 
+    def check_name_per_action(self) -> bool:
+        """Include the module event name in the check run name, one job is created per type and version."""
+        return True
+
     def jobs_unique_on(self) -> list[module.Fields] | None:
         """Return the list of fields that should be unique for the jobs."""
         return [module.Fields.OWNER, module.Fields.REPOSITORY, module.Fields.MODULE_EVENT_NAME]

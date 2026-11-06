@@ -148,3 +148,45 @@ async def test_apply_jobs_unique_on_no_conflict() -> None:
 
     session.execute.assert_awaited_once()
     github_project.aio_github.rest.checks.async_update.assert_not_awaited()
+
+
+def _make_check_name_module(check_name_per_action: bool) -> MagicMock:
+    """Create a module mock for the check name tests."""
+    current_module = MagicMock()
+    current_module.title.return_value = "Audit (Snyk/dpkg/Renovate)"
+    current_module.check_name_per_action.return_value = check_name_per_action
+    return current_module
+
+
+def test_check_name_default() -> None:
+    """Without opt-in the check name keeps the historical format."""
+    job = _make_queue_job()
+
+    assert utils.check_name(_make_check_name_module(False), job) == "Audit (Snyk/dpkg/Renovate): event"
+    assert utils.check_output_title(_make_check_name_module(False), job) == "Audit (Snyk/dpkg/Renovate)"
+
+
+def test_check_name_per_action() -> None:
+    """With opt-in the module event name distinguishes the checks of the parallel jobs."""
+    job = _make_queue_job()
+    job.github_event_name = "repo_event"
+    job.module_event_name = "dpkg (4.0)"
+
+    assert (
+        utils.check_name(_make_check_name_module(True), job)
+        == "Audit (Snyk/dpkg/Renovate) - repo_event - dpkg (4.0)"
+    )
+    assert (
+        utils.check_output_title(_make_check_name_module(True), job)
+        == "Audit (Snyk/dpkg/Renovate) - dpkg (4.0)"
+    )
+
+
+def test_check_name_per_action_same_event_name() -> None:
+    """With opt-in but no distinct module event name, the event name is not duplicated."""
+    job = _make_queue_job()
+    job.github_event_name = "dashboard"
+    job.module_event_name = "dashboard"
+
+    assert utils.check_name(_make_check_name_module(True), job) == "Audit (Snyk/dpkg/Renovate) - dashboard"
+    assert utils.check_output_title(_make_check_name_module(True), job) == "Audit (Snyk/dpkg/Renovate)"

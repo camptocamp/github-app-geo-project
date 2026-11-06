@@ -458,6 +458,15 @@ class Module[CONFIGURATION, EVENT_DATA, TRANSVERSAL_STATUS, INTERMEDIATE_STATUS]
         """
         return None
 
+    def check_name_per_action(self) -> bool:
+        """
+        Include the module event name in the check run name.
+
+        Used by the modules that create one job per action, to distinguish
+        the check runs of the parallel jobs attached to the same commit.
+        """
+        return False
+
     @abstractmethod
     def get_actions(self, context: GetActionContext) -> list[Action[EVENT_DATA]]:
         """
