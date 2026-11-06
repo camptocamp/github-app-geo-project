@@ -4,6 +4,7 @@
 
 import asyncio
 import datetime as dt
+import enum
 import html
 import html.parser
 import logging
@@ -15,7 +16,7 @@ import shutil
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, NamedTuple, cast
 
 import anyio
 import githubkit.exception
@@ -899,6 +900,33 @@ async def create_commit(message: str, cwd: anyio.Path) -> bool:
     return success
 
 
+class PullRequestStatus(enum.Enum):
+    """The status of a pull request creation or update."""
+
+    CREATED = "created"
+    """A new pull request has been created."""
+    UPDATED = "updated"
+    """An existing, not stale, pull request has been found and updated."""
+    STALE = "stale"
+    """The pull request is open for too long, this is a voluntary failure to raise attention."""
+    ERROR = "error"
+    """An error occurred, like a push failure."""
+
+
+class PullRequestResult(NamedTuple):
+    """The result of `create_pull_request`."""
+
+    status: PullRequestStatus
+    pull_request: githubkit_schemas.latest.models.PullRequest | None = None
+    message: str | None = None
+    """The reason of a `STALE` status, as markdown with a link to the pull request."""
+
+    @property
+    def success(self) -> bool:
+        """Tell if the pull request creation or update should be considered successful."""
+        return self.status in (PullRequestStatus.CREATED, PullRequestStatus.UPDATED)
+
+
 async def create_pull_request(
     branch: str,
     new_branch: str,
@@ -907,7 +935,7 @@ async def create_pull_request(
     github_project: configuration.GithubProject,
     cwd: anyio.Path,
     auto_merge: bool = True,
-) -> tuple[bool, githubkit_schemas.latest.models.PullRequest | None]:
+) -> PullRequestResult:
     """Create a pull request."""
     _, success, _ = await run_timeout(
         ["git", "push", "--force-with-lease", "origin", f"HEAD:refs/heads/{new_branch}"],
@@ -919,7 +947,7 @@ async def create_pull_request(
         cwd,
     )
     if not success:
-        return False, None
+        return PullRequestResult(PullRequestStatus.ERROR)
     pull_requests = (
         await github_project.aio_github.rest.pulls.async_list(
             owner=github_project.owner,
@@ -951,6 +979,9 @@ async def create_pull_request(
         ) - dt.timedelta(days=5):
             nb_days = (dt.datetime.now(tz=dt.UTC) - pull_request.created_at).days
             _LOGGER.warning("Pull request #%s is open for %d days", pull_request.number, nb_days)
+            stale_message = (
+                f"Pull request [#{pull_request.number}]({pull_request.html_url}) is open for {nb_days} days"
+            )
             title_start = f"Pull request {message} is open for "
             title = f"{title_start}{nb_days} days"
             issue_body = f"See: #{pull_request.number}"
@@ -990,9 +1021,9 @@ async def create_pull_request(
                     title=title,
                     body=issue_body,
                 )
-            return False, pull_request
+            return PullRequestResult(PullRequestStatus.STALE, pull_request, stale_message)
     else:
-        pull_request = await github_project.aio_github.rest.pulls.async_create(
+        created_pull_request = await github_project.aio_github.rest.pulls.async_create(
             owner=github_project.owner,
             repo=github_project.repository,
             data={
@@ -1003,9 +1034,9 @@ async def create_pull_request(
             },
         )
         if auto_merge:
-            await auto_merge_pull_request(github_project, pull_request.parsed_data)
-        return True, pull_request.parsed_data
-    return True, None
+            await auto_merge_pull_request(github_project, created_pull_request.parsed_data)
+        return PullRequestResult(PullRequestStatus.CREATED, created_pull_request.parsed_data)
+    return PullRequestResult(PullRequestStatus.UPDATED, pull_request)
 
 
 async def auto_merge_pull_request(
@@ -1082,7 +1113,7 @@ async def create_commit_pull_request(
     cwd: anyio.Path,
     enable_prek: bool = True,
     skip_prek_hooks: list[str] | None = None,
-) -> tuple[bool, githubkit_schemas.latest.models.PullRequest | None]:
+) -> PullRequestResult:
     """Do a commit, then create a pull request."""
     skip_prek_hooks = skip_prek_hooks or []
     if enable_prek and await (cwd / ".pre-commit-config.yaml").exists():
@@ -1121,7 +1152,7 @@ async def create_commit_pull_request(
 
     if not await create_commit(message, cwd):
         _LOGGER.debug("No changes to commit")
-        return False, None
+        return PullRequestResult(PullRequestStatus.ERROR)
     return await create_pull_request(branch, new_branch, message, body, project, cwd)
 
 
