@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-06
+
+### Changed
+
+- **Utils**: `create_pull_request` and `create_commit_pull_request` now return a typed `PullRequestResult` (a `PullRequestStatus` — `CREATED`, `UPDATED`, `STALE` or `ERROR` —, the pull request and a markdown reason message) instead of a `(bool, pull request)` tuple. The voluntary failure used to raise attention on a pull request open for more than 5 days (`STALE`) is now distinguishable from a real error like a push failure (`ERROR`), and the existing not stale pull request is now returned with the `UPDATED` status.
+- **Audit**: When the audit pull request is open for more than 5 days, the job no more logs the misleading `Error while create commit or pull request` error: the reason (`Pull request #<number> is open for <days> days`, with a link to the pull request) is reported in the check run summary in place of the generic `Module failed`, the dashboard issue title is updated with it, and the transversal status keeps the pull request link. The Renovate jobs now also report their pull request messages in the check run summary instead of the generic `Module failed`.
+
 ## 2026-11-05
 
 ### Changed

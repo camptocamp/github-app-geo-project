@@ -1118,7 +1118,9 @@ async def test_create_commit_pull_request_python_version(
             "branch", "new-branch", "msg", "body", MagicMock(), cwd
         )
 
-    assert result == (False, None)
+    assert result.status is utils.PullRequestStatus.ERROR
+    assert result.pull_request is None
+    assert not result.success
     mock_ensure.assert_awaited_once_with("3.12")
     prek_env = mock_run_timeout.await_args_list[0].args[1]
     assert str(tmp_path / "pyenv" / "shims") in prek_env["PATH"]
@@ -1150,3 +1152,116 @@ async def test_create_commit_pull_request_pyenv_virtualenv_name(
     mock_ensure.assert_not_awaited()
     prek_env = mock_run_timeout.await_args_list[0].args[1]
     assert str(tmp_path / "pyenv" / "shims") in prek_env["PATH"]
+
+
+def _make_pull_request_github_project() -> MagicMock:
+    github_project = MagicMock()
+    github_project.owner = "owner"
+    github_project.repository = "repo"
+    github_project.application.slug = "my-app"
+    return github_project
+
+
+def _make_opened_pull_request(nb_days: int) -> MagicMock:
+    pull_request = MagicMock()
+    pull_request.number = 4438
+    pull_request.html_url = "https://github.com/owner/repo/pull/4438"
+    pull_request.body = "body"
+    pull_request.created_at = dt.datetime.now(tz=dt.UTC) - dt.timedelta(days=nb_days)
+    pull_request.head.ref = "new-branch"
+    return pull_request
+
+
+@pytest.mark.asyncio
+async def test_create_pull_request_push_error() -> None:
+    """A push failure is reported with the ERROR status."""
+    github_project = _make_pull_request_github_project()
+    with patch(
+        "github_app_geo_project.module.utils.run_timeout",
+        new=AsyncMock(return_value=("", False, None)),
+    ):
+        result = await utils.create_pull_request(
+            "branch", "new-branch", "msg", "body", github_project, anyio.Path(".")
+        )
+    assert result.status is utils.PullRequestStatus.ERROR
+    assert result.pull_request is None
+    assert result.message is None
+    assert not result.success
+
+
+@pytest.mark.asyncio
+async def test_create_pull_request_created() -> None:
+    """When no pull request exists, a new one is created and reported with the CREATED status."""
+    github_project = _make_pull_request_github_project()
+    github_project.aio_github.rest.pulls.async_list = AsyncMock(return_value=MagicMock(parsed_data=[]))
+    created = MagicMock()
+    github_project.aio_github.rest.pulls.async_create = AsyncMock(return_value=MagicMock(parsed_data=created))
+    with (
+        patch(
+            "github_app_geo_project.module.utils.run_timeout",
+            new=AsyncMock(return_value=("", True, None)),
+        ),
+        patch.object(utils, "auto_merge_pull_request", new=AsyncMock()) as mock_auto_merge,
+    ):
+        result = await utils.create_pull_request(
+            "branch", "new-branch", "msg", "body", github_project, anyio.Path(".")
+        )
+    assert result.status is utils.PullRequestStatus.CREATED
+    assert result.pull_request is created
+    assert result.success
+    mock_auto_merge.assert_awaited_once_with(github_project, created)
+
+
+@pytest.mark.asyncio
+async def test_create_pull_request_existing_is_updated() -> None:
+    """An existing, not stale, pull request is reported with the UPDATED status and the pull request."""
+    github_project = _make_pull_request_github_project()
+    pull_request = _make_opened_pull_request(1)
+    github_project.aio_github.rest.pulls.async_list = AsyncMock(
+        return_value=MagicMock(parsed_data=[pull_request])
+    )
+    github_project.aio_github.rest.pulls.async_update = AsyncMock()
+    with patch(
+        "github_app_geo_project.module.utils.run_timeout",
+        new=AsyncMock(return_value=("", True, None)),
+    ):
+        result = await utils.create_pull_request(
+            "branch", "new-branch", "msg", "body", github_project, anyio.Path(".")
+        )
+    assert result.status is utils.PullRequestStatus.UPDATED
+    assert result.pull_request is pull_request
+    assert result.success
+    # The body is unchanged, no update call
+    github_project.aio_github.rest.pulls.async_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_pull_request_stale() -> None:
+    """A pull request open for more than 5 days is reported with the STALE status and a reason."""
+    github_project = _make_pull_request_github_project()
+    pull_request = _make_opened_pull_request(7)
+    github_project.aio_github.rest.pulls.async_list = AsyncMock(
+        return_value=MagicMock(parsed_data=[pull_request])
+    )
+    github_project.aio_github.rest.issues.async_list_for_repo = AsyncMock(
+        return_value=MagicMock(parsed_data=[])
+    )
+    github_project.aio_github.rest.issues.async_create = AsyncMock()
+    with patch(
+        "github_app_geo_project.module.utils.run_timeout",
+        new=AsyncMock(return_value=("", True, None)),
+    ):
+        result = await utils.create_pull_request(
+            "branch", "new-branch", "msg", "body", github_project, anyio.Path(".")
+        )
+    assert result.status is utils.PullRequestStatus.STALE
+    assert result.pull_request is pull_request
+    assert not result.success
+    assert result.message is not None
+    assert "[#4438](https://github.com/owner/repo/pull/4438)" in result.message
+    assert "7 days" in result.message
+    github_project.aio_github.rest.issues.async_create.assert_awaited_once()
+    assert (
+        github_project.aio_github.rest.issues.async_create.await_args.kwargs["title"]
+        == "Pull request msg is open for 7 days"
+    )

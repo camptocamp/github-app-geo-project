@@ -20,6 +20,7 @@ from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import (
     Audit,
+    _create_pull_request_if_changes,
     _dashboard_vuln_section_versions,
     _details_markdown,
     _EventData,
@@ -89,7 +90,7 @@ async def test_process_renovate_default_branch_success():
 
                 result = await _process_renovate(context, known_versions)
 
-                assert result is True
+                assert result == (True, [])
                 assert mock_cm.__aenter__.called
 
                 mock_config.__setitem__.assert_called_once_with(
@@ -144,7 +145,7 @@ async def test_process_renovate_default_branch_no_security_file():
 
                 result = await _process_renovate(context, known_versions)
 
-                assert result is True
+                assert result == (True, [])
                 mock_config.__setitem__.assert_not_called()
                 mock_config.__delitem__.assert_called_once_with("baseBranchPatterns")
                 mock_create_pr.assert_called_once()
@@ -202,7 +203,7 @@ async def test_process_renovate_version_cleanup_success():
 
             result = await _process_renovate(context, None)
 
-            assert result is True
+            assert result == (True, [])
             assert not renovate_file.exists()
             assert not security_file.exists()
 
@@ -256,7 +257,7 @@ async def test_process_renovate_version_cleanup_files_not_exist():
 
             result = await _process_renovate(context, None)
 
-            assert result is True
+            assert result == (True, [])
             mock_create_pr.assert_called_once()
 
 
@@ -285,7 +286,118 @@ async def test_process_renovate_version_cleanup_pr_creation_failure():
 
             result = await _process_renovate(context, None)
 
-            assert result is False
+            assert result == (False, ["Error creating PR"])
+
+
+def _make_create_pull_request_if_changes_context() -> Mock:
+    context = Mock()
+    context.module_event_data = _EventData(type="dpkg", version="4.0")
+    context.module_config = {}
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "mapfish-print"
+    context.service_url = "https://example.com/"
+    context.job_id = 123
+    return context
+
+
+@pytest.mark.asyncio
+async def test_create_pull_request_if_changes_stale_pull_request() -> None:
+    """A pull request open for too long reports the reason instead of the generic error."""
+    context = _make_create_pull_request_if_changes_context()
+
+    pull_request = MagicMock()
+    pull_request.html_url = "https://github.com/camptocamp/mapfish-print/pull/4438"
+    stale_message = (
+        "Pull request [#4438](https://github.com/camptocamp/mapfish-print/pull/4438) is open for 7 days"
+    )
+
+    diff_proc = MagicMock()
+    diff_proc.returncode = 1
+    diff_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+    issue_check = module_utils.DashboardIssue("- [ ] <!-- Dpkg 4.0 --> Update dpkg packages\n")
+
+    with (
+        tempfile.TemporaryDirectory() as tmpdirname,
+        patch("asyncio.create_subprocess_exec", new=AsyncMock(return_value=diff_proc)),
+        patch(
+            "github_app_geo_project.module.audit.module_utils.run_timeout",
+            new=AsyncMock(return_value=("", True, None)),
+        ),
+        patch.object(audit_utils, "get_pre_commit_config", return_value={}),
+        patch.object(
+            module_utils,
+            "create_commit_pull_request",
+            new=AsyncMock(
+                return_value=module_utils.PullRequestResult(
+                    module_utils.PullRequestStatus.STALE,
+                    pull_request,
+                    stale_message,
+                )
+            ),
+        ),
+        patch("github_app_geo_project.module.audit._LOGGER") as mock_logger,
+    ):
+        success, short_message, pull_request_url = await _create_pull_request_if_changes(
+            "4.0",
+            "ghci/audit/dpkg/4.0",
+            "Dpkg 4.0",
+            "Update dpkg packages",
+            context,
+            {},
+            anyio.Path(tmpdirname),
+            issue_check,
+        )
+
+    assert success is False
+    assert short_message == [stale_message]
+    assert pull_request_url == pull_request.html_url
+    assert issue_check.get_title("Dpkg 4.0") == f"Dpkg 4.0: {stale_message}"
+    mock_logger.error.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_create_pull_request_if_changes_error() -> None:
+    """A real commit or push failure keeps logging the generic error and reports no message."""
+    context = _make_create_pull_request_if_changes_context()
+
+    diff_proc = MagicMock()
+    diff_proc.returncode = 1
+    diff_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+    issue_check = module_utils.DashboardIssue("- [ ] <!-- Dpkg 4.0 --> Update dpkg packages\n")
+
+    with (
+        tempfile.TemporaryDirectory() as tmpdirname,
+        patch("asyncio.create_subprocess_exec", new=AsyncMock(return_value=diff_proc)),
+        patch(
+            "github_app_geo_project.module.audit.module_utils.run_timeout",
+            new=AsyncMock(return_value=("", True, None)),
+        ),
+        patch.object(audit_utils, "get_pre_commit_config", return_value={}),
+        patch.object(
+            module_utils,
+            "create_commit_pull_request",
+            new=AsyncMock(return_value=module_utils.PullRequestResult(module_utils.PullRequestStatus.ERROR)),
+        ),
+        patch("github_app_geo_project.module.audit._LOGGER") as mock_logger,
+    ):
+        success, short_message, pull_request_url = await _create_pull_request_if_changes(
+            "4.0",
+            "ghci/audit/dpkg/4.0",
+            "Dpkg 4.0",
+            "Update dpkg packages",
+            context,
+            {},
+            anyio.Path(tmpdirname),
+            issue_check,
+        )
+
+    assert success is False
+    assert short_message == []
+    assert pull_request_url is None
+    mock_logger.error.assert_called_once_with("Error while create commit or pull request")
 
 
 def test_get_actions_pull_request_closed() -> None:

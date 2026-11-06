@@ -277,7 +277,7 @@ def _fixed_vulnerabilities_markdown(
 async def _process_renovate(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
     known_versions: list[str] | None,
-) -> bool:
+) -> tuple[bool, list[str]]:
     """
     Process Renovate configuration updates.
 
@@ -292,7 +292,8 @@ async def _process_renovate(
 
     Returns
     -------
-        bool: True if successful, False otherwise
+        tuple[bool, list[str]]: True if successful, False otherwise, and the
+        messages to display in the check output
     """
     if context.module_event_data.version is None:
         _LOGGER.debug("Process renovate update on default branch")
@@ -320,7 +321,7 @@ async def _process_renovate(
                 context.service_url,
                 f"logs/{context.job_id}",
             )
-            success, _, _ = await _create_pull_request_if_changes(
+            success, renovate_messages, _ = await _create_pull_request_if_changes(
                 default_branch,
                 f"ghci/audit/renovate/{default_branch}",
                 "Update Renovate configuration",
@@ -330,7 +331,7 @@ async def _process_renovate(
                 new_cwd,
                 None,
             )
-            return success
+            return success, renovate_messages
 
     _LOGGER.debug(
         "Process Renovate cleanup for version %s",
@@ -344,7 +345,7 @@ async def _process_renovate(
             "Skipping Renovate cleanup for default branch %s",
             default_branch,
         )
-        return True
+        return True, []
 
     async with module_utils.GIT_WORKTREE_CACHE.working_tree(
         context.github_project,
@@ -361,7 +362,7 @@ async def _process_renovate(
             context.service_url,
             f"logs/{context.job_id}",
         )
-        success, _, _ = await _create_pull_request_if_changes(
+        success, renovate_messages, _ = await _create_pull_request_if_changes(
             context.module_event_data.version,
             f"ghci/audit/renovate/{context.module_event_data.version}",
             f"Cleanup Renovate configuration for version {context.module_event_data.version}",
@@ -371,7 +372,7 @@ async def _process_renovate(
             new_cwd,
             None,
         )
-        return success
+        return success, renovate_messages
 
 
 async def _process_outdated(
@@ -757,7 +758,7 @@ async def _create_pull_request_if_changes(
                 context.module_config,
                 local_config,
             )
-            new_success, pull_request = await module_utils.create_commit_pull_request(
+            pull_request_result = await module_utils.create_commit_pull_request(
                 branch,
                 new_branch,
                 f"Audit {key}",
@@ -767,8 +768,22 @@ async def _create_pull_request_if_changes(
                 pre_commit_config.get("enabled", True),
                 pre_commit_config.get("skip-hooks", []),
             )
-            success &= new_success
-            if not new_success:
+            success &= pull_request_result.success
+            pull_request = pull_request_result.pull_request
+            if pull_request_result.status is module_utils.PullRequestStatus.STALE:
+                # The pull request is open for too long: the reminder issue is already
+                # updated and a warning logged by `create_pull_request`. Report the reason
+                # in the check output and the dashboard instead of a generic error.
+                assert pull_request is not None
+                assert pull_request_result.message is not None
+                pull_request_url = pull_request.html_url
+                short_message.append(pull_request_result.message)
+                if issue_check is not None:
+                    issue_check.set_title(
+                        key,
+                        f"{key}: {pull_request_result.message}",
+                    )
+            elif not pull_request_result.success:
                 _LOGGER.error(
                     "Error while create commit or pull request",
                 )
@@ -1320,8 +1335,12 @@ class Audit(
                     ],
                 )
 
-            success = await _process_renovate(context, mapped_versions)
-            return module.ProcessOutput(actions=actions, success=success)
+            success, renovate_messages = await _process_renovate(context, mapped_versions)
+            return module.ProcessOutput(
+                actions=actions,
+                success=success,
+                check_output={"summary": "\n".join(renovate_messages)} if renovate_messages else None,
+            )
         if context.module_event_data.type == "outdated":
             await _process_outdated(context, issue_check)
         elif context.module_event_data.version is None:

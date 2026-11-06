@@ -426,7 +426,7 @@ async def _apply_patches(
                         f"[{run_id}](https://github.com/{context.github_project.owner}"
                         f"/{context.github_project.repository}/actions/runs/{run_id})"
                     )
-                    pr_success, pull_request = await module_utils.create_pull_request(
+                    pull_request_result = await module_utils.create_pull_request(
                         target_branch,
                         new_branch,
                         pr_title,
@@ -434,15 +434,19 @@ async def _apply_patches(
                         context.github_project,
                         cwd,
                     )
-                    if not pr_success:
-                        message.title = "Failed to create pull request after protected branch push rejection"
+                    if not pull_request_result.success:
+                        reason = (
+                            pull_request_result.message
+                            or "Failed to create pull request after protected branch push rejection"
+                        )
+                        message.title = reason
                         _LOGGER.warning(message)
-                        return [
-                            *error_messages,
-                            "Failed to create pull request after protected branch push rejection",
-                        ]
-                    if pull_request is not None:
-                        _LOGGER.info("Created or updated the pull request %s", pull_request.html_url)
+                        return [*error_messages, reason]
+                    if pull_request_result.pull_request is not None:
+                        _LOGGER.info(
+                            "Created or updated the pull request %s",
+                            pull_request_result.pull_request.html_url,
+                        )
                 else:
                     message.title = "Failed to push the changes"
                     _LOGGER.warning(message)

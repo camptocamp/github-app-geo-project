@@ -10,6 +10,7 @@ import pytest
 
 from github_app_geo_project import module
 from github_app_geo_project.module.patch import Patch, PatchError, _resolve_artifact_target
+from github_app_geo_project.module.utils import PullRequestResult, PullRequestStatus
 from github_app_geo_project.settings import settings
 
 
@@ -363,7 +364,7 @@ class TestProcess:
             patch(
                 "github_app_geo_project.module.patch.module_utils.create_pull_request",
                 new_callable=AsyncMock,
-                return_value=(True, mock_pull_request),
+                return_value=PullRequestResult(PullRequestStatus.CREATED, mock_pull_request),
             ) as mock_create_pr,
         ):
             mock_apply_proc = MagicMock()
@@ -897,7 +898,7 @@ class TestReusablePullRequest:
             patch(
                 "github_app_geo_project.module.patch.module_utils.create_pull_request",
                 new_callable=AsyncMock,
-                return_value=(True, mock_pull_request),
+                return_value=PullRequestResult(PullRequestStatus.CREATED, mock_pull_request),
             ) as mock_create_pr,
             patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
         ):
@@ -945,7 +946,7 @@ class TestReusablePullRequest:
             patch(
                 "github_app_geo_project.module.patch.module_utils.create_pull_request",
                 new_callable=AsyncMock,
-                return_value=(True, mock_pull_request),
+                return_value=PullRequestResult(PullRequestStatus.CREATED, mock_pull_request),
             ) as mock_create_pr,
             patch("asyncio.create_subprocess_exec", side_effect=mock_create_subprocess_exec),
         ):
