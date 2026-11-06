@@ -546,7 +546,7 @@ async def _process_job(
                                 output={
                                     "title": check_output.get(
                                         "title",
-                                        current_module.title(),
+                                        utils.check_output_title(current_module, job),
                                     ),
                                     "summary": check_output["summary"],
                                     "text": check_output.get("text", ""),

@@ -226,6 +226,33 @@ def normalize_event(event_name: str, event_data: dict[str, Any]) -> dict[str, An
     return event_data
 
 
+def check_name(
+    current_module: module.Module[Any, Any, Any, Any],
+    job: models.Queue,
+) -> str:
+    """Build the check run name of a job."""
+    if current_module.check_name_per_action():
+        name = f"{current_module.title()} - {job.github_event_name}"
+        if job.module_event_name and job.module_event_name != job.github_event_name:
+            name += f" - {job.module_event_name}"
+        return name
+    return f"{current_module.title()}: {job.github_event_name}"
+
+
+def check_output_title(
+    current_module: module.Module[Any, Any, Any, Any],
+    job: models.Queue,
+) -> str:
+    """Build the default check run output title of a job."""
+    if (
+        current_module.check_name_per_action()
+        and job.module_event_name
+        and job.module_event_name != job.github_event_name
+    ):
+        return f"{current_module.title()} - {job.module_event_name}"
+    return current_module.title()
+
+
 async def create_checks(
     job: models.Queue,
     session: sqlalchemy.ext.asyncio.AsyncSession,
@@ -284,7 +311,7 @@ async def create_checks(
         message = f"No sha found for the job {job.id} in {job.github_event_name}"
         raise ValueError(message)
 
-    name = f"{current_module.title()}: {job.github_event_name}"
+    name = check_name(current_module, job)
     try:
         check_run = (
             await github_project.aio_github.rest.checks.async_create(
