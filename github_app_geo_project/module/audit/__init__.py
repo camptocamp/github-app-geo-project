@@ -247,6 +247,30 @@ def _details_markdown(summary: str, content: str) -> str:
     return f"<details>\n<summary>{summary}</summary>\n\n{content}\n\n</details>"
 
 
+def _vulnerability_identifiers(vulnerability: audit_utils.VulnerabilityData) -> list[str]:
+    """Build the markdown links to the CVE and Snyk pages of a vulnerability."""
+    return [
+        *[f"[{cve_id}](https://nvd.nist.gov/vuln/detail/{cve_id})" for cve_id in vulnerability.cve_ids],
+        f"[{vulnerability.snyk_id}](https://security.snyk.io/vuln/{vulnerability.snyk_id})",
+    ]
+
+
+def _vulnerability_markdown_line(
+    vulnerability: audit_utils.VulnerabilityData,
+    file_name: str,
+    suffix: str = "",
+) -> str:
+    """Build a markdown list item for a vulnerability, with an optional suffix."""
+    line = (
+        f"- **[{vulnerability.severity.upper()}]** `{vulnerability.package_name}`"
+        f" `{vulnerability.package_version}` in `{file_name}`"
+        f" — {', '.join(_vulnerability_identifiers(vulnerability))}"
+    )
+    if vulnerability.fixed_in:
+        line += f" — fixed in {', '.join(f'`{version}`' for version in vulnerability.fixed_in)}"
+    return f"{line}{suffix}"
+
+
 def _fixed_vulnerabilities_markdown(
     fixed_vulnerabilities: dict[str, list[audit_utils.VulnerabilityData]],
 ) -> str:
@@ -254,23 +278,36 @@ def _fixed_vulnerabilities_markdown(
     if not fixed_vulnerabilities:
         return ""
     lines = ["## Fixed vulnerabilities", ""]
-    for file_name, vulnerabilities in fixed_vulnerabilities.items():
-        for vulnerability in vulnerabilities:
-            identifiers = [
-                *[
-                    f"[{cve_id}](https://nvd.nist.gov/vuln/detail/{cve_id})"
-                    for cve_id in vulnerability.cve_ids
-                ],
-                f"[{vulnerability.snyk_id}](https://security.snyk.io/vuln/{vulnerability.snyk_id})",
-            ]
-            line = (
-                f"- **[{vulnerability.severity.upper()}]** `{vulnerability.package_name}`"
-                f" `{vulnerability.package_version}` in `{file_name}`"
-                f" — {', '.join(identifiers)}"
-            )
-            if vulnerability.fixed_in:
-                line += f" — fixed in {', '.join(f'`{version}`' for version in vulnerability.fixed_in)}"
-            lines.append(line)
+    lines.extend(
+        _vulnerability_markdown_line(vulnerability, file_name)
+        for file_name, vulnerabilities in fixed_vulnerabilities.items()
+        for vulnerability in vulnerabilities
+    )
+    return "\n".join(lines)
+
+
+def _pinned_vulnerabilities_markdown(
+    pinned_vulnerabilities: dict[str, list[audit_utils.PinnedVulnerability]],
+) -> str:
+    """Build the markdown list of the vulnerabilities addressed by pins added to the requirements files."""
+    if not pinned_vulnerabilities:
+        return ""
+    lines = [
+        "## Fixes applied (pins added to requirements files)",
+        "",
+        "The rescan still reports these vulnerabilities because Snyk builds the pip dependency tree",
+        "from the packages installed in the audit environment, which is not reinstalled after the fix.",
+        "",
+    ]
+    lines.extend(
+        _vulnerability_markdown_line(
+            item.vulnerability,
+            file_name,
+            suffix=f" — pinned to `{item.pinned_version}`",
+        )
+        for file_name, pinned in pinned_vulnerabilities.items()
+        for item in pinned
+    )
     return "\n".join(lines)
 
 
@@ -472,6 +509,7 @@ async def _process_snyk_dpkg(
                     new_success,
                     file_vulnerabilities,
                     fixed_vulns,
+                    pinned_vulns,
                 ) = await audit_utils.snyk(
                     branch,
                     context.github_project.owner,
@@ -516,6 +554,11 @@ async def _process_snyk_dpkg(
                     snyk_ignore_reasons.update(reasons)
 
             body_md = _fixed_vulnerabilities_markdown(fixed_vulns)
+            pinned_md = _pinned_vulnerabilities_markdown(pinned_vulns)
+            if pinned_md:
+                if body_md:
+                    body_md += "\n\n"
+                body_md += pinned_md
             if body is not None:
                 if body_md:
                     body_md += "\n\n"

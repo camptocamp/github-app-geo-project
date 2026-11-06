@@ -27,6 +27,7 @@ from github_app_geo_project.module.audit import (
     _fixed_vulnerabilities_markdown,
     _IntermediateStatus,
     _OutputRendererData,
+    _pinned_vulnerabilities_markdown,
     _process_renovate,
     _process_snyk_dpkg,
     _remove_dashboard_vuln_section,
@@ -1923,6 +1924,140 @@ def test_fixed_vulnerabilities_markdown_empty() -> None:
     assert _fixed_vulnerabilities_markdown({}) == ""
 
 
+def test_parse_requirements_pins() -> None:
+    """The pins added to the requirements files are extracted from the fix git diff."""
+    diff = "\n".join(  # noqa: FLY002
+        [
+            "diff --git a/ci/requirements.txt b/ci/requirements.txt",
+            "index 1e413d8abc..b5cdee1d0f 100644",
+            "--- a/ci/requirements.txt",
+            "+++ b/ci/requirements.txt",
+            "@@ -10,3 +10,4 @@",
+            "+filelock>=4.2.1 # not directly required, pinned by Snyk to avoid a vulnerability",
+            "diff --git a/admin/requirements.txt b/admin/requirements.txt",
+            "--- a/admin/requirements.txt",
+            "+++ b/admin/requirements.txt",
+            "@@ -18,3 +18,4 @@",
+            "+Pillow>=13.0.0 # not directly required, pinned by Snyk to avoid a vulnerability",
+            "+Setuptools==84.1.0",
+            "diff --git a/docker/requirements.txt b/docker/requirements.txt",
+            "--- a/docker/requirements.txt",
+            "+++ b/docker/requirements.txt",
+            "@@ -9,3 +9,3 @@",
+            "-dulwich>=0.21.6",
+            "+dulwich>=1.2.5",
+            "diff --git a/geoportal/package.json b/geoportal/package.json",
+            "--- a/geoportal/package.json",
+            "+++ b/geoportal/package.json",
+            "@@ -1,3 +1,3 @@",
+            '+  "lodash": "4.17.21",',
+            "diff --git a/old/requirements.txt b/old/requirements.txt",
+            "--- a/old/requirements.txt",
+            "+++ /dev/null",
+            "@@ -1,3 +0,0 @@",
+            "-mako==1.3.12",
+        ]
+    )
+
+    assert audit_utils.parse_requirements_pins(diff) == {
+        "ci/requirements.txt": {("filelock", "4.2.1")},
+        "admin/requirements.txt": {("pillow", "13.0.0"), ("setuptools", "84.1.0")},
+        "docker/requirements.txt": {("dulwich", "1.2.5")},
+    }
+
+
+def test_pin_fixed_vulnerabilities() -> None:
+    """The pins are matched to the vulnerabilities by file, package name and fixed version."""
+    matched = _vulnerability(
+        file_name="ci/requirements.txt",
+        package_name="Filelock",
+        package_version="3.32.7",
+        severity="medium",
+        snyk_id="SNYK-PYTHON-FILELOCK-1",
+        fixed_in=["4.0.9", "4.2.1"],
+    )
+    wrong_version = _vulnerability(
+        file_name="ci/requirements.txt",
+        package_name="virtualenv",
+        package_version="20.36.1",
+        snyk_id="SNYK-PYTHON-VIRTUALENV-1",
+        fixed_in=["21.7.11"],
+    )
+    other_file = _vulnerability(
+        file_name="doc/requirements.txt",
+        package_name="filelock",
+        package_version="3.32.7",
+        snyk_id="SNYK-PYTHON-FILELOCK-2",
+        fixed_in=["4.2.1"],
+    )
+    already_fixed = _vulnerability(
+        file_name="admin/requirements.txt",
+        package_name="setuptools",
+        package_version="79.0.1",
+        snyk_id="SNYK-PYTHON-SETUPTOOLS-1",
+        fixed_in=["84.1.0"],
+    )
+    before = {
+        "ci/requirements.txt": [matched, wrong_version],
+        "doc/requirements.txt": [other_file],
+        "admin/requirements.txt": [already_fixed],
+    }
+    pins = {
+        "ci/requirements.txt": {("filelock", "4.2.1"), ("virtualenv", "20.36.2")},
+        "doc/requirements.txt": {("dulwich", "1.2.5")},
+        "admin/requirements.txt": {("setuptools", "84.1.0")},
+    }
+
+    pinned = audit_utils.pin_fixed_vulnerabilities(
+        before,
+        pins,
+        {"admin/requirements.txt": [already_fixed]},
+    )
+
+    assert list(pinned) == ["ci/requirements.txt"]
+    assert pinned["ci/requirements.txt"] == [
+        audit_utils.PinnedVulnerability(vulnerability=matched, pinned_version="4.2.1"),
+    ]
+
+
+def test_pinned_vulnerabilities_markdown() -> None:
+    """The pinned vulnerabilities are rendered in their own section of the pull request body."""
+    markdown = _pinned_vulnerabilities_markdown(
+        {
+            "ci/requirements.txt": [
+                audit_utils.PinnedVulnerability(
+                    vulnerability=_vulnerability(
+                        file_name="ci/requirements.txt",
+                        package_name="filelock",
+                        package_version="3.32.7",
+                        severity="medium",
+                        snyk_id="SNYK-PYTHON-FILELOCK-1",
+                        cve_ids=[],
+                        fixed_in=["4.2.1"],
+                    ),
+                    pinned_version="4.2.1",
+                ),
+            ],
+        },
+    )
+
+    assert markdown == (
+        "## Fixes applied (pins added to requirements files)\n"
+        "\n"
+        "The rescan still reports these vulnerabilities because Snyk builds the pip dependency tree\n"
+        "from the packages installed in the audit environment, which is not reinstalled after the fix.\n"
+        "\n"
+        "- **[MEDIUM]** `filelock` `3.32.7` in `ci/requirements.txt` — "
+        "[SNYK-PYTHON-FILELOCK-1](https://security.snyk.io/vuln/SNYK-PYTHON-FILELOCK-1)"
+        " — fixed in `4.2.1` — pinned to `4.2.1`"
+    )
+
+
+def test_pinned_vulnerabilities_markdown_empty() -> None:
+    """Nothing is added to the pull request body when no pin was applied."""
+    assert _pinned_vulnerabilities_markdown({}) == ""
+
+
 def test_details_markdown() -> None:
     """The raw fix output is rendered in a collapsed markdown section."""
     assert _details_markdown("snyk fix output", "Done") == (
@@ -1986,6 +2121,21 @@ async def test_process_snyk_pull_request_body() -> None:
                         True,
                         {},
                         {"pyproject.toml": [_vulnerability()]},
+                        {
+                            "ci/requirements.txt": [
+                                audit_utils.PinnedVulnerability(
+                                    vulnerability=_vulnerability(
+                                        file_name="ci/requirements.txt",
+                                        package_name="filelock",
+                                        package_version="3.32.7",
+                                        severity="medium",
+                                        snyk_id="SNYK-PYTHON-FILELOCK-1",
+                                        fixed_in=["4.2.1"],
+                                    ),
+                                    pinned_version="4.2.1",
+                                ),
+                            ],
+                        },
                     ),
                 ),
             ),
@@ -2016,6 +2166,9 @@ async def test_process_snyk_pull_request_body() -> None:
     body_md = mock_create_pr.await_args.args[3]
     assert "## Fixed vulnerabilities" in body_md
     assert "[CVE-2026-12345](https://nvd.nist.gov/vuln/detail/CVE-2026-12345)" in body_md
+    assert "## Fixes applied (pins added to requirements files)" in body_md
+    assert "`filelock` `3.32.7` in `ci/requirements.txt`" in body_md
+    assert "pinned to `4.2.1`" in body_md
     assert "<summary>snyk fix output</summary>" in body_md
     assert "1 items were successfully fixed" in body_md
     assert body_md.endswith(
@@ -2061,6 +2214,7 @@ async def test_process_snyk_pull_request_transversal_status() -> None:
                         True,
                         {},
                         {"pyproject.toml": [_vulnerability()]},
+                        {},
                     ),
                 ),
             ),

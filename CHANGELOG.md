@@ -2,6 +2,10 @@
 
 ## 2026-11-06
 
+### Added
+
+- **Audit**: The Snyk pull request body has a new `Fixes applied (pins added to requirements files)` section, listing the vulnerabilities addressed by the version pins that `snyk fix` added to the `requirements.txt` files, with the same line format as the `Fixed vulnerabilities` section plus the pinned version. The rescan cannot confirm these fixes: Snyk builds the pip dependency tree from the packages installed in the audit environment, which is not reinstalled after the fix, so until now the pins applied to the requirements files were never reported in the pull request body. The list is derived from the `git diff` taken after `snyk fix`/`npm audit fix` and matched with the scan done before the fix by target file, package name (normalized as defined by PEP 503) and pinned version; the vulnerabilities already confirmed fixed by the rescan are excluded to not report them twice.
+
 ### Changed
 
 - **Utils**: `create_pull_request` and `create_commit_pull_request` now return a typed `PullRequestResult` (a `PullRequestStatus` — `CREATED`, `UPDATED`, `STALE` or `ERROR` —, the pull request and a markdown reason message) instead of a `(bool, pull request)` tuple. The voluntary failure used to raise attention on a pull request open for more than 5 days (`STALE`) is now distinguishable from a real error like a push failure (`ERROR`), and the existing not stale pull request is now returned with the `UPDATED` status.
