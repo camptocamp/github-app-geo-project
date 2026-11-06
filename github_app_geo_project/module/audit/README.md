@@ -60,6 +60,7 @@ When Snyk identifies vulnerabilities that can be automatically fixed, the module
 The pull request body contains:
 
 - A `Fixed vulnerabilities` section listing the vulnerabilities that were fixed by this run, with their severity, package and version, target file, links to the CVE (`nvd.nist.gov`) and to the Snyk vulnerability page, and the version they are fixed in. The list is the difference between the `snyk test --json` scan done before `snyk fix`/`npm audit fix` and the one done after them.
+- A `Fixes applied (pins added to requirements files)` section listing the vulnerabilities addressed by a version pin that the fix added to a requirements file, with the same line format plus the pinned version. The rescan cannot confirm these fixes: Snyk builds the pip dependency tree from the packages installed in the audit environment, which is not reinstalled after the fix. The list is derived from the `git diff` taken after the fix commands and matched with the scan done before the fix by target file, package name (normalized as defined by PEP 503) and pinned version; the vulnerabilities already confirmed fixed by the rescan are excluded to not report them twice.
 - The raw output of the fix commands (`snyk fix`, `npm audit fix`) in a collapsed `<details>` section.
 - A `Logs` link to the job logs and an `Output` link to the Snyk summary report of the branch.
 

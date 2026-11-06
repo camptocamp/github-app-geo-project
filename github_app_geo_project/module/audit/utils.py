@@ -72,6 +72,34 @@ class VulnerabilityData(NamedTuple):
     """Whether the vulnerability is patchable"""
 
 
+class PinnedVulnerability(NamedTuple):
+    """A vulnerability addressed by a version pin added to a requirements file by the Snyk fix."""
+
+    vulnerability: VulnerabilityData
+    """The vulnerability data from the scan done before the fix."""
+    pinned_version: str
+    """The version pinned in the requirements file."""
+
+
+class SnykAuditResult(NamedTuple):
+    """The result of a Snyk audit run on a branch."""
+
+    messages: list[module_utils.Message]
+    """The output messages (install errors, high or upgradable vulnerabilities)."""
+    fix_message: module_utils.HtmlMessage | None
+    """The message of the fix commit."""
+    short_messages: list[str]
+    """The dashboard's messages (with a resume of the vulnerabilities)."""
+    success: bool
+    """Is on success (errors: vulnerability that can be fixed by upgrading the dependency)."""
+    vulnerabilities: dict[str, list[VulnerabilityData]]
+    """The file-grouped vulnerability data for dashboard display and advisory creation."""
+    fixed_vulnerabilities: dict[str, list[VulnerabilityData]]
+    """The file-grouped vulnerabilities fixed by this run, confirmed by the rescan."""
+    pinned_vulnerabilities: dict[str, list[PinnedVulnerability]]
+    """The file-grouped vulnerabilities addressed by pins added to the requirements files."""
+
+
 # Map Snyk package managers to GitHub advisory ecosystems
 ECOSYSTEM_MAP: dict[str, str] = {
     "pip": "pip",
@@ -180,6 +208,93 @@ def fixed_vulnerabilities(
     return dict(sorted(fixed.items()))
 
 
+_PIN_LINE_RE = re.compile(
+    r"^\+\s*(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)"
+    r"(?:\s*\[[^\]]*\])?"
+    r"\s*(?:==|>=|~=)\s*"
+    r"(?P<version>[0-9][0-9A-Za-z._+-]*)"
+)
+"""Matches an added requirements line with a version pin, in a `git diff --unified=0` output."""
+
+
+def _normalize_package_name(name: str) -> str:
+    """Normalize a Python package name as defined by PEP 503."""
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def _normalize_file_name(name: str) -> str:
+    """Normalize a file path so the git diff and the Snyk target files can be compared."""
+    return name.removeprefix("./")
+
+
+def parse_requirements_pins(diff: str) -> dict[str, set[tuple[str, str]]]:
+    """
+    Extract the version pins added to the requirements files.
+
+    The input is the output of `git diff --unified=0` taken after the Snyk/npm fix, the
+    pins are grouped by normalized file path, with normalized package names (PEP 503).
+    """
+    pins: dict[str, set[tuple[str, str]]] = {}
+    current_file: str | None = None
+    for line in diff.splitlines():
+        if line.startswith("+++ "):
+            path = line[len("+++ ") :].strip()
+            if path == "/dev/null" or not path.endswith(".txt"):
+                current_file = None
+            else:
+                current_file = _normalize_file_name(path.removeprefix("b/"))
+            continue
+        if current_file is None or not line.startswith("+"):
+            continue
+        match = _PIN_LINE_RE.match(line)
+        if match is not None:
+            pins.setdefault(current_file, set()).add(
+                (_normalize_package_name(match["name"]), match["version"]),
+            )
+    return pins
+
+
+def pin_fixed_vulnerabilities(
+    before: dict[str, list[VulnerabilityData]],
+    pins: dict[str, set[tuple[str, str]]],
+    already_fixed: dict[str, list[VulnerabilityData]],
+) -> dict[str, list[PinnedVulnerability]]:
+    """
+    Get the file-grouped vulnerabilities addressed by pins added to the requirements files.
+
+    Snyk builds the pip dependency tree from the packages installed in the audit environment,
+    which is not reinstalled after the fix, so the rescan still reports the vulnerabilities
+    fixed by a pin added to a requirements file. They are matched with the scan done before
+    the fix by file and package name, and only if the pinned version fixes the vulnerability.
+    The ones already confirmed fixed by the rescan are excluded, to not report them twice.
+    """
+    fixed_keys = {
+        _vulnerability_key(vulnerability)
+        for vulnerabilities in already_fixed.values()
+        for vulnerability in vulnerabilities
+    }
+    pinned: dict[str, list[PinnedVulnerability]] = {}
+    for file_name, vulnerabilities in before.items():
+        file_pins = pins.get(_normalize_file_name(file_name))
+        if not file_pins:
+            continue
+        for vulnerability in vulnerabilities:
+            if _vulnerability_key(vulnerability) in fixed_keys:
+                continue
+            for package_name, version in sorted(file_pins):
+                if (
+                    package_name == _normalize_package_name(vulnerability.package_name)
+                    and version in vulnerability.fixed_in
+                ):
+                    pinned.setdefault(file_name, []).append(
+                        PinnedVulnerability(vulnerability=vulnerability, pinned_version=version),
+                    )
+                    break
+    for pinned_vulnerabilities in pinned.values():
+        pinned_vulnerabilities.sort(key=lambda item: _vulnerability_sort_key(item.vulnerability))
+    return dict(sorted(pinned.items()))
+
+
 async def snyk(
     branch: str,
     owner: str,
@@ -192,25 +307,11 @@ async def snyk(
     env: dict[str, str],
     cwd: anyio.Path,
     ignore_policy: bool = False,
-) -> tuple[
-    list[module_utils.Message],
-    module_utils.HtmlMessage | None,
-    list[str],
-    bool,
-    dict[str, list[VulnerabilityData]],
-    dict[str, list[VulnerabilityData]],
-]:
+) -> SnykAuditResult:
     """
     Audit the code with Snyk.
 
-    Return:
-    ------
-        the output messages (Install errors, high of upgradable vulnerabilities),
-        the message of the fix commit,
-        the dashboard's message (with resume of the vulnerabilities),
-        is on success (errors: vulnerability that can be fixed by upgrading the dependency).
-        the file-grouped vulnerability data for dashboard display and advisory creation.
-        the file-grouped vulnerability data fixed by this run.
+    Return the audit result, see :class:`SnykAuditResult`.
     """
     result: list[module_utils.Message] = []
 
@@ -284,6 +385,17 @@ async def snyk(
         npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(
             fixable_files_npm, result, cwd, env_no_debug
         )
+        # Get the changes applied by the fix commands, before `prek` eventually reformats
+        # other files, to report the pins added to the requirements files.
+        fix_diff, _, _ = await module_utils.run_timeout(
+            ["git", "diff", "--unified=0"],
+            None,
+            _TIMEOUT_GIT_DIFF,
+            "Git diff of the applied fixes",
+            "Error while getting the git diff",
+            "Timeout while getting the git diff",
+            cwd,
+        )
         fix_message: module_utils.HtmlMessage | None = None
         if snyk_fix_message is None:
             if npm_audit_fix_message:
@@ -342,10 +454,16 @@ async def snyk(
                 branch, config, local_config, result, env_no_debug, cwd, ignore_policy=ignore_policy
             )
             fixed = fixed_vulnerabilities(vulnerabilities_before_fix, file_vulnerabilities)
+            pinned = pin_fixed_vulnerabilities(
+                vulnerabilities_before_fix,
+                parse_requirements_pins(fix_diff or ""),
+                fixed,
+            )
         else:
             # The fix did not change anything, the vulnerabilities are the ones of the first scan.
             file_vulnerabilities = vulnerabilities_before_fix
             fixed = {}
+            pinned = {}
 
         return_message = [
             *[f"{number} {severity} vulnerabilities" for severity, number in high_vulnerabilities.items()],
@@ -356,7 +474,15 @@ async def snyk(
             *([] if not fix_has_errors else ["Error while fixing the vulnerabilities"]),
         ]
 
-        return result, fix_message, return_message, fix_success, file_vulnerabilities, fixed
+        return SnykAuditResult(
+            messages=result,
+            fix_message=fix_message,
+            short_messages=return_message,
+            success=fix_success,
+            vulnerabilities=file_vulnerabilities,
+            fixed_vulnerabilities=fixed,
+            pinned_vulnerabilities=pinned,
+        )
     finally:
         await _cleanup_poetry_envs(poetry_install_dirs, env)
 
