@@ -5,6 +5,7 @@
 import base64
 import json
 import logging
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, cast
 
@@ -29,12 +30,69 @@ _BRANCH_PREFIXES = [
     "ghci/backport/",
     "backport/",
 ]
+_BACKPORT_LABEL_PREFIX = "backport "
+
+
+def _labels_to_copy(label_names: Iterable[str]) -> list[str]:
+    """
+    Get the labels to copy from the source pull request to the backport pull request.
+
+    The backport labels are excluded to not request a new backport of the backport pull request.
+
+    Return:
+        The sorted and deduplicated label names.
+    """
+    return sorted({name for name in label_names if not name.startswith(_BACKPORT_LABEL_PREFIX)})
 
 
 class _ActionData(BaseModel):
     type: str
     pull_request_number: int | None = None
     branch: str | None = None
+
+
+async def _existing_branch_blocker(
+    context: module.ProcessContext[configuration.BackportConfiguration, _ActionData],
+    branch: str,
+) -> str | None:
+    """
+    Tell if an already existing backport branch can be overwritten by a new run.
+
+    Only a branch whose head commit was committed by the application itself is overwritten, to never
+    force push over the conflicts resolved by a human contributor as described in the BACKPORT_TODO file.
+
+    Return:
+        None if the branch does not exist or can be safely overwritten, the blocking reason otherwise.
+    """
+    try:
+        head_commit = (
+            await context.github_project.aio_github.rest.repos.async_get_commit(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                ref=branch,
+            )
+        ).parsed_data
+    except githubkit.exception.RequestFailed as exception:
+        if exception.response.status_code == 404:
+            # The branch does not exist yet
+            return None
+        _LOGGER.exception("Error while getting the head commit of the branch %s", branch)
+        raise
+
+    bot_login = f"{context.github_project.application.slug}[bot]"
+    committer = head_commit.committer
+    if isinstance(committer, githubkit_schemas.latest.models.SimpleUser) and committer.login == bot_login:
+        return None
+    git_committer = head_commit.commit.committer
+    if git_committer is not None and str(git_committer.email).endswith(
+        f"{bot_login}@users.noreply.github.com"
+    ):
+        # The GitHub account of the committer is not resolved, fall back on the committer email
+        return None
+    return (
+        f"The branch `{branch}` already exists and its head commit was not created by the application, "
+        "refusing to overwrite it"
+    )
 
 
 class Backport(
@@ -59,6 +117,8 @@ class Backport(
         return module.GitHubApplicationPermissions(
             {
                 "contents": "write",
+                "issues": "write",
+                "pull_requests": "write",
             },
             {"pull_request", "push"},
         )
@@ -272,8 +332,8 @@ class Backport(
                         labels_list: list[githubkit_schemas.latest.models.Label] = list(labels)
 
                         for label in labels_list:
-                            if label.name.startswith("backport "):
-                                branch = label.name[len("backport ") :]
+                            if label.name.startswith(_BACKPORT_LABEL_PREFIX):
+                                branch = label.name[len(_BACKPORT_LABEL_PREFIX) :]
                                 if branch not in branches:
                                     # Delete label
                                     await context.github_project.aio_github.rest.issues.async_delete_label(
@@ -291,7 +351,7 @@ class Backport(
                                 await context.github_project.aio_github.rest.issues.async_get_label(
                                     owner=context.github_project.owner,
                                     repo=context.github_project.repository,
-                                    name=f"backport {branch}",
+                                    name=f"{_BACKPORT_LABEL_PREFIX}{branch}",
                                 )
                             except githubkit.exception.RequestFailed as e:
                                 if e.response.status_code == 404:
@@ -304,7 +364,7 @@ class Backport(
                                     await context.github_project.aio_github.rest.issues.async_create_label(
                                         owner=context.github_project.owner,
                                         repo=context.github_project.repository,
-                                        name=f"backport {branch}",
+                                        name=f"{_BACKPORT_LABEL_PREFIX}{branch}",
                                         color=color,
                                         description=f"Add this label to backport the pull request to the '{branch}' branch",
                                     )
@@ -327,8 +387,8 @@ class Backport(
             if event_data_pull_request.action in ("closed", "labeled") and pull_request.state == "closed":
                 branches = set()
                 for current_label in pull_request.labels:
-                    if current_label.name.startswith("backport "):
-                        branches.add(current_label.name[len("backport ") :])
+                    if current_label.name.startswith(_BACKPORT_LABEL_PREFIX):
+                        branches.add(current_label.name[len(_BACKPORT_LABEL_PREFIX) :])
 
                 if branches:
                     _LOGGER.debug("Branches: %s", ", ".join(branches))
@@ -359,20 +419,21 @@ class Backport(
             assert context.module_event_data.pull_request_number is not None
             pull_request = event_data_pull_request.pull_request
             assert context.module_event_data.branch is not None
-            if await self._backport(
+            error = await self._backport(
                 context,
                 event_data_pull_request,
                 context.module_event_data.branch,
-            ):
+            )
+            if error is None:
                 return module.ProcessOutput(
                     check_output={
-                        "summary": "Backport pull request created",
+                        "summary": "Backport pull request created or updated",
                     },
                 )
             return module.ProcessOutput(
                 success=False,
                 check_output={
-                    "summary": "Error while backporting the pull request",
+                    "summary": error,
                 },
             )
 
@@ -386,24 +447,21 @@ class Backport(
         ],
         event_data_pull_request: githubkit_schemas.latest.webhooks.PullRequestEvent,
         target_branch: str,
-    ) -> bool:
-        """Backport the pull request to the target branch."""
+    ) -> str | None:
+        """
+        Backport the pull request to the target branch.
+
+        Return:
+            None on success, the reason of the failure otherwise.
+        """
         pull_request = event_data_pull_request.pull_request
         backport_branch = f"{_BRANCH_PREFIX}{pull_request.number}-to-{target_branch}"
-        try:
-            # Check if branch exists
-            await context.github_project.aio_github.rest.repos.async_get_branch(
-                owner=context.github_project.owner,
-                repo=context.github_project.repository,
-                branch=backport_branch,
-            )
-            _LOGGER.error("Branch %s already exists", backport_branch)
-        except githubkit.exception.RequestFailed as exception:
-            if exception.response.status_code != 404:
-                _LOGGER.exception("Error while getting branch %s", backport_branch)
-                raise
-        else:
-            return False
+        # An existing branch is only overwritten when the application created it, a rerun rebuilds it
+        # from scratch and updates the already opened pull request.
+        blocker = await _existing_branch_blocker(context, backport_branch)
+        if blocker is not None:
+            _LOGGER.error("%s", blocker)
+            return blocker
 
         # Create a worktree from the cache for the target branch
         _LOGGER.debug("Create worktree for target branch: %s", target_branch)
@@ -638,7 +696,7 @@ class Backport(
                 if not success:
                     error_message = "Error while committing the BACKPORT_TODO file"
                     raise module.GHCIError(error_message)
-            await module_utils.create_pull_request(
+            pull_request_result = await module_utils.create_pull_request(
                 target_branch,
                 backport_branch,
                 f"[Backport {target_branch}] {pull_request.title}",
@@ -647,13 +705,35 @@ class Backport(
                 cwd=cwd,
                 auto_merge=False,
             )
+            if not pull_request_result.success:
+                reason = pull_request_result.message or "Error while creating the backport pull request"
+                _LOGGER.error("%s", reason)
+                return reason
+            backport_pull_request = pull_request_result.pull_request
+            if backport_pull_request is not None:
+                labels = _labels_to_copy(label.name for label in pull_request.labels)
+                if labels:
+                    try:
+                        await context.github_project.aio_github.rest.issues.async_add_labels(
+                            owner=context.github_project.owner,
+                            repo=context.github_project.repository,
+                            issue_number=backport_pull_request.number,
+                            data=labels,
+                        )
+                    except githubkit.exception.RequestFailed:
+                        # The backport pull request is already created, a failing label copy must not hide it
+                        _LOGGER.exception(
+                            "Error while adding the labels '%s' to the pull request #%s",
+                            "', '".join(labels),
+                            backport_pull_request.number,
+                        )
             # Remove backport label
             try:
                 await context.github_project.aio_github.rest.issues.async_remove_label(
                     owner=context.github_project.owner,
                     repo=context.github_project.repository,
                     issue_number=pull_request.number,
-                    name=f"backport {target_branch}",
+                    name=f"{_BACKPORT_LABEL_PREFIX}{target_branch}",
                 )
             except githubkit.exception.RequestFailed as exception:
                 if exception.response.status_code != 404:
@@ -662,4 +742,4 @@ class Backport(
                         target_branch,
                     )
                     raise
-        return True
+        return None
