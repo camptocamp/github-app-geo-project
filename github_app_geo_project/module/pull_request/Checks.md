@@ -8,6 +8,9 @@ This module ensures that pull requests meet predefined standards for quality and
 - **Pull Request Title and Body**: Checks for typos, spelling errors, and adherence to formatting guidelines.
 - **Commit Messages**: Ensures commit titles and bodies are free of typos, spelling errors, and unnecessary merge commits.
 - **Merge Commit Detection**: Flags merge commits that may not be appropriate for the pull request.
+  Merge commits are allowed when the pull request comes from the default branch or from a
+  stabilization branch listed in the [`SECURITY.md`](https://github.com/camptocamp/c2cciutils/wiki/SECURITY.md)
+  file of the same repository (e.g. a version branch merged forward into the default branch).
 
 ### When is it triggered?
 
