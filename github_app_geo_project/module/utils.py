@@ -104,11 +104,22 @@ async def add_output(
     serialize_renderer_data = _serialize_renderer_data(renderer_data)
     existing = result.scalar()
     if existing is not None:
-        existing.title = title
-        existing.status = status
-        existing.access_type = access_type
-        existing.renderer = renderer
-        existing.renderer_data = serialize_renderer_data
+        # Use an explicit UPDATE instead of ORM attribute assignments: when nothing
+        # changed the dirty tracking emits no UPDATE at all and the `onupdate` of
+        # `updated_at` never fires, leaving the timestamp of the last content change
+        # instead of the one of the last successful run.
+        await context.session.execute(
+            sqlalchemy.update(models.Output)
+            .where(models.Output.id == existing.id)
+            .values(
+                title=title,
+                status=status,
+                access_type=access_type,
+                renderer=renderer,
+                renderer_data=serialize_renderer_data,
+                updated_at=sqlalchemy.func.now(),
+            ),
+        )
         await context.session.commit()
         await context.session.refresh(existing)
         return

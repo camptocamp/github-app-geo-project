@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-07
+
+### Fixed
+
+- **Outputs**: The `Last outputs` timestamps of the project pages are refreshed on every successful run again. When a module rewrote an output with strictly identical content (e.g. a daily Snyk report without new or fixed vulnerabilities), the ORM dirty tracking emitted no SQL `UPDATE` at all, so the column-level `onupdate` of `updated_at` never fired and the output looked weeks old even though the audit ran successfully every day. `add_output` now performs an explicit `UPDATE` that always sets `updated_at` to the current database time.
+
 ## 2026-11-06
 
 ### Added
