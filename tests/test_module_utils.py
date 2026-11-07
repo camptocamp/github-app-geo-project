@@ -11,8 +11,11 @@ import githubkit.exception
 import githubkit.webhooks
 import pydantic
 import pytest
+import sqlalchemy.ext.asyncio
+from sqlalchemy.pool import StaticPool
 from test_module_workflow import _REPOSITORY, _USER
 
+from github_app_geo_project import models, module
 from github_app_geo_project import utils as app_utils
 from github_app_geo_project.module import utils
 
@@ -1294,3 +1297,52 @@ async def test_create_pull_request_stale() -> None:
         github_project.aio_github.rest.issues.async_create.await_args.kwargs["title"]
         == "Pull request msg is open for 7 days"
     )
+
+
+@pytest.mark.asyncio
+async def test_add_output_refreshes_updated_at_when_data_unchanged() -> None:
+    """Re-adding an output with identical content still refreshes its `updated_at` timestamp."""
+    engine = sqlalchemy.ext.asyncio.create_async_engine("sqlite+aiosqlite://", poolclass=StaticPool)
+    schema = models.Output.__table__.schema
+    async with engine.begin() as connection:
+        await connection.exec_driver_sql(f"ATTACH DATABASE ':memory:' AS {schema}")
+        await connection.run_sync(models.Output.__table__.create)
+
+    context = MagicMock(spec=module.ProcessContext)
+    context.github_project = MagicMock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "repo"
+
+    session_factory = sqlalchemy.ext.asyncio.async_sessionmaker(engine, expire_on_commit=False)
+    async with session_factory() as session:
+        context.session = session
+
+        renderer_data = {"branch": "1.0", "vulnerabilities": {}}
+        await utils.add_output(
+            context,
+            "Snyk summary report 1.0",
+            "snyk-1.0",
+            "renderer",
+            renderer_data=renderer_data,
+        )
+
+        # Age the row to be able to detect the timestamp refresh
+        aged = dt.datetime(2020, 1, 1)
+        await session.execute(sqlalchemy.update(models.Output).values(updated_at=aged))
+        await session.commit()
+
+        # Same call again, with strictly identical content
+        await utils.add_output(
+            context,
+            "Snyk summary report 1.0",
+            "snyk-1.0",
+            "renderer",
+            renderer_data=dict(renderer_data),
+        )
+
+        output = (await session.execute(sqlalchemy.select(models.Output))).scalar_one()
+        assert output.updated_at > aged
+        assert output.title == "Snyk summary report 1.0"
+        assert output.renderer_data == renderer_data
+
+    await engine.dispose()
