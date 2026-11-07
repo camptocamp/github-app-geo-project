@@ -965,12 +965,13 @@ async def create_pull_request(
             pull_request.created_at,
             pull_request.head.ref,
         )
-        # Update the body if needed
-        if pull_request.body != body:
+        # Update the title and the body if needed
+        if pull_request.title != message or pull_request.body != body:
             await github_project.aio_github.rest.pulls.async_update(
                 owner=github_project.owner,
                 repo=github_project.repository,
                 pull_number=pull_request.number,
+                title=message,
                 body=body,
             )
         # Create an issue if the pull request is open for 5 days

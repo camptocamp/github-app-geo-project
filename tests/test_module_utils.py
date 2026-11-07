@@ -1166,6 +1166,7 @@ def _make_opened_pull_request(nb_days: int) -> MagicMock:
     pull_request = MagicMock()
     pull_request.number = 4438
     pull_request.html_url = "https://github.com/owner/repo/pull/4438"
+    pull_request.title = "msg"
     pull_request.body = "body"
     pull_request.created_at = dt.datetime.now(tz=dt.UTC) - dt.timedelta(days=nb_days)
     pull_request.head.ref = "new-branch"
@@ -1231,8 +1232,36 @@ async def test_create_pull_request_existing_is_updated() -> None:
     assert result.status is utils.PullRequestStatus.UPDATED
     assert result.pull_request is pull_request
     assert result.success
-    # The body is unchanged, no update call
+    # The title and the body are unchanged, no update call
     github_project.aio_github.rest.pulls.async_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_create_pull_request_existing_title_is_updated() -> None:
+    """An existing pull request whose title changed is updated with the new title."""
+    github_project = _make_pull_request_github_project()
+    pull_request = _make_opened_pull_request(1)
+    pull_request.title = "outdated title"
+    github_project.aio_github.rest.pulls.async_list = AsyncMock(
+        return_value=MagicMock(parsed_data=[pull_request])
+    )
+    github_project.aio_github.rest.pulls.async_update = AsyncMock()
+    with patch(
+        "github_app_geo_project.module.utils.run_timeout",
+        new=AsyncMock(return_value=("", True, None)),
+    ):
+        result = await utils.create_pull_request(
+            "branch", "new-branch", "msg", "body", github_project, anyio.Path(".")
+        )
+    assert result.status is utils.PullRequestStatus.UPDATED
+    assert result.success
+    github_project.aio_github.rest.pulls.async_update.assert_awaited_once_with(
+        owner="owner",
+        repo="repo",
+        pull_number=4438,
+        title="msg",
+        body="body",
+    )
 
 
 @pytest.mark.asyncio

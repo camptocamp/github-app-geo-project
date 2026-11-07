@@ -6,7 +6,8 @@ This module automates the process of backporting pull requests to stabilization 
 
 - **Label Management**: Updates labels on pull requests based on the [`SECURITY.md`](https://github.com/camptocamp/c2cciutils/wiki/SECURITY.md) file.
 - **Workflow Validation**: Fails workflows if the `BACKPORT_TODO` file exists, ensuring that unresolved backport tasks are addressed.
-- **Backport Pull Request Creation**: Automatically creates backport pull requests to specified branches.
+- **Backport Pull Request Creation**: Automatically creates backport pull requests to specified branches. A rerun of the job rebuilds the `ghci/backport/<number>-to-<branch>` branch from the target branch and updates the already opened pull request, but only if the head commit of that branch was committed by the application: a branch whose `BACKPORT_TODO` conflicts were resolved and pushed by a human contributor is never overwritten.
+- **Label Copy**: Copies the labels of the source pull request to the backport pull request, so that the changelog of the target branch classifies it like the original one. The `backport <branch>` labels are excluded to not request a backport of the backport pull request.
 
 ### Configuration Options
 
