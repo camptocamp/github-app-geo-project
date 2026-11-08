@@ -2,6 +2,10 @@
 
 ## 2026-11-07
 
+### Changed
+
+- **Pull request checks**: The merge commits are now allowed in a pull request whose head branch is the default branch or one of the stabilization branches listed in the `SECURITY.md` file of the same repository (e.g. a `2.9` branch merged forward into `master`). The head branch must belong to the repository itself, a fork branch named like a stabilization branch does not bypass the `check-no-merge-commits` check. The other commit message checks (fixup, squash, first capital, minimum head length, own revert) still apply.
+
 ### Fixed
 
 - **Outputs**: The `Last outputs` timestamps of the project pages are refreshed on every successful run again. When a module rewrote an output with strictly identical content (e.g. a daily Snyk report without new or fixed vulnerabilities), the ORM dirty tracking emitted no SQL `UPDATE` at all, so the column-level `onupdate` of `updated_at` never fired and the output looked weeks old even though the audit ran successfully every day. `add_output` now performs an explicit `UPDATE` that always sets `updated_at` to the current database time.

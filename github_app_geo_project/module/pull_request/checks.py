@@ -17,6 +17,7 @@ import githubkit.exception
 import githubkit.webhooks
 import githubkit_schemas.latest.models
 import githubkit_schemas.latest.webhooks
+import security_md
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
@@ -84,6 +85,7 @@ async def _get_code_spell_command(
 def _commits_messages(
     config: checks_configuration.PullRequestChecksConfiguration,
     commits: list[githubkit_schemas.latest.models.Commit],
+    allow_merge_commits: bool = False,
 ) -> tuple[bool, list[str]]:
     """
     Check the commits messages.
@@ -91,7 +93,7 @@ def _commits_messages(
     - They should start with a capital letter.
     - They should not be too short.
     - They should not be a squash or fixup commit.
-    - They should not be a merge commit.
+    - They should not be a merge commit, excepted when `allow_merge_commits` is True.
     - They should not be a revert commit.
     """
     messages = []
@@ -172,11 +174,19 @@ def _commits_messages(
             )
             and len(commit.parents) != 1
         ):
-            _LOGGER.warning("The merge commit are not allowed")
-            messages.append(
-                f":x: The merge commit are not allowed in commit {commit.sha}",
-            )
-            success = False
+            if allow_merge_commits:
+                messages.append(
+                    (
+                        f":heavy_check_mark: The merge commit {commit.sha} is allowed because the pull "
+                        "request comes from the default branch or a stabilization branch"
+                    ),
+                )
+            else:
+                _LOGGER.warning("The merge commit are not allowed")
+                messages.append(
+                    f":x: The merge commit are not allowed in commit {commit.sha}",
+                )
+                success = False
         else:
             messages.append(
                 f":heavy_check_mark: The commit {commit.sha} is not a merge commit",
@@ -204,6 +214,35 @@ def _commits_messages(
                 f":heavy_check_mark: The commit {commit.sha} is not an own revert commit",
             )
     return success, messages
+
+
+async def _get_stabilization_branches(
+    context: module.ProcessContext[
+        checks_configuration.PullRequestChecksConfiguration,
+        dict[str, Any],
+    ],
+) -> list[str]:
+    """Get the default branch and the stabilization branches from the SECURITY.md file."""
+    branches = [await context.github_project.default_branch()]
+    try:
+        security_file = (
+            await context.github_project.aio_github.rest.repos.async_get_content(
+                owner=context.github_project.owner,
+                repo=context.github_project.repository,
+                path="SECURITY.md",
+            )
+        ).parsed_data
+    except githubkit.exception.RequestFailed as exception:
+        if exception.response.status_code != 404:
+            raise
+        _LOGGER.debug("No SECURITY.md file in the repository")
+        return branches
+    if isinstance(security_file, githubkit_schemas.latest.models.ContentFile) and security_file.content:
+        security = security_md.Security(base64.b64decode(security_file.content).decode("utf-8"))
+        branches.extend(security.branches())
+    else:
+        _LOGGER.debug("No SECURITY.md file in the repository")
+    return branches
 
 
 async def _commits_spell(
@@ -394,8 +433,8 @@ class Checks(
             context.github_event_data,
         )
 
-        # Get the pull request and commits concurrently
-        pull_request_response, commits_response = await asyncio.gather(
+        # Get the pull request, commits and stabilization branches concurrently
+        pull_request_response, commits_response, stabilization_branches = await asyncio.gather(
             context.github_project.aio_github.rest.pulls.async_get(
                 owner=context.github_project.owner,
                 repo=context.github_project.repository,
@@ -406,9 +445,25 @@ class Checks(
                 repo=context.github_project.repository,
                 pull_number=context.module_event_data["pull-request-number"],
             ),
+            _get_stabilization_branches(context),
         )
         pull_request = pull_request_response.parsed_data
         commits = commits_response.parsed_data
+
+        # Merge commits are allowed in pull requests coming from the default branch
+        # or from a stabilization branch of the SECURITY.md file.
+        head_branch = pull_request.head.ref
+        head_repo = pull_request.head.repo
+        allow_merge_commits = (
+            head_repo is not None
+            and head_repo.full_name == f"{context.github_project.owner}/{context.github_project.repository}"
+            and head_branch in stabilization_branches
+        )
+        if allow_merge_commits:
+            _LOGGER.info(
+                "The pull request comes from the stabilization branch %s, the merge commits are allowed",
+                head_branch,
+            )
 
         with tempfile.NamedTemporaryFile("w+t", encoding="utf-8") as ignore_file:
             spellcheck_cmd = await _get_code_spell_command(
@@ -416,7 +471,7 @@ class Checks(
                 event_data,
                 ignore_file,
             )
-            success_1, messages_1 = _commits_messages(context.module_config, commits)
+            success_1, messages_1 = _commits_messages(context.module_config, commits, allow_merge_commits)
             success_2, messages_2 = await _commits_spell(
                 context.module_config,
                 commits,
