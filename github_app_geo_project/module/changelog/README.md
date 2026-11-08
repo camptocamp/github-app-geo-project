@@ -5,7 +5,7 @@ Generate the changelog and store it on the release.
 This module automates the generation and management of changelogs for releases. It:
 
 - **Changelog Generation**: Creates a changelog when a tag or release is created, depending on the `create-release` option.
-- **Release Creation**: With `create-release` (default: `true`), the creation of a tag creates the matching release, or updates it if it already exists. No release is created for a tag that doesn't exist (anymore) on the repository, because creating a release also creates the missing `tag` on the default branch.
+- **Release Creation**: With `create-release` (default: `true`), the creation of a tag creates the matching release, or updates it if it already exists. No release is created for a tag that doesn't exist (anymore) on the repository, because creating a release also creates the missing `tag` on the default branch. With `create-release: false`, the module never creates a release, it only fills the changelog of the releases that already exist.
 - **Tag Deletion**: Deleting a tag never recreates it, the module only deletes the releases that still point to the deleted tag.
 - **Milestone Management**: Automatically creates a milestone and assigns pull requests to it.
 - **Changelog Updates**: Updates the changelog if a closed pull request linked to a milestone is modified.

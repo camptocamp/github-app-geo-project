@@ -1136,6 +1136,10 @@ class Changelog(
             tag_str,
             tags_map,
         )
+        create_release = context.module_config.get(
+            "create-release",
+            configuration.CREATE_RELEASE_DEFAULT,
+        )
         release = await _get_release(context.github_project, tag_str)
         if release is not None:
             try:
@@ -1150,6 +1154,14 @@ class Changelog(
                     tag_str,
                     repository,
                 )
+        if not create_release:
+            # Never create a release when the option is disabled, only update the existing ones
+            _LOGGER.info(
+                "No release for the tag %s on repository %s and create-release is disabled, skip the release creation",
+                tag_str,
+                repository,
+            )
+            return module.ProcessOutput()
         await _create_release(context.github_project, tag_str, body)
 
         return module.ProcessOutput()

@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- **Changelog**: With `create-release: false`, the module never creates a release anymore. Previously, only the tag creation event was guarded by the option, but the changelog generation flow (triggered by the `release`, `pull_request`, `milestone` and `discussion` events) still created a release for a tag that had none, for example when editing a milestoned pull request. The changelog of an already existing release is still updated.
 - **Dashboard**: The dashboard issues are titled with the GitHub application name again (e.g. `Geo GHCI int Dashboard`) instead of the configuration key of the application (e.g. `main Dashboard`). Since the FastAPI migration, the title was built from the internal configuration key (`GHCI__APPLICATION__<KEY>__*`), which is not meaningful for the users. The expected title is now also set on every dashboard issue update, so the existing open issues created with a wrong title are renamed automatically by the application.
 
 ## 2026-11-07

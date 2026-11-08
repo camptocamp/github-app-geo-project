@@ -33,6 +33,14 @@ def _release(release_id: int, tag_name: str) -> MagicMock:
     return release
 
 
+def _tag(name: str, sha: str) -> MagicMock:
+    """Create a mocked Git tag."""
+    tag = MagicMock()
+    tag.name = name
+    tag.commit.sha = sha
+    return tag
+
+
 def _make_action_context(module_event_name: str) -> Mock:
     """Create a mocked GetActionContext."""
     context = Mock()
@@ -312,3 +320,87 @@ async def test_process_tag_create_release_already_exists() -> None:
             "make_latest": "false",
         },
     )
+
+
+@pytest.mark.asyncio
+async def test_process_changelog_never_creates_a_release_when_disabled() -> None:
+    """The changelog generation doesn't create a release when create-release is disabled."""
+    changelog = Changelog()
+    context = _make_process_context(
+        _EventData(version="1.0.0"),
+        {"create-release": False},
+    )
+    rest = context.github_project.aio_github.rest
+    rest.paginate = MagicMock(return_value=_aiter([_tag("1.0.0", "abc")]))
+    rest.repos.async_get_commit.return_value = MagicMock(parsed_data=MagicMock())
+    rest.repos.async_get_release_by_tag.side_effect = _request_failed(404)
+
+    with patch(
+        "github_app_geo_project.module.changelog.generate_changelog",
+        new=AsyncMock(return_value="body"),
+    ):
+        output = await changelog.process(context)
+
+    rest.repos.async_create_release.assert_not_awaited()
+    rest.repos.async_update_release.assert_not_awaited()
+    assert output.actions == []
+
+
+@pytest.mark.asyncio
+async def test_process_changelog_updates_the_existing_release_when_disabled() -> None:
+    """An existing release still gets its changelog updated when create-release is disabled."""
+    changelog = Changelog()
+    context = _make_process_context(
+        _EventData(version="1.0.0"),
+        {"create-release": False},
+    )
+    rest = context.github_project.aio_github.rest
+    rest.paginate = MagicMock(return_value=_aiter([_tag("1.0.0", "abc")]))
+    rest.repos.async_get_commit.return_value = MagicMock(parsed_data=MagicMock())
+    rest.repos.async_get_release_by_tag.return_value = MagicMock(parsed_data=_release(12, "1.0.0"))
+
+    with patch(
+        "github_app_geo_project.module.changelog.generate_changelog",
+        new=AsyncMock(return_value="body"),
+    ):
+        await changelog.process(context)
+
+    rest.repos.async_update_release.assert_awaited_once_with(
+        owner="owner",
+        repo="repo",
+        release_id=12,
+        data={
+            "name": "1.0.0",
+            "body": "body",
+            "make_latest": "false",
+        },
+    )
+    rest.repos.async_create_release.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_process_changelog_creates_the_missing_release_when_enabled() -> None:
+    """The changelog generation creates the missing release when create-release is enabled."""
+    changelog = Changelog()
+    context = _make_process_context(_EventData(version="1.0.0"))
+    rest = context.github_project.aio_github.rest
+    rest.paginate = MagicMock(return_value=_aiter([_tag("1.0.0", "abc")]))
+    rest.repos.async_get_commit.return_value = MagicMock(parsed_data=MagicMock())
+    rest.repos.async_get_release_by_tag.side_effect = _request_failed(404)
+
+    with patch(
+        "github_app_geo_project.module.changelog.generate_changelog",
+        new=AsyncMock(return_value="body"),
+    ):
+        await changelog.process(context)
+
+    rest.repos.async_create_release.assert_awaited_once_with(
+        owner="owner",
+        repo="repo",
+        data={
+            "tag_name": "1.0.0",
+            "name": "1.0.0",
+            "body": "body",
+        },
+    )
+    rest.repos.async_update_release.assert_not_awaited()
