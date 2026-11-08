@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-08
+
+### Fixed
+
+- **Dashboard**: The dashboard issues are titled with the GitHub application name again (e.g. `Geo GHCI int Dashboard`) instead of the configuration key of the application (e.g. `main Dashboard`). Since the FastAPI migration, the title was built from the internal configuration key (`GHCI__APPLICATION__<KEY>__*`), which is not meaningful for the users. The expected title is now also set on every dashboard issue update, so the existing open issues created with a wrong title are renamed automatically by the application.
+
 ## 2026-11-07
 
 ### Changed
