@@ -772,6 +772,10 @@ async def _process_job(
         _LOGGER.debug("Update dashboard issue")
         dashboard_issue = await _get_dashboard_issue(github_project)
 
+        # The title is based on the GitHub application name, not on the configuration key,
+        # and it is also set on update to rename the issues created with a wrong title
+        dashboard_title = f"{github_project.application.aio_application.name} Dashboard"
+
         if dashboard_issue:
             body = dashboard_issue.body
             assert isinstance(body, str)
@@ -792,6 +796,7 @@ async def _process_job(
                         owner=job.owner,
                         repo=job.repository,
                         issue_number=dashboard_issue.number,
+                        title=dashboard_title,
                         body=issue_full_data,
                     )
                 except githubkit.exception.RequestFailed as error:
@@ -820,7 +825,7 @@ async def _process_job(
                 await github_project.aio_github.rest.issues.async_create(
                     owner=job.owner,
                     repo=job.repository,
-                    title=f"{github_application.name} Dashboard",
+                    title=dashboard_title,
                     body=issue_full_data,
                 )
 
