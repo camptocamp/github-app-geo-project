@@ -13,7 +13,12 @@ import pytest
 
 from github_app_geo_project import configuration, module
 from github_app_geo_project.module import utils as module_utils
-from github_app_geo_project.module.backport import Backport, _existing_branch_blocker, _labels_to_copy
+from github_app_geo_project.module.backport import (
+    Backport,
+    _clean_backport_body,
+    _existing_branch_blocker,
+    _labels_to_copy,
+)
 from github_app_geo_project.module.utils import PullRequestResult, PullRequestStatus
 
 _BOT_LOGIN = "my-app[bot]"
@@ -285,3 +290,85 @@ async def test_backport_existing_branch_not_created_by_the_application() -> None
     assert error is not None
     assert _BACKPORT_BRANCH in error
     context.github_project.aio_github.rest.pulls.async_list_commits.assert_not_awaited()
+
+
+_CLEAN_BODY = "Backport of #12 to 2.9"
+_RESOLVED_BODY = f"{_CLEAN_BODY}\n\nConflicts resolved manually"
+_FAILED_BODY = f"{_CLEAN_BODY}\n\nError on cherry-picking: abc123\n\nTo continue do:\n```bash\ngit fetch\n```"
+
+
+def test_clean_backport_body_current_prefix() -> None:
+    """The clean body is rebuilt from the current backport branch name."""
+    assert _clean_backport_body("ghci/backport/12-to-2.9") == _CLEAN_BODY
+
+
+def test_clean_backport_body_legacy_prefix() -> None:
+    """The legacy backport branch prefix is also recognized."""
+    assert _clean_backport_body("backport/12-to-2.9") == _CLEAN_BODY
+
+
+def test_clean_backport_body_branch_with_hyphens() -> None:
+    """A target branch containing `-to-` is fully captured by the greedy pattern."""
+    assert _clean_backport_body("ghci/backport/7-to-int-2-9") == "Backport of #7 to int-2-9"
+
+
+def test_clean_backport_body_not_a_backport_branch() -> None:
+    """A branch that does not match the pattern returns None to never rewrite an unexpected body."""
+    assert _clean_backport_body("feature/my-branch") is None
+    assert _clean_backport_body("ghci/backport/not-a-number") is None
+
+
+async def _reset_body(current_body: str | None, head_ref: str = _BACKPORT_BRANCH) -> MagicMock:
+    """Run `_reset_resolved_body` with the GitHub update call mocked, returning the pulls mock."""
+    context = _make_context()
+    pulls: MagicMock = context.github_project.aio_github.rest.pulls
+    pulls.async_update = AsyncMock()
+    await Backport()._reset_resolved_body(context, head_ref, current_body, 42)
+    return pulls
+
+
+@pytest.mark.asyncio
+async def test_reset_resolved_body_rewrites_the_instructions() -> None:
+    """A generated body still holding the failure instructions is replaced by the resolved note."""
+    pulls = await _reset_body(_FAILED_BODY)
+    pulls.async_update.assert_awaited_once_with(
+        owner="owner",
+        repo="repo",
+        pull_number=42,
+        body=_RESOLVED_BODY,
+    )
+
+
+@pytest.mark.asyncio
+async def test_reset_resolved_body_clean_backport_untouched() -> None:
+    """A backport that applied cleanly has no instruction to remove, its body is left as is."""
+    pulls = await _reset_body(_CLEAN_BODY)
+    pulls.async_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reset_resolved_body_idempotent() -> None:
+    """An already resolved body is not rewritten a second time."""
+    pulls = await _reset_body(_RESOLVED_BODY)
+    pulls.async_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reset_resolved_body_customized_untouched() -> None:
+    """A body that does not start with the generated message was customized and is never touched."""
+    pulls = await _reset_body("My own backport description\n\nWith details")
+    pulls.async_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reset_resolved_body_none_untouched() -> None:
+    """A pull request without a body is left as is."""
+    pulls = await _reset_body(None)
+    pulls.async_update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_reset_resolved_body_unexpected_branch_untouched() -> None:
+    """A pull request whose head branch does not match the pattern is never rewritten."""
+    pulls = await _reset_body(_FAILED_BODY, head_ref="feature/my-branch")
+    pulls.async_update.assert_not_awaited()
