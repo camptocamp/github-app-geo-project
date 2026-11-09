@@ -221,10 +221,12 @@ def get_section(
 
 
 class Tag:
-    """A tag parsed as a semver version."""
+    """A tag of the repository, parsed as a version."""
 
     TAG_RE = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
+    """Acceptance guard of the version tags, matched as a prefix."""
     TAG2_RE = re.compile(r"release_?(\d+)")
+    """Acceptance guard of the legacy `release<major>` tags, they have no minor and no patch."""
 
     def __init__(
         self,
@@ -242,75 +244,86 @@ class Tag:
         self.tag_str = tag_str
         self.tag = tag
         self.commit = commit
-        tag_match = self.TAG_RE.match(tag_str)
-        if tag_match is None:
-            tag_match = self.TAG2_RE.match(tag_str)
-            if tag_match is None:
+        self.version = self._parse_version(tag_str)
+        # The three first segments of the version, used to display the version of the release and
+        # to look up the previous tag: a tag with more segments, like the `1.4.5.1` hotfix tags,
+        # is displayed and navigated as its three first segments.
+        release = (*self.version.release, 0, 0, 0)
+        self.major, self.minor, self.patch = release[0], release[1], release[2]
+
+    @classmethod
+    def _parse_version(cls, tag_str: str) -> packaging.version.Version:
+        """
+        Parse the whole tag name as a version.
+
+        Not only its three first segments: the pre-releases (`2.4.0rc1`, `2.4.0.dev18`) and the
+        tags with more segments (`1.4.5.1`) are all different tags, instead of being confused
+        with their `2.4.0` / `1.4.5` release.
+        """
+        if cls.TAG_RE.match(tag_str) is not None:
+            try:
+                return packaging.version.Version(tag_str.removeprefix("v"))
+            except packaging.version.InvalidVersion:
                 message = f"Invalid tag: {tag_str}"
-                raise ValueError(message)
-            self.major = int(tag_match.group(1))
-            self.minor = 0
-            self.patch = 0
-        else:
-            self.major, self.minor, self.patch = (int(e) for e in tag_match.groups())
+                raise ValueError(message) from None
+        legacy_match = cls.TAG2_RE.match(tag_str)
+        if legacy_match is None:
+            message = f"Invalid tag: {tag_str}"
+            raise ValueError(message) from None
+        return packaging.version.Version(f"{legacy_match.group(1)}.0.0")
 
     def __eq__(self, other: object) -> bool:
         """Compare two tags."""
         if not isinstance(other, Tag):
             return NotImplemented
-        return self.major == other.major and self.minor == other.minor and self.patch == other.patch
+        return self.version == other.version
 
     def __hash__(self) -> int:
         """Get the hash of the tag."""
-        return hash((self.major, self.minor, self.patch))
+        return hash(self.version)
 
     def __lt__(self, other: "Tag") -> bool:
         """Compare two tags."""
-        if self.major < other.major:
-            return True
-        if self.major > other.major:
-            return False
-        if self.minor < other.minor:
-            return True
-        if self.minor > other.minor:
-            return False
-        return self.patch < other.patch
+        return self.version < other.version
 
     def __gt__(self, other: "Tag") -> bool:
         """Compare two tags."""
-        if self.major > other.major:
-            return True
-        if self.major < other.major:
-            return False
-        if self.minor > other.minor:
-            return True
-        if self.minor < other.minor:
-            return False
-        return self.patch > other.patch
-
-    def __cmp__(self, other: "Tag") -> int:
-        """Compare two tags."""
-        if self < other:
-            return -1
-        if self > other:
-            return 1
-        return 0
+        return self.version > other.version
 
 
 def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Tag | None:
+    """
+    Get the tag used as the base of the comparison of the changelog of a release.
+
+    The previous tag of `<major>.<minor>.<patch>` is `<major>.<minor>.<patch - 1>`, and the
+    previous tag of a `.0` is the `.0` of the previous version line: `<major>.<minor - 1>.0`, or,
+    on a major change, the `.<highest minor>.0` of the previous major.
+
+    The `.0` of a version line is deliberately used in place of the latest patch of that line:
+    it is the tag created when the `<major>.<minor>` stabilization branch was created, while the
+    versions with a non-zero patch are backports, committed on that stabilization branch only and
+    therefore not part of the history of the next version line. Using the latest patch as a base
+    would drop from the changelog of the next version changes that are in its history. For the
+    same reason the previous tag of `2.9.0` is `2.8.0` and not `2.8.1`, and the previous tag of
+    `3.0.0` is `2.9.0` and not `2.9.7`.
+
+    The pre-releases (`rc`, `dev`) are not releases, they are never used as a base.
+    """
+    # The recursive calls receive the already filtered mapping, filtering it again is a no-op.
+    releases = {t: v for t, v in tags.items() if not t.version.is_prerelease}
     if tag.patch != 0:
         test_tag = Tag(".".join(str(e) for e in (tag.major, tag.minor, tag.patch - 1)))
-        if test_tag in tags:
-            return tags[test_tag]
-        return _previous_tag(test_tag, tags)
+        if test_tag in releases:
+            return releases[test_tag]
+        return _previous_tag(test_tag, releases)
     if tag.minor != 0:
         test_tag = Tag(".".join(str(e) for e in (tag.major, tag.minor - 1, 0)))
-        if test_tag in tags:
-            return tags[test_tag]
-        return _previous_tag(test_tag, tags)
+        if test_tag in releases:
+            return releases[test_tag]
+        return _previous_tag(test_tag, releases)
     if tag.major != 0:
         # Get previous version
-        tags_list = sorted([t for t in tags if t.major < tag.major])
+        tags_list = sorted([t for t in releases if t.major < tag.major])
         if not tags_list:
             return None
         previous_major_minor = tags_list[-1]
@@ -319,11 +332,11 @@ def _previous_tag(tag: Tag, tags: dict[Tag, Tag]) -> Tag | None:
         tags_list = sorted(
             [
                 t
-                for t in tags
+                for t in releases
                 if t.major == previous_major_minor.major and t.minor == previous_major_minor.minor
             ],
         )
-        # Return the first one
+        # Return the first one, the `.0` created with the stabilization branch, see the docstring
         return tags_list[0]
     return None
 
@@ -632,6 +645,21 @@ async def generate_changelog(
                 commit.sha,
             )
         ).parsed_data:
+            # GitHub also returns the open pull requests when the commit is not present in the
+            # default branch, which is the case of every commit of a stabilization branch: the
+            # open pull requests of the branch are all listed for each of its commits, even the
+            # ones that don't contain it at all. Only the merged pull requests are part of the
+            # release, and only them get the milestone of the release.
+            if pull_request.merged_at is None:
+                _LOGGER.debug(
+                    "Skipping the unmerged pull request #%s (%s) associated with the commit %s "
+                    "on repository %s",
+                    pull_request.number,
+                    pull_request.state,
+                    commit.sha,
+                    repository,
+                )
+                continue
             has_pr = True
             if pull_request.milestone is None or pull_request.milestone.number == milestone.number:
                 authors = (
@@ -1100,15 +1128,22 @@ class Changelog(
             repo=context.github_project.repository,
         ):
             try:
-                commit = (
-                    await context.github_project.aio_github.rest.repos.async_get_commit(
-                        context.github_project.owner,
-                        context.github_project.repository,
-                        github_tag.commit.sha,
-                    )
-                ).parsed_data
-                tag = Tag(tag=github_tag, commit=commit)
-                tags_map[tag] = tag
+                if github_tag.name == tag_str:
+                    # The commit is only required for the tag of the release being generated, to
+                    # get its creation date: the other tags are only used by their name, to find
+                    # the base of the comparison. Fetching it for all of them, on a repository
+                    # with a lot of tags, was a lot of API calls for nothing.
+                    commit = (
+                        await context.github_project.aio_github.rest.repos.async_get_commit(
+                            context.github_project.owner,
+                            context.github_project.repository,
+                            github_tag.commit.sha,
+                        )
+                    ).parsed_data
+                    tag = Tag(tag=github_tag, commit=commit)
+                    current_tag = github_tag
+                else:
+                    tag = Tag(tag_str=github_tag.name)
             except ValueError:
                 _LOGGER.warning(
                     "Invalid tag: %s on repository %s",
@@ -1117,9 +1152,8 @@ class Changelog(
                 )
                 continue
 
+            tags_map[tag] = tag
             print_tags.append(github_tag.name)
-            if github_tag.name == tag_str:
-                current_tag = github_tag
 
         if not current_tag:
             _LOGGER.info(

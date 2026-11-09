@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-09
+
+### Fixed
+
+- **Changelog**: The pull requests that are not merged are no more added to a release, and no more assigned its milestone. The pull requests of a release are looked up with `GET /repos/{owner}/{repo}/commits/{sha}/pulls`, which, as documented by GitHub, returns the merged pull requests **and the open ones** when the commit is not present in the default branch. That is the case of every commit of a stabilization branch, so all the open pull requests of the branch were listed for each of its commits, even the ones that don't contain them at all: a release of the `2.8` branch was filled with every open pull request targeting `2.8`, like the `ghci/audit/dpkg/2.8` ones, and each of them got the milestone of the release, which kept it in the changelog of every later regeneration. Only the merged pull requests are used now, a pull request closed without being merged is not part of a release either, and a commit whose only associated pull requests are unmerged is listed by itself as it was already the case for a commit without any pull request.
+- **Changelog**: A release is no more computed from an homonym tag. The tag names were parsed with a prefix regular expression on their three first segments and compared on `(major, minor, patch)` only, so `2.4.0`, `2.4.0rc1`, `2.4.0.dev18` and `2.4.0-dev.13` were all the same tag, and the tags mapping kept only the last one returned by `GET /repos/{owner}/{repo}/tags`, whose order is the Git one and not the version one. Generating the changelog of `2.4.0` on `camptocamp/c2cgeoportal` silently used `2.4.0-dev.13`: the comparison was `2.3.0.dev3...2.4.0-dev.13` (2126 commits dated from 2019) in place of `2.3.4...2.4.0` (1960 commits), while the release stayed named `2.4.0` and its heading stayed `# 2.4.0`, which made the mistake invisible. The whole tag name is now parsed with `packaging.version`, so the pre-releases and the tags with more than three segments (`1.4.5.1`) are all distinct tags, correctly ordered. The tags that are not versions are still skipped with a warning.
+- **Changelog**: The pre-releases are never used as the base of a release comparison. The lookup of the previous tag scans every tag of the repository on a major change, and, now that `2.9.0rc1` is a distinct tag that sorts before `2.9.0`, it would have been chosen in place of `2.9.0` as the base of `3.0.0`. The `rc` and `dev` tags are filtered out of that lookup. A repository that has only pre-release tags gets an empty changelog, in place of using a pre-release as a base.
+
+### Changed
+
+- **Changelog**: The commit of a tag is only fetched for the tag of the release being generated, in place of every tag of the repository. The commit date of the other tags was never read: only their name is used, to find the base of the comparison. On `camptocamp/c2cgeoportal` this is 1 `GET /repos/{owner}/{repo}/commits/{sha}` call per job in place of 263, and the invalid tags no more cost an API call before being skipped.
+- **Changelog**: The rule that picks the base of a release comparison is documented in the module `README.md` and in the `_previous_tag` docstring. The base of `2.9.0` is `2.8.0` and not `2.8.1`, and the base of `3.0.0` is `2.9.0` and not `2.9.7`: the `.0` of a version line is the tag created with the stabilization branch, while the versions with a non-zero patch are backports committed on that branch only, and are therefore not part of the history of the next version line. This behavior is unchanged, it was only commented as `# Return the first one`.
+
 ## 2026-11-08
 
 ### Added
