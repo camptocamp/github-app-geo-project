@@ -682,3 +682,26 @@ async def test_generate_changelog_compares_the_requested_tag() -> None:
         "repo",
         "1.0.0...1.0.1",
     )
+
+
+@pytest.mark.asyncio
+async def test_generate_changelog_heading_of_a_pre_release() -> None:
+    """The heading of a pre-release is its tag name, and not the one of its release."""
+    body, _ = await _generate([_commit("aaa")], {}, tag_str="1.0.1rc1")
+
+    assert body.startswith("# 1.0.1rc1 (")
+    assert "# 1.0.1 (" not in body
+
+
+@pytest.mark.asyncio
+async def test_generate_changelog_heading_of_a_tag_with_more_segments() -> None:
+    """The heading of a tag with more than three segments keeps all of them."""
+    body, _ = await _generate(
+        [_commit("aaa")],
+        {},
+        tag_str="1.4.5.1",
+        tags=_tags_map("1.4.4", "1.4.5", "1.4.5.1"),
+    )
+
+    assert body.startswith("# 1.4.5.1 (")
+    assert "# 1.4.5 (" not in body
