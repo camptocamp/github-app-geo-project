@@ -47,6 +47,10 @@ with more than three segments (`1.4.5.1`) are different tags from their `2.4.0` 
 A tag that is not a version, and that doesn't use the legacy `release<major>` form, is skipped with
 a warning.
 
+The heading of the release body, and the title of its job, are the tag name: the release of a
+`2.4.0rc1` tag is titled `# 2.4.0rc1` and not `# 2.4.0`, and the release of a `1.4.5.1` tag is
+titled `# 1.4.5.1` and not `# 1.4.5`.
+
 ### Configuration Options
 
 You can configure the changelog module using the `.github/ghci.yaml` file or a similar configuration file.

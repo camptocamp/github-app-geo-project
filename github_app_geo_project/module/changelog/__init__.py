@@ -764,12 +764,15 @@ async def generate_changelog(
                 f"<p>- [{matched_item.condition}] {item.ref} {item.title} {item.author} ({authors_message}) {item.branch} {len(item.files)} - {labels_message}</p>",
             )
     message_obj = utils.HtmlMessage("\n".join(message))
-    message_obj.title = f"Changelog for {tag.major}.{tag.minor}.{tag.patch}"
+    message_obj.title = f"Changelog for {tag_str}"
     _LOGGER.debug(message_obj)
 
     assert tag.commit is not None
     created = tag.commit.commit.author.date if tag.commit.commit.author else None
-    result = [f"# {tag.major}.{tag.minor}.{tag.patch} ({created:%Y-%m-%d})", ""]
+    # The tag name, and not its three first segments, so that the heading matches the name of the
+    # release: a pre-release (`2.4.0rc1`) or a tag with more segments (`1.4.5.1`) was displayed as
+    # its `2.4.0` / `1.4.5` release.
+    result = [f"# {tag_str} ({created:%Y-%m-%d})", ""]
     if discussion_url:
         result.append(f"[See announcement]({discussion_url}).")
         result.append("")
