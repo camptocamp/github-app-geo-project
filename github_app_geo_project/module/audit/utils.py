@@ -11,6 +11,7 @@ import logging
 import os
 import re
 import subprocess
+import urllib.parse
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -18,6 +19,8 @@ import aiohttp
 import anyio
 import apt_repo
 import debian_inspector.version
+import packaging.specifiers
+import packaging.version
 import security_md
 import yaml  # nosec
 
@@ -295,6 +298,152 @@ def pin_fixed_vulnerabilities(
     return dict(sorted(pinned.items()))
 
 
+_PYPI_JSON_URL = "https://pypi.org/pypi/{name}/{version}/json"
+"""PyPI JSON metadata URL template, used to read the ``Requires-Python`` of a release."""
+
+_REQUIREMENT_LINE_RE = re.compile(
+    r"^\s*(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)"
+    r"(?:\s*\[[^\]]*\])?"
+    r"\s*(?:==|>=|~=|<=|>|<)\s*"
+    r"(?P<version>[0-9][0-9A-Za-z._+-]*)"
+)
+"""Matches a requirement line with a version constraint inside a requirements file."""
+
+
+def is_python_incompatible(requires_python: str | None, python_version: str) -> bool:
+    """
+    Tell whether a release cannot run on the given Python version.
+
+    ``requires_python`` is the release ``Requires-Python`` specifier read from PyPI and
+    ``python_version`` the branch Python ``major.minor``. A missing specifier or an
+    unparsable value is treated as compatible, so a pin is never dropped on a doubt.
+    """
+    if not requires_python or not python_version:
+        return False
+    try:
+        version = packaging.version.Version(python_version)
+        specifiers = packaging.specifiers.SpecifierSet(requires_python)
+    except (packaging.specifiers.InvalidSpecifier, packaging.version.InvalidVersion):
+        return False
+    return not specifiers.contains(version, prereleases=True)
+
+
+def remove_pin_lines(content: str, pins: set[tuple[str, str]]) -> tuple[str, bool]:
+    """
+    Remove the requirement lines pinning one of the given packages.
+
+    ``pins`` items are ``(package name, version)``; package names are normalized (PEP 503)
+    on both sides. Returns the new content and whether at least one line was removed.
+    """
+    if not pins:
+        return content, False
+    targets = {(_normalize_package_name(name), version) for name, version in pins}
+    changed = False
+    kept: list[str] = []
+    for line in content.splitlines(keepends=True):
+        match = _REQUIREMENT_LINE_RE.match(line)
+        if match is not None and (_normalize_package_name(match["name"]), match["version"]) in targets:
+            changed = True
+            continue
+        kept.append(line)
+    return "".join(kept), changed
+
+
+async def _fetch_requires_python(
+    session: aiohttp.ClientSession,
+    package_name: str,
+    version: str,
+) -> str | None:
+    """Read the ``Requires-Python`` of a PyPI release, or None when it cannot be determined."""
+    url = _PYPI_JSON_URL.format(
+        name=urllib.parse.quote(package_name, safe=""),
+        version=urllib.parse.quote(version, safe=""),
+    )
+    try:
+        async with session.get(url) as response:
+            if not response.ok:
+                _LOGGER.debug("PyPI request %s returned status %s", url, response.status)
+                return None
+            data: dict[str, Any] = json.loads(await response.read())
+    except (aiohttp.ClientError, TimeoutError) as error:
+        _LOGGER.warning("Error while requesting the PyPI metadata %s: %s", url, error)
+        return None
+    info = data.get("info")
+    if not isinstance(info, dict):
+        return None
+    requires_python = info.get("requires_python")
+    return requires_python if isinstance(requires_python, str) else None
+
+
+async def _drop_pins_in_file(
+    cwd: anyio.Path,
+    file_name: str,
+    pins: set[tuple[str, str]],
+) -> list[str]:
+    """Remove the given pins from a requirements file, return the dropped ``name>=version``."""
+    path = cwd / file_name
+    if not await path.exists():
+        return []
+    content = await path.read_text(encoding="utf-8")
+    new_content, changed = remove_pin_lines(content, pins)
+    if not changed:
+        return []
+    await path.write_text(new_content, encoding="utf-8")
+    return [f"{name}>={version}" for name, version in sorted(pins)]
+
+
+async def drop_python_incompatible_pins(
+    cwd: anyio.Path,
+    pins_by_file: dict[str, set[tuple[str, str]]],
+    python_version: str,
+) -> list[str]:
+    """
+    Drop the requirement pins that cannot run on the branch Python version.
+
+    Snyk appends a minimum-version lower bound to the requirements files for every
+    vulnerability it reports, without checking that the fixed release is installable with
+    the branch interpreter. When it requires a newer Python than the branch, the Docker
+    image ``pip install`` fails deterministically; such a pin is removed here so it is
+    neither committed nor reported as a fix. Returns the dropped ``name>=version`` list.
+    """
+    if not python_version or not pins_by_file:
+        return []
+
+    unique_pins = {(name, version) for pins in pins_by_file.values() for name, version in pins}
+    requires_python: dict[tuple[str, str], str | None] = {}
+    timeout = aiohttp.ClientTimeout(total=settings.audit.timeouts.snyk_api.total_seconds())
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with asyncio.TaskGroup() as group:
+            fetch_tasks = {
+                key: group.create_task(_fetch_requires_python(session, key[0], key[1])) for key in unique_pins
+            }
+        for key, fetch_task in fetch_tasks.items():
+            requires_python[key] = fetch_task.result()
+
+    incompatible = {
+        key for key, spec in requires_python.items() if is_python_incompatible(spec, python_version)
+    }
+    if not incompatible:
+        return []
+
+    dropped: list[str] = []
+    async with asyncio.TaskGroup() as group:
+        file_tasks = [
+            group.create_task(
+                _drop_pins_in_file(
+                    cwd,
+                    file_name,
+                    {(name, version) for name, version in pins if (name, version) in incompatible},
+                ),
+            )
+            for file_name, pins in pins_by_file.items()
+            if any((name, version) in incompatible for name, version in pins)
+        ]
+    for file_task in file_tasks:
+        dropped.extend(file_task.result())
+    return dropped
+
+
 async def snyk(
     branch: str,
     owner: str,
@@ -306,10 +455,14 @@ async def snyk(
     logs_url: str,
     env: dict[str, str],
     cwd: anyio.Path,
+    python_version: str = "",
     ignore_policy: bool = False,
 ) -> SnykAuditResult:
     """
     Audit the code with Snyk.
+
+    ``python_version`` is the branch Python ``major.minor``: requirement pins whose fixed
+    release requires a newer Python are dropped, as they break the image ``pip install``.
 
     Return the audit result, see :class:`SnykAuditResult`.
     """
@@ -396,6 +549,34 @@ async def snyk(
             "Timeout while getting the git diff",
             cwd,
         )
+        # Drop the requirement pins whose fixed release needs a newer Python than the branch:
+        # they make the Docker image `pip install` fail, and Snyk adds them without checking.
+        if python_version:
+            dropped_pins = await drop_python_incompatible_pins(
+                cwd,
+                parse_requirements_pins(fix_diff or ""),
+                python_version,
+            )
+            if dropped_pins:
+                _LOGGER.info(
+                    "Skipped the requirement pins incompatible with Python %s: %s",
+                    python_version,
+                    ", ".join(dropped_pins),
+                )
+                skipped_message = module_utils.HtmlMessage(
+                    f"Skipped pins incompatible with Python {python_version}: {', '.join(dropped_pins)}",
+                )
+                skipped_message.title = "Python-incompatible pins skipped"
+                result.append(skipped_message)
+                fix_diff, _, _ = await module_utils.run_timeout(
+                    ["git", "diff", "--unified=0"],
+                    None,
+                    _TIMEOUT_GIT_DIFF,
+                    "Git diff after dropping the incompatible pins",
+                    "Error while getting the git diff",
+                    "Timeout while getting the git diff",
+                    cwd,
+                )
         fix_message: module_utils.HtmlMessage | None = None
         if snyk_fix_message is None:
             if npm_audit_fix_message:
