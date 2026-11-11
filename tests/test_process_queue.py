@@ -272,3 +272,122 @@ async def test_process_job_dashboard_issue_renamed_with_application_name(
     assert update_kwargs["issue_number"] == 486
     assert update_kwargs["title"] == "Geo GHCI int Dashboard"
     assert "Something to do" in update_kwargs["body"]
+
+
+async def _run_mock_module_job(
+    check_run_id: int | None,
+) -> tuple[MagicMock, AsyncMock]:
+    """
+    Run a job of a mock module and return the mocked GitHub project and create_checks mock.
+
+    The module succeeds and does not produce dashboard data.
+    """
+    job = MagicMock(
+        id=42,
+        module="mockmod",
+        module_event_name="cron",
+        module_event_data={},
+        github_event_name="cron",
+        github_event_data={},
+        owner="camptocamp",
+        repository="repo",
+        priority=0,
+        application="main",
+        check_run_id=check_run_id,
+        status_enum=None,
+        finished_at=None,
+    )
+    session = MagicMock()
+    session.bind = None
+    session.commit = AsyncMock()
+    session.refresh = AsyncMock()
+
+    rate_limit = MagicMock()
+    rate_limit.resources.core.remaining = 5000
+    rate_limit.resources.core.limit = 5000
+
+    github_project = MagicMock()
+    github_project.aio_github.rest.rate_limit.async_get = AsyncMock(
+        return_value=MagicMock(parsed_data=rate_limit)
+    )
+    github_project.aio_github.rest.checks.async_get = AsyncMock(
+        return_value=MagicMock(parsed_data=MagicMock(id=check_run_id or 1234))
+    )
+    github_project.aio_github.rest.checks.async_update = AsyncMock()
+
+    mock_module = MagicMock()
+    mock_module.title.return_value = "Mock module"
+    mock_module.required_issue_dashboard.return_value = False
+    mock_module.check_name_per_action.return_value = False
+    mock_module.configuration_from_json.return_value = {}
+    mock_module.event_data_from_json.return_value = {}
+    mock_module.process = AsyncMock(return_value=ProcessOutput())
+
+    root_logger = logging.getLogger()
+    handler = _Handler(42, [], "INFO")
+    handler.setFormatter(_Formatter("%(message)s"))
+
+    create_checks = AsyncMock(return_value=MagicMock(id=1234))
+    with (
+        patch("github_app_geo_project.scripts.process_queue.settings") as settings,
+        patch("github_app_geo_project.scripts.process_queue.configuration") as configuration,
+        patch(
+            "github_app_geo_project.scripts.process_queue.utils.create_checks",
+            new=create_checks,
+        ),
+        patch(
+            "github_app_geo_project.scripts.process_queue._stream_job_logs",
+            new=AsyncMock(),
+        ),
+        patch(
+            "github_app_geo_project.scripts.process_queue._flush_job_logs",
+            new=AsyncMock(),
+        ),
+        patch.dict(modules.MODULES, {"mockmod": mock_module}),
+    ):
+        settings.test.app_name = ""
+        settings.service_url = "https://example.com/"
+        settings.process_queue.logs_stream_interval.total_seconds.return_value = 60.0
+        settings.process_queue.job_timeout.total_seconds.return_value = 60.0
+        configuration.get_github_application = AsyncMock(return_value=MagicMock())
+        configuration.get_github_project = AsyncMock(return_value=github_project)
+        configuration.get_configuration = AsyncMock(return_value={})
+
+        result = await _process_job(session, root_logger, handler, job)
+
+    assert result is True
+    assert job.status_enum == models.JobStatus.DONE
+    return github_project, create_checks
+
+
+@pytest.mark.asyncio
+async def test_process_job_creates_check_run_directly_in_progress() -> None:
+    """
+    Test that a new check run is created directly in progress, without update.
+
+    An update sent immediately after the creation can return 404 while the new
+    check run is not yet visible on the GitHub API replicas.
+    """
+    github_project, create_checks = await _run_mock_module_job(check_run_id=None)
+
+    create_checks.assert_awaited_once()
+    create_checks_call = create_checks.await_args
+    assert create_checks_call is not None
+    assert create_checks_call.kwargs["status"] == "in_progress"
+    update_statuses = [
+        call.kwargs["status"] for call in github_project.aio_github.rest.checks.async_update.await_args_list
+    ]
+    assert "in_progress" not in update_statuses
+
+
+@pytest.mark.asyncio
+async def test_process_job_updates_existing_check_run_to_in_progress() -> None:
+    """Test that an existing check run (relaunched job) is updated to in progress."""
+    github_project, create_checks = await _run_mock_module_job(check_run_id=107321157508)
+
+    create_checks.assert_not_awaited()
+    github_project.aio_github.rest.checks.async_get.assert_awaited_once()
+    update_statuses = [
+        call.kwargs["status"] for call in github_project.aio_github.rest.checks.async_update.await_args_list
+    ]
+    assert "in_progress" in update_statuses
