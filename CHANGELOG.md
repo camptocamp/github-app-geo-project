@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-11
+
+### Fixed
+
+- **Queue**: A job is no more failed when GitHub transiently answers `404 Not Found` on the check run that it just created. When a job starts without an existing check run, the application created it with `POST /repos/{owner}/{repo}/check-runs` and immediately updated it to `in_progress` with a `PATCH`; because of the GitHub API eventual consistency the freshly created check run can not be visible yet and the update returned a 404 (`githubkit.exception.RequestFailed`) that failed the whole job, while relaunching it worked because the check run existed in the meantime. The check run of a starting job is now created directly with the `in_progress` status (and its `started_at` date), no update immediately follows the creation anymore; only the relaunched jobs, whose check run already exists, still update it to `in_progress`.
+
 ## 2026-11-09
 
 ### Fixed

@@ -8,7 +8,7 @@ import json
 import logging
 import urllib.parse
 from collections.abc import Iterable, Mapping
-from typing import Any
+from typing import Any, Literal
 
 import githubkit.exception
 import githubkit.webhooks
@@ -259,8 +259,15 @@ async def create_checks(
     current_module: module.Module[Any, Any, Any, Any],
     github_project: configuration.GithubProject,
     service_url: str,
+    status: Literal["queued", "in_progress"] = "queued",
 ) -> githubkit_schemas.latest.models.CheckRun | None:
-    """Create the GitHub check run."""
+    """
+    Create the GitHub check run.
+
+    The status can be set at creation because an update sent immediately after the
+    creation can return 404 while the new check run is not yet visible on the GitHub
+    API replicas.
+    """
     await session.flush()
 
     service_url = service_url if service_url.endswith("/") else service_url + "/"
@@ -313,16 +320,31 @@ async def create_checks(
 
     name = check_name(current_module, job)
     try:
-        check_run = (
-            await github_project.aio_github.rest.checks.async_create(
-                owner=github_project.owner,
-                repo=github_project.repository,
-                name=name,
-                head_sha=sha,
-                details_url=service_url,
-                external_id=str(job.id),
-            )
-        ).parsed_data
+        if status == "in_progress":
+            check_run = (
+                await github_project.aio_github.rest.checks.async_create(
+                    owner=github_project.owner,
+                    repo=github_project.repository,
+                    name=name,
+                    head_sha=sha,
+                    details_url=service_url,
+                    external_id=str(job.id),
+                    status=status,
+                    started_at=dt.datetime.now(tz=dt.UTC),
+                )
+            ).parsed_data
+        else:
+            check_run = (
+                await github_project.aio_github.rest.checks.async_create(
+                    owner=github_project.owner,
+                    repo=github_project.repository,
+                    name=name,
+                    head_sha=sha,
+                    details_url=service_url,
+                    external_id=str(job.id),
+                    status=status,
+                )
+            ).parsed_data
     except githubkit.exception.RequestFailed as exception:
         _LOGGER.warning(
             "Failed to create check run for job %s: %s - %s\n%s",

@@ -315,6 +315,10 @@ async def _process_job(
             job.github_event_data = utils.normalize_event(job.github_event_name, job.github_event_data)
 
             if not settings.test.app_name:
+                # The check run is created directly in progress because an update sent
+                # immediately after the creation can return 404 while the new check run
+                # is not yet visible on the GitHub API replicas.
+                check_run_created = False
                 if job.check_run_id is None and job.owner is not None and job.repository is not None:
                     _LOGGER.debug("Create check run for job id %s", job.id)
                     check_run = await utils.create_checks(
@@ -323,10 +327,13 @@ async def _process_job(
                         current_module,
                         github_project,
                         settings.service_url,
+                        status="in_progress",
                     )
+                    check_run_created = True
 
                 if (
-                    github_project is not None
+                    not check_run_created
+                    and github_project is not None
                     and github_project.aio_github is not None
                     and check_run is not None
                 ):
