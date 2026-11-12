@@ -18,6 +18,7 @@ import pygments.lexers
 import sqlalchemy.dialects.postgresql
 import sqlalchemy.ext.asyncio
 import yaml
+from githubkit_schemas.latest.types import ReposOwnerRepoCheckRunsCheckRunIdPatchBodyPropOutputType
 from tinycss2 import parse_stylesheet, serialize
 
 from github_app_geo_project import configuration, models, module
@@ -360,6 +361,72 @@ async def create_checks(
     return check_run
 
 
+_CHECK_RUN_UPDATE_RETRY_DELAYS = (1.0, 3.0, 10.0)
+
+CheckRunOutput = ReposOwnerRepoCheckRunsCheckRunIdPatchBodyPropOutputType
+"""The GitHub check run output, it must contain a `title`, GitHub answers 422 otherwise."""
+
+
+async def complete_check_run(
+    aio_github: githubkit.GitHub[githubkit.AppInstallationAuthStrategy],
+    owner: str,
+    repository: str,
+    check_run_id: int,
+    conclusion: Literal["success", "failure", "skipped"],
+    output: CheckRunOutput | None = None,
+) -> bool:
+    """
+    Update a check run to the completed status.
+
+    The GitHub API is eventually consistent: a ``PATCH`` sent shortly after the creation
+    of the check run can answer ``404 Not Found`` while the check run is not yet visible
+    on all the API replicas, so this error is retried with a backoff.
+
+    Return whether the check run was successfully updated.
+    """
+    delays = (0.0, *_CHECK_RUN_UPDATE_RETRY_DELAYS)
+    for attempt, delay in enumerate(delays):
+        if delay > 0:
+            await asyncio.sleep(delay)
+        try:
+            if output is None:
+                await aio_github.rest.checks.async_update(
+                    owner=owner,
+                    repo=repository,
+                    check_run_id=check_run_id,
+                    status="completed",
+                    conclusion=conclusion,
+                )
+            else:
+                await aio_github.rest.checks.async_update(
+                    owner=owner,
+                    repo=repository,
+                    check_run_id=check_run_id,
+                    status="completed",
+                    conclusion=conclusion,
+                    output=output,
+                )
+        except githubkit.exception.RequestFailed as exception:
+            if exception.response.status_code == 404 and attempt < len(delays) - 1:
+                _LOGGER.debug(
+                    "The check run %s is not yet visible on the answering GitHub API replica, "
+                    "retry to complete it",
+                    check_run_id,
+                )
+                continue
+            _LOGGER.warning(
+                "Failed to complete the check run %s, return data:\n%s\nreturn message:\n%s\nreturn status: %s",
+                check_run_id,
+                exception.response.text,
+                exception.response.reason_phrase,
+                exception.response.status_code,
+            )
+            return False
+        else:
+            return True
+    return False
+
+
 async def apply_jobs_unique_on(
     session: sqlalchemy.ext.asyncio.AsyncSession,
     current_module: module.Module[Any, Any, Any, Any],
@@ -438,20 +505,9 @@ async def apply_jobs_unique_on(
     repository = job.repository
 
     async def _skip_check_run(check_run_id: int) -> None:
-        try:
-            await aio_github.rest.checks.async_update(
-                owner=owner,
-                repo=repository,
-                check_run_id=check_run_id,
-                status="completed",
-                conclusion="skipped",
-            )
-        except githubkit.exception.RequestFailed:
-            # The job is already skipped, completing the check run is only cosmetic
-            _LOGGER.warning(
-                "Failed to mark the check run %s as skipped, the corresponding job is skipped",
-                check_run_id,
-            )
+        # The job is already skipped, completing the check run is only cosmetic,
+        # complete_check_run logs the failure and returns False instead of raising.
+        await complete_check_run(aio_github, owner, repository, check_run_id, "skipped")
 
     async with asyncio.TaskGroup() as task_group:
         for _, check_run_id in skipped_jobs:

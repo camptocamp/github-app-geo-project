@@ -276,11 +276,14 @@ async def test_process_job_dashboard_issue_renamed_with_application_name(
 
 async def _run_mock_module_job(
     check_run_id: int | None,
+    check_run_update_side_effect: Exception | list[Exception] | None = None,
 ) -> tuple[MagicMock, AsyncMock]:
     """
     Run a job of a mock module and return the mocked GitHub project and create_checks mock.
 
-    The module succeeds and does not produce dashboard data.
+    The module succeeds and does not produce dashboard data. The
+    ``check_run_update_side_effect`` is used as side effect of the mocked check run update,
+    to simulate a transient failure of the GitHub API.
     """
     job = MagicMock(
         id=42,
@@ -313,7 +316,7 @@ async def _run_mock_module_job(
     github_project.aio_github.rest.checks.async_get = AsyncMock(
         return_value=MagicMock(parsed_data=MagicMock(id=check_run_id or 1234))
     )
-    github_project.aio_github.rest.checks.async_update = AsyncMock()
+    github_project.aio_github.rest.checks.async_update = AsyncMock(side_effect=check_run_update_side_effect)
 
     mock_module = MagicMock()
     mock_module.title.return_value = "Mock module"
@@ -391,3 +394,46 @@ async def test_process_job_updates_existing_check_run_to_in_progress() -> None:
         call.kwargs["status"] for call in github_project.aio_github.rest.checks.async_update.await_args_list
     ]
     assert "in_progress" in update_statuses
+
+
+def _not_found_error() -> githubkit.exception.RequestFailed:
+    """Create the error returned by GitHub while a new check run is not visible on all API replicas."""
+    return githubkit.exception.RequestFailed(
+        githubkit.response.Response(
+            httpx.Response(404, request=httpx.Request("PATCH", "https://api.github.com/")),
+            dict,
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_process_job_retries_completed_update_on_404() -> None:
+    """
+    Test that the completed update of the check run is retried on 404.
+
+    GitHub answers 404 while the check run created one second before is not yet visible
+    on the answering API replica.
+    """
+    with patch("github_app_geo_project.utils.asyncio.sleep", new=AsyncMock()):
+        github_project, _create_checks = await _run_mock_module_job(
+            check_run_id=None,
+            check_run_update_side_effect=[_not_found_error(), MagicMock()],
+        )
+
+    update_statuses = [
+        call.kwargs["status"] for call in github_project.aio_github.rest.checks.async_update.await_args_list
+    ]
+    assert update_statuses == ["completed", "completed"]
+    assert github_project.aio_github.rest.checks.async_update.await_args.kwargs["conclusion"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_process_job_stays_done_when_completed_update_always_fails() -> None:
+    """Test that a check run that cannot be completed does not fail the already terminated job."""
+    with patch("github_app_geo_project.utils.asyncio.sleep", new=AsyncMock()):
+        github_project, _create_checks = await _run_mock_module_job(
+            check_run_id=None,
+            check_run_update_side_effect=_not_found_error(),
+        )
+
+    assert len(github_project.aio_github.rest.checks.async_update.await_args_list) == 4
