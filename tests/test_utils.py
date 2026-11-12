@@ -2,8 +2,11 @@
 
 """Tests for the application utils."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
+import githubkit.exception
+import githubkit.response
+import httpx
 import pytest
 from sqlalchemy.dialects import postgresql
 
@@ -148,6 +151,52 @@ async def test_apply_jobs_unique_on_no_conflict() -> None:
 
     session.execute.assert_awaited_once()
     github_project.aio_github.rest.checks.async_update.assert_not_awaited()
+
+
+def _request_failed(status_code: int) -> githubkit.exception.RequestFailed:
+    """Create a failed GitHub API response, like the one raised on a transient 404."""
+    return githubkit.exception.RequestFailed(
+        githubkit.response.Response(
+            httpx.Response(status_code, request=httpx.Request("PATCH", "https://api.github.com/")),
+            dict,
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_complete_check_run_retries_on_404() -> None:
+    """The completed update should be retried while the check run is not visible on the API replica."""
+    aio_github = MagicMock()
+    aio_github.rest.checks.async_update = AsyncMock(side_effect=[_request_failed(404), MagicMock()])
+
+    with patch("github_app_geo_project.utils.asyncio.sleep", new=AsyncMock()) as sleep:
+        result = await utils.complete_check_run(aio_github, "camptocamp", "geo-project", 123, "success")
+
+    assert result is True
+    assert aio_github.rest.checks.async_update.await_count == 2
+    sleep.assert_awaited_once()
+    kwargs = aio_github.rest.checks.async_update.await_args.kwargs
+    assert kwargs["status"] == "completed"
+    assert kwargs["conclusion"] == "success"
+    assert "output" not in kwargs
+
+
+@pytest.mark.asyncio
+async def test_complete_check_run_does_not_retry_other_errors() -> None:
+    """Only the transient 404 of the eventual consistency is retried."""
+    aio_github = MagicMock()
+    aio_github.rest.checks.async_update = AsyncMock(side_effect=_request_failed(403))
+
+    result = await utils.complete_check_run(
+        aio_github, "camptocamp", "geo-project", 123, "failure", {"title": "Job failed", "summary": "Oops"}
+    )
+
+    assert result is False
+    assert aio_github.rest.checks.async_update.await_count == 1
+    assert aio_github.rest.checks.async_update.await_args.kwargs["output"] == {
+        "title": "Job failed",
+        "summary": "Oops",
+    }
 
 
 def _make_check_name_module(check_name_per_action: bool) -> MagicMock:

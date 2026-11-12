@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-12
+
+### Fixed
+
+- **Queue**: A finished job is no more reported with a check run that stays `in progress` forever. The `404 Not Found` answered by GitHub because of the API eventual consistency (see the 2026-11-11 entry) also reached the `PATCH` that sets the check run to `completed` when the module terminated quickly, in less than a second for the dispatcher. As that update was awaited at the end of the job processing, the exception failed the job after it was already marked as done; the check run stayed `in progress` and the job was never relaunched. The completed updates are now retried on `404` with a backoff, and a check run that cannot be updated only logs an error instead of failing the already terminated job.
+
 ## 2026-11-11
 
 ### Fixed
