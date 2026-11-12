@@ -2467,3 +2467,103 @@ async def test_select_java_version_explicit_mapping(tmp_path: Path) -> None:
 
     mock_find.assert_not_awaited()
     assert env["PATH"] == "/opt/java/configured/bin:/usr/bin"
+
+
+def test_is_python_incompatible() -> None:
+    """A release requiring a newer Python than the branch is flagged incompatible."""
+    assert audit_utils.is_python_incompatible(">=3.11", "3.10") is True
+    assert audit_utils.is_python_incompatible(">=3.11", "3.11") is False
+    assert audit_utils.is_python_incompatible(">=3.10", "3.10") is False
+    assert audit_utils.is_python_incompatible(">=3.9,<4", "3.10") is False
+    # No specifier or no branch Python: the pin is kept on a doubt.
+    assert audit_utils.is_python_incompatible(None, "3.10") is False
+    assert audit_utils.is_python_incompatible("", "3.10") is False
+    assert audit_utils.is_python_incompatible(">=3.11", "") is False
+    # An unparsable specifier is treated as compatible.
+    assert audit_utils.is_python_incompatible("not-a-spec", "3.10") is False
+
+
+def test_remove_pin_lines() -> None:
+    """Only the exact pinned requirement lines are removed, the others are preserved."""
+    content = (
+        "c2cciutils[checks]==1.5.16\n"
+        "Filelock>=4.2.1 # not directly required, pinned by Snyk to avoid a vulnerability\n"
+        "setuptools>=84.1.0 # not directly required, pinned by Snyk to avoid a vulnerability\n"
+        "filelock>=3.8.0\n"
+    )
+
+    new_content, changed = audit_utils.remove_pin_lines(content, {("filelock", "4.2.1")})
+
+    assert changed is True
+    assert "Filelock>=4.2.1" not in new_content
+    # The other filelock line (another version) and the unrelated pins are kept.
+    assert "filelock>=3.8.0\n" in new_content
+    assert "setuptools>=84.1.0" in new_content
+
+    unchanged, unchanged_flag = audit_utils.remove_pin_lines(content, {("virtualenv", "21.0.0")})
+    assert unchanged_flag is False
+    assert unchanged == content
+
+
+def test_remove_pin_lines_extras() -> None:
+    """A requirement with an extras section is matched by its normalized name and version."""
+    new_content, changed = audit_utils.remove_pin_lines(
+        "virtualenv[foo]>=4.2.1 # pinned\n",
+        {("virtualenv", "4.2.1")},
+    )
+
+    assert changed is True
+    assert new_content == ""
+
+
+@pytest.mark.asyncio
+async def test_drop_python_incompatible_pins(tmp_path: Path) -> None:
+    """Pins whose release needs a newer Python are removed, compatible pins are kept."""
+    (tmp_path / "ci").mkdir()
+    (tmp_path / "ci" / "requirements.txt").write_text(
+        "filelock>=4.2.1 # not directly required, pinned by Snyk to avoid a vulnerability\n"
+        "setuptools>=84.1.0 # not directly required, pinned by Snyk to avoid a vulnerability\n",
+    )
+    (tmp_path / "admin").mkdir()
+    (tmp_path / "admin" / "requirements.txt").write_text(
+        "pillow>=13.0.0 # not directly required, pinned by Snyk to avoid a vulnerability\n",
+    )
+    pins_by_file = {
+        "ci/requirements.txt": {("filelock", "4.2.1"), ("setuptools", "84.1.0")},
+        "admin/requirements.txt": {("pillow", "13.0.0")},
+    }
+    requires_python = {"filelock": ">=3.11", "pillow": ">=3.11", "setuptools": ">=3.10"}
+
+    async def fake_fetch(_session: object, name: str, _version: str) -> str | None:
+        return requires_python[name]
+
+    with patch.object(
+        audit_utils,
+        "_fetch_requires_python",
+        new=AsyncMock(side_effect=fake_fetch),
+    ):
+        dropped = await audit_utils.drop_python_incompatible_pins(
+            anyio.Path(str(tmp_path)),
+            pins_by_file,
+            "3.10",
+        )
+
+    assert sorted(dropped) == ["filelock>=4.2.1", "pillow>=13.0.0"]
+    ci_content = (tmp_path / "ci" / "requirements.txt").read_text()
+    assert "filelock>=4.2.1" not in ci_content
+    assert "setuptools>=84.1.0" in ci_content
+    assert (tmp_path / "admin" / "requirements.txt").read_text() == ""
+
+
+@pytest.mark.asyncio
+async def test_drop_python_incompatible_pins_without_python_version(tmp_path: Path) -> None:
+    """Without a branch Python version nothing is fetched nor dropped."""
+    with patch.object(audit_utils, "_fetch_requires_python", new=AsyncMock()) as mock_fetch:
+        dropped = await audit_utils.drop_python_incompatible_pins(
+            anyio.Path(str(tmp_path)),
+            {"ci/requirements.txt": {("filelock", "4.2.1")}},
+            "",
+        )
+
+    assert dropped == []
+    mock_fetch.assert_not_awaited()

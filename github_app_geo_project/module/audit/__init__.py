@@ -521,6 +521,7 @@ async def _process_snyk_dpkg(
                     logs_url,
                     env,
                     cwd,
+                    python_version,
                 )
 
                 # Run a second Snyk JSON test with --ignore-policy to find ignored vulnerabilities

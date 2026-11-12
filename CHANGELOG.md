@@ -6,6 +6,12 @@
 
 - **Queue**: A job is no more failed when GitHub transiently answers `404 Not Found` on the check run that it just created. When a job starts without an existing check run, the application created it with `POST /repos/{owner}/{repo}/check-runs` and immediately updated it to `in_progress` with a `PATCH`; because of the GitHub API eventual consistency the freshly created check run can not be visible yet and the update returned a 404 (`githubkit.exception.RequestFailed`) that failed the whole job, while relaunching it worked because the check run existed in the meantime. The check run of a starting job is now created directly with the `in_progress` status (and its `started_at` date), no update immediately follows the creation anymore; only the relaunched jobs, whose check run already exists, still update it to `in_progress`.
 
+## 2026-11-10
+
+### Fixed
+
+- **Audit**: A Snyk requirement pin whose fixed release needs a newer Python than the branch is no more added to the requirements files. Snyk appends a minimum-version lower bound for every reported vulnerability without checking the branch interpreter, so on a stabilization branch pinned to an older Python (e.g. `2.8` on Python 3.10) the injected `filelock>=4.2.1` or `pillow>=13.0.0` made the Docker image `pip install` fail with `No matching distribution found`, and the audit pull request could never build. The `Requires-Python` of the pinned version is now read from PyPI and, when it is incompatible with the Python version taken from `.tool-versions`, the pin is dropped: it is neither committed nor reported as a fix, and is logged with a `Python-incompatible pins skipped` message.
+
 ## 2026-11-09
 
 ### Fixed

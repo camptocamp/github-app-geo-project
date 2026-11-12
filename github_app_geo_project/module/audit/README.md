@@ -64,6 +64,15 @@ The pull request body contains:
 - The raw output of the fix commands (`snyk fix`, `npm audit fix`) in a collapsed `<details>` section.
 - A `Logs` link to the job logs and an `Output` link to the Snyk summary report of the branch.
 
+Snyk adds a minimum-version lower bound to the requirements files for every vulnerability it
+reports, without checking that the fixed release is installable with the branch interpreter. When
+the required Python (`Requires-Python` read from PyPI for the pinned version) is newer than the
+branch Python version taken from `.tool-versions`, the pin is dropped from the fix: it would make
+the Docker image `pip install` fail deterministically, and such a version is unfixable on that
+branch (the vulnerability stays handled by the `.snyk` policy ignores). The dropped pins are
+neither committed nor reported as fixes, and are logged with a `Python-incompatible pins skipped`
+message.
+
 #### Snyk Summary Report Output
 
 Every `snyk (<version>)` job creates or updates the `/output/<owner>/<repository>/snyk-<version>` output, even when every vulnerability was fixed or when only vulnerabilities below the dashboard threshold remain. The page lists the remaining vulnerabilities, the ignored ones (with the reason found in the `.snyk` policy files) and, collapsed, the low severity ones. It displays `No vulnerability found.` when the three sections are empty. The output URL is stable, it is linked from the pull request body and from the transversal dashboard.
