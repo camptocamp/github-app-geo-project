@@ -11,6 +11,7 @@ import zipfile
 from collections.abc import AsyncIterator
 from typing import Any
 
+import anyio
 import githubkit.exception
 import githubkit.webhooks
 import githubkit_schemas.latest.models
@@ -25,6 +26,15 @@ _CODEQL_JOB_NAME_MATCHER = re.compile(r"^Analyze \([a-z]+\)$")
 _PATCH_COMMIT_TRAILER = "From the artifact of the previous workflow run"
 _PATCH_BRANCH_PREFIX = "ghci/patch/"
 _BRANCH_SUFFIX_MATCHER = re.compile(r"^(?P<message>.+) \[(?P<branch>[^\[\]]+)\]$")
+# The messages with which GitHub rejects a push on a branch that cannot be updated directly,
+# with the classic branch protection (GH006) and with the repository rules (GH013)
+_PUSH_DECLINED_MARKERS = (
+    "protected branch hook declined",
+    "GH006",
+    "Repository rule violations",
+    "push declined due to repository rule violations",
+    "GH013",
+)
 
 
 class PatchError(Exception):
@@ -37,6 +47,7 @@ class _PatchTarget(BaseModel):
     message: str
     branch: str | None = None
     error: str | None = None
+    override: bool = False
 
 
 def _resolve_artifact_target(
@@ -52,6 +63,7 @@ def _resolve_artifact_target(
     `<message> [<branch>].patch` to apply it on another branch. The branch override is only honoured for the
     workflow run events listed in `branch_override_events`: a patch produced by a pull request workflow must
     never be applied on another branch than the pull request one.
+    An overridden branch is never committed directly, the patch always lands on it through a pull request.
     """
     message = artifact_name.removesuffix(".patch")
     match = _BRANCH_SUFFIX_MATCHER.match(message)
@@ -68,7 +80,7 @@ def _resolve_artifact_target(
                 f"(allowed events: {', '.join(sorted(branch_override_events))})"
             ),
         )
-    return _PatchTarget(message=override_message, branch=override_branch)
+    return _PatchTarget(message=override_message, branch=override_branch, override=True)
 
 
 async def _count_consecutive_patch_commits(
@@ -268,15 +280,84 @@ def format_process_out(stdout: str | None, stderr: str | None) -> str:
     return ""
 
 
+async def _create_or_update_pull_request(
+    context: module.ProcessContext[dict[str, Any], dict[str, Any]],
+    run_id: int,
+    target_branch: str,
+    last_message: str,
+    max_consecutive_commits: int,
+    cwd: anyio.Path,
+) -> str | None:
+    """
+    Create or update the `ghci/patch/` pull request carrying the commits for the target branch.
+
+    Returns the message to report in the check output when the pull request could not be created,
+    or `None` on success.
+    """
+    open_patch_pull_requests = await _list_open_patch_pull_requests(
+        context,
+        target_branch,
+        max_consecutive_commits,
+    )
+    if len(open_patch_pull_requests) >= max_consecutive_commits > 0:
+        summary = (
+            f"There are already {len(open_patch_pull_requests)} open "
+            f"'{_PATCH_BRANCH_PREFIX}{target_branch}-*' pull requests created by the "
+            f"patch module (limit: {max_consecutive_commits}), refusing to create "
+            "a new one to avoid an infinite loop. "
+            "This usually means that the CI fix is unstable (for example a "
+            "non-deterministic pre-commit); fix the underlying issue or close "
+            "the pending pull requests."
+        )
+        _LOGGER.warning(summary)
+        return summary
+    reusable_pull_request = await _find_reusable_patch_pull_request(context, open_patch_pull_requests)
+    if reusable_pull_request is not None and reusable_pull_request.head is not None:
+        new_branch = reusable_pull_request.head.ref
+        _LOGGER.info(
+            "Updating the pull request #%s of the patch module instead of creating a new one",
+            reusable_pull_request.number,
+        )
+    else:
+        new_branch = f"{_PATCH_BRANCH_PREFIX}{target_branch}-{run_id}"
+    pr_body = (
+        f"Automated patch from workflow run "
+        f"[{run_id}](https://github.com/{context.github_project.owner}"
+        f"/{context.github_project.repository}/actions/runs/{run_id})"
+    )
+    pull_request_result = await module_utils.create_pull_request(
+        target_branch,
+        new_branch,
+        last_message,
+        pr_body,
+        context.github_project,
+        cwd,
+    )
+    if not pull_request_result.success:
+        reason = pull_request_result.message or "Failed to create the pull request carrying the patch"
+        _LOGGER.warning(reason)
+        return reason
+    if pull_request_result.pull_request is not None:
+        _LOGGER.info(
+            "Created or updated the pull request %s",
+            pull_request_result.pull_request.html_url,
+        )
+    return None
+
+
 async def _apply_patches(
     context: module.ProcessContext[dict[str, Any], dict[str, Any]],
     run_id: int,
     target_branch: str,
     artifacts: list[Any],
     messages_by_artifact: dict[str, str],
+    pull_request: bool = False,
 ) -> list[str]:
     """
     Apply the patch artifacts on the target branch.
+
+    With `pull_request` the commits are never pushed directly on the target branch, they always go
+    through a `ghci/patch/` pull request, as for a branch targeted with a `[<branch>]` override.
 
     Returns the messages to add to the check output summary, an empty list means that everything succeeded.
     """
@@ -356,7 +437,11 @@ async def _apply_patches(
             _LOGGER.info(message)
 
             if await module_utils.has_changes(cwd, include_un_followed=True):
-                commit_message = messages_by_artifact.get(artifact.name, artifact.name.removesuffix(".patch"))
+                artifact_name: str = artifact.name
+                commit_message = messages_by_artifact.get(
+                    artifact_name,
+                    artifact_name.removesuffix(".patch"),
+                )
                 success = await module_utils.create_commit(
                     f"{commit_message}\n\n{_PATCH_COMMIT_TRAILER}",
                     cwd,
@@ -367,93 +452,62 @@ async def _apply_patches(
                 should_push = True
                 last_message = commit_message
         if should_push:
-            command = ["git", "push", "origin", f"HEAD:{target_branch}"]
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                cwd=cwd,
-            )
-            async with asyncio.timeout(settings.patch.timeouts.git_push.total_seconds()):
-                stdout, stderr = await proc.communicate()
-            message = module_utils.AnsiProcessMessage.from_async_artifacts(
-                command,
-                proc,
-                stdout,
-                stderr,
-            )
-            if proc.returncode != 0:
-                stderr_text = stderr.decode() if stderr else ""
-                if "protected branch hook declined" in stderr_text:
-                    open_patch_pull_requests = await _list_open_patch_pull_requests(
-                        context,
-                        target_branch,
-                        max_consecutive_commits,
-                    )
-                    if len(open_patch_pull_requests) >= max_consecutive_commits > 0:
-                        summary = (
-                            f"There are already {len(open_patch_pull_requests)} open "
-                            f"'{_PATCH_BRANCH_PREFIX}{target_branch}-*' pull requests created by the "
-                            f"patch module (limit: {max_consecutive_commits}), refusing to create "
-                            "a new one to avoid an infinite loop. "
-                            "This usually means that the CI fix is unstable (for example a "
-                            "non-deterministic pre-commit); fix the underlying issue or close "
-                            "the pending pull requests."
-                        )
-                        _LOGGER.warning(summary)
-                        return [*error_messages, summary]
-                    reusable_pull_request = await _find_reusable_patch_pull_request(
-                        context,
-                        open_patch_pull_requests,
-                    )
-                    if reusable_pull_request is not None and reusable_pull_request.head is not None:
-                        new_branch = reusable_pull_request.head.ref
-                        _LOGGER.info(
-                            "Branch '%s' is protected, updating the pull request #%s instead of creating a new one",
-                            target_branch,
-                            reusable_pull_request.number,
-                        )
-                    else:
-                        new_branch = f"{_PATCH_BRANCH_PREFIX}{target_branch}-{run_id}"
-                        _LOGGER.info(
-                            "Branch '%s' is protected, creating a pull request instead",
-                            target_branch,
-                        )
-                    pr_title = last_message
-                    pr_body = (
-                        f"Automated patch from workflow run "
-                        f"[{run_id}](https://github.com/{context.github_project.owner}"
-                        f"/{context.github_project.repository}/actions/runs/{run_id})"
-                    )
-                    pull_request_result = await module_utils.create_pull_request(
-                        target_branch,
-                        new_branch,
-                        pr_title,
-                        pr_body,
-                        context.github_project,
-                        cwd,
-                    )
-                    if not pull_request_result.success:
-                        reason = (
-                            pull_request_result.message
-                            or "Failed to create pull request after protected branch push rejection"
-                        )
-                        message.title = reason
-                        _LOGGER.warning(message)
-                        return [*error_messages, reason]
-                    if pull_request_result.pull_request is not None:
-                        _LOGGER.info(
-                            "Created or updated the pull request %s",
-                            pull_request_result.pull_request.html_url,
-                        )
-                else:
-                    message.title = "Failed to push the changes"
-                    _LOGGER.warning(message)
-                    return [*error_messages, "Failed to push the changes"]
+            if pull_request:
+                _LOGGER.info(
+                    "Applying the patch on the branch '%s' through a pull request",
+                    target_branch,
+                )
+                error_message = await _create_or_update_pull_request(
+                    context,
+                    run_id,
+                    target_branch,
+                    last_message,
+                    max_consecutive_commits,
+                    cwd,
+                )
+                if error_message is not None:
+                    return [*error_messages, error_message]
             else:
-                message.title = "Pushed the changes"
-                _LOGGER.debug(message)
+                command = ["git", "push", "origin", f"HEAD:{target_branch}"]
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdin=asyncio.subprocess.PIPE,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    cwd=cwd,
+                )
+                async with asyncio.timeout(settings.patch.timeouts.git_push.total_seconds()):
+                    stdout, stderr = await proc.communicate()
+                message = module_utils.AnsiProcessMessage.from_async_artifacts(
+                    command,
+                    proc,
+                    stdout,
+                    stderr,
+                )
+                if proc.returncode != 0:
+                    stderr_text = stderr.decode() if stderr else ""
+                    if any(marker in stderr_text for marker in _PUSH_DECLINED_MARKERS):
+                        _LOGGER.info(
+                            "Push to the branch '%s' was declined, creating a pull request instead",
+                            target_branch,
+                        )
+                        error_message = await _create_or_update_pull_request(
+                            context,
+                            run_id,
+                            target_branch,
+                            last_message,
+                            max_consecutive_commits,
+                            cwd,
+                        )
+                        if error_message is not None:
+                            return [*error_messages, error_message]
+                    else:
+                        message.title = "Failed to push the changes"
+                        _LOGGER.warning(message)
+                        return [*error_messages, "Failed to push the changes"]
+                else:
+                    message.title = "Pushed the changes"
+                    _LOGGER.debug(message)
     return error_messages
 
 
@@ -645,6 +699,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
 
         artifacts_by_branch: dict[str, list[Any]] = {}
         messages_by_artifact: dict[str, str] = {}
+        pull_request_branches: set[str] = set()
         for artifact in artifacts:
             if not artifact.name.endswith(".patch"):
                 continue
@@ -661,6 +716,8 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                 continue
             artifacts_by_branch.setdefault(target.branch, []).append(artifact)
             messages_by_artifact[artifact.name] = target.message
+            if target.override:
+                pull_request_branches.add(target.branch)
 
         for target_branch, branch_artifacts in artifacts_by_branch.items():
             error_messages.extend(
@@ -670,6 +727,7 @@ class Patch(module.Module[dict[str, Any], dict[str, Any], dict[str, Any], Any]):
                     target_branch,
                     branch_artifacts,
                     messages_by_artifact,
+                    pull_request=target_branch in pull_request_branches,
                 )
             )
 

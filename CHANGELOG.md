@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-13
+
+### Changed
+
+- **Patch**: A `.patch` artifact targeting another branch than the run one with a `[<branch>]` suffix is applied through a pull request, it is the designed behavior: the destination branch is never committed directly, the commit lands on a `ghci/patch/<branch>-<run-id>` branch (reused from the previous run when the pull request is still open) and the pull request, with auto-merge enabled, is validated by the CI of the destination branch. This is how maintenance workflows like `Update ngeo <version>` update their stabilization branch, instead of failing with `Failed to push the changes` when the destination branch refuses any direct commit.
+- **Patch**: The pull request opened when a direct push is declined now also detects the repository rules rejection (`GH013`, `push declined due to repository rule violations`), in addition to the classic branch protection (`GH006`, `protected branch hook declined`).
+
 ## 2026-11-12
 
 ### Fixed
