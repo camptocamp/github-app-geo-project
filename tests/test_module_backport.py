@@ -104,6 +104,16 @@ async def test_existing_branch_blocker_missing_branch() -> None:
 
 
 @pytest.mark.asyncio
+async def test_existing_branch_blocker_missing_branch_422() -> None:
+    """The Get a commit endpoint answers 422, and not 404, for an unknown ref."""
+    context = _make_context()
+    context.github_project.aio_github.rest.repos.async_get_commit = AsyncMock(
+        side_effect=_make_request_failed_exception(422),
+    )
+    assert await _existing_branch_blocker(context, _BACKPORT_BRANCH) is None
+
+
+@pytest.mark.asyncio
 async def test_existing_branch_blocker_bot_committer() -> None:
     """A branch whose head commit was committed by the application can be overwritten."""
     context = _make_context()

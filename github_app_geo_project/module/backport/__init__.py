@@ -96,8 +96,9 @@ async def _existing_branch_blocker(
             )
         ).parsed_data
     except githubkit.exception.RequestFailed as exception:
-        if exception.response.status_code == 404:
-            # The branch does not exist yet
+        if exception.response.status_code in (404, 422):
+            # The branch does not exist yet: the Get a commit endpoint answers 422
+            # "No commit found for SHA" (and not 404) for an unknown ref
             return None
         _LOGGER.exception("Error while getting the head commit of the branch %s", branch)
         raise
