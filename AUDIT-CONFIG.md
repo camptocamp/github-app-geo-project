@@ -6,6 +6,7 @@
   - <a id="properties/audit/properties/enabled"></a>**`enabled`** *(boolean)*: Default: `true`.
   - <a id="properties/audit/properties/snyk"></a>**`snyk`** *(object)*: Cannot contain additional properties.
     - <a id="properties/audit/properties/snyk/properties/enabled"></a>**`enabled`** *(boolean)*: Enable Snyk audit. Default: `true`.
+    - <a id="properties/audit/properties/snyk/properties/auto-fix"></a>**`auto-fix`** *(boolean)*: Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch. Default: `true`.
     - <a id="properties/audit/properties/snyk/properties/files-no-install"></a>**`files-no-install`** *(array)*: Dependency files that will not be installed. Default: `[]`.
       - <a id="properties/audit/properties/snyk/properties/files-no-install/items"></a>**Items** *(string)*
     - <a id="properties/audit/properties/snyk/properties/excluded-files"></a>**`excluded-files`** *(array)*: List of regex patterns for file names to exclude from the transversal dashboard and security advisories. Default: `[]`.
