@@ -11,6 +11,11 @@ r""" Default value of the field path 'Snyk configuration advisory-severity-thres
 
 
 
+AUTOMATIC_FIX_DEFAULT = True
+r""" Default value of the field path 'Snyk configuration auto-fix' """
+
+
+
 AdvisorySeverityThreshold = Literal['low'] | Literal['medium'] | Literal['high'] | Literal['critical']
 r"""
 Advisory severity threshold.
@@ -309,6 +314,12 @@ SnykConfiguration = TypedDict('SnykConfiguration', {
     # | 
     # | default: True
     'enabled': bool,
+    # | Automatic fix.
+    # | 
+    # | Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch
+    # | 
+    # | default: True
+    'auto-fix': bool,
     # | Files not to install.
     # | 
     # | Dependency files that will not be installed

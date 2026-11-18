@@ -523,21 +523,37 @@ async def snyk(
             branch, config, local_config, result, env_no_debug, cwd, ignore_policy=ignore_policy
         )
 
-        snyk_fix_success, snyk_fix_message = await _snyk_fix(
-            branch,
-            cwd,
-            config,
-            local_config,
-            logs_url,
-            result,
-            env_no_debug,
-            env,
-            fixable_vulnerabilities_summary,
-            vulnerabilities_in_requirements,
+        auto_fix = local_config.get(
+            "auto-fix",
+            config.get("auto-fix", configuration.AUTOMATIC_FIX_DEFAULT),
         )
-        npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(
-            fixable_files_npm, result, cwd, env_no_debug
-        )
+        if auto_fix:
+            snyk_fix_success, snyk_fix_message = await _snyk_fix(
+                branch,
+                cwd,
+                config,
+                local_config,
+                logs_url,
+                result,
+                env_no_debug,
+                env,
+                fixable_vulnerabilities_summary,
+                vulnerabilities_in_requirements,
+            )
+            npm_audit_fix_message, npm_audit_fix_success = await _npm_audit_fix(
+                fixable_files_npm, result, cwd, env_no_debug
+            )
+        else:
+            # Report the vulnerabilities without changing any file: the fix commands are skipped,
+            # the git diff stays empty and no audit pull request is created.
+            snyk_fix_success, snyk_fix_message = True, None
+            npm_audit_fix_message, npm_audit_fix_success = None, True
+            disabled_message = module_utils.HtmlMessage(
+                "The automatic fixes are disabled by the `auto-fix` configuration, "
+                "the fixable vulnerabilities are only reported.",
+            )
+            disabled_message.title = "Auto-fix disabled"
+            result.append(disabled_message)
         # Get the changes applied by the fix commands, before `prek` eventually reformats
         # other files, to report the pins added to the requirements files.
         fix_diff, _, _ = await module_utils.run_timeout(

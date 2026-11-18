@@ -57,6 +57,8 @@ The module uses Snyk to scan for vulnerabilities in project dependencies. It foc
 
 When Snyk identifies vulnerabilities that can be automatically fixed, the module creates a pull request with the necessary changes. This helps maintain project security by streamlining the remediation process.
 
+The automatic fixes can be turned off without turning off the scan by setting `snyk.auto-fix` to `false`. The `snyk fix` and `npm audit fix` commands are then skipped, no file is changed and no pull request is created, the fixable vulnerabilities are only reported in the transversal dashboard and in the Snyk summary output. As for the other Snyk options, it can be set globally in the `.github/ghci.yaml` file of the default branch, or for a single stabilization branch in its own `.github/ghci.yaml` file, where it takes precedence.
+
 The pull request body contains:
 
 - A `Fixed vulnerabilities` section listing the vulnerabilities that were fixed by this run, with their severity, package and version, target file, links to the CVE (`nvd.nist.gov`) and to the Snyk vulnerability page, and the version they are fixed in. The list is the difference between the `snyk test --json` scan done before `snyk fix`/`npm audit fix` and the one done after them.

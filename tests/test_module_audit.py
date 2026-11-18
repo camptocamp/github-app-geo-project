@@ -1006,6 +1006,98 @@ async def test_npm_audit_fix_uses_env(tmp_path: Path) -> None:
     assert mock_run_timeout.await_args_list[0].args[1] is env
 
 
+def _make_snyk_vulnerability() -> VulnerabilityData:
+    return VulnerabilityData(
+        file="pyproject.toml",
+        package_name="django",
+        package_version="3.2.0",
+        package_manager="pip",
+        severity="high",
+        snyk_id="SNYK-PYTHON-DJANGO-123456",
+        cve_ids=["CVE-2024-12345"],
+        cwe_ids=["CWE-79"],
+        title="[HIGH] django@3.2.0: [CVE-2024-12345]",
+        fixed_in=["3.2.1"],
+        is_upgradable=True,
+        is_patchable=False,
+    )
+
+
+def _make_freeze_proc_mock() -> MagicMock:
+    mock_proc = MagicMock()
+    mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+    mock_proc.wait = AsyncMock(return_value=None)
+    mock_proc.returncode = 0
+    return mock_proc
+
+
+@pytest.mark.parametrize("local_config", [{}, {"auto-fix": False}])
+@pytest.mark.asyncio
+async def test_snyk_auto_fix(tmp_path: Path, local_config: dict) -> None:
+    """With `auto-fix` disabled the fix commands are skipped, the vulnerabilities are only reported."""
+    expect_fix = "auto-fix" not in local_config
+    env = {"HOME": str(tmp_path), "PATH": "/usr/bin"}
+    test_result = (
+        {"high": 1},
+        {"high": 1},
+        {"pyproject.toml": "[HIGH] django@3.2.0: SNYK-JS-FOO-1"},
+        {},
+        False,
+        {"pyproject.toml": [_make_snyk_vulnerability()]},
+    )
+
+    with (
+        patch.object(audit_utils, "_select_java_version", new=AsyncMock()),
+        patch.object(audit_utils, "_select_node_version", new=AsyncMock()),
+        patch.object(audit_utils, "_install_requirements_dependencies", new=AsyncMock()),
+        patch.object(audit_utils, "_install_pipenv_dependencies", new=AsyncMock()),
+        patch.object(audit_utils, "_install_poetry_dependencies", new=AsyncMock(return_value=[])),
+        patch.object(audit_utils, "_snyk_monitor", new=AsyncMock(return_value=True)),
+        patch.object(audit_utils, "snyk_cleanup_stale_projects", new=AsyncMock()),
+        patch.object(audit_utils, "_snyk_test", new=AsyncMock(return_value=test_result)),
+        patch.object(audit_utils, "_snyk_fix", new=AsyncMock(return_value=(True, None))) as mock_snyk_fix,
+        patch.object(
+            audit_utils, "_npm_audit_fix", new=AsyncMock(return_value=(None, True))
+        ) as mock_npm_audit_fix,
+        patch.object(audit_utils, "_cleanup_poetry_envs", new=AsyncMock()),
+        patch.object(
+            audit_utils.module_utils,
+            "run_timeout",
+            new=AsyncMock(return_value=("", True, None)),
+        ),
+        patch(
+            "asyncio.create_subprocess_exec",
+            new=AsyncMock(return_value=_make_freeze_proc_mock()),
+        ),
+    ):
+        result = await audit_utils.snyk(
+            "1.0",
+            "owner",
+            "repository",
+            {},
+            {},
+            {},
+            local_config,
+            "https://example.com/logs/1",
+            env,
+            anyio.Path(str(tmp_path)),
+        )
+
+    if expect_fix:
+        mock_snyk_fix.assert_awaited_once()
+        mock_npm_audit_fix.assert_awaited_once()
+        assert not any(message.title == "Auto-fix disabled" for message in result.messages)
+    else:
+        mock_snyk_fix.assert_not_awaited()
+        mock_npm_audit_fix.assert_not_awaited()
+        assert any(message.title == "Auto-fix disabled" for message in result.messages)
+    # No fix applied and no rescan: nothing fixed, the vulnerabilities of the scan are reported
+    assert result.fixed_vulnerabilities == {}
+    assert result.pinned_vulnerabilities == {}
+    assert result.vulnerabilities == test_result[5]
+    assert result.success is True
+
+
 async def _aiter(items):
     for item in items:
         yield item
@@ -2247,6 +2339,60 @@ async def test_process_snyk_pull_request_transversal_status() -> None:
     tool = intermediate_status.status.types["Snyk check/fix 1.21"]
     assert tool.pull_request_url == "https://github.com/camptocamp/tilecloud-chain/pull/42"
     assert tool.summary == "1 high vulnerabilities can be fixed"
+
+
+@pytest.mark.asyncio
+async def test_process_snyk_branch_ghci_configuration() -> None:
+    """The `audit` section of the stabilization branch `.github/ghci.yaml` is passed to the Snyk audit."""
+    context = Mock()
+    context.module_event_data = _EventData(type="snyk", version="1.21")
+    context.module_config = {}
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "tilecloud-chain"
+    context.service_url = "https://example.com/"
+    context.job_id = 123
+
+    intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        clone_path = Path(tmpdirname) / "repo"
+        (clone_path / ".github").mkdir(parents=True)
+        (clone_path / ".github" / "ghci.yaml").write_text("audit:\n  snyk:\n    auto-fix: false\n")
+        mock_cm = _make_worktree_mock(clone_path)
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch(
+                "github_app_geo_project.module.audit._create_pull_request_if_changes",
+            ) as mock_create_pr,
+            patch.object(
+                audit_utils,
+                "snyk",
+                new=AsyncMock(
+                    return_value=([], None, ["1 high vulnerabilities can be fixed"], True, {}, {}, {}),
+                ),
+            ) as mock_snyk,
+            patch.object(audit_utils, "snyk_test_ignored", new=AsyncMock(return_value={})),
+            patch.object(audit_utils, "find_snyk_files", new=AsyncMock(return_value=[])),
+            patch(
+                "github_app_geo_project.module.audit.module_utils.add_output",
+                new=AsyncMock(),
+            ),
+        ):
+            mock_create_pr.return_value = (True, [], None)
+
+            _, success = await _process_snyk_dpkg(
+                context,
+                module_utils.DashboardIssue("- [ ] <!-- snyk --> Check security vulnerabilities with Snyk\n"),
+                intermediate_status,
+            )
+
+    assert success is True
+    assert mock_snyk.await_args is not None
+    # The Snyk local configuration of the branch is forwarded to the audit, `auto-fix` included
+    assert mock_snyk.await_args.args[6] == {"auto-fix": False}
 
 
 def test_get_transversal_dashboard_pull_request_url() -> None:

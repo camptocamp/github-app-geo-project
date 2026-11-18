@@ -26,6 +26,12 @@
               "description": "Enable Snyk audit",
               "default": true
             },
+            "auto-fix": {
+              "type": "boolean",
+              "title": "Automatic fix",
+              "description": "Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch",
+              "default": true
+            },
             "files-no-install": {
               "type": "array",
               "title": "Files not to install",
