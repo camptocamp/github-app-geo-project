@@ -15,6 +15,7 @@ import anyio
 import githubkit.exception
 import githubkit_schemas.latest.models
 import pytest
+from multi_repo_automation.editor import JSON5List
 
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
@@ -149,6 +150,57 @@ async def test_process_renovate_default_branch_no_security_file():
                 assert result == (True, [])
                 mock_config.__setitem__.assert_not_called()
                 mock_config.__delitem__.assert_called_once_with("baseBranchPatterns")
+                mock_create_pr.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_process_renovate_default_branch_up_to_date():
+    """The Renovate config is not rewritten when the baseBranchPatterns are already up to date."""
+    context = Mock()
+    context.module_event_data = _EventData(version=None)
+    context.github_project = Mock()
+    context.github_project.default_branch = AsyncMock(return_value="master")
+    context.service_url = "https://example.com/"
+    context.job_id = 123
+
+    known_versions = ["1.0", "2.0"]
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        clone_path = Path(tmpdirname) / "repo"
+        clone_path.mkdir()
+        github_dir = clone_path / ".github"
+        github_dir.mkdir()
+        renovate_file = github_dir / "renovate.json5"
+        renovate_file.write_text("{\n}")
+
+        current_patterns = JSON5List()
+        for pattern in ["master", "1.0", "2.0"]:
+            current_patterns.append(pattern)
+
+        mock_cm = _make_worktree_mock(clone_path)
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch("github_app_geo_project.module.audit.editor.EditRenovateConfig") as mock_editor,
+        ):
+            mock_config = MagicMock()
+            mock_config.get.return_value = current_patterns
+            mock_editor.return_value = MagicMock(
+                __aenter__=AsyncMock(return_value=mock_config),
+                __aexit__=AsyncMock(return_value=None),
+            )
+
+            with patch(
+                "github_app_geo_project.module.audit._create_pull_request_if_changes"
+            ) as mock_create_pr:
+                mock_create_pr.return_value = (True, [], None)
+
+                result = await _process_renovate(context, known_versions)
+
+                assert result == (True, [])
+                mock_config.__setitem__.assert_not_called()
+                mock_config.__delitem__.assert_not_called()
                 mock_create_pr.assert_called_once()
 
 
@@ -399,6 +451,55 @@ async def test_create_pull_request_if_changes_error() -> None:
     assert short_message == []
     assert pull_request_url is None
     mock_logger.error.assert_called_once_with("Error while create commit or pull request")
+
+
+@pytest.mark.asyncio
+async def test_create_pull_request_if_changes_no_changes() -> None:
+    """The NO_CHANGES status is a success and closes the pull requests of the previous runs."""
+    context = _make_create_pull_request_if_changes_context()
+
+    diff_proc = MagicMock()
+    diff_proc.returncode = 1
+    diff_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+    issue_check = module_utils.DashboardIssue("- [ ] <!-- Dpkg 4.0 --> Update dpkg packages\n")
+
+    with (
+        tempfile.TemporaryDirectory() as tmpdirname,
+        patch("asyncio.create_subprocess_exec", new=AsyncMock(return_value=diff_proc)),
+        patch(
+            "github_app_geo_project.module.audit.module_utils.run_timeout",
+            new=AsyncMock(return_value=("", True, None)),
+        ),
+        patch.object(audit_utils, "get_pre_commit_config", return_value={}),
+        patch.object(
+            module_utils,
+            "create_commit_pull_request",
+            new=AsyncMock(
+                return_value=module_utils.PullRequestResult(module_utils.PullRequestStatus.NO_CHANGES)
+            ),
+        ),
+        patch.object(module_utils, "close_pull_request_issues", new=AsyncMock()) as mock_close,
+    ):
+        success, short_message, pull_request_url = await _create_pull_request_if_changes(
+            "4.0",
+            "ghci/audit/dpkg/4.0",
+            "Dpkg 4.0",
+            "Update dpkg packages",
+            context,
+            {},
+            anyio.Path(tmpdirname),
+            issue_check,
+        )
+
+    assert success is True
+    assert short_message == []
+    assert pull_request_url is None
+    mock_close.assert_awaited_once_with(
+        "ghci/audit/dpkg/4.0",
+        "Audit Dpkg 4.0",
+        context.github_project,
+    )
 
 
 def test_get_actions_pull_request_closed() -> None:

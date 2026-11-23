@@ -1113,7 +1113,7 @@ async def test_create_commit_pull_request_python_version(
         patch.object(utils, "ensure_pyenv_python", new=AsyncMock()) as mock_ensure,
         patch(
             "github_app_geo_project.module.utils.run_timeout",
-            new=AsyncMock(return_value=("", True, None)),
+            new=AsyncMock(return_value=("M file", True, None)),
         ) as mock_run_timeout,
         patch.object(utils, "create_commit", new=AsyncMock(return_value=False)),
     ):
@@ -1146,7 +1146,7 @@ async def test_create_commit_pull_request_pyenv_virtualenv_name(
         patch.object(utils, "ensure_pyenv_python", new=AsyncMock()) as mock_ensure,
         patch(
             "github_app_geo_project.module.utils.run_timeout",
-            new=AsyncMock(return_value=("", True, None)),
+            new=AsyncMock(return_value=("M file", True, None)),
         ) as mock_run_timeout,
         patch.object(utils, "create_commit", new=AsyncMock(return_value=False)),
     ):
@@ -1155,6 +1155,37 @@ async def test_create_commit_pull_request_pyenv_virtualenv_name(
     mock_ensure.assert_not_awaited()
     prek_env = mock_run_timeout.await_args_list[0].args[1]
     assert str(tmp_path / "pyenv" / "shims") in prek_env["PATH"]
+
+
+@pytest.mark.asyncio
+async def test_create_commit_pull_request_no_changes_after_prek(tmp_path: Path) -> None:
+    """When the hooks revert all the changes, the status is NO_CHANGES and nothing is committed."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".pre-commit-config.yaml").write_text("repos: []\n", encoding="utf-8")
+    cwd = anyio.Path(str(repo))
+
+    async def fake_run_timeout(command, *args, **kwargs):
+        del args, kwargs
+        if command[:2] == ["git", "status"]:
+            return ("", True, None)
+        return ("output", True, None)
+
+    with (
+        patch(
+            "github_app_geo_project.module.utils.run_timeout",
+            new=AsyncMock(side_effect=fake_run_timeout),
+        ),
+        patch.object(utils, "create_commit", new=AsyncMock(return_value=True)) as mock_create_commit,
+    ):
+        result = await utils.create_commit_pull_request(
+            "branch", "new-branch", "msg", "body", MagicMock(), cwd
+        )
+
+    assert result.status is utils.PullRequestStatus.NO_CHANGES
+    assert result.success
+    assert result.pull_request is None
+    mock_create_commit.assert_not_awaited()
 
 
 def _make_pull_request_github_project() -> MagicMock:

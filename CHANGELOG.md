@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-23
+
+### Fixed
+
+- **Audit**: The daily `Update Renovate configuration` audit job no more fails with `Error while create commit or pull request` when the `baseBranchPatterns` of the `.github/renovate.json5` file are already up to date. The list was unconditionally reassigned, which rewrote the file with the serialization style of the editor instead of the prettier one: `git diff` saw a formatting-only change, the pre-commit hooks reverted it, and the commit then failed with `nothing to commit, working tree clean`, reported as an error. The value is now only written when it actually differs, and when the hooks revert all the changes the result is the new `NO_CHANGES` status: a success with no commit, that closes the pull requests and issues of the previous runs.
+
 ## 2026-11-13
 
 ### Changed
