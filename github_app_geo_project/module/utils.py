@@ -920,6 +920,8 @@ class PullRequestStatus(enum.Enum):
     """An existing, not stale, pull request has been found and updated."""
     STALE = "stale"
     """The pull request is open for too long, this is a voluntary failure to raise attention."""
+    NO_CHANGES = "no-changes"
+    """All the changes have been reverted by the pre-commit hooks, there is nothing to commit."""
     ERROR = "error"
     """An error occurred, like a push failure."""
 
@@ -935,7 +937,11 @@ class PullRequestResult(NamedTuple):
     @property
     def success(self) -> bool:
         """Tell if the pull request creation or update should be considered successful."""
-        return self.status in (PullRequestStatus.CREATED, PullRequestStatus.UPDATED)
+        return self.status in (
+            PullRequestStatus.CREATED,
+            PullRequestStatus.UPDATED,
+            PullRequestStatus.NO_CHANGES,
+        )
 
 
 async def create_pull_request(
@@ -1151,6 +1157,21 @@ async def create_commit_pull_request(
             "Timeout running prek",
             cwd,
         )
+    # The hooks can revert all the changes to the committed state, for example when the
+    # modification was only a formatting difference normalized back by prettier, in that
+    # case there is nothing to commit and this is not an error.
+    stdout, status_success, _ = await run_timeout(
+        ["git", "status", "--porcelain"],
+        None,
+        settings.utils.timeouts.git_status,
+        "Get the status after the hooks",
+        "Error getting the status after the hooks",
+        "Timeout getting the status after the hooks",
+        cwd,
+    )
+    if status_success and not (stdout or "").strip():
+        _LOGGER.info("No changes left after the pre-commit hooks, nothing to commit")
+        return PullRequestResult(PullRequestStatus.NO_CHANGES)
     # Print the changes to be committed
     await run_timeout(
         ["git", "diff"],

@@ -28,6 +28,7 @@ from githubkit_schemas.v2026_03_10.types import (
     RepositoryAdvisoryCreateType,
 )
 from multi_repo_automation import aio_editor as editor
+from multi_repo_automation.editor import JSON5Item
 from pydantic import BaseModel
 
 from github_app_geo_project import models, module
@@ -349,7 +350,15 @@ async def _process_renovate(
                     # Add other versions to baseBranchPatterns, avoiding duplicates
                     other_versions = [v for v in known_versions if v != default_branch]
                     if other_versions:
-                        renovate_config["baseBranchPatterns"] = [default_branch, *other_versions]
+                        desired_patterns: list[str] = [default_branch, *other_versions]
+                        current_patterns: Any = renovate_config.get("baseBranchPatterns")
+                        if isinstance(current_patterns, JSON5Item):
+                            current_patterns = current_patterns.data()
+                        # Do not rewrite the file when the value is already up to date, the
+                        # serialization of the editor does not match the prettier style and
+                        # this would only produce a formatting change reverted by the hooks
+                        if current_patterns != desired_patterns:
+                            renovate_config["baseBranchPatterns"] = desired_patterns
                     elif "baseBranchPatterns" in renovate_config:
                         # Remove baseBranchPatterns if it only contains the default branch
                         del renovate_config["baseBranchPatterns"]
@@ -827,6 +836,14 @@ async def _create_pull_request_if_changes(
                         key,
                         f"{key}: {pull_request_result.message}",
                     )
+            elif pull_request_result.status is module_utils.PullRequestStatus.NO_CHANGES:
+                # The pre-commit hooks reverted all the changes, the configuration is up
+                # to date, close the pull requests and issues of the previous runs.
+                await module_utils.close_pull_request_issues(
+                    new_branch,
+                    f"Audit {key}",
+                    context.github_project,
+                )
             elif not pull_request_result.success:
                 _LOGGER.error(
                     "Error while create commit or pull request",
