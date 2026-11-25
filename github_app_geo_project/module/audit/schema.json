@@ -325,12 +325,21 @@
               "description": "The directory that contains the ArgoCD applications, `<apps-root>/<environment>/[<client>/]<app>/Chart.yaml`",
               "default": "apps"
             },
+            "environments": {
+              "type": "array",
+              "title": "Environments",
+              "description": "The environment sub-directories of `apps-root` that are scanned, matching the directories deployed by ArgoCD",
+              "default": ["int", "prod"],
+              "items": {
+                "type": "string"
+              }
+            },
             "app-structure": {
               "type": "string",
               "title": "Application directory structure",
-              "description": "`single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`",
-              "default": "two-level",
-              "enum": ["single", "two-level"]
+              "description": "`auto` detects the layout, `single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`",
+              "default": "auto",
+              "enum": ["auto", "single", "two-level"]
             },
             "severity-threshold": {
               "type": "string",

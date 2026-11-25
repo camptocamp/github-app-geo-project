@@ -95,9 +95,12 @@ works). The whole feature runs **inside the GHCI worker pods**:
 
 - The default branch of the repository is cloned into the git worktree cache, no ArgoCD server
   or Kubernetes cluster access is needed.
-- The applications are discovered from the `apps/{int,prod}/[<client>/]<app>/Chart.yaml` tree
-  (or `apps/{int,prod}/<app>/Chart.yaml` with `app-structure: single`), honouring the
-  `excluded-apps` regex list.
+- The applications are discovered from the `apps/<environment>/[<client>/]<app>/Chart.yaml` tree,
+  limited to the configured `environments` (default `["int", "prod"]`, which excludes the
+  `apps/example/` test applications). The directory layout (`single` for
+  `apps/<env>/<app>/`, `two-level` for `apps/<env>/<client>/<app>/`) is **detected automatically**
+  with `app-structure: auto` (the default), so no per-repository configuration is required;
+  `excluded-apps` adds optional regex exclusions.
 - Each application directory is rendered with `helm dependency update --skip-refresh` and
   `helm template`; the container image references are extracted from the generated manifests
   (both `image: <name>:<tag>` strings and `image: {repository, tag|digest}` objects).
@@ -115,9 +118,10 @@ images it uses, with for each image the reported vulnerabilities (CVE, package, 
 version, fixed version, title). The transversal dashboard gets a `Trivy images <branch>` entry
 summarizing the scan (`N applications, M images, K critical`) with `Logs` and `Output` links.
 
-The image scan is enabled by default (`audit.trivy.enabled`) but the fan-out only spawns a
-`trivy` job when the default branch of the repository has an `apps` directory. Repositories
-without ArgoCD applications are therefore unaffected.
+The image scan is enabled by default (`audit.trivy.enabled`) with `app-structure: auto`, so an
+ArgoCD deployment repository needs **no configuration**: the fan-out spawns a `trivy` job as soon
+as the default branch has an `apps` directory and a scanned `environment`. Repositories without
+ArgoCD applications are therefore unaffected.
 
 The fan-out also handles the case of a repository **without `SECURITY.md`** (both argocd
 repositories): instead of pruning all transversal entries, it keeps the `Trivy images <branch>`

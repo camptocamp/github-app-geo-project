@@ -2892,30 +2892,43 @@ def test_parse_trivy_report_invalid_json() -> None:
 async def test_discover_applications_structures_and_exclusion(
     tmp_path: Any,
 ) -> None:
-    """The application discovery honours the directory structure and the exclusion patterns."""
+    """The application discovery honours the environments, the auto structure and the exclusions."""
     root = anyio.Path(str(tmp_path))
     await (root / "apps" / "int" / "client" / "app-one").mkdir(parents=True)
     await (root / "apps" / "prod" / "client" / "app-two").mkdir(parents=True)
     await (root / "apps" / "prod" / "client" / "skip-me").mkdir(parents=True)
-    for directory in ["int/client/app-one", "prod/client/app-two", "prod/client/skip-me"]:
+    await (root / "apps" / "example" / "int" / "test-app").mkdir(parents=True)
+    for directory in [
+        "int/client/app-one",
+        "prod/client/app-two",
+        "prod/client/skip-me",
+        "example/int/test-app",
+    ]:
         await (root / "apps" / directory / "Chart.yaml").write_text("apiVersion: v2\n", encoding="utf-8")
-    # A too-shallow chart (no app level) must be ignored in the two-level structure.
-    await (root / "apps" / "prod" / "Chart.yaml").write_text("apiVersion: v2\n", encoding="utf-8")
+    # A vendored sub-chart (deeper) must be ignored by the auto detection.
+    await (root / "apps" / "int" / "client" / "app-one" / "charts" / "dep").mkdir(parents=True)
+    await (root / "apps" / "int" / "client" / "app-one" / "charts" / "dep" / "Chart.yaml").write_text(
+        "apiVersion: v2\n",
+        encoding="utf-8",
+    )
 
+    # `auto` + default environments [int, prod]: the two-level apps are found, example is excluded.
     found = await audit_utils.discover_applications(
         root,
         "apps",
-        "two-level",
+        ["int", "prod"],
+        "auto",
         [r"skip-me$"],
     )
     assert found == ["apps/int/client/app-one", "apps/prod/client/app-two"]
 
+    # A single-level repository is also detected by `auto`.
     single_root = anyio.Path(str(tmp_path / "single"))
     await (single_root / "apps" / "int" / "fmeflow").mkdir(parents=True)
     await (single_root / "apps" / "int" / "fmeflow" / "Chart.yaml").write_text(
         "apiVersion: v2\n", encoding="utf-8"
     )
-    found_single = await audit_utils.discover_applications(single_root, "apps", "single", [])
+    found_single = await audit_utils.discover_applications(single_root, "apps", ["int", "prod"], "auto", [])
     assert found_single == ["apps/int/fmeflow"]
 
 

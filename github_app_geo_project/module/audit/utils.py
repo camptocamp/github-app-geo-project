@@ -2091,34 +2091,42 @@ def extract_images(data: Any) -> set[str]:
 async def discover_applications(
     cwd: anyio.Path,
     apps_root: str,
+    environments: list[str],
     structure: str,
     excluded_apps: list[str],
 ) -> list[str]:
     """
     List the ArgoCD application directories of the repository that contain a ``Chart.yaml``.
 
-    The applications are located at ``<apps_root>/<environment>/<app>/`` (``single``) or
-    ``<apps_root>/<environment>/<client>/<app>/`` (``two-level``). The returned paths are
-    relative to ``cwd`` and sorted.
+    The applications are located under ``<apps_root>/<environment>/`` (the scanned environments
+    are limited to ``environments``), as ``<app>/`` (``single``) or ``<client>/<app>/``
+    (``two-level``). With ``structure='auto'`` both layouts are tried and merged. Vendored
+    sub-charts (under a ``charts/`` directory) are never at these depths, so they are ignored.
+    The returned paths are relative to ``cwd`` and sorted.
     """
     excluded_patterns = [re.compile(pattern) for pattern in excluded_apps]
-    # `single`: <apps_root>/<environment>/<app>/ ; `two-level`: .../<environment>/<client>/<app>/
-    sub_directories = 2 if structure == "single" else 3
-    pattern = "/".join(["*"] * sub_directories) + "/Chart.yaml"
+    structures = ["single", "two-level"] if structure == "auto" else [structure]
 
     root = cwd / apps_root
     if not await root.exists():
         return []
 
-    applications: list[str] = []
-    async for chart_path in root.glob(pattern):
-        app_dir = chart_path.parent
-        relative_str = f"{apps_root}/{app_dir.relative_to(root)}"
-        if any(excluded.search(relative_str) for excluded in excluded_patterns):
-            _LOGGER.debug("Skipping excluded application %s", relative_str)
+    applications: set[str] = set()
+    for environment in environments:
+        environment_dir = root / environment
+        if not await environment_dir.exists():
             continue
-        applications.append(relative_str)
-    return sorted(set(applications))
+        for current_structure in structures:
+            # single: <app>/Chart.yaml ; two-level: <client>/<app>/Chart.yaml
+            sub_directories = 1 if current_structure == "single" else 2
+            pattern = "/".join(["*"] * sub_directories) + "/Chart.yaml"
+            async for chart_path in environment_dir.glob(pattern):
+                relative_str = f"{apps_root}/{chart_path.parent.relative_to(root)}"
+                if any(excluded.search(relative_str) for excluded in excluded_patterns):
+                    _LOGGER.debug("Skipping excluded application %s", relative_str)
+                    continue
+                applications.add(relative_str)
+    return sorted(applications)
 
 
 async def application_images(
@@ -2276,6 +2284,10 @@ async def trivy_images(
         "apps-root",
         config.get("apps-root", configuration.APPLICATIONS_ROOT_DIRECTORY_DEFAULT),
     )
+    environments = local_config.get(
+        "environments",
+        config.get("environments", configuration.ENVIRONMENTS_DEFAULT),
+    )
     structure = local_config.get(
         "app-structure",
         config.get("app-structure", configuration.APPLICATION_DIRECTORY_STRUCTURE_DEFAULT),
@@ -2300,7 +2312,7 @@ async def trivy_images(
         "HELM_CACHE_HOME": "/var/www/.cache/helm",
     }
 
-    applications = await discover_applications(cwd, apps_root, structure, excluded_apps)
+    applications = await discover_applications(cwd, apps_root, environments, structure, excluded_apps)
     if not applications:
         return (
             TrivyReport(branch=branch, applications=[], image_count=0),

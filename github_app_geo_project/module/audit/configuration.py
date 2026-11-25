@@ -16,7 +16,7 @@ r""" Default value of the field path 'Trivy configuration apps-root' """
 
 
 
-APPLICATION_DIRECTORY_STRUCTURE_DEFAULT = 'two-level'
+APPLICATION_DIRECTORY_STRUCTURE_DEFAULT = 'auto'
 r""" Default value of the field path 'Trivy configuration app-structure' """
 
 
@@ -45,14 +45,16 @@ r"""The values for the 'Advisory severity threshold' enum"""
 
 
 
-ApplicationDirectoryStructure = Literal['single'] | Literal['two-level']
+ApplicationDirectoryStructure = Literal['auto'] | Literal['single'] | Literal['two-level']
 r"""
 Application directory structure.
 
-`single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`
+`auto` detects the layout, `single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`
 
-default: two-level
+default: auto
 """
+APPLICATIONDIRECTORYSTRUCTURE_AUTO: Literal['auto'] = "auto"
+r"""The values for the 'Application directory structure' enum"""
 APPLICATIONDIRECTORYSTRUCTURE_SINGLE: Literal['single'] = "single"
 r"""The values for the 'Application directory structure' enum"""
 APPLICATIONDIRECTORYSTRUCTURE_TWO_LEVEL: Literal['two-level'] = "two-level"
@@ -255,6 +257,11 @@ r""" Default value of the field path 'Snyk configuration enabled' """
 
 ENABLE_TRIVY_DEFAULT = True
 r""" Default value of the field path 'Trivy configuration enabled' """
+
+
+
+ENVIRONMENTS_DEFAULT = ['int', 'prod']
+r""" Default value of the field path 'Trivy configuration environments' """
 
 
 
@@ -510,11 +517,19 @@ TrivyConfiguration = TypedDict('TrivyConfiguration', {
     # | 
     # | default: apps
     'apps-root': str,
+    # | Environments.
+    # | 
+    # | The environment sub-directories of `apps-root` that are scanned, matching the directories deployed by ArgoCD
+    # | 
+    # | default:
+    # |   - int
+    # |   - prod
+    'environments': list[str],
     # | Application directory structure.
     # | 
-    # | `single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`
+    # | `auto` detects the layout, `single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`
     # | 
-    # | default: two-level
+    # | default: auto
     'app-structure': "ApplicationDirectoryStructure",
     # | Severity threshold.
     # | 
