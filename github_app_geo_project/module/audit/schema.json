@@ -307,6 +307,55 @@
             }
           }
         },
+        "trivy": {
+          "type": "object",
+          "title": "Trivy configuration",
+          "description": "Scan the container images used by the ArgoCD applications with Trivy",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable Trivy",
+              "description": "Enable the container images audit, only applied to repositories that have an `apps/` directory of Helm applications",
+              "default": true
+            },
+            "apps-root": {
+              "type": "string",
+              "title": "Applications root directory",
+              "description": "The directory that contains the ArgoCD applications, `<apps-root>/<environment>/[<client>/]<app>/Chart.yaml`",
+              "default": "apps"
+            },
+            "app-structure": {
+              "type": "string",
+              "title": "Application directory structure",
+              "description": "`single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`",
+              "default": "two-level",
+              "enum": ["single", "two-level"]
+            },
+            "severity-threshold": {
+              "type": "string",
+              "title": "Severity threshold",
+              "description": "Minimum severity level of the vulnerabilities to report and display (low, medium, high, critical)",
+              "default": "critical",
+              "enum": ["low", "medium", "high", "critical"]
+            },
+            "ignore-unfixed": {
+              "type": "boolean",
+              "title": "Ignore unfixed",
+              "description": "Do not report the vulnerabilities that have no fix yet",
+              "default": false
+            },
+            "excluded-apps": {
+              "type": "array",
+              "title": "Excluded applications",
+              "description": "List of regex patterns for application directory paths to exclude from the images scan",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "version-mapping": {
           "type": "object",
           "title": "Version mapping",

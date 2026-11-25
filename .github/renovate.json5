@@ -48,5 +48,33 @@
       datasourceTemplate: 'github-releases',
       depNameTemplate: 'Schniz/fnm',
     },
+    /**
+     * The helm version and the sha256 of the linux-amd64 archive used in the Docker
+     * image, both updated by the `github-release-attachments` datasource.
+     */
+    {
+      fileMatch: ['^Dockerfile$'],
+      matchStrings: [
+        'ARG HELM_VERSION=(?<currentValue>v[0-9\\.]+)\n# renovate:[^\\n]*\nARG HELM_SHA256=(?<currentDigest>[a-f0-9]{64})',
+      ],
+      managerFilePatterns: ['/^Dockerfile$/'],
+      datasourceTemplate: 'github-release-attachments',
+      depNameTemplate: 'helm/helm',
+      packageNameTemplate: 'helm/helm',
+    },
+    /**
+     * The trivy version and the sha256 of the Linux-64bit archive used in the Docker
+     * image, both updated by the `github-release-attachments` datasource.
+     */
+    {
+      fileMatch: ['^Dockerfile$'],
+      matchStrings: [
+        'ARG TRIVY_VERSION=(?<currentValue>v[0-9\\.]+)\n# renovate:[^\\n]*\nARG TRIVY_SHA256=(?<currentDigest>[a-f0-9]{64})',
+      ],
+      managerFilePatterns: ['/^Dockerfile$/'],
+      datasourceTemplate: 'github-release-attachments',
+      depNameTemplate: 'aquasecurity/trivy',
+      packageNameTemplate: 'aquasecurity/trivy',
+    },
   ],
 }

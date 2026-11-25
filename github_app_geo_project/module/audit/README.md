@@ -6,8 +6,12 @@ A module that does some audit stuff on the project:
   - Create an issue if the pull request is open for more than 5 days
 - Create a pull request with the updated version in the `ci/dpkg.yaml` files
   - Create an issue if the pull request is open for more than 5 days
+- Scan the container images used by the ArgoCD applications (Trivy)
+  - Report the list of images of each application and their critical vulnerabilities in the dashboard
 
-Currently, the module checks the CVEs on the dependencies, but it does not check the code neither the generated Docker images.
+The dependency CVEs are checked with Snyk. The container images used by the ArgoCD
+applications of the deployment repositories (`argocd-gs-gmf-apps`, `argocd-gs-ugsp-apps`) are
+discovered by rendering the Helm charts and scanned with Trivy. The module does not check the code.
 
 The result will be put in the transversal dashboard.
 
@@ -32,12 +36,14 @@ The lower the priority number, the sooner the job is processed. The priorities a
 | `cleanup`                   | `PRIORITY_STANDARD + 1` | 31    |
 | `outdated`                  | `PRIORITY_STANDARD + 2` | 32    |
 | `renovate`                  | `PRIORITY_STANDARD + 3` | 33    |
-| Snyk/dpkg fan-out           | `PRIORITY_CRON`         | 40    |
+| Snyk/dpkg/Trivy fan-out     | `PRIORITY_CRON`         | 40    |
 | `renovate (<version>)`      | `PRIORITY_CRON + 1`     | 41    |
 | `dpkg (<version>)`          | `PRIORITY_CRON + 2`     | 42    |
 | `snyk (<version>)`          | `PRIORITY_CRON + 3`     | 43    |
+| `trivy (<branch>)`          | `PRIORITY_CRON + 4`     | 44    |
 
-The `snyk (<version>)` jobs are the slowest and are serialized (`_SNYK_LOCK`), that is why they have the highest priority number.
+The `snyk (<version>)` and `trivy (<branch>)` jobs are the slowest and are serialized
+(`_SNYK_LOCK`, `_TRIVY_LOCK`), that is why they have the highest priority numbers.
 
 ### Other files used by the module
 
@@ -79,6 +85,45 @@ message.
 
 Every `snyk (<version>)` job creates or updates the `/output/<owner>/<repository>/snyk-<version>` output, even when every vulnerability was fixed or when only vulnerabilities below the dashboard threshold remain. The page lists the remaining vulnerabilities, the ignored ones (with the reason found in the `.snyk` policy files) and, collapsed, the low severity ones. It displays `No vulnerability found.` when the three sections are empty. The output URL is stable, it is linked from the pull request body and from the transversal dashboard.
 
+#### Container Images Scan (Trivy)
+
+The ArgoCD deployment repositories (`argocd-gs-gmf-apps`, `argocd-gs-ugsp-apps`) reference a large
+number of container images that are not visible from a plain dependency scan. The `audit` module
+discovers and scans them with [Trivy](https://trivy.dev), replacing the legacy `snyk-images`
+GitHub Actions workflow (whose Snyk token, fetched from the abandoned gopass store, no longer
+works). The whole feature runs **inside the GHCI worker pods**:
+
+- The default branch of the repository is cloned into the git worktree cache, no ArgoCD server
+  or Kubernetes cluster access is needed.
+- The applications are discovered from the `apps/{int,prod}/[<client>/]<app>/Chart.yaml` tree
+  (or `apps/{int,prod}/<app>/Chart.yaml` with `app-structure: single`), honouring the
+  `excluded-apps` regex list.
+- Each application directory is rendered with `helm dependency update --skip-refresh` and
+  `helm template`; the container image references are extracted from the generated manifests
+  (both `image: <name>:<tag>` strings and `image: {repository, tag|digest}` objects).
+- Every distinct image reference is scanned exactly once with
+  `trivy image --format=json --severity=<SEVERITY> <image>`, with a semaphore of 4 concurrent
+  scans and a module-wide `_TRIVY_LOCK` so that two scans never overlap. An image shared by
+  several applications is therefore **not scanned twice**.
+- The Trivy database cache is written to `/var/www/.cache/trivy` (the same writable directory
+  pattern as `/opt/fnm/node-versions`), the container entrypoint does not need any extra
+  `emptyDir` mount.
+
+Every `trivy (<branch>)` job creates or updates the
+`/output/<owner>/<repository>/trivy-images-<branch>` page, listing per application the container
+images it uses, with for each image the reported vulnerabilities (CVE, package, installed
+version, fixed version, title). The transversal dashboard gets a `Trivy images <branch>` entry
+summarizing the scan (`N applications, M images, K critical`) with `Logs` and `Output` links.
+
+The image scan is enabled by default (`audit.trivy.enabled`) but the fan-out only spawns a
+`trivy` job when the default branch of the repository has an `apps` directory. Repositories
+without ArgoCD applications are therefore unaffected.
+
+The fan-out also handles the case of a repository **without `SECURITY.md`** (both argocd
+repositories): instead of pruning all transversal entries, it keeps the `Trivy images <branch>`
+entries in `known_types` and continues the daily cleanup, so that a scan result is not erased
+every day.
+
 #### Version Update Pull Requests
 
 For projects using the `ci/dpkg.yaml` file format, the module checks for outdated dependencies and creates pull requests with updated versions. This keeps dependencies up-to-date and reduces technical debt.
@@ -93,10 +138,10 @@ The daily `cleanup` job (also triggered when `SECURITY.md` is removed from the d
 
 - Close the `ghci/audit/{snyk,dpkg,renovate}/<version>` branches and their pull requests, including the branches left behind by merged or manually closed pull requests.
 - Close the related bot issues (`Pull request Audit ... is open for N days`), including the `Cleanup Renovate configuration` ones.
-- Delete the persisted Snyk outputs (`/output/<owner>/<repository>/snyk-<version>`) of the removed versions.
+- Delete the persisted Snyk outputs (`/output/<owner>/<repository>/snyk-<version>`) and the Trivy images outputs (`/output/<owner>/<repository>/trivy-images-<branch>`) of the removed versions.
 - Clear the dashboard checks when `SECURITY.md` is removed.
 
-The Snyk/dpkg fan-out job additionally prunes the transversal dashboard entries (`Snyk check/fix <version>`, `Dpkg <version>`) and the legacy vulnerability sections (`=== <version>` in the dashboard issue) of the versions removed from `SECURITY.md`.
+The Snyk/dpkg/Trivy fan-out job additionally prunes the transversal dashboard entries (`Snyk check/fix <version>`, `Dpkg <version>`, `Trivy images <branch>`) and the legacy vulnerability sections (`=== <version>` in the dashboard issue) of the versions removed from `SECURITY.md`.
 
 The `cleanup` job reports the resulting situation in the output of its check run (`Cleanup: Everything is clean`, or `Cleanup: N leftover(s) removed` with the details of what was removed) and as a `Cleanup` entry in the transversal dashboard.
 
