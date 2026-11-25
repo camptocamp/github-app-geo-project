@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-11-25
+
+### Added
+
+- **Audit**: Scan the container images used by the ArgoCD applications with Trivy, replacing the legacy `snyk-images` GitHub Actions workflow that no longer works (its Snyk token was fetched from the abandoned gopass store). The scan runs entirely in the GHCI worker pods: the applications are discovered by rendering their Helm charts, each distinct image reference is scanned once (an image shared by several applications is not scanned twice), and the result is published to the transversal dashboard as a `Trivy images <branch>` entry linking an `/output/<owner>/<repository>/trivy-images-<branch>` page that lists, for every application, the images it uses with their critical vulnerabilities. Enabled by default (`audit.trivy.enabled`), with automatic detection of the application layout
+  (`app-structure: auto`) and a default environment list (`int`, `prod`), so an ArgoCD deployment
+  repository needs no configuration: the fan-out only spawns a `trivy` job when the repository has
+  an `apps` directory and a scanned environment, leaving every other repository unaffected. The
+  fan-out no more prunes these entries when the repository has no `SECURITY.md`. The audit
+  dashboard now accepts a `?repository=<owner>/<repo>` filter and the repository titles link to it.
+  The `helm` and `trivy` binaries are added to the worker image with a pinned sha256 kept up to
+  date by Renovate (`github-release-attachments`).
+
 ## 2026-11-23
 
 ### Fixed

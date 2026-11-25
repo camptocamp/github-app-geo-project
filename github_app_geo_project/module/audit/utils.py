@@ -23,6 +23,7 @@ import packaging.specifiers
 import packaging.version
 import security_md
 import yaml  # nosec
+from pydantic import BaseModel
 
 from github_app_geo_project import models, utils
 from github_app_geo_project.module import utils as module_utils
@@ -44,6 +45,14 @@ _TIMEOUT_SNYK_FIX = settings.audit.timeouts.snyk_fix
 _TIMEOUT_POETRY_VERSION = settings.audit.timeouts.poetry_version
 _TIMEOUT_NPM_AUDIT = settings.audit.timeouts.npm_audit
 _TIMEOUT_NODE_INSTALL = settings.audit.timeouts.node_install
+_TIMEOUT_HELM_TEMPLATE = settings.audit.timeouts.helm_template
+_TIMEOUT_TRIVY_IMAGE = settings.audit.timeouts.trivy_image
+
+_TRIVY_CONCURRENCY = 4
+"""Number of container images scanned by Trivy at the same time."""
+
+_TRIVY_CACHE_DIR = "/var/www/.cache/trivy"
+"""The Trivy cache (vulnerability DB) directory, writable by the worker user."""
 
 
 class VulnerabilityData(NamedTuple):
@@ -1984,3 +1993,373 @@ async def snyk_test_ignored(
         ignore_policy=True,
     )
     return file_vulnerabilities
+
+
+class TrivyVulnerability(BaseModel):
+    """A single vulnerability reported by Trivy for a container image."""
+
+    cve: str
+    """The CVE identifier (or the Trivy vulnerability ID when no CVE is known)."""
+    package: str
+    """The vulnerable package name."""
+    installed_version: str
+    """The installed vulnerable version in the image."""
+    fixed_version: str = ""
+    """The version that fixes the vulnerability, empty when there is no fix yet."""
+    severity: str = "critical"
+    """The vulnerability severity (lowercase)."""
+    title: str = ""
+    """A short description of the vulnerability."""
+    references: list[str] = []
+    """The reference URLs of the vulnerability."""
+
+
+class TrivyImage(BaseModel):
+    """The Trivy scan result of a single container image."""
+
+    image: str
+    """The container image reference (``repository:tag`` or ``repository@sha256:...``)."""
+    critical_count: int = 0
+    """Number of vulnerabilities at or above the configured severity threshold."""
+    vulnerabilities: list[TrivyVulnerability] = []
+    """The reported vulnerabilities."""
+    scan_error: str = ""
+    """The scan failure reason, empty when the image was scanned successfully."""
+
+
+class TrivyApplication(BaseModel):
+    """The container images used by a single ArgoCD application."""
+
+    application: str
+    """The application directory path, relative to the repository root."""
+    images: list[TrivyImage] = []
+    """The images referenced by the application."""
+
+
+class TrivyReport(BaseModel):
+    """The aggregated result of the container images scan of a repository branch."""
+
+    branch: str
+    applications: list[TrivyApplication] = []
+    image_count: int = 0
+    """Number of distinct images scanned (an image used by several applications is counted once)."""
+    critical_total: int = 0
+    """Total number of reported vulnerabilities across the distinct scanned images."""
+    scan_errors: int = 0
+    """Number of images that could not be scanned."""
+
+
+_SEVERITY_TRIVY: dict[str, str] = {
+    "low": "LOW",
+    "medium": "MEDIUM",
+    "high": "HIGH",
+    "critical": "CRITICAL",
+}
+
+
+def extract_images(data: Any) -> set[str]:
+    """
+    Recursively collect the container images referenced in a rendered Kubernetes manifest.
+
+    Handles both the ``image: repository:tag`` form and the ``image: {repository:, tag:}``
+    / ``image: {repository:, digest:}`` object forms used by the different charts.
+    """
+    images: set[str] = set()
+    if isinstance(data, dict):
+        image = data.get("image")
+        if isinstance(image, str):
+            images.add(image)
+        elif isinstance(image, dict):
+            repository = image.get("repository")
+            if isinstance(repository, str):
+                digest = image.get("digest")
+                tag = image.get("tag")
+                if isinstance(digest, str) and digest:
+                    images.add(f"{repository}@{digest}")
+                elif isinstance(tag, str) and tag:
+                    images.add(f"{repository}:{tag}")
+                else:
+                    images.add(repository)
+        for value in data.values():
+            images |= extract_images(value)
+    elif isinstance(data, (list, tuple, set)):
+        for item in data:
+            images |= extract_images(item)
+    return images
+
+
+async def discover_applications(
+    cwd: anyio.Path,
+    apps_root: str,
+    environments: list[str],
+    structure: str,
+    excluded_apps: list[str],
+) -> list[str]:
+    """
+    List the ArgoCD application directories of the repository that contain a ``Chart.yaml``.
+
+    The applications are located under ``<apps_root>/<environment>/`` (the scanned environments
+    are limited to ``environments``), as ``<app>/`` (``single``) or ``<client>/<app>/``
+    (``two-level``). With ``structure='auto'`` both layouts are tried and merged. Vendored
+    sub-charts (under a ``charts/`` directory) are never at these depths, so they are ignored.
+    The returned paths are relative to ``cwd`` and sorted.
+    """
+    excluded_patterns = [re.compile(pattern) for pattern in excluded_apps]
+    structures = ["single", "two-level"] if structure == "auto" else [structure]
+
+    root = cwd / apps_root
+    if not await root.exists():
+        return []
+
+    applications: set[str] = set()
+    for environment in environments:
+        environment_dir = root / environment
+        if not await environment_dir.exists():
+            continue
+        for current_structure in structures:
+            # single: <app>/Chart.yaml ; two-level: <client>/<app>/Chart.yaml
+            sub_directories = 1 if current_structure == "single" else 2
+            pattern = "/".join(["*"] * sub_directories) + "/Chart.yaml"
+            async for chart_path in environment_dir.glob(pattern):
+                relative_str = f"{apps_root}/{chart_path.parent.relative_to(root)}"
+                if any(excluded.search(relative_str) for excluded in excluded_patterns):
+                    _LOGGER.debug("Skipping excluded application %s", relative_str)
+                    continue
+                applications.add(relative_str)
+    return sorted(applications)
+
+
+async def application_images(
+    cwd: anyio.Path,
+    application: str,
+) -> tuple[set[str], str]:
+    """
+    Render a single Helm application and extract the container images it references.
+
+    Runs ``helm dependency update`` then ``helm template`` (best effort) on the application
+    directory and collects the ``image`` values of the generated manifests.
+
+    Returns the set of images and an error message (empty when the render succeeded).
+    """
+    app_dir = cwd / application
+    env = {**os.environ, "HELM_CACHE_HOME": _TRIVY_CACHE_DIR.replace("trivy", "helm")}
+
+    await module_utils.run_timeout(
+        ["helm", "dependency", "update", "--skip-refresh"],
+        env,
+        _TIMEOUT_HELM_TEMPLATE,
+        f"Helm dependency update {application}",
+        f"Helm dependency update failed {application}",
+        f"Helm dependency update timeout {application}",
+        app_dir,
+        error=False,
+    )
+
+    command = [
+        "helm",
+        "template",
+        app_dir.name,
+        ".",
+        "--kube-version=1.25.0",
+        "--namespace=default",
+    ]
+    stdout, success, _ = await module_utils.run_timeout(
+        command,
+        env,
+        _TIMEOUT_HELM_TEMPLATE,
+        f"Helm template {application}",
+        f"Helm template failed {application}",
+        f"Helm template timeout {application}",
+        app_dir,
+        error=False,
+    )
+    if not success or stdout is None:
+        return set(), f"Failed to render the Helm chart of `{application}`"
+
+    images: set[str] = set()
+    try:
+        for document in yaml.load_all(stdout, Loader=yaml.SafeLoader):
+            images |= extract_images(document)
+    except yaml.YAMLError as error:
+        _LOGGER.warning("Failed to parse the rendered manifests of %s: %s", application, error)
+        return images, f"Failed to parse the rendered manifests of `{application}`"
+    return {image for image in images if "/" in image or ":" in image}, ""
+
+
+def _parse_trivy_report(stdout: str) -> list[TrivyVulnerability]:
+    """Parse the vulnerabilities of a ``trivy image --format json`` output."""
+    vulnerabilities: list[TrivyVulnerability] = []
+    try:
+        report = json.loads(stdout)
+    except json.JSONDecodeError:
+        return vulnerabilities
+    results = report.get("Results")
+    if not isinstance(results, list):
+        return vulnerabilities
+    for result in results:
+        if not isinstance(result, dict):
+            continue
+        found = result.get("Vulnerabilities")
+        if not isinstance(found, list):
+            continue
+        for vulnerability in found:
+            if not isinstance(vulnerability, dict):
+                continue
+            cve = str(vulnerability.get("VulnerabilityID", ""))
+            references = [
+                str(reference)
+                for reference in vulnerability.get("References", [])
+                if isinstance(reference, str)
+            ]
+            vulnerabilities.append(
+                TrivyVulnerability(
+                    cve=cve,
+                    package=str(vulnerability.get("PkgName", "")),
+                    installed_version=str(vulnerability.get("InstalledVersion", "")),
+                    fixed_version=str(vulnerability.get("FixedVersion", "") or ""),
+                    severity=str(vulnerability.get("Severity", "critical")).lower(),
+                    title=str(vulnerability.get("Title", "")),
+                    references=references,
+                ),
+            )
+    return vulnerabilities
+
+
+async def scan_image(
+    image: str,
+    severity: str,
+    ignore_unfixed: bool,
+    env: dict[str, str],
+    cwd: anyio.Path,
+) -> TrivyImage:
+    """Scan a single container image with Trivy and return the reported vulnerabilities."""
+    command = [
+        "trivy",
+        "image",
+        "--format=json",
+        f"--severity={_SEVERITY_TRIVY.get(severity, 'CRITICAL')}",
+        "--exit-code=0",
+    ]
+    if ignore_unfixed:
+        command.append("--ignore-unfixed")
+    command.append(image)
+
+    stdout, success, _ = await module_utils.run_timeout(
+        command,
+        env,
+        _TIMEOUT_TRIVY_IMAGE,
+        f"Trivy scan {image}",
+        f"Trivy scan failed {image}",
+        f"Trivy scan timeout {image}",
+        cwd,
+        error=False,
+    )
+    if not success or stdout is None:
+        return TrivyImage(image=image, scan_error=f"Failed to scan the image `{image}`")
+    vulnerabilities = _parse_trivy_report(stdout)
+    return TrivyImage(
+        image=image,
+        critical_count=len(vulnerabilities),
+        vulnerabilities=vulnerabilities,
+    )
+
+
+async def trivy_images(
+    branch: str,
+    cwd: anyio.Path,
+    config: configuration.TrivyConfiguration,
+    local_config: configuration.TrivyConfiguration,
+) -> tuple[TrivyReport, list[module_utils.Message]]:
+    """
+    Scan the container images used by the ArgoCD applications of the checked out branch.
+
+    The images are discovered by rendering each application Helm chart, then each distinct
+    image reference is scanned once by Trivy (an image shared by several applications is not
+    scanned twice). The vulnerabilities are reported back grouped by application.
+
+    Returns the report and the list of messages logged during the scan.
+    """
+    messages: list[module_utils.Message] = []
+    apps_root = local_config.get(
+        "apps-root",
+        config.get("apps-root", configuration.APPLICATIONS_ROOT_DIRECTORY_DEFAULT),
+    )
+    environments = local_config.get(
+        "environments",
+        config.get("environments", configuration.ENVIRONMENTS_DEFAULT),
+    )
+    structure = local_config.get(
+        "app-structure",
+        config.get("app-structure", configuration.APPLICATION_DIRECTORY_STRUCTURE_DEFAULT),
+    )
+    severity = local_config.get(
+        "severity-threshold",
+        config.get("severity-threshold", configuration.SEVERITY_THRESHOLD_DEFAULT),
+    )
+    ignore_unfixed = local_config.get(
+        "ignore-unfixed",
+        config.get("ignore-unfixed", configuration.IGNORE_UNFIXED_DEFAULT),
+    )
+    excluded_apps = local_config.get(
+        "excluded-apps",
+        config.get("excluded-apps", configuration.EXCLUDED_APPLICATIONS_DEFAULT),
+    )
+
+    await anyio.Path(_TRIVY_CACHE_DIR).mkdir(parents=True, exist_ok=True)
+    env = {
+        **os.environ,
+        "TRIVY_CACHE_DIR": _TRIVY_CACHE_DIR,
+        "HELM_CACHE_HOME": "/var/www/.cache/helm",
+    }
+
+    applications = await discover_applications(cwd, apps_root, environments, structure, excluded_apps)
+    if not applications:
+        return (
+            TrivyReport(branch=branch, applications=[], image_count=0),
+            messages,
+        )
+
+    # Map every application to the images it references, and collect the distinct images.
+    app_images: dict[str, set[str]] = {}
+    app_errors: dict[str, str] = {}
+    unique_images: set[str] = set()
+    for application in applications:
+        images, error = await application_images(cwd, application)
+        app_images[application] = images
+        if error:
+            app_errors[application] = error
+        unique_images |= images
+
+    # Scan each distinct image exactly once.
+    semaphore = asyncio.Semaphore(_TRIVY_CONCURRENCY)
+
+    async def _scan(image: str) -> TrivyImage:
+        async with semaphore:
+            return await scan_image(image, severity, ignore_unfixed, env, cwd)
+
+    scanned = await asyncio.gather(*(_scan(image) for image in sorted(unique_images)))
+    scan_results = {result.image: result for result in scanned}
+
+    applications_report: list[TrivyApplication] = []
+    for application in applications:
+        images_report: list[TrivyImage] = []
+        for image in sorted(app_images[application]):
+            result = scan_results.get(image)
+            if result is not None:
+                images_report.append(result)
+            else:
+                images_report.append(TrivyImage(image=image, scan_error=app_errors.get(application, "")))
+        if app_errors.get(application) and not images_report:
+            images_report.append(TrivyImage(image="", scan_error=app_errors[application]))
+        applications_report.append(TrivyApplication(application=application, images=images_report))
+
+    scan_errors = sum(1 for result in scanned if result.scan_error)
+    critical_total = sum(result.critical_count for result in scanned)
+    report = TrivyReport(
+        branch=branch,
+        applications=applications_report,
+        image_count=len(unique_images),
+        critical_total=critical_total,
+        scan_errors=scan_errors,
+    )
+    return report, messages

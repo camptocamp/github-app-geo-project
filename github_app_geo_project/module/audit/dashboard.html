@@ -15,7 +15,9 @@
   }
 </style>
 {% for repo in repositories %}
-<h2>{{ repo['repository'] }}</h2>
+<h2>
+  <a href="?repository={{ repo['repository'] | urlencode }}">{{ repo['repository'] }}</a>
+</h2>
 {% for type_ in repo['global_types'] %}
 <p>
   <strong>{{ type_['name'] }}</strong>: {% if type_['summary'] %}{{ type_['summary'] }},{% endif %}

@@ -31,6 +31,7 @@ from github_app_geo_project.module.audit import (
     _pinned_vulnerabilities_markdown,
     _process_renovate,
     _process_snyk_dpkg,
+    _process_trivy,
     _remove_dashboard_vuln_section,
     _TransversalStatus,
     _TransversalStatusRepo,
@@ -2814,3 +2815,294 @@ async def test_drop_python_incompatible_pins_without_python_version(tmp_path: Pa
 
     assert dropped == []
     mock_fetch.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# Trivy container images scan
+# ---------------------------------------------------------------------------
+
+
+def test_extract_images_handles_string_and_object_forms() -> None:
+    """`extract_images` finds images given as a string and as a repository/tag/digest object."""
+    manifest = {
+        "spec": {
+            "containers": [
+                {"image": "ghcr.io/camptocamp/foo:1.2.3"},
+                {"image": {"repository": "docker.io/library/postgres", "tag": "16"}},
+                {"image": {"repository": "ghcr.io/bar/app", "digest": "sha256:abc"}},
+            ],
+            "initContainers": [{"image": "busybox"}],
+        },
+        # image-less nested content must be ignored safely
+        "metadata": {"name": "app"},
+    }
+    images = audit_utils.extract_images(manifest)
+    assert images == {
+        "ghcr.io/camptocamp/foo:1.2.3",
+        "docker.io/library/postgres:16",
+        "ghcr.io/bar/app@sha256:abc",
+        "busybox",
+    }
+
+
+def test_parse_trivy_report_reads_vulnerabilities() -> None:
+    """`_parse_trivy_report` maps the Trivy JSON to the typed vulnerabilities."""
+    report = {
+        "Results": [
+            {
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2026-0001",
+                        "PkgName": "libssl",
+                        "InstalledVersion": "3.0.1",
+                        "FixedVersion": "3.0.2",
+                        "Severity": "CRITICAL",
+                        "Title": "Buffer overflow",
+                        "References": ["https://nvd.nist.gov/vuln/detail/CVE-2026-0001"],
+                    },
+                    {
+                        "VulnerabilityID": "GHSA-xxxx-yyyy",
+                        "PkgName": "openssl",
+                        "InstalledVersion": "1.1.1",
+                        "Severity": "CRITICAL",
+                    },
+                ],
+            },
+        ],
+    }
+    vulnerabilities = audit_utils._parse_trivy_report(json.dumps(report))
+    assert len(vulnerabilities) == 2
+    first = vulnerabilities[0]
+    assert first.cve == "CVE-2026-0001"
+    assert first.package == "libssl"
+    assert first.installed_version == "3.0.1"
+    assert first.fixed_version == "3.0.2"
+    assert first.severity == "critical"
+    assert first.references == ["https://nvd.nist.gov/vuln/detail/CVE-2026-0001"]
+    # The second entry has no fix yet.
+    assert vulnerabilities[1].fixed_version == ""
+
+
+def test_parse_trivy_report_invalid_json() -> None:
+    """A malformed Trivy output yields no vulnerability instead of raising."""
+    assert audit_utils._parse_trivy_report("not json") == []
+
+
+@pytest.mark.asyncio
+async def test_discover_applications_structures_and_exclusion(
+    tmp_path: Any,
+) -> None:
+    """The application discovery honours the environments, the auto structure and the exclusions."""
+    root = anyio.Path(str(tmp_path))
+    await (root / "apps" / "int" / "client" / "app-one").mkdir(parents=True)
+    await (root / "apps" / "prod" / "client" / "app-two").mkdir(parents=True)
+    await (root / "apps" / "prod" / "client" / "skip-me").mkdir(parents=True)
+    await (root / "apps" / "example" / "int" / "test-app").mkdir(parents=True)
+    for directory in [
+        "int/client/app-one",
+        "prod/client/app-two",
+        "prod/client/skip-me",
+        "example/int/test-app",
+    ]:
+        await (root / "apps" / directory / "Chart.yaml").write_text("apiVersion: v2\n", encoding="utf-8")
+    # A vendored sub-chart (deeper) must be ignored by the auto detection.
+    await (root / "apps" / "int" / "client" / "app-one" / "charts" / "dep").mkdir(parents=True)
+    await (root / "apps" / "int" / "client" / "app-one" / "charts" / "dep" / "Chart.yaml").write_text(
+        "apiVersion: v2\n",
+        encoding="utf-8",
+    )
+
+    # `auto` + default environments [int, prod]: the two-level apps are found, example is excluded.
+    found = await audit_utils.discover_applications(
+        root,
+        "apps",
+        ["int", "prod"],
+        "auto",
+        [r"skip-me$"],
+    )
+    assert found == ["apps/int/client/app-one", "apps/prod/client/app-two"]
+
+    # A single-level repository is also detected by `auto`.
+    single_root = anyio.Path(str(tmp_path / "single"))
+    await (single_root / "apps" / "int" / "fmeflow").mkdir(parents=True)
+    await (single_root / "apps" / "int" / "fmeflow" / "Chart.yaml").write_text(
+        "apiVersion: v2\n", encoding="utf-8"
+    )
+    found_single = await audit_utils.discover_applications(single_root, "apps", ["int", "prod"], "auto", [])
+    assert found_single == ["apps/int/fmeflow"]
+
+
+@pytest.mark.asyncio
+async def test_process_trivy_creates_output_and_transversal_entry() -> None:
+    """`_process_trivy` stores the images output and the transversal dashboard entry."""
+    context = Mock()
+    context.module_event_data = _EventData(type="trivy", version="main")
+    context.module_config = {}
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "argocd-gs-gmf-apps"
+    context.service_url = "https://example.com/"
+    context.job_id = 99
+
+    report = audit_utils.TrivyReport(
+        branch="main",
+        applications=[
+            audit_utils.TrivyApplication(
+                application="apps/int/demo/app",
+                images=[
+                    audit_utils.TrivyImage(
+                        image="ghcr.io/camptocamp/app:1.0",
+                        critical_count=1,
+                        vulnerabilities=[
+                            audit_utils.TrivyVulnerability(
+                                cve="CVE-2026-0001",
+                                package="libssl",
+                                installed_version="3.0.1",
+                                fixed_version="3.0.2",
+                                severity="critical",
+                            ),
+                        ],
+                    ),
+                ],
+            ),
+        ],
+        image_count=1,
+        critical_total=1,
+        scan_errors=0,
+    )
+
+    issue_check = module_utils.DashboardIssue("")
+    intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        mock_cm = _make_worktree_mock(Path(tmpdirname))
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch.object(audit_utils, "trivy_images", new=AsyncMock(return_value=(report, []))),
+            patch(
+                "github_app_geo_project.module.audit.module_utils.add_output",
+                new=AsyncMock(),
+            ) as mock_add_output,
+        ):
+            short_message, success = await _process_trivy(
+                context,
+                issue_check,
+                intermediate_status,
+            )
+
+    assert success is True
+    assert short_message == ["1 applications, 1 images, 1 critical"]
+
+    mock_add_output.assert_awaited_once()
+    call = mock_add_output.await_args
+    assert call is not None
+    assert call.args[2] == "trivy-images-main"
+    assert call.args[3] == "github_app_geo_project:module/audit/images.html"
+
+    types = intermediate_status.status.types
+    assert "Trivy images main" in types
+    entry = types["Trivy images main"]
+    assert entry.status == "success"
+    assert entry.output_url == "https://example.com/output/camptocamp/argocd-gs-gmf-apps/trivy-images-main"
+    assert entry.logs_url == "https://example.com/logs/99"
+
+
+@pytest.mark.asyncio
+async def test_process_fan_out_creates_trivy_action_when_apps_present() -> None:
+    """The fan-out adds a `trivy` job for the default branch when an `apps/` directory exists."""
+    context = Mock()
+    context.module_event_data = _EventData(snyk=False, dpkg=False)
+    context.github_event_data = {}
+    context.module_config = {"version-mapping": {}}
+    context.issue_data = ""
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "argocd-gs-gmf-apps"
+    context.github_project.default_branch = AsyncMock(return_value="main")
+
+    async def async_get_content(owner, repo, path):
+        if path == "apps":
+            return MagicMock(parsed_data=[{"name": "int"}])
+        raise _make_request_failed_exception(404)
+
+    context.github_project.aio_github.rest.repos.async_get_content = AsyncMock(side_effect=async_get_content)
+
+    result = await Audit().process(context)
+
+    assert result.intermediate_status is not None
+    assert "Trivy images main" in result.intermediate_status.known_types
+    trivy_actions = [action for action in result.actions if action.data.type == "trivy"]
+    assert len(trivy_actions) == 1
+    assert trivy_actions[0].data == _EventData(type="trivy", version="main")
+
+
+def test_get_transversal_dashboard_repository_filter() -> None:
+    """`?repository=` restricts the audit dashboard to a single repository."""
+    status = _TransversalStatus(
+        updated={
+            "camptocamp/argocd-gs-gmf-apps": dt.datetime.now(dt.UTC),
+            "camptocamp/other": dt.datetime.now(dt.UTC),
+        },
+        repositories={
+            "camptocamp/argocd-gs-gmf-apps": _TransversalStatusRepo(
+                types={"Trivy images main": _TransversalStatusTool(name="Trivy images main")}
+            ),
+            "camptocamp/other": _TransversalStatusRepo(
+                types={"Snyk check/fix 1.2": _TransversalStatusTool(name="Snyk check/fix 1.2")}
+            ),
+        },
+    )
+    context = module.TransversalDashboardContext(status=status, params={"repository": "camptocamp/other"})
+    output = Audit().get_transversal_dashboard(context)
+    repositories = output.data["repositories"]
+    assert [repository["repository"] for repository in repositories] == ["camptocamp/other"]
+
+    context_all = module.TransversalDashboardContext(status=status, params={})
+    output_all = Audit().get_transversal_dashboard(context_all)
+    assert len(output_all.data["repositories"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_render_trivy_images_template() -> None:
+    """The images output template renders the applications, images and critical vulnerabilities."""
+    report = audit_utils.TrivyReport(
+        branch="main",
+        applications=[
+            audit_utils.TrivyApplication(
+                application="apps/int/demo/app",
+                images=[
+                    audit_utils.TrivyImage(
+                        image="ghcr.io/camptocamp/app:1.0",
+                        critical_count=1,
+                        vulnerabilities=[
+                            audit_utils.TrivyVulnerability(
+                                cve="CVE-2026-0001",
+                                package="libssl",
+                                installed_version="3.0.1",
+                                fixed_version="3.0.2",
+                                severity="critical",
+                            ),
+                        ],
+                    ),
+                    audit_utils.TrivyImage(image="ghcr.io/camptocamp/clean:2.0", critical_count=0),
+                ],
+            ),
+        ],
+        image_count=2,
+        critical_total=1,
+        scan_errors=0,
+    )
+    html = await render_template(
+        "github_app_geo_project:module/audit/images.html",
+        {"renderer_data": report.model_dump()},
+        nonce="test-nonce",
+    )
+    assert "apps/int/demo/app" in html
+    assert "ghcr.io/camptocamp/app:1.0" in html
+    assert "CVE-2026-0001" in html
+    assert "libssl@3.0.1" in html
+    assert "Fixed in: 3.0.2" in html
+    assert "no vulnerability" in html

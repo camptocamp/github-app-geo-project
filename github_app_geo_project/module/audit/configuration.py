@@ -11,6 +11,16 @@ r""" Default value of the field path 'Snyk configuration advisory-severity-thres
 
 
 
+APPLICATIONS_ROOT_DIRECTORY_DEFAULT = 'apps'
+r""" Default value of the field path 'Trivy configuration apps-root' """
+
+
+
+APPLICATION_DIRECTORY_STRUCTURE_DEFAULT = 'auto'
+r""" Default value of the field path 'Trivy configuration app-structure' """
+
+
+
 AUTOMATIC_FIX_DEFAULT = True
 r""" Default value of the field path 'Snyk configuration auto-fix' """
 
@@ -35,6 +45,23 @@ r"""The values for the 'Advisory severity threshold' enum"""
 
 
 
+ApplicationDirectoryStructure = Literal['auto'] | Literal['single'] | Literal['two-level']
+r"""
+Application directory structure.
+
+`auto` detects the layout, `single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`
+
+default: auto
+"""
+APPLICATIONDIRECTORYSTRUCTURE_AUTO: Literal['auto'] = "auto"
+r"""The values for the 'Application directory structure' enum"""
+APPLICATIONDIRECTORYSTRUCTURE_SINGLE: Literal['single'] = "single"
+r"""The values for the 'Application directory structure' enum"""
+APPLICATIONDIRECTORYSTRUCTURE_TWO_LEVEL: Literal['two-level'] = "two-level"
+r"""The values for the 'Application directory structure' enum"""
+
+
+
 # | Audit configuration.
 AuditConfiguration = TypedDict('AuditConfiguration', {
     # | Enable audit.
@@ -47,6 +74,10 @@ AuditConfiguration = TypedDict('AuditConfiguration', {
     'dpkg': "DpkgConfiguration",
     # | Renovate configuration.
     'renovate': "RenovateConfiguration",
+    # | Trivy configuration.
+    # | 
+    # | Scan the container images used by the ArgoCD applications with Trivy
+    'trivy': "TrivyConfiguration",
     # | Version mapping.
     # | 
     # | Mapping of version to the branch name
@@ -224,6 +255,21 @@ r""" Default value of the field path 'Snyk configuration enabled' """
 
 
 
+ENABLE_TRIVY_DEFAULT = True
+r""" Default value of the field path 'Trivy configuration enabled' """
+
+
+
+ENVIRONMENTS_DEFAULT = ['int', 'prod']
+r""" Default value of the field path 'Trivy configuration environments' """
+
+
+
+EXCLUDED_APPLICATIONS_DEFAULT: list[Any] = []
+r""" Default value of the field path 'Trivy configuration excluded-apps' """
+
+
+
 EXCLUDED_FILES_DEFAULT: list[Any] = []
 r""" Default value of the field path 'Snyk configuration excluded-files' """
 
@@ -231,6 +277,11 @@ r""" Default value of the field path 'Snyk configuration excluded-files' """
 
 FILES_NOT_TO_INSTALL_DEFAULT: list[Any] = []
 r""" Default value of the field path 'Snyk configuration files-no-install' """
+
+
+
+IGNORE_UNFIXED_DEFAULT = False
+r""" Default value of the field path 'Trivy configuration ignore-unfixed' """
 
 
 
@@ -286,6 +337,11 @@ class RenovateConfiguration(TypedDict, total=False):
 
 
 
+SEVERITY_THRESHOLD_DEFAULT = 'critical'
+r""" Default value of the field path 'Trivy configuration severity-threshold' """
+
+
+
 SKIP_HOOKS_DEFAULT: list[Any] = []
 r""" Default value of the field path 'Pre-commit configuration skip-hooks' """
 
@@ -303,6 +359,25 @@ r""" Default value of the field path 'Snyk configuration monitor-arguments' """
 
 SNYK_TEST_ARGUMENTS_DEFAULT = ['--all-projects', '--severity-threshold=medium']
 r""" Default value of the field path 'Snyk configuration test-arguments' """
+
+
+
+SeverityThreshold = Literal['low'] | Literal['medium'] | Literal['high'] | Literal['critical']
+r"""
+Severity threshold.
+
+Minimum severity level of the vulnerabilities to report and display (low, medium, high, critical)
+
+default: critical
+"""
+SEVERITYTHRESHOLD_LOW: Literal['low'] = "low"
+r"""The values for the 'Severity threshold' enum"""
+SEVERITYTHRESHOLD_MEDIUM: Literal['medium'] = "medium"
+r"""The values for the 'Severity threshold' enum"""
+SEVERITYTHRESHOLD_HIGH: Literal['high'] = "high"
+r"""The values for the 'Severity threshold' enum"""
+SEVERITYTHRESHOLD_CRITICAL: Literal['critical'] = "critical"
+r"""The values for the 'Severity threshold' enum"""
 
 
 
@@ -423,6 +498,58 @@ SnykMonitorConfiguration = TypedDict('SnykMonitorConfiguration', {
     # | Set the project tags to one or more values.
     # | To clear the project tags set empty dictionary.
     'project-tags': dict[str, str],
+}, total=False)
+
+
+# | Trivy configuration.
+# | 
+# | Scan the container images used by the ArgoCD applications with Trivy
+TrivyConfiguration = TypedDict('TrivyConfiguration', {
+    # | Enable Trivy.
+    # | 
+    # | Enable the container images audit, only applied to repositories that have an `apps/` directory of Helm applications
+    # | 
+    # | default: True
+    'enabled': bool,
+    # | Applications root directory.
+    # | 
+    # | The directory that contains the ArgoCD applications, `<apps-root>/<environment>/[<client>/]<app>/Chart.yaml`
+    # | 
+    # | default: apps
+    'apps-root': str,
+    # | Environments.
+    # | 
+    # | The environment sub-directories of `apps-root` that are scanned, matching the directories deployed by ArgoCD
+    # | 
+    # | default:
+    # |   - int
+    # |   - prod
+    'environments': list[str],
+    # | Application directory structure.
+    # | 
+    # | `auto` detects the layout, `single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`
+    # | 
+    # | default: auto
+    'app-structure': "ApplicationDirectoryStructure",
+    # | Severity threshold.
+    # | 
+    # | Minimum severity level of the vulnerabilities to report and display (low, medium, high, critical)
+    # | 
+    # | default: critical
+    'severity-threshold': "SeverityThreshold",
+    # | Ignore unfixed.
+    # | 
+    # | Do not report the vulnerabilities that have no fix yet
+    # | 
+    # | default: False
+    'ignore-unfixed': bool,
+    # | Excluded applications.
+    # | 
+    # | List of regex patterns for application directory paths to exclude from the images scan
+    # | 
+    # | default:
+    # |   []
+    'excluded-apps': list[str],
 }, total=False)
 
 

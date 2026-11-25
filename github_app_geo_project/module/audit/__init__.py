@@ -43,7 +43,12 @@ _LOGGER = logging.getLogger(__name__)
 # Don't run Snyk in parallel
 _SNYK_LOCK = asyncio.Lock()
 
+# Don't run two Trivy image scans in parallel (the scan is long and resource hungry)
+_TRIVY_LOCK = asyncio.Lock()
+
 _OUTDATED = "Outdated version"
+_TRIVY_KEY = "Trivy images"
+"""Prefix of the transversal dashboard check listing the scanned container images."""
 _CLEANUP = "Cleanup"
 _ADVISORY = False
 
@@ -61,6 +66,8 @@ _PRIORITY_DPKG = module.PRIORITY_CRON + 2
 """Priority of the audit `dpkg` jobs."""
 _PRIORITY_SNYK = module.PRIORITY_CRON + 3
 """Priority of the audit `snyk` jobs (the slowest, serialized by `_SNYK_LOCK`)."""
+_PRIORITY_TRIVY = module.PRIORITY_CRON + 4
+"""Priority of the audit `trivy` container images scan jobs (serialized by `_TRIVY_LOCK`)."""
 
 
 class _TransversalStatusTool(BaseModel):
@@ -716,6 +723,82 @@ async def _process_snyk_dpkg(
     return short_message, success
 
 
+async def _process_trivy(
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
+    issue_check: module_utils.DashboardIssue,
+    intermediate_status: _IntermediateStatus,
+) -> tuple[list[str], bool]:
+    """
+    Scan the container images used by the ArgoCD applications with Trivy.
+
+    The image scan result is stored as an `Output` page (list of the images of each
+    application with their critical vulnerabilities) and a `Trivy images <branch>` entry
+    is added to the transversal dashboard, linking the output and the job logs.
+    """
+    assert context.module_event_data.version is not None
+    branch: str = context.module_event_data.version
+    key = f"{_TRIVY_KEY} {branch}"
+    logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
+    output_name = f"trivy-images-{branch}"
+    output_url = urllib.parse.urljoin(
+        context.service_url,
+        f"output/{context.github_project.owner}/{context.github_project.repository}/{output_name}",
+    )
+
+    async with module_utils.GIT_WORKTREE_CACHE.working_tree(
+        context.github_project,
+        branch,
+    ) as cwd:
+        local_config: configuration.AuditConfiguration = {}
+        ghci_config_path = cwd / ".github" / "ghci.yaml"
+        if await ghci_config_path.exists():
+            async with await ghci_config_path.open("r", encoding="utf-8") as file:
+                local_config = yaml.load(
+                    await file.read(),
+                    Loader=yaml.SafeLoader,
+                ).get("audit", {})
+
+        async with _TRIVY_LOCK:
+            report, messages = await audit_utils.trivy_images(
+                branch,
+                cwd,
+                context.module_config.get("trivy", {}),
+                local_config.get("trivy", {}),
+            )
+        for message in messages:
+            _LOGGER.info(message)
+
+    # An image that could not be scanned is an error of the scan itself, not a vulnerability:
+    # the job is in error only when every scanned image failed to scan.
+    fatal = report.scan_errors > 0 and report.scan_errors >= report.image_count
+    success = not fatal
+
+    await module_utils.add_output(
+        context,
+        f"Trivy images report {branch}",
+        output_name,
+        "github_app_geo_project:module/audit/images.html",
+        status=models.OutputStatus.ERROR if fatal else models.OutputStatus.SUCCESS,
+        renderer_data=report,
+    )
+
+    summary = f"{len(report.applications)} applications, {report.image_count} images, {report.critical_total} critical"
+    if report.scan_errors:
+        summary += f", {report.scan_errors} scan error(s)"
+    short_message = [summary]
+
+    issue_check.set_title(key, f"{key}: {summary} ([Logs]({logs_url}) | [Output]({output_url}))")
+    intermediate_status.status.types[key] = _TransversalStatusTool(
+        name=key,
+        summary=summary,
+        status="success" if success else "error",
+        logs_url=logs_url,
+        output_url=output_url,
+    )
+
+    return short_message, success
+
+
 async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str, str]:
     # Lazily install the Python version, pyenv versions are no more installed at image build.
     await module_utils.ensure_pyenv_python(python_version)
@@ -1234,10 +1317,15 @@ class Audit(
                 )
             )
             for output in outputs_result.scalars():
-                if output.name.startswith("snyk-") and output.name[len("snyk-") :] not in known_versions:
-                    _LOGGER.debug("Deleting output %s", output.name)
-                    await context.session.delete(output)
-                    cleaned.append(f"output `{output.name}`")
+                for output_prefix in ("snyk-", "trivy-images-"):
+                    if (
+                        output.name.startswith(output_prefix)
+                        and output.name[len(output_prefix) :] not in known_versions
+                    ):
+                        _LOGGER.debug("Deleting output %s", output.name)
+                        await context.session.delete(output)
+                        cleaned.append(f"output `{output.name}`")
+                        break
             await context.session.commit()
 
             # Remove the Snyk projects of the references that are not supported anymore,
@@ -1409,6 +1497,37 @@ class Audit(
         if context.module_event_data.type == "outdated":
             await _process_outdated(context, issue_check)
         elif context.module_event_data.version is None:
+            default_branch = await context.github_project.default_branch()
+
+            # Determine whether the container images scan (Trivy) applies to this repository:
+            # it is enabled by default but only relevant for repositories that have an `apps/`
+            # directory of ArgoCD Helm applications.
+            trivy_config = context.module_config.get("trivy", {})
+            trivy_enabled = trivy_config.get("enabled", configuration.ENABLE_TRIVY_DEFAULT)
+            trivy_apps_root = trivy_config.get("apps-root", configuration.APPLICATIONS_ROOT_DIRECTORY_DEFAULT)
+            trivy_branches: list[str] = []
+            if trivy_enabled:
+                apps_present = False
+                try:
+                    await context.github_project.aio_github.rest.repos.async_get_content(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                        path=trivy_apps_root,
+                    )
+                    apps_present = True
+                except githubkit.exception.RequestFailed as exception:
+                    if exception.response.status_code != 404:
+                        raise
+                if apps_present:
+                    trivy_branches = [str(default_branch)]
+                    issue_check.add_check(
+                        "trivy",
+                        "Scan the ArgoCD container images with Trivy",
+                        checked=False,
+                    )
+            if not trivy_branches:
+                issue_check.remove_check("trivy")
+
             # Creates new jobs with the versions from the SECURITY.md
             versions = []
             if (
@@ -1420,9 +1539,12 @@ class Audit(
                 )
 
                 versions = security.branches()
-            else:
+
+            # Without a SECURITY.md there is no dependency audit to run; skip entirely unless
+            # the Trivy container images scan applies to this repository.
+            if not versions and not trivy_branches:
                 _LOGGER.debug(
-                    "No SECURITY.md file in the repository, nothing to audit",
+                    "No SECURITY.md file in the repository and no ArgoCD applications, nothing to audit",
                 )
                 # Prune all the per-version transversal status entries
                 intermediate_status.known_types = [_OUTDATED, _CLEANUP]
@@ -1451,6 +1573,7 @@ class Audit(
                     all_key_starts.append(_OUTDATED)
                 else:
                     all_key_starts.extend([f"{key}{version}" for version in mapped_versions])
+            all_key_starts.extend([f"{_TRIVY_KEY} {trivy_branch}" for trivy_branch in trivy_branches])
 
             # Remove the legacy dashboard vulnerability sections of versions that are not supported anymore
             for version in sorted(_dashboard_vuln_section_versions(issue_check) - set(mapped_versions)):
@@ -1465,7 +1588,7 @@ class Audit(
                     priority=_PRIORITY_CLEANUP,
                     data=_EventData(
                         type="cleanup",
-                        known_versions=[*mapped_versions, await context.github_project.default_branch()],
+                        known_versions=[*mapped_versions, default_branch],
                     ),
                     title="cleanup",
                 )
@@ -1499,11 +1622,25 @@ class Audit(
                             title=f"dpkg ({version})",
                         ),
                     )
+            for trivy_branch in trivy_branches:
+                actions.append(
+                    module.Action(
+                        priority=_PRIORITY_TRIVY,
+                        data=_EventData(type="trivy", version=trivy_branch),
+                        title=f"trivy ({trivy_branch})",
+                    ),
+                )
             return ProcessOutput(
                 actions=actions,
                 dashboard=issue_check.to_string(),
                 intermediate_status=intermediate_status,
                 updated_transversal_status=True,
+            )
+        elif context.module_event_data.type == "trivy":
+            short_message, success = await _process_trivy(
+                context,
+                issue_check,
+                intermediate_status,
             )
         else:
             short_message, success = await _process_snyk_dpkg(
@@ -1576,9 +1713,13 @@ class Audit(
         context: module.TransversalDashboardContext[_TransversalStatus],
     ) -> module.TransversalDashboardOutput:
         """Get the transversal dashboard content."""
+        # The dashboard can be filtered to a single repository with `?repository=<owner>/<repo>`.
+        selected_repository = context.params.get("repository")
         repositories = []
         for repository, data in context.status.repositories.items():
             if not data.types:
+                continue
+            if selected_repository is not None and repository != selected_repository:
                 continue
 
             global_types = []

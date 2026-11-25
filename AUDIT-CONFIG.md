@@ -51,6 +51,16 @@ To clear the project tags set empty dictionary. Can contain additional propertie
             - <a id="properties/audit/properties/dpkg/properties/sources/additionalProperties/items/properties/components/items"></a>**Items** *(string)*
   - <a id="properties/audit/properties/renovate"></a>**`renovate`** *(object)*: Cannot contain additional properties.
     - <a id="properties/audit/properties/renovate/properties/enabled"></a>**`enabled`** *(boolean)*: Enable Renovate audit. Default: `true`.
+  - <a id="properties/audit/properties/trivy"></a>**`trivy`** *(object)*: Scan the container images used by the ArgoCD applications with Trivy. Cannot contain additional properties.
+    - <a id="properties/audit/properties/trivy/properties/enabled"></a>**`enabled`** *(boolean)*: Enable the container images audit, only applied to repositories that have an `apps/` directory of Helm applications. Default: `true`.
+    - <a id="properties/audit/properties/trivy/properties/apps-root"></a>**`apps-root`** *(string)*: The directory that contains the ArgoCD applications, `<apps-root>/<environment>/[<client>/]<app>/Chart.yaml`. Default: `"apps"`.
+    - <a id="properties/audit/properties/trivy/properties/environments"></a>**`environments`** *(array)*: The environment sub-directories of `apps-root` that are scanned, matching the directories deployed by ArgoCD. Default: `["int", "prod"]`.
+      - <a id="properties/audit/properties/trivy/properties/environments/items"></a>**Items** *(string)*
+    - <a id="properties/audit/properties/trivy/properties/app-structure"></a>**`app-structure`** *(string)*: `auto` detects the layout, `single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`. Must be one of: "auto", "single", or "two-level". Default: `"auto"`.
+    - <a id="properties/audit/properties/trivy/properties/severity-threshold"></a>**`severity-threshold`** *(string)*: Minimum severity level of the vulnerabilities to report and display (low, medium, high, critical). Must be one of: "low", "medium", "high", or "critical". Default: `"critical"`.
+    - <a id="properties/audit/properties/trivy/properties/ignore-unfixed"></a>**`ignore-unfixed`** *(boolean)*: Do not report the vulnerabilities that have no fix yet. Default: `false`.
+    - <a id="properties/audit/properties/trivy/properties/excluded-apps"></a>**`excluded-apps`** *(array)*: List of regex patterns for application directory paths to exclude from the images scan. Default: `[]`.
+      - <a id="properties/audit/properties/trivy/properties/excluded-apps/items"></a>**Items** *(string)*
   - <a id="properties/audit/properties/version-mapping"></a>**`version-mapping`** *(object)*: Mapping of version to the branch name. Can contain additional properties. Default: `{}`.
     - <a id="properties/audit/properties/version-mapping/additionalProperties"></a>**Additional properties** *(string)*
   - <a id="properties/audit/properties/pre-commit"></a>**`pre-commit`** *(object)*: Cannot contain additional properties.

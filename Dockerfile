@@ -173,6 +173,43 @@ RUN case "$(uname -m)" in \
     && chown --recursive 33:33 /opt/fnm \
     && chmod --recursive a+rwX /opt/fnm
 
+# helm and trivy are used by the `audit` module to template the ArgoCD applications
+# (to discover the container images they reference) and to scan those images for
+# vulnerabilities. They are downloaded from their GitHub releases, with the checksum
+# verified against the pinned digest; Renovate keeps both the version and the digest
+# up to date through the `github-release-attachments` datasource (see the
+# `regexManagers` in `.github/renovate.json5`).
+# The image is built for `linux/amd64` (the worker pods architecture); the amd64
+# checksum is the only one pinned.
+SHELL ["/bin/bash", "-o", "pipefail", "-cux"]
+ARG HELM_VERSION=v4.3.2
+# renovate: datasource=github-release-attachments depName=helm/helm packageName=helm/helm
+ARG HELM_SHA256=d1c0278d46beab79582d7e50f5b3dc206944ba8e577cde618513fd07daa53983
+RUN curl --location --fail --silent --show-error \
+        --output=/tmp/helm.tar.gz \
+        "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" \
+    && printf '%s  %s\n' "${HELM_SHA256}" "/tmp/helm.tar.gz" | sha256sum --check \
+    && tar --extract --gzip --file=/tmp/helm.tar.gz --directory=/tmp \
+    && mv /tmp/linux-amd64/helm /usr/local/bin/helm \
+    && chmod +x /usr/local/bin/helm \
+    && rm --recursive --force /tmp/helm.tar.gz /tmp/linux-amd64 \
+    && helm version --short
+
+ARG TRIVY_VERSION=v0.76.2
+# renovate: datasource=github-release-attachments depName=aquasecurity/trivy packageName=aquasecurity/trivy
+ARG TRIVY_SHA256=bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+RUN curl --location --fail --silent --show-error \
+        --output=/tmp/trivy.tar.gz \
+        "https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}/trivy_${TRIVY_VERSION#v}_Linux-64bit.tar.gz" \
+    && printf '%s  %s\n' "${TRIVY_SHA256}" "/tmp/trivy.tar.gz" | sha256sum --check \
+    && tar --extract --gzip --file=/tmp/trivy.tar.gz --directory=/tmp trivy \
+    && mv /tmp/trivy /usr/local/bin/trivy \
+    && chmod +x /usr/local/bin/trivy \
+    && rm --recursive --force /tmp/trivy.tar.gz \
+    && trivy --version \
+    && mkdir --parents /var/www/.cache/trivy \
+    && chown --recursive 33:33 /var/www/.cache
+
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
 

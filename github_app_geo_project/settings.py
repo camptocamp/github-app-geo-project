@@ -146,6 +146,10 @@ class _AuditTimeouts(BaseModel):
     git_reset_hard: Annotated[Duration, Field(description="git reset --hard timeout")] = dt.timedelta(
         minutes=1
     )
+    helm_template: Annotated[Duration, Field(description="helm template / dependency update timeout")] = (
+        dt.timedelta(minutes=5)
+    )
+    trivy_image: Annotated[Duration, Field(description="Trivy image scan timeout")] = dt.timedelta(minutes=10)
     snyk_files: Annotated[Duration, Field(description="git ls-files .snyk timeout")] = dt.timedelta(
         seconds=30
     )
