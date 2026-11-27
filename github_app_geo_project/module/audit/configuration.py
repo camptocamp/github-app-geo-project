@@ -6,42 +6,23 @@ Automatically generated file from a JSON schema.
 from typing import Any, Literal, TypedDict
 
 
-ADVISORY_SEVERITY_THRESHOLD_DEFAULT = 'high'
-r""" Default value of the field path 'Snyk configuration advisory-severity-threshold' """
-
-
-
 APPLICATIONS_ROOT_DIRECTORY_DEFAULT = 'apps'
-r""" Default value of the field path 'Trivy configuration apps-root' """
+r""" Default value of the field path 'Trivy image configuration apps-root' """
 
 
 
 APPLICATION_DIRECTORY_STRUCTURE_DEFAULT = 'auto'
-r""" Default value of the field path 'Trivy configuration app-structure' """
+r""" Default value of the field path 'Trivy image configuration app-structure' """
 
 
 
-AUTOMATIC_FIX_DEFAULT = True
+AUTOMATIC_FIX0_DEFAULT = True
+r""" Default value of the field path 'Trivy filesystem configuration auto-fix' """
+
+
+
+AUTOMATIC_FIX_DEFAULT = False
 r""" Default value of the field path 'Snyk configuration auto-fix' """
-
-
-
-AdvisorySeverityThreshold = Literal['low'] | Literal['medium'] | Literal['high'] | Literal['critical']
-r"""
-Advisory severity threshold.
-
-Minimum severity level to create a GitHub Security Advisory (low, medium, high, critical)
-
-default: high
-"""
-ADVISORYSEVERITYTHRESHOLD_LOW: Literal['low'] = "low"
-r"""The values for the 'Advisory severity threshold' enum"""
-ADVISORYSEVERITYTHRESHOLD_MEDIUM: Literal['medium'] = "medium"
-r"""The values for the 'Advisory severity threshold' enum"""
-ADVISORYSEVERITYTHRESHOLD_HIGH: Literal['high'] = "high"
-r"""The values for the 'Advisory severity threshold' enum"""
-ADVISORYSEVERITYTHRESHOLD_CRITICAL: Literal['critical'] = "critical"
-r"""The values for the 'Advisory severity threshold' enum"""
 
 
 
@@ -76,7 +57,7 @@ AuditConfiguration = TypedDict('AuditConfiguration', {
     'renovate': "RenovateConfiguration",
     # | Trivy configuration.
     # | 
-    # | Scan the container images used by the ArgoCD applications with Trivy
+    # | Trivy scans: the container images of the ArgoCD applications, the Python dependencies of the branches, and the pull requests
     'trivy': "TrivyConfiguration",
     # | Version mapping.
     # | 
@@ -95,6 +76,11 @@ class AuditModulesConfiguration(TypedDict, total=False):
 
     audit: "AuditConfiguration"
     r""" Audit configuration. """
+
+
+
+DASHBOARD_SEVERITY_THRESHOLD0_DEFAULT = 'high'
+r""" Default value of the field path 'Trivy filesystem configuration dashboard-severity-threshold' """
 
 
 
@@ -123,6 +109,25 @@ r"""The values for the 'Dashboard severity threshold' enum"""
 DASHBOARDSEVERITYTHRESHOLD_HIGH: Literal['high'] = "high"
 r"""The values for the 'Dashboard severity threshold' enum"""
 DASHBOARDSEVERITYTHRESHOLD_CRITICAL: Literal['critical'] = "critical"
+r"""The values for the 'Dashboard severity threshold' enum"""
+
+
+
+DashboardSeverityThreshold0 = Literal['low'] | Literal['medium'] | Literal['high'] | Literal['critical']
+r"""
+Dashboard severity threshold.
+
+Minimum severity level to display on the transversal dashboard, the vulnerabilities below are reported on the output page in a collapsed section (low, medium, high, critical)
+
+default: high
+"""
+DASHBOARDSEVERITYTHRESHOLD0_LOW: Literal['low'] = "low"
+r"""The values for the 'Dashboard severity threshold' enum"""
+DASHBOARDSEVERITYTHRESHOLD0_MEDIUM: Literal['medium'] = "medium"
+r"""The values for the 'Dashboard severity threshold' enum"""
+DASHBOARDSEVERITYTHRESHOLD0_HIGH: Literal['high'] = "high"
+r"""The values for the 'Dashboard severity threshold' enum"""
+DASHBOARDSEVERITYTHRESHOLD0_CRITICAL: Literal['critical'] = "critical"
 r"""The values for the 'Dashboard severity threshold' enum"""
 
 
@@ -256,7 +261,12 @@ r""" Default value of the field path 'Snyk configuration enabled' """
 
 
 ENABLE_TRIVY_DEFAULT = True
-r""" Default value of the field path 'Trivy configuration enabled' """
+r""" Default value of the field path 'Trivy image configuration enabled' """
+
+
+
+ENABLE_TRIVY_DEPENDENCIES_DEFAULT = True
+r""" Default value of the field path 'Trivy filesystem configuration enabled' """
 
 
 
@@ -266,12 +276,17 @@ r""" Default value of the field path 'Trivy pull request configuration enabled' 
 
 
 ENVIRONMENTS_DEFAULT = ['int', 'prod']
-r""" Default value of the field path 'Trivy configuration environments' """
+r""" Default value of the field path 'Trivy image configuration environments' """
 
 
 
 EXCLUDED_APPLICATIONS_DEFAULT: list[Any] = []
-r""" Default value of the field path 'Trivy configuration excluded-apps' """
+r""" Default value of the field path 'Trivy image configuration excluded-apps' """
+
+
+
+EXCLUDED_FILES0_DEFAULT: list[Any] = []
+r""" Default value of the field path 'Trivy filesystem configuration excluded-files' """
 
 
 
@@ -280,13 +295,42 @@ r""" Default value of the field path 'Snyk configuration excluded-files' """
 
 
 
+FILES_NOT_TO_FIX_DEFAULT: list[Any] = []
+r""" Default value of the field path 'Trivy filesystem configuration files-no-fix' """
+
+
+
 FILES_NOT_TO_INSTALL_DEFAULT: list[Any] = []
 r""" Default value of the field path 'Snyk configuration files-no-install' """
 
 
 
+FIX_SEVERITY_THRESHOLD_DEFAULT = 'high'
+r""" Default value of the field path 'Trivy filesystem configuration fix-severity-threshold' """
+
+
+
+FixSeverityThreshold = Literal['low'] | Literal['medium'] | Literal['high'] | Literal['critical']
+r"""
+Fix severity threshold.
+
+Minimum severity level of the vulnerabilities to fix: vulnerabilities below this threshold are reported and ignored, not pinned, to limit the churn of transitive fixes (low, medium, high, critical)
+
+default: high
+"""
+FIXSEVERITYTHRESHOLD_LOW: Literal['low'] = "low"
+r"""The values for the 'Fix severity threshold' enum"""
+FIXSEVERITYTHRESHOLD_MEDIUM: Literal['medium'] = "medium"
+r"""The values for the 'Fix severity threshold' enum"""
+FIXSEVERITYTHRESHOLD_HIGH: Literal['high'] = "high"
+r"""The values for the 'Fix severity threshold' enum"""
+FIXSEVERITYTHRESHOLD_CRITICAL: Literal['critical'] = "critical"
+r"""The values for the 'Fix severity threshold' enum"""
+
+
+
 IGNORE_UNFIXED_DEFAULT = False
-r""" Default value of the field path 'Trivy configuration ignore-unfixed' """
+r""" Default value of the field path 'Trivy image configuration ignore-unfixed' """
 
 
 
@@ -297,6 +341,11 @@ r""" Default value of the field path 'Snyk configuration java-path-for-gradle' "
 
 PIPENV_SYNC_ARGUMENTS_DEFAULT: list[Any] = []
 r""" Default value of the field path 'Snyk configuration pipenv-sync-arguments' """
+
+
+
+PIP_DRY_RUN_ARGUMENTS_DEFAULT: list[Any] = []
+r""" Default value of the field path 'Trivy filesystem configuration pip-install-arguments' """
 
 
 
@@ -343,7 +392,7 @@ class RenovateConfiguration(TypedDict, total=False):
 
 
 SEVERITY_THRESHOLD_DEFAULT = 'critical'
-r""" Default value of the field path 'Trivy configuration severity-threshold' """
+r""" Default value of the field path 'Trivy image configuration severity-threshold' """
 
 
 
@@ -396,9 +445,9 @@ SnykConfiguration = TypedDict('SnykConfiguration', {
     'enabled': bool,
     # | Automatic fix.
     # | 
-    # | Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch
+    # | Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch. Disabled by default, the Python dependency fixes are done by the Trivy dependencies audit
     # | 
-    # | default: True
+    # | default: False
     'auto-fix': bool,
     # | Files not to install.
     # | 
@@ -420,12 +469,6 @@ SnykConfiguration = TypedDict('SnykConfiguration', {
     # | 
     # | default: medium
     'dashboard-severity-threshold': "DashboardSeverityThreshold",
-    # | Advisory severity threshold.
-    # | 
-    # | Minimum severity level to create a GitHub Security Advisory (low, medium, high, critical)
-    # | 
-    # | default: high
-    'advisory-severity-threshold': "AdvisorySeverityThreshold",
     # | Pip install arguments.
     # | 
     # | Arguments to pass to pip install
@@ -528,8 +571,79 @@ r""" Default value of the field path 'Trivy pull request configuration severity'
 
 # | Trivy configuration.
 # | 
-# | Scan the container images used by the ArgoCD applications with Trivy
+# | Trivy scans: the container images of the ArgoCD applications, the Python dependencies of the branches, and the pull requests
 TrivyConfiguration = TypedDict('TrivyConfiguration', {
+    # | Trivy image configuration.
+    # | 
+    # | Scan the container images used by the ArgoCD applications with Trivy
+    'image': "TrivyImageConfiguration",
+    # | Trivy pull request configuration.
+    # | 
+    # | Scan the pull request code with Trivy, reported as an action required check
+    'pull-request': "TrivyPullRequestConfiguration",
+    # | Trivy filesystem configuration.
+    # | 
+    # | Scan the Python dependencies (poetry.lock and requirements files) with Trivy and fix the vulnerabilities
+    'filesystem': "TrivyFilesystemConfiguration",
+}, total=False)
+
+
+# | Trivy filesystem configuration.
+# | 
+# | Scan the Python dependencies (poetry.lock and requirements files) with Trivy and fix the vulnerabilities
+TrivyFilesystemConfiguration = TypedDict('TrivyFilesystemConfiguration', {
+    # | Enable Trivy dependencies.
+    # | 
+    # | Enable the Trivy dependencies audit, only applied to branches that have a `poetry.lock` or a requirements file
+    # | 
+    # | default: True
+    'enabled': bool,
+    # | Automatic fix.
+    # | 
+    # | Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch
+    # | 
+    # | default: True
+    'auto-fix': bool,
+    # | Fix severity threshold.
+    # | 
+    # | Minimum severity level of the vulnerabilities to fix: vulnerabilities below this threshold are reported and ignored, not pinned, to limit the churn of transitive fixes (low, medium, high, critical)
+    # | 
+    # | default: high
+    'fix-severity-threshold': "FixSeverityThreshold",
+    # | Dashboard severity threshold.
+    # | 
+    # | Minimum severity level to display on the transversal dashboard, the vulnerabilities below are reported on the output page in a collapsed section (low, medium, high, critical)
+    # | 
+    # | default: high
+    'dashboard-severity-threshold': "DashboardSeverityThreshold0",
+    # | Excluded files.
+    # | 
+    # | List of regex patterns for file names to exclude from the transversal dashboard
+    # | 
+    # | default:
+    # |   []
+    'excluded-files': list[str],
+    # | Files not to fix.
+    # | 
+    # | Dependency files in which the fixes are not applied and not validated, the vulnerabilities they report are only reported
+    # | 
+    # | default:
+    # |   []
+    'files-no-fix': list[str],
+    # | Pip dry run arguments.
+    # | 
+    # | Arguments to pass to `pip install --dry-run` when validating the fixed requirements files
+    # | 
+    # | default:
+    # |   []
+    'pip-install-arguments': list[str],
+}, total=False)
+
+
+# | Trivy image configuration.
+# | 
+# | Scan the container images used by the ArgoCD applications with Trivy
+TrivyImageConfiguration = TypedDict('TrivyImageConfiguration', {
     # | Enable Trivy.
     # | 
     # | Enable the container images audit, only applied to repositories that have an `apps/` directory of Helm applications
@@ -575,10 +689,6 @@ TrivyConfiguration = TypedDict('TrivyConfiguration', {
     # | default:
     # |   []
     'excluded-apps': list[str],
-    # | Trivy pull request configuration.
-    # | 
-    # | Scan the pull request code with Trivy, reported as an action required check
-    'pull-request': "TrivyPullRequestConfiguration",
 }, total=False)
 
 

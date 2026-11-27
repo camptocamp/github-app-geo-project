@@ -29,8 +29,8 @@
             "auto-fix": {
               "type": "boolean",
               "title": "Automatic fix",
-              "description": "Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch",
-              "default": true
+              "description": "Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch. Disabled by default, the Python dependency fixes are done by the Trivy dependencies audit",
+              "default": false
             },
             "files-no-install": {
               "type": "array",
@@ -55,13 +55,6 @@
               "title": "Dashboard severity threshold",
               "description": "Minimum severity level to display on the transversal dashboard (low, medium, high, critical)",
               "default": "medium",
-              "enum": ["low", "medium", "high", "critical"]
-            },
-            "advisory-severity-threshold": {
-              "type": "string",
-              "title": "Advisory severity threshold",
-              "description": "Minimum severity level to create a GitHub Security Advisory (low, medium, high, critical)",
-              "default": "high",
               "enum": ["low", "medium", "high", "critical"]
             },
             "pip-install-arguments": {
@@ -310,57 +303,65 @@
         "trivy": {
           "type": "object",
           "title": "Trivy configuration",
-          "description": "Scan the container images used by the ArgoCD applications with Trivy",
+          "description": "Trivy scans: the container images of the ArgoCD applications, the Python dependencies of the branches, and the pull requests",
           "additionalProperties": false,
           "properties": {
-            "enabled": {
-              "type": "boolean",
-              "title": "Enable Trivy",
-              "description": "Enable the container images audit, only applied to repositories that have an `apps/` directory of Helm applications",
-              "default": true
-            },
-            "apps-root": {
-              "type": "string",
-              "title": "Applications root directory",
-              "description": "The directory that contains the ArgoCD applications, `<apps-root>/<environment>/[<client>/]<app>/Chart.yaml`",
-              "default": "apps"
-            },
-            "environments": {
-              "type": "array",
-              "title": "Environments",
-              "description": "The environment sub-directories of `apps-root` that are scanned, matching the directories deployed by ArgoCD",
-              "default": ["int", "prod"],
-              "items": {
-                "type": "string"
-              }
-            },
-            "app-structure": {
-              "type": "string",
-              "title": "Application directory structure",
-              "description": "`auto` detects the layout, `single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`",
-              "default": "auto",
-              "enum": ["auto", "single", "two-level"]
-            },
-            "severity-threshold": {
-              "type": "string",
-              "title": "Severity threshold",
-              "description": "Minimum severity level of the vulnerabilities to report and display (low, medium, high, critical)",
-              "default": "critical",
-              "enum": ["low", "medium", "high", "critical"]
-            },
-            "ignore-unfixed": {
-              "type": "boolean",
-              "title": "Ignore unfixed",
-              "description": "Do not report the vulnerabilities that have no fix yet",
-              "default": false
-            },
-            "excluded-apps": {
-              "type": "array",
-              "title": "Excluded applications",
-              "description": "List of regex patterns for application directory paths to exclude from the images scan",
-              "default": [],
-              "items": {
-                "type": "string"
+            "image": {
+              "type": "object",
+              "title": "Trivy image configuration",
+              "description": "Scan the container images used by the ArgoCD applications with Trivy",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "title": "Enable Trivy",
+                  "description": "Enable the container images audit, only applied to repositories that have an `apps/` directory of Helm applications",
+                  "default": true
+                },
+                "apps-root": {
+                  "type": "string",
+                  "title": "Applications root directory",
+                  "description": "The directory that contains the ArgoCD applications, `<apps-root>/<environment>/[<client>/]<app>/Chart.yaml`",
+                  "default": "apps"
+                },
+                "environments": {
+                  "type": "array",
+                  "title": "Environments",
+                  "description": "The environment sub-directories of `apps-root` that are scanned, matching the directories deployed by ArgoCD",
+                  "default": ["int", "prod"],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "app-structure": {
+                  "type": "string",
+                  "title": "Application directory structure",
+                  "description": "`auto` detects the layout, `single` for `<apps-root>/<environment>/<app>/`, `two-level` for `<apps-root>/<environment>/<client>/<app>/`",
+                  "default": "auto",
+                  "enum": ["auto", "single", "two-level"]
+                },
+                "severity-threshold": {
+                  "type": "string",
+                  "title": "Severity threshold",
+                  "description": "Minimum severity level of the vulnerabilities to report and display (low, medium, high, critical)",
+                  "default": "critical",
+                  "enum": ["low", "medium", "high", "critical"]
+                },
+                "ignore-unfixed": {
+                  "type": "boolean",
+                  "title": "Ignore unfixed",
+                  "description": "Do not report the vulnerabilities that have no fix yet",
+                  "default": false
+                },
+                "excluded-apps": {
+                  "type": "array",
+                  "title": "Excluded applications",
+                  "description": "List of regex patterns for application directory paths to exclude from the images scan",
+                  "default": [],
+                  "items": {
+                    "type": "string"
+                  }
+                }
               }
             },
             "pull-request": {
@@ -401,6 +402,67 @@
                   "title": "Trivy config targets",
                   "description": "The files scanned with the `trivy config` command, the command is run only for the files that exist in the repository",
                   "default": ["Dockerfile"],
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "filesystem": {
+              "type": "object",
+              "title": "Trivy filesystem configuration",
+              "description": "Scan the Python dependencies (poetry.lock and requirements files) with Trivy and fix the vulnerabilities",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": {
+                  "type": "boolean",
+                  "title": "Enable Trivy dependencies",
+                  "description": "Enable the Trivy dependencies audit, only applied to branches that have a `poetry.lock` or a requirements file",
+                  "default": true
+                },
+                "auto-fix": {
+                  "type": "boolean",
+                  "title": "Automatic fix",
+                  "description": "Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch",
+                  "default": true
+                },
+                "fix-severity-threshold": {
+                  "type": "string",
+                  "title": "Fix severity threshold",
+                  "description": "Minimum severity level of the vulnerabilities to fix: vulnerabilities below this threshold are reported and ignored, not pinned, to limit the churn of transitive fixes (low, medium, high, critical)",
+                  "default": "high",
+                  "enum": ["low", "medium", "high", "critical"]
+                },
+                "dashboard-severity-threshold": {
+                  "type": "string",
+                  "title": "Dashboard severity threshold",
+                  "description": "Minimum severity level to display on the transversal dashboard, the vulnerabilities below are reported on the output page in a collapsed section (low, medium, high, critical)",
+                  "default": "high",
+                  "enum": ["low", "medium", "high", "critical"]
+                },
+                "excluded-files": {
+                  "type": "array",
+                  "title": "Excluded files",
+                  "description": "List of regex patterns for file names to exclude from the transversal dashboard",
+                  "default": [],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "files-no-fix": {
+                  "type": "array",
+                  "title": "Files not to fix",
+                  "description": "Dependency files in which the fixes are not applied and not validated, the vulnerabilities they report are only reported",
+                  "default": [],
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "pip-install-arguments": {
+                  "type": "array",
+                  "title": "Pip dry run arguments",
+                  "description": "Arguments to pass to `pip install --dry-run` when validating the fixed requirements files",
+                  "default": [],
                   "items": {
                     "type": "string"
                   }

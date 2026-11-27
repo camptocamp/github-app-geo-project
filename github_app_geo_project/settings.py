@@ -159,6 +159,16 @@ class _AuditTimeouts(BaseModel):
     snyk_api: Annotated[Duration, Field(description="Snyk REST API request timeout")] = dt.timedelta(
         minutes=2
     )
+    trivy_fs: Annotated[Duration, Field(description="Trivy dependencies scan timeout")] = dt.timedelta(
+        minutes=10
+    )
+    poetry_lock: Annotated[Duration, Field(description="poetry lock timeout")] = dt.timedelta(minutes=15)
+    poetry_check_lock: Annotated[Duration, Field(description="poetry check --lock timeout")] = dt.timedelta(
+        minutes=2
+    )
+    pip_dry_run: Annotated[Duration, Field(description="pip install --dry-run timeout")] = dt.timedelta(
+        minutes=10
+    )
 
 
 class _UtilsTimeouts(BaseModel):

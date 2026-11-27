@@ -1,7 +1,10 @@
 A module that does some audit stuff on the project:
 
 - Check for critical vulnerabilities (Snyk)
-- Create a pull request for auto fixable issues (Snyk)
+- Check and fix the Python dependency vulnerabilities (Trivy)
+  - Create a pull request for the auto fixable issues
+  - Create an issue if the pull request is open for more than 5 days
+- Create a pull request for auto fixable issues (Snyk, disabled by default, see `snyk.auto-fix`)
   - Create an issue on error
   - Create an issue if the pull request is open for more than 5 days
 - Create a pull request with the updated version in the `ci/dpkg.yaml` files
@@ -11,11 +14,12 @@ A module that does some audit stuff on the project:
 - Scan the pull request code for secrets and misconfigurations (Trivy)
   - Report the findings as an action required check on the pull request
 
-The dependency CVEs are checked with Snyk. The container images used by the ArgoCD
-applications of the deployment repositories (`argocd-gs-gmf-apps`, `argocd-gs-ugsp-apps`) are
-discovered by rendering the Helm charts and scanned with Trivy. The pull requests are scanned
-with Trivy, only for the secrets and the configuration files misconfigurations, not for the
-dependency vulnerabilities (which are handled by Snyk on the stabilization branches).
+The dependency CVEs are checked with Snyk, and the Python dependency CVEs with Trivy, which also
+fixes them. The container images used by the ArgoCD applications of the deployment repositories
+(`argocd-gs-gmf-apps`, `argocd-gs-ugsp-apps`) are discovered by rendering the Helm charts and
+scanned with Trivy. The pull requests are scanned with Trivy, only for the secrets and the
+configuration files misconfigurations, not for the dependency vulnerabilities (which are handled
+by the Trivy dependencies audit and Snyk on the stabilization branches).
 
 The result will be put in the transversal dashboard.
 
@@ -47,11 +51,12 @@ The lower the priority number, the sooner the job is processed. The priorities a
 | `dpkg (<version>)`              | `PRIORITY_CRON + 2`     | 42    |
 | `snyk (<version>)`              | `PRIORITY_CRON + 3`     | 43    |
 | `trivy (<branch>)`              | `PRIORITY_CRON + 4`     | 44    |
+| `trivy-filesystem (<version>)`  | `PRIORITY_CRON + 5`     | 45    |
 
-The `snyk (<version>)` and `trivy (<branch>)` jobs are the slowest and are serialized
-(`_SNYK_LOCK`, `_TRIVY_LOCK`), that is why they have the highest priority numbers. The
-`trivy-pull-request (<number>)` jobs are serialized by their own lock too
-(`_TRIVY_PULL_REQUEST_LOCK`), but they keep the fast `PRIORITY_STATUS` value because they
+The `snyk (<version>)`, `trivy (<branch>)` and `trivy-filesystem (<version>)` jobs are the slowest and
+are serialized (`_SNYK_LOCK`, `_TRIVY_LOCK`, shared by the two Trivy jobs), that is why they have
+the highest priority numbers. The `trivy-pull-request (<number>)` jobs are serialized by their own
+lock too (`_TRIVY_PULL_REQUEST_LOCK`), but they keep the fast `PRIORITY_STATUS` value because they
 are pull request checks.
 
 ### Other files used by the module
@@ -60,6 +65,7 @@ are pull request checks.
 - `.tools-version` on the stabilization branch to get the used minor Python version. The matching `pyenv` Python version is lazily installed at runtime if missing.
 - `.nvmrc`, `.node-version` or `.tool-versions` (`nodejs` entry, in this order of precedence) on the stabilization branch to get the pinned Node.js version. The matching Node.js version is lazily installed at runtime with `fnm` if missing, and used for `snyk fix` and `npm audit fix`. Without any version file, or if the installation fails, the Node.js version of the Docker image is used.
 - `gradlew` on the stabilization branch to get the Gradle version. The Java version used to run Gradle is the one of the `java-path-for-gradle` configuration mapping when it defines the Gradle minor version, otherwise the newest installed OpenJDK compatible with that Gradle version (Gradle 8.x → Java 21, 7.x → Java 17, 6.x → Java 11, looked up in `/usr/lib/jvm`), otherwise the system default Java.
+- `.trivyignore` and `.trivyignore.yaml` on the stabilization branch, the ignore policies read natively by the Trivy dependencies scan; the `reason` and `expire` fields of the YAML entries are displayed on the output page.
 - `.github/ghci.yaml` on the stabilization branch to get some branch-specific configuration.
 
 ### Functionality Details
@@ -72,7 +78,12 @@ The module uses Snyk to scan for vulnerabilities in project dependencies. It foc
 
 When Snyk identifies vulnerabilities that can be automatically fixed, the module creates a pull request with the necessary changes. This helps maintain project security by streamlining the remediation process.
 
-The automatic fixes can be turned off without turning off the scan by setting `snyk.auto-fix` to `false`. The `snyk fix` and `npm audit fix` commands are then skipped, no file is changed and no pull request is created, the fixable vulnerabilities are only reported in the transversal dashboard and in the Snyk summary output. As for the other Snyk options, it can be set globally in the `.github/ghci.yaml` file of the default branch, or for a single stabilization branch in its own `.github/ghci.yaml` file, where it takes precedence.
+The automatic fixes are disabled by default (`snyk.auto-fix` is `false`): the Python dependency
+fixes are done by the Trivy dependencies audit (see below), and the fixable vulnerabilities found
+by Snyk are only reported. Setting `snyk.auto-fix` to `true` restores the `snyk fix` and
+`npm audit fix` commands, the file changes and the pull requests. As for the other Snyk options,
+it can be set globally in the `.github/ghci.yaml` file of the default branch, or for a single
+stabilization branch in its own `.github/ghci.yaml` file, where it takes precedence.
 
 The pull request body contains:
 
@@ -93,6 +104,55 @@ message.
 #### Snyk Summary Report Output
 
 Every `snyk (<version>)` job creates or updates the `/output/<owner>/<repository>/snyk-<version>` output, even when every vulnerability was fixed or when only vulnerabilities below the dashboard threshold remain. The page lists the remaining vulnerabilities, the ignored ones (with the reason found in the `.snyk` policy files) and, collapsed, the low severity ones. It displays `No vulnerability found.` when the three sections are empty. The output URL is stable, it is linked from the pull request body and from the transversal dashboard.
+
+#### Python Dependencies Scan and Fix (Trivy filesystem)
+
+The `trivy-filesystem (<version>)` job scans the Python dependencies of each stabilization branch with
+`trivy fs --scanners vuln --format json` and fixes them, which replaces the Snyk auto-fix for this
+ecosystem. The scan reads the dependency files (`poetry.lock`, `requirements*.txt`) directly: the
+dependencies are not installed in the audit environment, and the rescan done after the fixes is
+therefore a real confirmation of what was fixed, unlike the Snyk rescan which could not confirm the
+pins added to the requirements files. Every vulnerability from the LOW severity is reported; only
+those at or above `trivy.filesystem.fix-severity-threshold` (default `high`) are fixed, to limit the
+churn of the transitive fixes, and those at or above `trivy.filesystem.dashboard-severity-threshold`
+(default `high`) are listed directly on the transversal dashboard, the others being displayed in a
+collapsed section of the output page.
+
+The project type is auto-detected per directory:
+
+- **With Poetry** (a `poetry.lock` file is committed next to its `pyproject.toml`): the lock is
+  bumped to the smallest version fixing all the selected vulnerabilities of the package, direct or
+  transitive, without touching the `pyproject.toml`. For each package a temporary `==<fixed>`
+  constraint is written in the `pyproject.toml`, `poetry lock` (conservative in Poetry 2.x,
+  `--no-update` on 1.x) moves only that entry, the original `pyproject.toml` is restored and
+  `poetry lock` is run again, validated with `poetry check --lock`. A fixed version forbidden by the
+  original constraint of a direct dependency, or that does not resolve with the other constraints,
+  is not pinned: it is reported as a skipped fix (the direct dependency updates are the job of
+  Renovate).
+- **Without Poetry** (requirements files): an existing `==`/`>=` pin is bumped to the fixed version,
+  a vulnerable package that is not listed gets a `<package>>=<fixed>` floor appended, then the edited
+  file is validated with `pip install --dry-run --ignore-installed` (extra arguments from
+  `trivy.filesystem.pip-install-arguments`); a file that does not resolve anymore is fully reverted and
+  reported as a skipped fix.
+
+In both modes the fixed releases are checked against the branch Python version (`.tool-versions`):
+a version whose PyPI `Requires-Python` is newer than the branch interpreter is never pinned, the
+vulnerability stays handled by the ignore policies. Pipenv (`Pipfile.lock`) and the other ecosystems
+are reported, not fixed.
+
+The fixes are pushed to the `ghci/audit/trivy-filesystem/<version>` branch with auto-merge enabled, and
+the pull request body contains the `Fixed vulnerabilities` section (confirmed by the rescan), the
+`Fixes applied (pins added to requirements files)` section, the `Fixes not applied` section with the
+reason of each skipped fix, the raw fix output and the `Logs`/`Output` links. The ignored
+vulnerabilities are displayed with the reason read from the `.trivyignore.yaml` files; note that the
+Snyk ignores (`.snyk` files) do not apply to this scan, they must be duplicated into a
+`.trivyignore.yaml` file (with `id`, `reason` and optionally `expire`).
+
+Every `trivy-filesystem (<version>)` job creates or updates the
+`/output/<owner>/<repository>/trivy-filesystem-<version>` page, listing the remaining and the ignored
+vulnerabilities with their CVE links, and the transversal dashboard gets a
+`Trivy filesystem check/fix <version>` entry. When `trivy.filesystem.auto-fix` is set to `false`, the
+vulnerabilities are only reported and no pull request is created.
 
 #### Container Images Scan (Trivy)
 
@@ -132,7 +192,7 @@ images it uses, with for each image the reported vulnerabilities (CVE, package, 
 version, fixed version, title). The transversal dashboard gets a `Trivy images <branch>` entry
 summarizing the scan (`N applications, M images, K critical`) with `Logs` and `Output` links.
 
-The image scan is enabled by default (`audit.trivy.enabled`) with `app-structure: auto`, so an
+The image scan is enabled by default (`audit.trivy.image.enabled`) with `app-structure: auto`, so an
 ArgoCD deployment repository needs **no configuration**: the fan-out spawns a `trivy` job as soon
 as the default branch has an `apps` directory and a scanned `environment`. Repositories without
 ArgoCD applications are therefore unaffected.
@@ -192,12 +252,12 @@ If errors occur during the scanning or PR creation process, or if pull requests 
 
 The daily `cleanup` job (also triggered when `SECURITY.md` is removed from the default branch) removes the leftovers of versions that are no more supported:
 
-- Close the `ghci/audit/{snyk,dpkg,renovate}/<version>` branches and their pull requests, including the branches left behind by merged or manually closed pull requests.
+- Close the `ghci/audit/{snyk,dpkg,renovate,trivy-filesystem}/<version>` branches and their pull requests, including the branches left behind by merged or manually closed pull requests.
 - Close the related bot issues (`Pull request Audit ... is open for N days`), including the `Cleanup Renovate configuration` ones.
-- Delete the persisted Snyk outputs (`/output/<owner>/<repository>/snyk-<version>`) and the Trivy images outputs (`/output/<owner>/<repository>/trivy-images-<branch>`) of the removed versions.
+- Delete the persisted Snyk outputs (`/output/<owner>/<repository>/snyk-<version>`), the Trivy images outputs (`/output/<owner>/<repository>/trivy-images-<branch>`) and the Trivy dependencies outputs (`/output/<owner>/<repository>/trivy-filesystem-<version>`) of the removed versions.
 - Clear the dashboard checks when `SECURITY.md` is removed.
 
-The Snyk/dpkg/Trivy fan-out job additionally prunes the transversal dashboard entries (`Snyk check/fix <version>`, `Dpkg <version>`, `Trivy images <branch>`) and the legacy vulnerability sections (`=== <version>` in the dashboard issue) of the versions removed from `SECURITY.md`.
+The Snyk/dpkg/Trivy fan-out job additionally prunes the transversal dashboard entries (`Snyk check/fix <version>`, `Dpkg <version>`, `Trivy filesystem check/fix <version>`, `Trivy images <branch>`) and the legacy vulnerability sections (`=== <version>` in the dashboard issue) of the versions removed from `SECURITY.md`.
 
 The `cleanup` job reports the resulting situation in the output of its check run (`Cleanup: Everything is clean`, or `Cleanup: N leftover(s) removed` with the details of what was removed) and as a `Cleanup` entry in the transversal dashboard.
 
@@ -229,12 +289,5 @@ You can control which vulnerabilities appear on the dashboard with:
 
 - `snyk.dashboard-severity-threshold` — minimum severity level to display on the transversal dashboard (default: `medium`)
 - `snyk.excluded-files` — list of regex patterns for file names to exclude from the transversal dashboard
-
-#### Security Advisories
-
-When vulnerabilities with a severity at or above the configurable threshold are detected, the module automatically creates GitHub Security Advisories. This feature requires the `security_advisories: write` permission.
-
-You can control advisory creation with:
-
-- `snyk.advisory-severity-threshold` — minimum severity level to create a Security Advisory (default: `high`)
-- `snyk.excluded-files` — list of regex patterns for file names to exclude from advisory creation
+- `trivy.filesystem.dashboard-severity-threshold` — same, for the Trivy dependencies entries (default: `high`)
+- `trivy.filesystem.excluded-files` — same, for the Trivy dependencies entries
