@@ -2933,6 +2933,52 @@ async def test_discover_applications_structures_and_exclusion(
 
 
 @pytest.mark.asyncio
+async def test_application_images_refreshes_repositories(tmp_path: Path) -> None:
+    """The Helm dependencies are updated without `--skip-refresh` and the images are extracted."""
+    rendered = "apiVersion: v1\nkind: Pod\nspec:\n  containers:\n    - image: ghcr.io/camptocamp/app:1.0\n"
+
+    async def fake_run_timeout(command: list[str], *args: object, **kwargs: object) -> tuple[str, bool, None]:
+        if command[:3] == ["helm", "dependency", "update"]:
+            return "", True, None
+        return rendered, True, None
+
+    with patch.object(
+        audit_utils.module_utils,
+        "run_timeout",
+        new=AsyncMock(side_effect=fake_run_timeout),
+    ) as mock_run_timeout:
+        images, error = await audit_utils.application_images(anyio.Path(str(tmp_path)), "apps/int/demo/app")
+
+    assert error == ""
+    assert images == {"ghcr.io/camptocamp/app:1.0"}
+    commands = [call.args[0] for call in mock_run_timeout.await_args_list]
+    # `--skip-refresh` breaks the dependency repositories that are not added with `helm repo add`,
+    # see https://github.com/helm/helm/issues/11001 and https://github.com/helm/helm/issues/12921.
+    assert commands[0] == ["helm", "dependency", "update"]
+    assert not any("--skip-refresh" in command for command in commands)
+
+
+@pytest.mark.asyncio
+async def test_application_images_template_failure(tmp_path: Path) -> None:
+    """A failed `helm template` returns no image and an error message."""
+
+    async def fake_run_timeout(command: list[str], *args: object, **kwargs: object) -> tuple[str, bool, None]:
+        if command[:3] == ["helm", "dependency", "update"]:
+            return "", True, None
+        return "", False, None
+
+    with patch.object(
+        audit_utils.module_utils,
+        "run_timeout",
+        new=AsyncMock(side_effect=fake_run_timeout),
+    ):
+        images, error = await audit_utils.application_images(anyio.Path(str(tmp_path)), "apps/int/demo/app")
+
+    assert images == set()
+    assert error == "Failed to render the Helm chart of `apps/int/demo/app`"
+
+
+@pytest.mark.asyncio
 async def test_process_trivy_creates_output_and_transversal_entry() -> None:
     """`_process_trivy` stores the images output and the transversal dashboard entry."""
     context = Mock()

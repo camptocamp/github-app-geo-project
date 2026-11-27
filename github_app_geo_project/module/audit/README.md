@@ -101,9 +101,14 @@ works). The whole feature runs **inside the GHCI worker pods**:
   `apps/<env>/<app>/`, `two-level` for `apps/<env>/<client>/<app>/`) is **detected automatically**
   with `app-structure: auto` (the default), so no per-repository configuration is required;
   `excluded-apps` adds optional regex exclusions.
-- Each application directory is rendered with `helm dependency update --skip-refresh` and
-  `helm template`; the container image references are extracted from the generated manifests
-  (both `image: <name>:<tag>` strings and `image: {repository, tag|digest}` objects).
+- Each application directory is rendered with `helm dependency update` and `helm template`; the
+  container image references are extracted from the generated manifests
+  (both `image: <name>:<tag>` strings and `image: {repository, tag|digest}` objects). The
+  `helm dependency update` is run without `--skip-refresh` because the subchart repositories are
+  not registered with `helm repo add` and, with that flag, Helm fails to resolve them (it looks
+  for an index cache of the ad hoc `helm-manager-<hash>` repository that is never written), see
+  [helm/helm#11001](https://github.com/helm/helm/issues/11001) and
+  [helm/helm#12921](https://github.com/helm/helm/issues/12921).
 - Every distinct image reference is scanned exactly once with
   `trivy image --format=json --severity=<SEVERITY> <image>`, with a semaphore of 4 concurrent
   scans and a module-wide `_TRIVY_LOCK` so that two scans never overlap. An image shared by
