@@ -6,6 +6,7 @@ This application will manage:
 - The Backports
 - The pull request checks
 - Scanning the pull requests with Trivy (secrets and misconfigurations, as a warning)
+- Auditing the dependencies (Snyk, Trivy) and scanning the container images with Trivy (the ArgoCD application images and the images published by the repository)
 - Adding useful links into the pull request
 - Manage auto review and auto merge of pull requests
 - Workflow trigger between repository

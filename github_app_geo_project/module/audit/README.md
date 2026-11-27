@@ -11,15 +11,19 @@ A module that does some audit stuff on the project:
   - Create an issue if the pull request is open for more than 5 days
 - Scan the container images used by the ArgoCD applications (Trivy)
   - Report the list of images of each application and their critical vulnerabilities in the dashboard
+- Scan the container images published by the repository (Trivy)
+  - Resolve the published tags to their digest and scan each image once, listing the equivalent tags
 - Scan the pull request code for secrets and misconfigurations (Trivy)
   - Report the findings as an action required check on the pull request
 
 The dependency CVEs are checked with Snyk, and the Python and npm dependency CVEs with Trivy, which
 also fixes them. The container images used by the ArgoCD applications of the deployment repositories
 (`argocd-gs-gmf-apps`, `argocd-gs-ugsp-apps`) are discovered by rendering the Helm charts and
-scanned with Trivy. The pull requests are scanned with Trivy, only for the secrets and the
-configuration files misconfigurations, not for the dependency vulnerabilities (which are handled
-by the Trivy dependencies audit and Snyk on the stabilization branches).
+scanned with Trivy. The container images published by a repository are discovered from its
+`.github/publish.yaml` publishing configuration, resolved to their manifest digest and scanned with
+Trivy. The pull requests are scanned with Trivy, only for the secrets and the configuration files
+misconfigurations, not for the dependency vulnerabilities (which are handled by the Trivy
+dependencies audit and Snyk on the stabilization branches).
 
 The result will be put in the transversal dashboard.
 
@@ -51,13 +55,14 @@ The lower the priority number, the sooner the job is processed. The priorities a
 | `dpkg (<version>)`              | `PRIORITY_CRON + 2`     | 42    |
 | `snyk (<version>)`              | `PRIORITY_CRON + 3`     | 43    |
 | `trivy (<branch>)`              | `PRIORITY_CRON + 4`     | 44    |
-| `trivy-filesystem (<version>)`  | `PRIORITY_CRON + 5`     | 45    |
+| `trivy-published (<branch>)`    | `PRIORITY_CRON + 5`     | 45    |
+| `trivy-filesystem (<version>)`  | `PRIORITY_CRON + 6`     | 46    |
 
-The `snyk (<version>)`, `trivy (<branch>)` and `trivy-filesystem (<version>)` jobs are the slowest and
-are serialized (`_SNYK_LOCK`, `_TRIVY_LOCK`, shared by the two Trivy jobs), that is why they have
-the highest priority numbers. The `trivy-pull-request (<number>)` jobs are serialized by their own
-lock too (`_TRIVY_PULL_REQUEST_LOCK`), but they keep the fast `PRIORITY_STATUS` value because they
-are pull request checks.
+The `snyk (<version>)`, `trivy (<branch>)`, `trivy-published (<branch>)` and `trivy-filesystem (<version>)`
+jobs are the slowest and are serialized (`_SNYK_LOCK`, `_TRIVY_LOCK`, shared by the three Trivy jobs),
+that is why they have the highest priority numbers. The `trivy-pull-request (<number>)` jobs are
+serialized by their own lock too (`_TRIVY_PULL_REQUEST_LOCK`), but they keep the fast
+`PRIORITY_STATUS` value because they are pull request checks.
 
 ### Other files used by the module
 
@@ -228,6 +233,36 @@ The fan-out also handles the case of a repository **without `SECURITY.md`** (bot
 repositories): instead of pruning all transversal entries, it keeps the `Trivy images <branch>`
 entries in `known_types` and continues the daily cleanup, so that a scan result is not erased
 every day.
+
+#### Published Images Scan (Trivy)
+
+Repositories that **publish** container images (with
+[tag-publish](https://github.com/camptocamp/tag-publish) via a `.github/publish.yaml` file) have
+their own images scanned, independently of the ArgoCD applications scan. A single
+`trivy-published (<branch>)` job is spawned during the fan-out (daily cron or dashboard checkbox)
+on the default branch, when `audit.trivy.image.enabled` is set (default) and a
+`.github/publish.yaml` file exists:
+
+- The image references are derived from the publish configuration for **all the supported versions**
+  of the `SECURITY.md` file (`<host>/<name>:<tag>`), exactly as the `versions` module builds them.
+- Every tag is resolved to its manifest digest through the registry v2 API (`HEAD` on
+  `/v2/<name>/manifests/<tag>`, `Docker-Content-Digest`), with a short-lived pull token exchanged
+  from the GitHub App installation token for `ghcr.io`. Because the published tags are floating
+  (`latest`, `main`, `test`, `<version>`, ...), several tags can point to the **same digest**: they
+  are grouped, and each distinct digest is scanned **once**. A tag that is not published (404) is
+  skipped, it is not an error.
+- Each distinct digest is scanned with `trivy image --format=json <host>/<name>@<digest>`, sharing
+  the `_TRIVY_LOCK` and the Trivy database cache with the other Trivy jobs. A temporary
+  `DOCKER_CONFIG` file is written with the registry credentials so that Trivy can pull the private
+  `ghcr.io` images; the `packages: read` permission is therefore required on the application.
+
+Every `trivy-published (<branch>)` job creates or updates the
+`/output/<owner>/<repository>/trivy-published-<branch>` page, listing per scanned image its
+repository, digest, the equivalent tags and the supported versions that publish it, and the reported
+vulnerabilities. The transversal dashboard gets a `Trivy published images <branch>` entry summarizing
+the scan (`N images (M tags), K critical`) with `Logs` and `Output` links. The scan shares the
+`trivy.image` configuration (and its `severity-threshold` / `ignore-unfixed` options) with the ArgoCD
+container images scan; there is no separate configuration block.
 
 #### Pull Request Scan (Trivy)
 

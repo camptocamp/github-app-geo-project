@@ -37,6 +37,7 @@ from github_app_geo_project.module.audit import (
     _process_snyk_dpkg,
     _process_trivy,
     _process_trivy_filesystem,
+    _process_trivy_published,
     _remove_dashboard_vuln_section,
     _TransversalStatus,
     _TransversalStatusRepo,
@@ -4407,3 +4408,243 @@ async def test_process_trivy_filesystem_flow() -> None:
     assert entry.status == "success"
     assert entry.output_url == "https://example.com/output/owner/repo/trivy-filesystem-1.2"
     assert entry.pull_request_url == "https://github.com/owner/repo/pull/1"
+
+
+def test_docker_image_refs_ghcr_floating_tags() -> None:
+    """Floating tags without a placeholder collapse to one reference shared by all versions."""
+    docker_config = {
+        "images": [{"name": "camptocamp/img", "tags": ["{version}", "latest"]}],
+    }
+    refs = audit_utils._docker_image_refs(docker_config, ["1.0", "2.0"])
+
+    assert refs[audit_utils._PublishedRef("ghcr.io", "camptocamp/img", "1.0")] == {"1.0"}
+    assert refs[audit_utils._PublishedRef("ghcr.io", "camptocamp/img", "2.0")] == {"2.0"}
+    assert refs[audit_utils._PublishedRef("ghcr.io", "camptocamp/img", "latest")] == {"1.0", "2.0"}
+    assert len(refs) == 3
+
+
+def test_docker_image_refs_dockerhub_default() -> None:
+    """A repository without a host falls back to Docker Hub."""
+    docker_config = {
+        "repository": {"dockerhub": {}},
+        "images": [{"name": "camptocamp/img", "tags": ["{version}"]}],
+    }
+    refs = audit_utils._docker_image_refs(docker_config, ["1.0"])
+
+    assert list(refs) == [audit_utils._PublishedRef("docker.io", "camptocamp/img", "1.0")]
+
+
+def test_docker_image_refs_unsupported_host_skipped() -> None:
+    """A registry that is not ghcr.io or Docker Hub is skipped."""
+    docker_config = {
+        "repository": {"other": {"host": "quay.io"}},
+        "images": [{"name": "camptocamp/img", "tags": ["{version}"]}],
+    }
+    assert audit_utils._docker_image_refs(docker_config, ["1.0"]) == {}
+
+
+@pytest.mark.asyncio
+async def test_trivy_published_images_groups_tags_by_digest() -> None:
+    """Two tags sharing a digest are scanned once and reported together."""
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        root = Path(tmpdirname)
+        (root / ".github").mkdir()
+        (root / ".github" / "publish.yaml").write_text(
+            "docker:\n"
+            "  images:\n"
+            "    - name: camptocamp/img\n"
+            "      tags: ['{version}', 'latest', 'missing']\n",
+            encoding="utf-8",
+        )
+
+        async def fake_resolve(_session, _host, _path, tag, _token):
+            if tag == "2.0":
+                return "sha256:d2", ""
+            if tag == "missing":
+                return None, "not-published"
+            return "sha256:d1", ""
+
+        async def fake_scan(image, _severity, _ignore_unfixed, _env, _cwd):
+            digest = image.split("@", 1)[1]
+            if digest == "sha256:d1":
+                return audit_utils.TrivyImage(
+                    image=image,
+                    critical_count=1,
+                    vulnerabilities=[
+                        audit_utils.TrivyVulnerability(
+                            cve="CVE-2026-0001",
+                            package="libssl",
+                            installed_version="3.0.1",
+                            severity="critical",
+                        )
+                    ],
+                )
+            return audit_utils.TrivyImage(image=image)
+
+        with (
+            patch.object(audit_utils, "_TRIVY_CACHE_DIR", str(root / "trivy-cache")),
+            patch.object(audit_utils, "_resolve_tag_digest", side_effect=fake_resolve),
+            patch.object(audit_utils, "scan_image", side_effect=fake_scan),
+        ):
+            report, _messages = await audit_utils.trivy_published_images(
+                "main",
+                anyio.Path(root),
+                {},
+                {},
+                ["1.0", "2.0"],
+                "token",
+            )
+
+    assert report.image_count == 2
+    assert report.tag_count == 4
+    group = next(image for image in report.images if image.digest == "sha256:d1")
+    assert group.tags == ["1.0", "latest"]
+    assert group.versions == ["1.0", "2.0"]
+    assert group.critical_count == 1
+    assert group.repository == "ghcr.io/camptocamp/img"
+    group2 = next(image for image in report.images if image.digest == "sha256:d2")
+    assert group2.tags == ["2.0"]
+    assert group2.critical_count == 0
+
+
+@pytest.mark.asyncio
+async def test_process_trivy_published_creates_output_and_entry() -> None:
+    """`_process_trivy_published` stores the published images output and the transversal entry."""
+    context = Mock()
+    context.module_event_data = _EventData(type="trivy-published", version="main", versions=["main", "1.0"])
+    context.module_config = {}
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "c2cgeoportal"
+    context.github_project.token = "tok"
+    context.service_url = "https://example.com/"
+    context.job_id = 77
+
+    report = audit_utils.TrivyPublishedReport(
+        branch="main",
+        images=[
+            audit_utils.TrivyPublishedImage(
+                repository="ghcr.io/camptocamp/img",
+                digest="sha256:d1",
+                tags=["1.0", "latest"],
+                versions=["1.0", "main"],
+                critical_count=1,
+                vulnerabilities=[
+                    audit_utils.TrivyVulnerability(
+                        cve="CVE-2026-0001",
+                        package="libssl",
+                        installed_version="3.0.1",
+                        severity="critical",
+                    )
+                ],
+            )
+        ],
+        image_count=1,
+        tag_count=2,
+        critical_total=1,
+        scan_errors=0,
+    )
+    issue_check = module_utils.DashboardIssue("")
+    intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        mock_cm = _make_worktree_mock(Path(tmpdirname))
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch.object(audit_utils, "trivy_published_images", new=AsyncMock(return_value=(report, []))),
+            patch(
+                "github_app_geo_project.module.audit.module_utils.add_output",
+                new=AsyncMock(),
+            ) as mock_add_output,
+        ):
+            short_message, success = await _process_trivy_published(
+                context,
+                issue_check,
+                intermediate_status,
+            )
+
+    assert success is True
+    assert short_message == ["1 images (2 tags), 1 critical"]
+    mock_add_output.assert_awaited_once()
+    call = mock_add_output.await_args
+    assert call is not None
+    assert call.args[2] == "trivy-published-main"
+    assert call.args[3] == "github_app_geo_project:module/audit/published-images.html"
+    types = intermediate_status.status.types
+    assert "Trivy published images main" in types
+    entry = types["Trivy published images main"]
+    assert entry.status == "success"
+    assert entry.output_url == "https://example.com/output/camptocamp/c2cgeoportal/trivy-published-main"
+
+
+@pytest.mark.asyncio
+async def test_process_fan_out_creates_trivy_published_action_when_publish_present() -> None:
+    """The fan-out adds a single `trivy-published` job when a publish configuration exists."""
+    context = Mock()
+    context.module_event_data = _EventData(snyk=False, dpkg=False)
+    context.github_event_data = {}
+    context.module_config = {"version-mapping": {}}
+    context.issue_data = ""
+    context.github_project = Mock()
+    context.github_project.owner = "camptocamp"
+    context.github_project.repository = "c2cgeoportal"
+    context.github_project.default_branch = AsyncMock(return_value="main")
+
+    async def async_get_content(owner, repo, path):
+        if path == ".github/publish.yaml":
+            return MagicMock(parsed_data=MagicMock(content=""))
+        raise _make_request_failed_exception(404)
+
+    context.github_project.aio_github.rest.repos.async_get_content = AsyncMock(side_effect=async_get_content)
+
+    result = await Audit().process(context)
+
+    published_actions = [action for action in result.actions if action.data.type == "trivy-published"]
+    assert len(published_actions) == 1
+    assert published_actions[0].data == _EventData(type="trivy-published", version="main", versions=["main"])
+    assert result.intermediate_status is not None
+    assert "Trivy published images main" in result.intermediate_status.known_types
+
+
+@pytest.mark.asyncio
+async def test_render_trivy_published_images_template() -> None:
+    """The published images output template renders the grouped tags and vulnerabilities."""
+    report = audit_utils.TrivyPublishedReport(
+        branch="main",
+        images=[
+            audit_utils.TrivyPublishedImage(
+                repository="ghcr.io/camptocamp/img",
+                digest="sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+                tags=["1.0", "latest"],
+                versions=["1.0", "main"],
+                critical_count=1,
+                vulnerabilities=[
+                    audit_utils.TrivyVulnerability(
+                        cve="CVE-2026-0001",
+                        package="libssl",
+                        installed_version="3.0.1",
+                        fixed_version="3.0.2",
+                        severity="critical",
+                    )
+                ],
+            )
+        ],
+        image_count=1,
+        tag_count=2,
+        critical_total=1,
+        scan_errors=0,
+    )
+    rendered = await render_template(
+        "github_app_geo_project:module/audit/published-images.html",
+        {"renderer_data": report.model_dump()},
+        nonce="test-nonce",
+    )
+    assert "ghcr.io/camptocamp/img" in rendered
+    assert "<code>1.0</code>" in rendered
+    assert "<code>latest</code>" in rendered
+    assert "CVE-2026-0001" in rendered
+    assert "libssl@3.0.1" in rendered
+    assert "Fixed in: 3.0.2" in rendered

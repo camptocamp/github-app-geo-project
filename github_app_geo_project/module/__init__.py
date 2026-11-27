@@ -201,6 +201,7 @@ class Permissions(TypedDict):
     issues: NotRequired[Literal["read", "write"]]
     merge_queues: NotRequired[Literal["read", "write"]]
     metadata: NotRequired[Literal["read", "write"]]
+    packages: NotRequired[Literal["read", "write"]]
     pages: NotRequired[Literal["read", "write"]]
     pull_requests: NotRequired[Literal["read", "write"]]
     repository_security_advisories: NotRequired[Literal["read", "write"]]
@@ -262,6 +263,7 @@ PermissionsKey = Literal[
     "issues",
     "merge_queues",
     "metadata",
+    "packages",
     "pages",
     "pull_requests",
     "repository_security_advisories",

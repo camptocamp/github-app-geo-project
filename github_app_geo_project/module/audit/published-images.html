@@ -1,0 +1,94 @@
+<style nonce="{{ nonce }}">
+  .audit-severity-low {
+    color: #6a737d;
+  }
+  .audit-severity-medium {
+    color: #d93;
+  }
+  .audit-severity-high {
+    color: #d33;
+  }
+  .audit-severity-critical {
+    color: #800;
+    font-weight: bold;
+  }
+  .audit-fixed-in {
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+  .audit-no-vulnerability {
+    color: #28a745;
+  }
+  .audit-scan-error {
+    color: #d33;
+    font-style: italic;
+  }
+  .audit-image-count {
+    font-size: 0.85em;
+    opacity: 0.7;
+  }
+  .audit-image-tags {
+    font-size: 0.9em;
+    opacity: 0.8;
+  }
+</style>
+
+{% if renderer_data %}
+<h2>{{ renderer_data['branch'] }}</h2>
+<p class="audit-image-count">
+  {{ renderer_data['image_count'] }} distinct images, {{ renderer_data['tag_count'] }} published tags, {{
+  renderer_data['critical_total'] }} critical vulnerabilities{% if renderer_data['scan_errors'] %}, {{
+  renderer_data['scan_errors'] }} scan error(s){% endif %}
+</p>
+<!---->
+{% if not renderer_data['images'] %}
+<p class="audit-no-vulnerability">No published container image found in the publishing configuration.</p>
+{% endif %}
+<!---->
+{% for image in renderer_data['images'] %}
+<h3>
+  {{ image['repository'] }}{% if image['digest'] %}<small>@{{ image['digest'][:19] }}…</small>{% endif %}
+</h3>
+<!---->
+{% if image['tags'] %}
+<p class="audit-image-tags">
+  Tags: {% for tag in image['tags'] %}<code>{{ tag }}</code>{% if not loop.last %}, {% endif %}{% endfor %}
+  <!---->
+  {% if image['versions'] %} (versions: {% for version in image['versions'] %}<code>{{ version }}</code>{% if
+  not loop.last %}, {% endif %}{% endfor %}) {% endif %}
+</p>
+{% endif %}
+<!---->
+<p>
+  <!---->
+  {% if image['scan_error'] %}
+  <span class="audit-scan-error">[{{ image['scan_error'] }}]</span>
+  {% elif image['critical_count'] %}
+  <span class="audit-severity-critical">[{{ image['critical_count'] }} critical]</span>
+  {% else %}
+  <span class="audit-no-vulnerability">[no vulnerability]</span>
+  {% endif %}
+</p>
+<!---->
+{% if image['vulnerabilities'] %}
+<ul>
+  {% for vuln in image['vulnerabilities'] %}
+  <li>
+    <span class="audit-severity-{{ vuln.severity }}">[{{ vuln.severity | upper }}]</span>
+    {{ vuln.package }}@{{ vuln.installed_version }}: {% if vuln.cve.startswith('CVE-') %}
+    <a href="https://nvd.nist.gov/vuln/detail/{{ vuln.cve }}">{{ vuln.cve }}</a>
+    {% else %} {{ vuln.cve }} {% endif %}
+    <!---->
+    {% if vuln.title %}&nbsp;&ndash;&nbsp;{{ vuln.title }}{% endif %}
+    <!---->
+    {% if vuln.fixed_version %}
+    <span class="audit-fixed-in">[Fixed in: {{ vuln.fixed_version }}]</span>
+    {% else %}
+    <span class="audit-fixed-in">[No fix available]</span>
+    {% endif %}
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+<!-- published images -->
+{% endfor %} {% endif %}
