@@ -57,7 +57,7 @@ AuditConfiguration = TypedDict('AuditConfiguration', {
     'renovate': "RenovateConfiguration",
     # | Trivy configuration.
     # | 
-    # | Trivy scans: the container images of the ArgoCD applications, the Python, npm and Gradle dependencies of the branches, and the pull requests
+    # | Trivy scans: the container images of the ArgoCD applications, the published container images, the Python, npm and Gradle dependencies of the branches, and the pull requests
     'trivy': "TrivyConfiguration",
     # | Version mapping.
     # | 
@@ -571,11 +571,11 @@ r""" Default value of the field path 'Trivy pull request configuration severity'
 
 # | Trivy configuration.
 # | 
-# | Trivy scans: the container images of the ArgoCD applications, the Python, npm and Gradle dependencies of the branches, and the pull requests
+# | Trivy scans: the container images of the ArgoCD applications, the published container images, the Python, npm and Gradle dependencies of the branches, and the pull requests
 TrivyConfiguration = TypedDict('TrivyConfiguration', {
     # | Trivy image configuration.
     # | 
-    # | Scan the container images used by the ArgoCD applications with Trivy
+    # | Scan the container images used by the ArgoCD applications and the container images published by the repository with Trivy
     'image': "TrivyImageConfiguration",
     # | Trivy pull request configuration.
     # | 
@@ -642,11 +642,11 @@ TrivyFilesystemConfiguration = TypedDict('TrivyFilesystemConfiguration', {
 
 # | Trivy image configuration.
 # | 
-# | Scan the container images used by the ArgoCD applications with Trivy
+# | Scan the container images used by the ArgoCD applications and the container images published by the repository with Trivy
 TrivyImageConfiguration = TypedDict('TrivyImageConfiguration', {
     # | Enable Trivy.
     # | 
-    # | Enable the container images audit, only applied to repositories that have an `apps/` directory of Helm applications
+    # | Enable the container images audit: the ArgoCD applications images for the repositories that have an `apps/` directory, and the published images for the repositories that have a `.github/publish.yaml` file
     # | 
     # | default: True
     'enabled': bool,

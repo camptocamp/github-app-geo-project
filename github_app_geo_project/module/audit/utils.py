@@ -3,6 +3,7 @@
 """The auditing functions."""
 
 import asyncio
+import base64
 import datetime as dt
 import html
 import io
@@ -11,11 +12,12 @@ import logging
 import os
 import re
 import subprocess
+import tempfile
 import tomllib
 import urllib.parse
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, cast
 
 import aiohttp
 import anyio
@@ -25,6 +27,7 @@ import packaging.requirements
 import packaging.specifiers
 import packaging.version
 import security_md
+import tag_publish.configuration
 import yaml  # nosec
 from pydantic import BaseModel
 
@@ -52,6 +55,7 @@ _TIMEOUT_NODE_INSTALL = settings.audit.timeouts.node_install
 _TIMEOUT_HELM_TEMPLATE = settings.audit.timeouts.helm_template
 _TIMEOUT_TRIVY_IMAGE = settings.audit.timeouts.trivy_image
 _TIMEOUT_TRIVY_FS = settings.audit.timeouts.trivy_fs
+_TIMEOUT_REGISTRY = settings.audit.timeouts.registry
 _TIMEOUT_POETRY_LOCK = settings.audit.timeouts.poetry_lock
 _TIMEOUT_POETRY_CHECK_LOCK = settings.audit.timeouts.poetry_check_lock
 _TIMEOUT_PIP_DRY_RUN = settings.audit.timeouts.pip_dry_run
@@ -2060,6 +2064,40 @@ class TrivyReport(BaseModel):
     """Number of images that could not be scanned."""
 
 
+class TrivyPublishedImage(BaseModel):
+    """The Trivy scan result of a single published container image, keyed by its digest."""
+
+    repository: str
+    """The image repository without tag (``host/name``)."""
+    digest: str
+    """The scanned manifest digest (``sha256:...``), empty when no digest could be resolved."""
+    tags: list[str] = []
+    """The published tags pointing to this digest (the floating tags are grouped here)."""
+    versions: list[str] = []
+    """The supported versions from which this image is published."""
+    critical_count: int = 0
+    """Number of vulnerabilities at or above the configured severity threshold."""
+    vulnerabilities: list[TrivyVulnerability] = []
+    """The reported vulnerabilities."""
+    scan_error: str = ""
+    """The scan failure reason, empty when the image was scanned successfully."""
+
+
+class TrivyPublishedReport(BaseModel):
+    """The aggregated result of the published container images scan of a repository."""
+
+    branch: str
+    images: list[TrivyPublishedImage] = []
+    image_count: int = 0
+    """Number of distinct image digests scanned."""
+    tag_count: int = 0
+    """Number of published tag references found in the publish configuration."""
+    critical_total: int = 0
+    """Total number of reported vulnerabilities across the distinct scanned digests."""
+    scan_errors: int = 0
+    """Number of images that could not be scanned or resolved."""
+
+
 _SEVERITY_TRIVY: dict[str, str] = {
     "low": "LOW",
     "medium": "MEDIUM",
@@ -2374,6 +2412,277 @@ async def trivy_images(
         branch=branch,
         applications=applications_report,
         image_count=len(unique_images),
+        critical_total=critical_total,
+        scan_errors=scan_errors,
+    )
+    return report, messages
+
+
+# ---------------------------------------------------------------------------
+# Trivy published container images scan
+# ---------------------------------------------------------------------------
+
+_SUPPORTED_REGISTRIES = ("ghcr.io", "docker.io")
+"""The registries the published images scan supports (same restriction as the clean module)."""
+
+_DOCKER_REGISTRY_API = "registry-1.docker.io"
+"""The Docker Hub registry API host (``docker.io`` is a display alias of it)."""
+
+_DOCKER_CONFIG_AUTH_KEY = "https://index.docker.io/v1/"
+"""The auth key Trivy / go-containerregistry uses for Docker Hub credentials."""
+
+_MANIFEST_ACCEPT = (
+    "application/vnd.oci.image.index.v1+json,"
+    "application/vnd.oci.image.manifest.v1+json,"
+    "application/vnd.docker.distribution.manifest.v2+json,"
+    "application/vnd.docker.distribution.manifest.list.v2+json"
+)
+"""The manifest media types accepted when resolving an image digest."""
+
+
+class _PublishedRef(NamedTuple):
+    """One published ``name:tag`` reference derived from the publish configuration."""
+
+    host: str
+    """The registry host (``ghcr.io`` or ``docker.io``)."""
+    path: str
+    """The image path in the registry (``owner/name`` on ghcr, ``name`` on Docker Hub)."""
+    tag: str
+    """The resolved tag name."""
+
+
+def _docker_image_refs(docker_config: dict[str, Any], versions: list[str]) -> dict[_PublishedRef, set[str]]:
+    """
+    Build the published image references of a publish configuration for the given versions.
+
+    Each image ``tags`` pattern is formatted with ``version=<version>`` for every supported
+    version; patterns without a placeholder (the floating ``latest``, ``main``, ``test``, ...)
+    collapse to a single reference shared by all the versions.
+
+    Returns the references mapped to the versions that declare them.
+    """
+    refs: dict[_PublishedRef, set[str]] = {}
+    repositories = docker_config.get("repository", tag_publish.configuration.DOCKER_REPOSITORY_DEFAULT)
+    if not isinstance(repositories, dict) or not repositories:
+        repositories = cast("dict[str, Any]", tag_publish.configuration.DOCKER_REPOSITORY_DEFAULT)
+    for image in docker_config.get("images", []):
+        if not isinstance(image, dict):
+            continue
+        name = image.get("name")
+        if not isinstance(name, str):
+            continue
+        tags = image.get("tags", ["{version}"])
+        if not isinstance(tags, list) or not tags:
+            tags = ["{version}"]
+        for repository_conf in repositories.values():
+            if not isinstance(repository_conf, dict):
+                continue
+            host = repository_conf.get("host", "docker.io")
+            if not isinstance(host, str) or host not in _SUPPORTED_REGISTRIES:
+                _LOGGER.warning("Unsupported registry host %s for image %s", host, name)
+                continue
+            for tag_pattern in tags:
+                for version in versions:
+                    tag = str(tag_pattern).format(version=version)
+                    refs.setdefault(_PublishedRef(host=host, path=name, tag=tag), set()).add(version)
+    return refs
+
+
+def _registry_api_host(host: str) -> str:
+    """Return the registry API host used for the manifest requests."""
+    return _DOCKER_REGISTRY_API if host == "docker.io" else host
+
+
+async def _registry_pull_token(
+    session: aiohttp.ClientSession,
+    host: str,
+    path: str,
+    github_token: str,
+) -> str | None:
+    """Exchange the credentials for a short-lived registry pull token (``None`` for public Docker Hub)."""
+    if host == "ghcr.io":
+        auth: aiohttp.BasicAuth | None = aiohttp.BasicAuth("ghci", github_token)
+        token_url = f"https://ghcr.io/token?scope=repository:{path}:pull"
+    else:
+        username = os.environ.get("DOCKERHUB_USERNAME")
+        password = os.environ.get("DOCKERHUB_PASSWORD")
+        auth = aiohttp.BasicAuth(username, password) if username and password else None
+        token_url = f"https://auth.docker.io/token?service=registry.docker.io&scope=repository:{path}:pull"
+    try:
+        async with session.get(token_url, auth=auth) as response:
+            if response.status != 200:
+                return None
+            data = await response.json(content_type=None)
+    except (aiohttp.ClientError, TimeoutError, ValueError):
+        # A missing token only degrades to "tag not resolvable", it is not a fatal error.
+        return None
+    token = data.get("token") if isinstance(data, dict) else None
+    return str(token) if isinstance(token, str) else None
+
+
+async def _resolve_tag_digest(
+    session: aiohttp.ClientSession,
+    host: str,
+    path: str,
+    tag: str,
+    github_token: str,
+) -> tuple[str | None, str]:
+    """Resolve a ``name:tag`` reference to its manifest digest, best effort."""
+    pull_token = await _registry_pull_token(session, host, path, github_token)
+    headers = {"Accept": _MANIFEST_ACCEPT}
+    if pull_token:
+        headers["Authorization"] = f"Bearer {pull_token}"
+    url = f"https://{_registry_api_host(host)}/v2/{path}/manifests/{tag}"
+    try:
+        async with session.head(url, headers=headers, allow_redirects=True) as response:
+            if response.status == 404:
+                return None, "not-published"
+            if response.status != 200:
+                return None, f"registry error {response.status}"
+            digest = response.headers.get("Docker-Content-Digest", "")
+    except (aiohttp.ClientError, TimeoutError) as error:
+        return None, f"registry error: {error}"
+    return (digest, "") if digest else (None, "no digest in the response")
+
+
+async def _docker_config_dir(hosts: set[str], github_token: str) -> str:
+    """
+    Write a temporary Docker config file with the registry credentials Trivy will reuse.
+
+    Returns the path of the directory to be set as ``DOCKER_CONFIG``.
+    """
+    auths: dict[str, dict[str, str]] = {}
+    if any(host == "ghcr.io" for host in hosts):
+        auths["ghcr.io"] = {"auth": base64.b64encode(f"ghci:{github_token}".encode()).decode()}
+    if any(host == "docker.io" for host in hosts):
+        username = os.environ.get("DOCKERHUB_USERNAME")
+        password = os.environ.get("DOCKERHUB_PASSWORD")
+        if username and password:
+            entry = {"auth": base64.b64encode(f"{username}:{password}".encode()).decode()}
+            auths[_DOCKER_CONFIG_AUTH_KEY] = entry
+            auths["docker.io"] = entry
+    config_dir = anyio.Path(tempfile.mkdtemp(prefix="ghci-trivy-"))
+    async with await (config_dir / "config.json").open("w", encoding="utf-8") as file:
+        await file.write(json.dumps({"auths": auths}))
+    return str(config_dir)
+
+
+async def trivy_published_images(
+    branch: str,
+    cwd: anyio.Path,
+    config: configuration.TrivyImageConfiguration,
+    local_config: configuration.TrivyImageConfiguration,
+    versions: list[str],
+    github_token: str,
+) -> tuple[TrivyPublishedReport, list[module_utils.Message]]:
+    """
+    Scan the container images published by the repository with Trivy, deduplicated by digest.
+
+    The references are derived from the ``.github/publish.yaml`` configuration of the checked
+    out branch, for all the supported versions. Every floating tag is resolved to its manifest
+    digest through the registry v2 API; the tags sharing a digest are grouped and scanned once,
+    and the report lists the equivalent tags and versions of each scanned image.
+
+    Returns the report and the list of messages logged during the scan.
+    """
+    messages: list[module_utils.Message] = []
+    severity = local_config.get(
+        "severity-threshold",
+        config.get("severity-threshold", configuration.SEVERITY_THRESHOLD_DEFAULT),
+    )
+    ignore_unfixed = local_config.get(
+        "ignore-unfixed",
+        config.get("ignore-unfixed", configuration.IGNORE_UNFIXED_DEFAULT),
+    )
+
+    publish_path = cwd / ".github" / "publish.yaml"
+    if not await publish_path.exists():
+        return TrivyPublishedReport(branch=branch), messages
+    async with await publish_path.open("r", encoding="utf-8") as file:
+        publish_config = yaml.load(await file.read(), Loader=yaml.SafeLoader) or {}
+    if not isinstance(publish_config, dict):
+        return TrivyPublishedReport(branch=branch), messages
+    docker_config = publish_config.get("docker", {})
+    refs = _docker_image_refs(docker_config, versions)
+    if not refs:
+        return TrivyPublishedReport(branch=branch), messages
+
+    await anyio.Path(_TRIVY_CACHE_DIR).mkdir(parents=True, exist_ok=True)
+    timeout = aiohttp.ClientTimeout(total=_TIMEOUT_REGISTRY.total_seconds())
+
+    # Resolve every tag to its digest and group the tags that share the same manifest.
+    digests: dict[tuple[str, str, str], dict[str, Any]] = {}
+    not_published: list[str] = []
+    resolve_errors: list[str] = []
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        for ref, ref_versions in sorted(refs.items()):
+            display = f"{ref.host}/{ref.path}:{ref.tag}"
+            digest, error = await _resolve_tag_digest(session, ref.host, ref.path, ref.tag, github_token)
+            if digest is None:
+                if error == "not-published":
+                    not_published.append(display)
+                else:
+                    _LOGGER.warning("Could not resolve the digest of %s: %s", display, error)
+                    resolve_errors.append(f"{display} ({error})")
+                continue
+            group = digests.setdefault((ref.host, ref.path, digest), {"tags": set(), "versions": set()})
+            group["tags"].add(ref.tag)
+            group["versions"] |= ref_versions
+
+    hosts = {host for host, _path, _digest in digests}
+    env = {
+        **os.environ,
+        "TRIVY_CACHE_DIR": _TRIVY_CACHE_DIR,
+        "HELM_CACHE_HOME": "/var/www/.cache/helm",
+    }
+    config_dir = await _docker_config_dir(hosts, github_token)
+    env["DOCKER_CONFIG"] = config_dir
+    scanned: list[TrivyImage] = []
+    try:
+        ordered = sorted(digests.items())
+        semaphore = asyncio.Semaphore(_TRIVY_CONCURRENCY)
+
+        async def _scan(key: tuple[str, str, str]) -> TrivyImage:
+            host, path, digest = key
+            async with semaphore:
+                return await scan_image(f"{host}/{path}@{digest}", severity, ignore_unfixed, env, cwd)
+
+        scanned = await asyncio.gather(*(_scan(key) for key, _group in ordered))
+    finally:
+        # The temporary directory only holds the generated config.json.
+        await (anyio.Path(config_dir) / "config.json").unlink(missing_ok=True)
+        await anyio.Path(config_dir).rmdir()
+
+    images: list[TrivyPublishedImage] = []
+    for (key, group), result in zip(ordered, scanned, strict=True):
+        host, path, digest = key
+        images.append(
+            TrivyPublishedImage(
+                repository=f"{host}/{path}",
+                digest=digest,
+                tags=sorted(group["tags"]),
+                versions=sorted(group["versions"]),
+                critical_count=result.critical_count,
+                vulnerabilities=result.vulnerabilities,
+                scan_error=result.scan_error,
+            )
+        )
+
+    if not_published:
+        _LOGGER.info("Tags not published (skipped): %s", ", ".join(sorted(not_published)))
+    if resolve_errors:
+        messages.append(
+            module_utils.HtmlMessage("\n".join(f"- `{item}`" for item in sorted(resolve_errors))),
+        )
+        messages[-1].title = "Published tags whose digest could not be resolved"
+
+    scan_errors = sum(1 for result in scanned if result.scan_error)
+    critical_total = sum(result.critical_count for result in scanned)
+    report = TrivyPublishedReport(
+        branch=branch,
+        images=images,
+        image_count=len(images),
+        tag_count=len(refs),
         critical_total=critical_total,
         scan_errors=scan_errors,
     )

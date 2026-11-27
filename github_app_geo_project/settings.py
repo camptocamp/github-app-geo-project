@@ -165,6 +165,9 @@ class _AuditTimeouts(BaseModel):
     trivy_fs: Annotated[Duration, Field(description="Trivy dependencies scan timeout")] = dt.timedelta(
         minutes=10
     )
+    registry: Annotated[
+        Duration, Field(description="Container registry API request timeout (published images digest lookup)")
+    ] = dt.timedelta(minutes=1)
     poetry_lock: Annotated[Duration, Field(description="poetry lock timeout")] = dt.timedelta(minutes=15)
     poetry_check_lock: Annotated[Duration, Field(description="poetry check --lock timeout")] = dt.timedelta(
         minutes=2

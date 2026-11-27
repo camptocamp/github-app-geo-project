@@ -303,19 +303,19 @@
         "trivy": {
           "type": "object",
           "title": "Trivy configuration",
-          "description": "Trivy scans: the container images of the ArgoCD applications, the Python, npm and Gradle dependencies of the branches, and the pull requests",
+          "description": "Trivy scans: the container images of the ArgoCD applications, the published container images, the Python, npm and Gradle dependencies of the branches, and the pull requests",
           "additionalProperties": false,
           "properties": {
             "image": {
               "type": "object",
               "title": "Trivy image configuration",
-              "description": "Scan the container images used by the ArgoCD applications with Trivy",
+              "description": "Scan the container images used by the ArgoCD applications and the container images published by the repository with Trivy",
               "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "type": "boolean",
                   "title": "Enable Trivy",
-                  "description": "Enable the container images audit, only applied to repositories that have an `apps/` directory of Helm applications",
+                  "description": "Enable the container images audit: the ArgoCD applications images for the repositories that have an `apps/` directory, and the published images for the repositories that have a `.github/publish.yaml` file",
                   "default": true
                 },
                 "apps-root": {

@@ -45,6 +45,8 @@ _TRIVY_LOCK = asyncio.Lock()
 _OUTDATED = "Outdated version"
 _TRIVY_KEY = "Trivy images"
 """Prefix of the transversal dashboard check listing the scanned container images."""
+_TRIVY_PUBLISHED_KEY = "Trivy published images"
+"""Prefix of the transversal dashboard check listing the scanned published container images."""
 _TRIVY_FILESYSTEM_KEY = "Trivy filesystem check/fix"
 """Prefix of the transversal dashboard entry and pull request title of the dependencies audit."""
 _TRIVY_GRADLE_LOCK_KEY = "Trivy Gradle dependency locking"
@@ -67,7 +69,9 @@ _PRIORITY_SNYK = module.PRIORITY_CRON + 3
 """Priority of the audit `snyk` jobs (the slowest, serialized by `_SNYK_LOCK`)."""
 _PRIORITY_TRIVY = module.PRIORITY_CRON + 4
 """Priority of the audit `trivy` container images scan jobs (serialized by `_TRIVY_LOCK`)."""
-_PRIORITY_TRIVY_FILESYSTEM = module.PRIORITY_CRON + 5
+_PRIORITY_TRIVY_PUBLISHED = module.PRIORITY_CRON + 5
+"""Priority of the audit `trivy-published` published container images scan job (serialized by `_TRIVY_LOCK`)."""
+_PRIORITY_TRIVY_FILESYSTEM = module.PRIORITY_CRON + 6
 """Priority of the audit `trivy-filesystem` jobs (serialized by `_TRIVY_LOCK`)."""
 
 
@@ -160,9 +164,11 @@ class _EventData(BaseModel):
     snyk: bool = False
     dpkg: bool = False
     trivy_filesystem: bool = False
+    trivy_published: bool = False
     is_dashboard: bool = False
     version: str | None = None
     known_versions: list[str] | None = None  # for cleanup
+    versions: list[str] | None = None  # the supported versions of the published images scan
 
 
 def _get_process_output(
@@ -1054,6 +1060,87 @@ async def _process_trivy(
     return short_message, success
 
 
+async def _process_trivy_published(
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
+    issue_check: module_utils.DashboardIssue,
+    intermediate_status: _IntermediateStatus,
+) -> tuple[list[str], bool]:
+    """
+    Scan the container images published by the repository with Trivy.
+
+    The images are read from the ``.github/publish.yaml`` configuration of the checked out
+    branch for all the supported versions, resolved to their manifest digest through the
+    registry API and scanned once per digest; the tags sharing a digest are reported together.
+    The result is stored as a ``trivy-published-<branch>`` output and a
+    ``Trivy published images <branch>`` entry is added to the transversal dashboard.
+    """
+    assert context.module_event_data.version is not None
+    branch: str = context.module_event_data.version
+    versions = context.module_event_data.versions or [branch]
+    key = f"{_TRIVY_PUBLISHED_KEY} {branch}"
+    logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
+    output_name = f"trivy-published-{branch}"
+    output_url = urllib.parse.urljoin(
+        context.service_url,
+        f"output/{context.github_project.owner}/{context.github_project.repository}/{output_name}",
+    )
+
+    async with module_utils.GIT_WORKTREE_CACHE.working_tree(
+        context.github_project,
+        branch,
+    ) as cwd:
+        local_config: configuration.AuditConfiguration = {}
+        ghci_config_path = cwd / ".github" / "ghci.yaml"
+        if await ghci_config_path.exists():
+            async with await ghci_config_path.open("r", encoding="utf-8") as file:
+                local_config = yaml.load(
+                    await file.read(),
+                    Loader=yaml.SafeLoader,
+                ).get("audit", {})
+
+        async with _TRIVY_LOCK:
+            report, messages = await audit_utils.trivy_published_images(
+                branch,
+                cwd,
+                context.module_config.get("trivy", {}).get("image", {}),
+                local_config.get("trivy", {}).get("image", {}),
+                versions,
+                context.github_project.token,
+            )
+        for message in messages:
+            _LOGGER.info(message)
+
+    # An image that could not be scanned is an error of the scan itself, not a vulnerability:
+    # the job is in error only when every scanned image failed to scan.
+    fatal = 0 < report.image_count <= report.scan_errors
+    success = not fatal
+
+    await module_utils.add_output(
+        context,
+        f"Trivy published images report {branch}",
+        output_name,
+        "github_app_geo_project:module/audit/published-images.html",
+        status=models.OutputStatus.ERROR if fatal else models.OutputStatus.SUCCESS,
+        renderer_data=report,
+    )
+
+    summary = f"{report.image_count} images ({report.tag_count} tags), {report.critical_total} critical"
+    if report.scan_errors:
+        summary += f", {report.scan_errors} scan error(s)"
+    short_message = [summary]
+
+    issue_check.set_title(key, f"{key}: {summary} ([Logs]({logs_url}) | [Output]({output_url}))")
+    intermediate_status.status.types[key] = _TransversalStatusTool(
+        name=key,
+        summary=summary,
+        status="success" if success else "error",
+        logs_url=logs_url,
+        output_url=output_url,
+    )
+
+    return short_message, success
+
+
 async def _process_trivy_pull_request(
     context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
 ) -> module.ProcessOutput[_EventData, _IntermediateStatus]:
@@ -1379,6 +1466,7 @@ class Audit(
         snyk = False
         dpkg = False
         trivy_filesystem = False
+        trivy_published = False
         is_dashboard = context.module_event_name == "dashboard"
         if is_dashboard:
             old_check = module_utils.DashboardIssue(
@@ -1404,6 +1492,8 @@ class Audit(
                 dpkg = True
             if not old_check.is_checked("trivy-filesystem") and new_check.is_checked("trivy-filesystem"):
                 trivy_filesystem = True
+            if not old_check.is_checked("trivy-published") and new_check.is_checked("trivy-published"):
+                trivy_published = True
 
         if (
             context.github_event_data.get("type") == "event"
@@ -1426,13 +1516,18 @@ class Audit(
             snyk = True
             dpkg = True
             trivy_filesystem = True
+            trivy_published = True
 
-        if dpkg or snyk or trivy_filesystem:
+        if dpkg or snyk or trivy_filesystem or trivy_published:
             results.append(
                 module.Action(
                     priority=_PRIORITY_FAN_OUT,
                     data=_EventData(
-                        snyk=snyk, dpkg=dpkg, trivy_filesystem=trivy_filesystem, is_dashboard=is_dashboard
+                        snyk=snyk,
+                        dpkg=dpkg,
+                        trivy_filesystem=trivy_filesystem,
+                        trivy_published=trivy_published,
+                        is_dashboard=is_dashboard,
                     ),
                 ),
             )
@@ -1552,7 +1647,7 @@ class Audit(
                 )
             )
             for output in outputs_result.scalars():
-                for output_prefix in ("snyk-", "trivy-images-", "trivy-filesystem-"):
+                for output_prefix in ("snyk-", "trivy-images-", "trivy-published-", "trivy-filesystem-"):
                     if (
                         output.name.startswith(output_prefix)
                         and output.name[len(output_prefix) :] not in known_versions
@@ -1779,6 +1874,31 @@ class Audit(
             if not trivy_branches:
                 issue_check.remove_check("trivy")
 
+            # Determine whether the published container images scan (Trivy) applies: it needs the
+            # Trivy image scan to be enabled and a `.github/publish.yaml` publishing configuration.
+            trivy_published = False
+            if trivy_enabled:
+                publish_present = False
+                try:
+                    await context.github_project.aio_github.rest.repos.async_get_content(
+                        owner=context.github_project.owner,
+                        repo=context.github_project.repository,
+                        path=".github/publish.yaml",
+                    )
+                    publish_present = True
+                except githubkit.exception.RequestFailed as exception:
+                    if exception.response.status_code != 404:
+                        raise
+                if publish_present:
+                    trivy_published = True
+                    issue_check.add_check(
+                        "trivy-published",
+                        "Scan the published container images with Trivy",
+                        checked=False,
+                    )
+            if not trivy_published:
+                issue_check.remove_check("trivy-published")
+
             # Creates new jobs with the versions from the SECURITY.md
             versions = []
             if (
@@ -1793,7 +1913,7 @@ class Audit(
 
             # Without a SECURITY.md there is no dependency audit to run; skip entirely unless
             # the Trivy container images scan applies to this repository.
-            if not versions and not trivy_branches:
+            if not versions and not trivy_branches and not trivy_published:
                 _LOGGER.debug(
                     "No SECURITY.md file in the repository and no ArgoCD applications, nothing to audit",
                 )
@@ -1825,6 +1945,8 @@ class Audit(
                 else:
                     all_key_starts.extend([f"{key}{version}" for version in mapped_versions])
             all_key_starts.extend([f"{_TRIVY_KEY} {trivy_branch}" for trivy_branch in trivy_branches])
+            if trivy_published:
+                all_key_starts.append(f"{_TRIVY_PUBLISHED_KEY} {default_branch}")
 
             # Remove the legacy dashboard vulnerability sections of versions that are not supported anymore
             for version in sorted(_dashboard_vuln_section_versions(issue_check) - set(mapped_versions)):
@@ -1894,6 +2016,18 @@ class Audit(
                         title=f"trivy ({trivy_branch})",
                     ),
                 )
+            if trivy_published:
+                actions.append(
+                    module.Action(
+                        priority=_PRIORITY_TRIVY_PUBLISHED,
+                        data=_EventData(
+                            type="trivy-published",
+                            version=str(default_branch),
+                            versions=[*mapped_versions, str(default_branch)],
+                        ),
+                        title=f"trivy-published ({default_branch})",
+                    ),
+                )
             return ProcessOutput(
                 actions=actions,
                 dashboard=issue_check.to_string(),
@@ -1902,6 +2036,12 @@ class Audit(
             )
         elif context.module_event_data.type == "trivy":
             short_message, success = await _process_trivy(
+                context,
+                issue_check,
+                intermediate_status,
+            )
+        elif context.module_event_data.type == "trivy-published":
+            short_message, success = await _process_trivy_published(
                 context,
                 issue_check,
                 intermediate_status,
@@ -1969,6 +2109,7 @@ class Audit(
                 "issues": "write",
                 "contents": "write",
                 "workflows": "write",
+                "packages": "read",
             },
             {"push", "pull_request"},
         )
