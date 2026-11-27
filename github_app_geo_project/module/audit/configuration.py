@@ -78,10 +78,6 @@ AuditConfiguration = TypedDict('AuditConfiguration', {
     # | 
     # | Scan the container images used by the ArgoCD applications with Trivy
     'trivy': "TrivyConfiguration",
-    # | Trivy pull request configuration.
-    # | 
-    # | Scan the pull request code with Trivy, reported as an action required check
-    'trivy-pull-request': "TrivyPullRequestConfiguration",
     # | Version mapping.
     # | 
     # | Mapping of version to the branch name
@@ -579,6 +575,10 @@ TrivyConfiguration = TypedDict('TrivyConfiguration', {
     # | default:
     # |   []
     'excluded-apps': list[str],
+    # | Trivy pull request configuration.
+    # | 
+    # | Scan the pull request code with Trivy, reported as an action required check
+    'pull-request': "TrivyPullRequestConfiguration",
 }, total=False)
 
 

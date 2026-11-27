@@ -810,7 +810,7 @@ async def _process_trivy_pull_request(
     ``action_required`` conclusion (orange warning), and is red only when Trivy itself
     failed to run.
     """
-    trivy_config = context.module_config.get("trivy-pull-request", {})
+    trivy_config = context.module_config.get("trivy", {}).get("pull-request", {})
     if not trivy_config.get("enabled", configuration.ENABLE_TRIVY_PULL_REQUEST_SCAN_DEFAULT):
         return module.ProcessOutput(
             check_output={"summary": "Trivy pull request scan disabled for this repository."},

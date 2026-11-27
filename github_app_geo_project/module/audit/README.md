@@ -154,7 +154,8 @@ Every `opened`, `reopened` or `synchronize` pull request event spawns a
 - `trivy config <file> --severity=<severity> --format=json` runs on each of the
   `config-targets` files (`Dockerfile` by default) that exists in the pull request.
 - The `--ignorefile` argument is added with the configured `ignore-file` path
-  (`.github/.trivyignore.yaml` by default) only if the file exists in the pull request.
+  (`.github/.trivyignore.yaml` by default, in `audit.trivy.pull-request`) only if the file
+  exists in the pull request.
 - The scan is serialized by `_TRIVY_PULL_REQUEST_LOCK` and uses the same Trivy database cache
   as the container images scans (`/var/www/.cache/trivy`).
 
@@ -162,7 +163,7 @@ The findings do not fail the pull request: the check run is completed with the
 `action_required` conclusion (orange warning) and lists up to 50 findings per command
 (severity, rule, file, line, title) in its summary. The check run is red only when Trivy
 itself failed to run (tool error or timeout), and green when there is no finding. The scan is
-enabled by default; set `audit.trivy-pull-request.enabled` to `false` in `.github/ghci.yaml`
+enabled by default; set `audit.trivy.pull-request.enabled` to `false` in `.github/ghci.yaml`
 to disable it (the check run then succeeds with a `disabled` message).
 
 Add a `.github/.trivyignore.yaml` file in the repository to ignore known false positives, for

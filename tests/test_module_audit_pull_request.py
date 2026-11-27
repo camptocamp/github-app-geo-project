@@ -301,7 +301,7 @@ def _process_context(config: dict[str, Any]) -> MagicMock:
 async def test_process_trivy_pull_request_disabled() -> None:
     """A disabled scan succeeds without running Trivy."""
     audit = Audit()
-    context = _process_context({"trivy-pull-request": {"enabled": False}})
+    context = _process_context({"trivy": {"pull-request": {"enabled": False}}})
 
     with mock.patch(
         "github_app_geo_project.module.audit.audit_pull_request.scan",
