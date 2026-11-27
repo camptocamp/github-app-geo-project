@@ -365,6 +365,50 @@
             }
           }
         },
+        "trivy-pull-request": {
+          "type": "object",
+          "title": "Trivy pull request configuration",
+          "description": "Scan the pull request code with Trivy, reported as an action required check",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "title": "Enable Trivy pull request scan",
+              "description": "Scan the pull requests with Trivy",
+              "default": true
+            },
+            "scanners": {
+              "type": "array",
+              "title": "Trivy scanners",
+              "description": "The Trivy scanners run on the pull request with the `trivy fs` command",
+              "default": ["secret", "misconfig"],
+              "items": {
+                "type": "string"
+              }
+            },
+            "severity": {
+              "type": "string",
+              "title": "Trivy severity",
+              "description": "The minimum severities reported by the Trivy scans, as a comma separated list",
+              "default": "HIGH,CRITICAL"
+            },
+            "ignore-file": {
+              "type": "string",
+              "title": "Trivy ignore file",
+              "description": "The path of the Trivy ignore file in the repository, the `--ignorefile` argument is added only if the file exists",
+              "default": ".github/.trivyignore.yaml"
+            },
+            "config-targets": {
+              "type": "array",
+              "title": "Trivy config targets",
+              "description": "The files scanned with the `trivy config` command, the command is run only for the files that exist in the repository",
+              "default": ["Dockerfile"],
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
         "version-mapping": {
           "type": "object",
           "title": "Version mapping",

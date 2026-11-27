@@ -78,6 +78,10 @@ AuditConfiguration = TypedDict('AuditConfiguration', {
     # | 
     # | Scan the container images used by the ArgoCD applications with Trivy
     'trivy': "TrivyConfiguration",
+    # | Trivy pull request configuration.
+    # | 
+    # | Scan the pull request code with Trivy, reported as an action required check
+    'trivy-pull-request': "TrivyPullRequestConfiguration",
     # | Version mapping.
     # | 
     # | Mapping of version to the branch name
@@ -257,6 +261,11 @@ r""" Default value of the field path 'Snyk configuration enabled' """
 
 ENABLE_TRIVY_DEFAULT = True
 r""" Default value of the field path 'Trivy configuration enabled' """
+
+
+
+ENABLE_TRIVY_PULL_REQUEST_SCAN_DEFAULT = True
+r""" Default value of the field path 'Trivy pull request configuration enabled' """
 
 
 
@@ -501,6 +510,26 @@ SnykMonitorConfiguration = TypedDict('SnykMonitorConfiguration', {
 }, total=False)
 
 
+TRIVY_CONFIG_TARGETS_DEFAULT = ['Dockerfile']
+r""" Default value of the field path 'Trivy pull request configuration config-targets' """
+
+
+
+TRIVY_IGNORE_FILE_DEFAULT = '.github/.trivyignore.yaml'
+r""" Default value of the field path 'Trivy pull request configuration ignore-file' """
+
+
+
+TRIVY_SCANNERS_DEFAULT = ['secret', 'misconfig']
+r""" Default value of the field path 'Trivy pull request configuration scanners' """
+
+
+
+TRIVY_SEVERITY_DEFAULT = 'HIGH,CRITICAL'
+r""" Default value of the field path 'Trivy pull request configuration severity' """
+
+
+
 # | Trivy configuration.
 # | 
 # | Scan the container images used by the ArgoCD applications with Trivy
@@ -550,6 +579,46 @@ TrivyConfiguration = TypedDict('TrivyConfiguration', {
     # | default:
     # |   []
     'excluded-apps': list[str],
+}, total=False)
+
+
+# | Trivy pull request configuration.
+# | 
+# | Scan the pull request code with Trivy, reported as an action required check
+TrivyPullRequestConfiguration = TypedDict('TrivyPullRequestConfiguration', {
+    # | Enable Trivy pull request scan.
+    # | 
+    # | Scan the pull requests with Trivy
+    # | 
+    # | default: True
+    'enabled': bool,
+    # | Trivy scanners.
+    # | 
+    # | The Trivy scanners run on the pull request with the `trivy fs` command
+    # | 
+    # | default:
+    # |   - secret
+    # |   - misconfig
+    'scanners': list[str],
+    # | Trivy severity.
+    # | 
+    # | The minimum severities reported by the Trivy scans, as a comma separated list
+    # | 
+    # | default: HIGH,CRITICAL
+    'severity': str,
+    # | Trivy ignore file.
+    # | 
+    # | The path of the Trivy ignore file in the repository, the `--ignorefile` argument is added only if the file exists
+    # | 
+    # | default: .github/.trivyignore.yaml
+    'ignore-file': str,
+    # | Trivy config targets.
+    # | 
+    # | The files scanned with the `trivy config` command, the command is run only for the files that exist in the repository
+    # | 
+    # | default:
+    # |   - Dockerfile
+    'config-targets': list[str],
 }, total=False)
 
 

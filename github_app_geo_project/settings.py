@@ -150,6 +150,9 @@ class _AuditTimeouts(BaseModel):
         dt.timedelta(minutes=5)
     )
     trivy_image: Annotated[Duration, Field(description="Trivy image scan timeout")] = dt.timedelta(minutes=10)
+    trivy_pull_request: Annotated[
+        Duration, Field(description="Trivy pull request secrets and misconfigurations scan timeout")
+    ] = dt.timedelta(minutes=15)
     snyk_files: Annotated[Duration, Field(description="git ls-files .snyk timeout")] = dt.timedelta(
         seconds=30
     )
@@ -238,9 +241,6 @@ class _PullRequestTimeouts(BaseModel):
     )
     spellcheck_pull_request: Annotated[Duration, Field(description="Spellcheck pull request timeout")] = (
         dt.timedelta(seconds=60)
-    )
-    trivy_scan: Annotated[Duration, Field(description="Trivy pull request scan timeout")] = dt.timedelta(
-        minutes=15
     )
 
 
