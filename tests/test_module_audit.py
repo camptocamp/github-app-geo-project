@@ -3903,6 +3903,314 @@ async def test_trivy_filesystem_scan_failure(tmp_path: Path) -> None:
     assert result.short_messages == ["Error while scanning the dependencies"]
 
 
+def _gradle_dependency_vulnerability(
+    file: str = "gradle.lockfile",
+    package: str = "junit:junit",
+    installed: str = "4.13",
+    fixed: str = "4.13.1",
+    severity: str = "high",
+    vuln_id: str = "CVE-2020-15250",
+) -> audit_utils.DependencyVulnerability:
+    """Build a Trivy Gradle dependency vulnerability for the tests."""
+    return audit_utils.DependencyVulnerability(
+        file=file,
+        package_name=package,
+        installed_version=installed,
+        dependency_type="gradle",
+        severity=severity,
+        trivy_id=vuln_id,
+        fixed_versions=[version.strip() for version in fixed.split(",") if version.strip()],
+        cve_ids=[vuln_id] if vuln_id.startswith("CVE-") else [],
+        title="Some title",
+        id_url=f"https://avd.aquasec.com/nvd/{vuln_id.lower()}",
+    )
+
+
+def test_parse_trivy_fs_report_gradle() -> None:
+    """The ``gradle`` dependency results are parsed, keeping the raw ``group:artifact`` coordinate."""
+    report = {
+        "Results": [
+            {
+                "Target": "gradle.lockfile",
+                "Type": "gradle",
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2020-15250",
+                        "PkgName": "junit:junit",
+                        "InstalledVersion": "4.13",
+                        "FixedVersion": "4.13.1",
+                        "Severity": "MEDIUM",
+                    },
+                ],
+            },
+        ],
+    }
+    vulnerabilities = audit_utils.parse_trivy_fs_report(json.dumps(report))
+    assert len(vulnerabilities) == 1
+    vulnerability = vulnerabilities[0]
+    assert vulnerability.file == "gradle.lockfile"
+    assert vulnerability.package_name == "junit:junit"
+    assert vulnerability.dependency_type == "gradle"
+    assert vulnerability.fixed_versions == ["4.13.1"]
+
+
+def test_choose_java_target_version() -> None:
+    """The Maven target is the smallest fixed version above the installed one, None when unsafe."""
+    assert (
+        audit_utils.choose_java_target_version([_gradle_dependency_vulnerability(fixed="4.13.1,4.13")])
+        == "4.13.1"
+    )
+    assert audit_utils.choose_java_target_version([_gradle_dependency_vulnerability(fixed="4.13")]) is None
+    # ``2.0.RELEASE`` is parsed (the qualifier is not a Python version), ``2.1`` is above it
+    assert (
+        audit_utils.choose_java_target_version(
+            [_gradle_dependency_vulnerability(installed="2.0.RELEASE", fixed="2.1")],
+        )
+        == "2.1"
+    )
+    # versions with range syntax or unknown shapes cannot be ordered safely
+    assert audit_utils.choose_java_target_version([_gradle_dependency_vulnerability(fixed="[2.0,)")]) is None
+
+
+def test_build_dependency_fix_plans_gradle() -> None:
+    """A Gradle vulnerability in a ``gradle.lockfile`` produces a fix plan, the Maven target used."""
+    plans, skipped = audit_utils.build_dependency_fix_plans(
+        [_gradle_dependency_vulnerability(), _gradle_dependency_vulnerability(severity="medium")],
+        "high",
+        [],
+    )
+    assert [(plan.file, plan.package_name, plan.target_version) for plan in plans] == [
+        ("gradle.lockfile", "junit:junit", "4.13.1")
+    ]
+    assert not skipped
+
+
+def test_bump_version_catalog() -> None:
+    """The version catalog bump supports a ``version.ref`` and a literal ``version`` entry."""
+    catalog = (
+        '[versions]\njunit = "4.13"\n\n'
+        "[libraries]\n"
+        'junit = { module = "junit:junit", version.ref = "junit" }\n'
+        'guava = { module = "com.google.guava:guava", version = "31.0-jre" }\n'
+    )
+    new_ref, outcome = audit_utils.bump_version_catalog(catalog, "junit:junit", "4.13.1")
+    assert outcome == "bumped"
+    assert 'junit = "4.13.1"' in new_ref
+    assert 'junit = "4.13"' not in new_ref
+
+    new_literal, outcome = audit_utils.bump_version_catalog(catalog, "com.google.guava:guava", "31.1-jre")
+    assert outcome == "bumped"
+    assert 'version = "31.1-jre"' in new_literal
+
+    missing, outcome = audit_utils.bump_version_catalog(catalog, "org.example:missing", "1.0")
+    assert outcome == "not-in-catalog"
+    assert missing == catalog
+
+
+def test_bump_gradle_inline() -> None:
+    """The inline build script bump replaces the exact coordinate and not a longer version prefix."""
+    content = "dependencies {\n    implementation 'junit:junit:4.13'\n    testImplementation 'junit:junit:4.130'\n}\n"
+    new_content, count = audit_utils.bump_gradle_inline(content, "junit:junit", "4.13", "4.13.1")
+    assert count == 1
+    assert "'junit:junit:4.13.1'" in new_content
+    assert "'junit:junit:4.130'" in new_content
+
+
+def _make_gradle_run_timeout(write_locks_success: bool = True) -> AsyncMock:
+    """Build a ``run_timeout`` mock for the Gradle version probe and the lock regeneration."""
+
+    async def fake_run(
+        command, env, timeout, success_message, error_message, timeout_message, cwd, error=True
+    ):
+        if command == ["./gradlew", "--version"]:
+            return "Gradle 8.10.2\n", True, None
+        if command == ["./gradlew", "--write-locks", "dependencies"]:
+            if write_locks_success:
+                return "", True, None
+            return "BUILD FAILED", False, None
+        msg = f"Unexpected command {command}"
+        raise AssertionError(msg)
+
+    return AsyncMock(side_effect=fake_run)
+
+
+@pytest.mark.asyncio
+async def test_fix_gradle_projects_catalog(tmp_path: Path) -> None:
+    """A vulnerable coordinate is bumped in the version catalog and the locks are regenerated."""
+    (tmp_path / "gradlew").write_text("", encoding="utf-8")
+    (tmp_path / "gradle").mkdir()
+    catalog = tmp_path / "gradle" / "libs.versions.toml"
+    catalog.write_text(
+        '[versions]\njunit = "4.13"\n\n[libraries]\njunit = { module = "junit:junit", version.ref = "junit" }\n',
+        encoding="utf-8",
+    )
+    (tmp_path / "gradle.lockfile").write_text("junit:junit:4.13=compileClasspath\nempty=\n", encoding="utf-8")
+
+    plan = audit_utils.DependencyFixPlan(
+        file="gradle.lockfile",
+        package_name="junit:junit",
+        installed_version="4.13",
+        target_version="4.13.1",
+        vulnerabilities=[_gradle_dependency_vulnerability()],
+    )
+    with (
+        patch.object(audit_utils.module_utils, "run_timeout", new=_make_gradle_run_timeout()),
+        patch.object(audit_utils, "find_compatible_java_path", new=AsyncMock(return_value=None)),
+    ):
+        applied, skipped, _logs = await audit_utils._fix_gradle_projects(
+            anyio.Path(str(tmp_path)), [plan], os.environ.copy()
+        )
+    assert not skipped
+    assert applied == ["junit:junit 4.13 -> 4.13.1 in `gradle.lockfile`"]
+    assert 'junit = "4.13.1"' in catalog.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_fix_gradle_projects_inline_failure_reverts(tmp_path: Path) -> None:
+    """When ``./gradlew --write-locks`` fails the build script is reverted and the plan is skipped."""
+    (tmp_path / "gradlew").write_text("", encoding="utf-8")
+    build = tmp_path / "build.gradle"
+    original = "dependencies {\n    implementation 'junit:junit:4.13'\n}\n"
+    build.write_text(original, encoding="utf-8")
+    (tmp_path / "gradle.lockfile").write_text("junit:junit:4.13=compileClasspath\n", encoding="utf-8")
+
+    plan = audit_utils.DependencyFixPlan(
+        file="gradle.lockfile",
+        package_name="junit:junit",
+        installed_version="4.13",
+        target_version="4.13.1",
+        vulnerabilities=[_gradle_dependency_vulnerability()],
+    )
+    with (
+        patch.object(audit_utils.module_utils, "run_timeout", new=_make_gradle_run_timeout(False)),
+        patch.object(audit_utils, "find_compatible_java_path", new=AsyncMock(return_value=None)),
+    ):
+        applied, skipped, _logs = await audit_utils._fix_gradle_projects(
+            anyio.Path(str(tmp_path)), [plan], os.environ.copy()
+        )
+    assert applied == []
+    assert any("--write-locks failed, reverted" in reason for reason in skipped)
+    assert build.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.asyncio
+async def test_fix_gradle_projects_no_wrapper(tmp_path: Path) -> None:
+    """Without a Gradle wrapper in the repository the plans are skipped, nothing is run."""
+    plan = audit_utils.DependencyFixPlan(
+        file="gradle.lockfile",
+        package_name="junit:junit",
+        installed_version="4.13",
+        target_version="4.13.1",
+        vulnerabilities=[_gradle_dependency_vulnerability()],
+    )
+    applied, skipped, _logs = await audit_utils._fix_gradle_projects(
+        anyio.Path(str(tmp_path)), [plan], os.environ.copy()
+    )
+    assert applied == []
+    assert any("no Gradle wrapper" in reason for reason in skipped)
+
+
+def _make_bootstrap_run_timeout(
+    locks_present: bool = False,
+    write_locks_success: bool = True,
+) -> AsyncMock:
+    """Build a ``run_timeout`` mock simulating the lockfile bootstrap (``git ls-files`` and Gradle)."""
+
+    async def fake_run(
+        command, env, timeout, success_message, error_message, timeout_message, cwd, error=True
+    ):
+        if command[:2] == ["git", "ls-files"]:
+            return ("gradle.lockfile\n" if locks_present else ""), True, None
+        if command == ["./gradlew", "--version"]:
+            return "Gradle 8.10.2\n", True, None
+        if command == ["./gradlew", "--write-locks", "dependencies"]:
+            if write_locks_success:
+                Path(cwd).joinpath("gradle.lockfile").write_text("empty=\n", encoding="utf-8")
+                return "", True, None
+            return "BUILD FAILED", False, None
+        msg = f"Unexpected command {command}"
+        raise AssertionError(msg)
+
+    return AsyncMock(side_effect=fake_run)
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_gradle_lockfile(tmp_path: Path) -> None:
+    """The bootstrap injects the locking block and generates the lock files."""
+    (tmp_path / "gradlew").write_text("", encoding="utf-8")
+    build = tmp_path / "build.gradle"
+    build.write_text("plugins { id 'java' }\n", encoding="utf-8")
+    with (
+        patch.object(audit_utils.module_utils, "run_timeout", new=_make_bootstrap_run_timeout()),
+        patch.object(audit_utils, "find_compatible_java_path", new=AsyncMock(return_value=None)),
+    ):
+        changed, detail = await audit_utils.bootstrap_gradle_lockfile(anyio.Path(str(tmp_path)), {})
+    assert changed
+    assert "generated" in detail
+    content = build.read_text(encoding="utf-8")
+    assert "activateDependencyLocking" in content
+    assert "compileClasspath" in content
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_gradle_lockfile_already_locked(tmp_path: Path) -> None:
+    """A project that already has a committed lock file is left untouched."""
+    (tmp_path / "gradlew").write_text("", encoding="utf-8")
+    (tmp_path / "build.gradle").write_text("", encoding="utf-8")
+    with patch.object(audit_utils.module_utils, "run_timeout", new=_make_bootstrap_run_timeout(True)):
+        changed, detail = await audit_utils.bootstrap_gradle_lockfile(anyio.Path(str(tmp_path)), {})
+    assert not changed
+    assert detail == "dependency locking already in place"
+
+
+@pytest.mark.asyncio
+async def test_bootstrap_gradle_lockfile_failure_reverts(tmp_path: Path) -> None:
+    """When the generation fails the build script is reverted and nothing is reported as changed."""
+    (tmp_path / "gradlew").write_text("", encoding="utf-8")
+    build = tmp_path / "build.gradle"
+    original = "plugins { id 'java' }\n"
+    build.write_text(original, encoding="utf-8")
+    with (
+        patch.object(
+            audit_utils.module_utils,
+            "run_timeout",
+            new=_make_bootstrap_run_timeout(write_locks_success=False),
+        ),
+        patch.object(audit_utils, "find_compatible_java_path", new=AsyncMock(return_value=None)),
+    ):
+        changed, _detail = await audit_utils.bootstrap_gradle_lockfile(anyio.Path(str(tmp_path)), {})
+    assert not changed
+    assert build.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.asyncio
+async def test_trivy_filesystem_gradle_plans_skip_python_filter(tmp_path: Path) -> None:
+    """Gradle plans go to the Gradle fixer and are never passed to the PyPI Python-compatibility filter."""
+    before = [_gradle_dependency_vulnerability()]
+    with (
+        patch.object(audit_utils, "_trivy_fs_scan", new=AsyncMock(side_effect=[(before, True), ([], True)])),
+        patch.object(
+            audit_utils, "_fix_gradle_projects", new=AsyncMock(return_value=([], [], []))
+        ) as mock_fix,
+        patch.object(
+            audit_utils,
+            "filter_python_incompatible_plans",
+            new=AsyncMock(return_value=([], [])),
+        ) as mock_filter,
+    ):
+        await audit_utils.trivy_filesystem(
+            "1.0",
+            {},
+            {},
+            os.environ.copy(),
+            anyio.Path(str(tmp_path)),
+            "3.12",
+        )
+    mock_fix.assert_awaited_once()
+    passed_plans = mock_filter.await_args_list[0].args[0]
+    assert all(not plan.file.endswith("gradle.lockfile") for plan in passed_plans)
+
+
 @pytest.mark.asyncio
 async def test_parse_trivyignore_reasons(tmp_path: Path) -> None:
     """The reasons and expiries of the .trivyignore.yaml entries are extracted."""

@@ -5,6 +5,7 @@
 import asyncio
 import base64
 import datetime as dt
+import html
 import json
 import logging
 import os
@@ -46,6 +47,8 @@ _TRIVY_KEY = "Trivy images"
 """Prefix of the transversal dashboard check listing the scanned container images."""
 _TRIVY_FILESYSTEM_KEY = "Trivy filesystem check/fix"
 """Prefix of the transversal dashboard entry and pull request title of the dependencies audit."""
+_TRIVY_GRADLE_LOCK_KEY = "Trivy Gradle dependency locking"
+"""Title of the pull request enabling Gradle dependency locking on a branch without lock files."""
 _CLEANUP = "Cleanup"
 
 _PRIORITY_CLEANUP = module.PRIORITY_STANDARD + 1
@@ -725,11 +728,13 @@ async def _process_trivy_filesystem(
     intermediate_status: _IntermediateStatus,
 ) -> tuple[list[str], bool]:
     """
-    Audit and fix the Python and npm dependencies of a stabilization branch with Trivy.
+    Audit and fix the Python, npm and Gradle dependencies of a stabilization branch with Trivy.
 
     The scan result is stored as an output page (remaining, ignored and low severity
     vulnerabilities), the applied fixes are pushed as a pull request, and a
     `Trivy filesystem check/fix <version>` entry is added to the transversal dashboard.
+    A Gradle project without lock files gets its dependency locking enabled on a separate,
+    not auto-merged, pull request.
     """
     assert context.module_event_data.version is not None
     branch: str = context.module_event_data.version
@@ -764,6 +769,63 @@ async def _process_trivy_filesystem(
         async with _TRIVY_LOCK:
             python_version = await _get_branch_python_version(cwd)
             env = await _use_python_version(python_version, cwd) if python_version else os.environ.copy()
+
+            # Enable Gradle dependency locking on a Gradle project without lock files, in a separate
+            # pull request that is never auto-merged: it changes the build behavior and must be reviewed.
+            bootstrap_enabled = local_filesystem_config.get(
+                "auto-fix",
+                filesystem_config.get("auto-fix", configuration.AUTOMATIC_FIX0_DEFAULT),
+            )
+            if bootstrap_enabled:
+                bootstrap_changed, bootstrap_detail = await audit_utils.bootstrap_gradle_lockfile(cwd, env)
+                if bootstrap_changed:
+                    bootstrap_body = (
+                        "Enable [Gradle dependency locking](https://docs.gradle.org/current/userguide/"
+                        "dependency_locking.html) on the resolvable runtime and compile configurations "
+                        "so that the security audit can detect and fix the vulnerable Java dependencies "
+                        "of this repository.\n\n"
+                        f"{html.escape(bootstrap_detail)}\n\n"
+                        "This pull request changes the build behavior: the dependencies become pinned "
+                        "in the generated `gradle.lockfile` files. **It is intentionally not auto-merged**,"
+                        " review it before merging; the dependency fixes follow on a later audit run once "
+                        "it is merged."
+                    )
+                    (
+                        bootstrap_success,
+                        bootstrap_messages,
+                        _,
+                    ) = await _create_pull_request_if_changes(
+                        branch,
+                        f"ghci/audit/trivy-gradle-lock/{branch}",
+                        f"{_TRIVY_GRADLE_LOCK_KEY} {branch}",
+                        bootstrap_body,
+                        context,
+                        local_config,
+                        cwd,
+                        issue_check,
+                        auto_merge=False,
+                    )
+                    success &= bootstrap_success
+                    short_message.extend(bootstrap_messages)
+                    # Restore the base state so the dependency scan and fix run without the bootstrap.
+                    await module_utils.run_timeout(
+                        ["git", "reset", "--hard", f"origin/{branch}"],
+                        None,
+                        settings.audit.timeouts.git_reset_hard,
+                        "Reset after the Gradle locking bootstrap",
+                        "Error resetting after the Gradle locking bootstrap",
+                        "Timeout resetting after the Gradle locking bootstrap",
+                        cwd,
+                    )
+                    await module_utils.run_timeout(
+                        ["git", "clean", "-ffd"],
+                        None,
+                        settings.audit.timeouts.git_reset_hard,
+                        "Clean after the Gradle locking bootstrap",
+                        "Error cleaning after the Gradle locking bootstrap",
+                        "Timeout cleaning after the Gradle locking bootstrap",
+                        cwd,
+                    )
 
             audit_result = await audit_utils.trivy_filesystem(
                 branch,
@@ -1103,6 +1165,7 @@ async def _create_pull_request_if_changes(
     local_config: configuration.AuditConfiguration,
     cwd: anyio.Path,
     issue_check: module_utils.DashboardIssue | None,
+    auto_merge: bool = True,
 ) -> tuple[bool, list[str], str | None]:
     """Create a pull request if there are changes to commit."""
     success = True
@@ -1140,6 +1203,7 @@ async def _create_pull_request_if_changes(
                 cwd,
                 pre_commit_config.get("enabled", True),
                 pre_commit_config.get("skip-hooks", []),
+                auto_merge=auto_merge,
             )
             success &= pull_request_result.success
             pull_request = pull_request_result.pull_request
@@ -1216,7 +1280,7 @@ class Audit(
         """Get the description of the module."""
         return (
             "Audit the project with Snyk (for CVE in dependency), Trivy (for the container images "
-            "and the Python dependencies CVEs), update the dpkg package versions to trigger a "
+            "and the Python and Gradle dependencies CVEs), update the dpkg package versions to trigger a "
             "rebuild, and update the Renovate configuration"
         )
 
@@ -1433,7 +1497,7 @@ class Audit(
                 repo=context.github_project.repository,
             ):
                 branch_name = branch.name
-                for key_prefix in ["snyk", "dpkg", "renovate", "trivy-filesystem"]:
+                for key_prefix in ["snyk", "dpkg", "renovate", "trivy-filesystem", "trivy-gradle-lock"]:
                     if branch_name.startswith(f"ghci/audit/{key_prefix}/"):
                         version = branch_name.split("/", 3)[-1]
                         if version not in known_versions:
@@ -1443,6 +1507,7 @@ class Audit(
                                 "dpkg": f"Audit Dpkg {version}",
                                 "renovate": f"Audit Cleanup Renovate configuration for version {version}",
                                 "trivy-filesystem": f"Audit {_TRIVY_FILESYSTEM_KEY} {version}",
+                                "trivy-gradle-lock": f"Audit {_TRIVY_GRADLE_LOCK_KEY} {version}",
                             }[key_prefix]
                             await module_utils.close_pull_request_issues(
                                 branch_name,

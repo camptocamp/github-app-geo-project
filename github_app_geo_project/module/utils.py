@@ -1131,6 +1131,7 @@ async def create_commit_pull_request(
     cwd: anyio.Path,
     enable_prek: bool = True,
     skip_prek_hooks: list[str] | None = None,
+    auto_merge: bool = True,
 ) -> PullRequestResult:
     """Do a commit, then create a pull request."""
     skip_prek_hooks = skip_prek_hooks or []
@@ -1186,7 +1187,7 @@ async def create_commit_pull_request(
     if not await create_commit(message, cwd):
         _LOGGER.debug("No changes to commit")
         return PullRequestResult(PullRequestStatus.ERROR)
-    return await create_pull_request(branch, new_branch, message, body, project, cwd)
+    return await create_pull_request(branch, new_branch, message, body, project, cwd, auto_merge=auto_merge)
 
 
 async def close_pull_request_issues(

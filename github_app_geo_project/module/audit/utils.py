@@ -11,8 +11,10 @@ import logging
 import os
 import re
 import subprocess
+import tomllib
 import urllib.parse
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, NamedTuple
 
 import aiohttp
@@ -39,6 +41,7 @@ _TIMEOUT_PIP_FREEZE = settings.audit.timeouts.pip_freeze
 _TIMEOUT_PREK = settings.audit.timeouts.prek
 _TIMEOUT_GIT_DIFF = settings.audit.timeouts.git_diff
 _TIMEOUT_GRADLE = settings.audit.timeouts.gradle
+_TIMEOUT_GRADLE_LOCKS = settings.audit.timeouts.gradle_locks
 _TIMEOUT_GIT_LSFILES = settings.audit.timeouts.git_lsfiles
 _TIMEOUT_PYTHON_INSTALL = settings.audit.timeouts.python_install
 _TIMEOUT_SNYK = settings.audit.timeouts.snyk
@@ -2378,10 +2381,16 @@ async def trivy_images(
 
 
 # ---------------------------------------------------------------------------
-# Trivy dependencies scan and fix (the replacements of the Snyk auto-fix)
+# Trivy dependencies scan and fix (the Python, npm and Gradle replacements of the Snyk auto-fix)
 # ---------------------------------------------------------------------------
 
-_TRIVY_DEPENDENCY_TYPES = {"pip", "poetry", "pipenv", "npm"}
+_TRIVY_PYTHON_TYPES = {"pip", "poetry", "pipenv"}
+"""The Trivy result types of the Python dependency files."""
+
+_TRIVY_JAVA_TYPES = {"gradle"}
+"""The Trivy result types of the Java dependency files (``gradle.lockfile``)."""
+
+_TRIVY_DEPENDENCY_TYPES = _TRIVY_PYTHON_TYPES | {"npm"} | _TRIVY_JAVA_TYPES
 """The Trivy result types of the dependency files, the scope of the dependencies audit."""
 
 _TRIVY_ALL_SEVERITIES = "LOW,MEDIUM,HIGH,CRITICAL,UNKNOWN"
@@ -2394,11 +2403,11 @@ class DependencyVulnerability(BaseModel):
     file: str
     """The dependency file the package comes from, relative to the repository root."""
     package_name: str
-    """The vulnerable package name."""
+    """The vulnerable package name (a Maven ``group:artifact`` coordinate for Gradle)."""
     installed_version: str
     """The vulnerable version in the dependency file."""
     dependency_type: str
-    """The Trivy dependency type (``pip``, ``poetry``, ``pipenv``, ``npm``)."""
+    """The Trivy dependency type (``pip``, ``poetry``, ``pipenv``, ``npm``, ``gradle``)."""
     severity: str
     """The vulnerability severity (lowercase)."""
     trivy_id: str
@@ -2590,6 +2599,75 @@ def choose_target_version(vulnerabilities: list[DependencyVulnerability]) -> str
     return str(target) if target is not None else None
 
 
+_MAVEN_QUALIFIER_RANK = {
+    "alpha": 1,
+    "a": 1,
+    "beta": 2,
+    "b": 2,
+    "milestone": 3,
+    "m": 3,
+    "rc": 4,
+    "cr": 4,
+    "snapshot": 5,
+    "": 6,
+    "final": 6,
+    "ga": 6,
+    "release": 6,
+    "sp": 7,
+    "split": 7,
+}
+"""
+Ranks of the documented Maven version qualifiers (lowercase).
+
+A numeric core and the empty/``final``/``ga``/``release`` qualifiers share the rank ``6``;
+unknown qualifiers get a higher rank. This is a pragmatic ordering that covers the dotted
+numeric versions Trivy reports for Java, not the full Maven ``ComparableVersion`` algorithm;
+the versions it cannot model safely are skipped rather than mis-ordered.
+"""
+
+
+def _maven_sort_key(version: str) -> tuple[list[int], int, str] | None:
+    """Build a comparable key of a Maven version, None when the version is too complex to order."""
+    v = version.strip()
+    if not v or any(char in v for char in "(),[]@*?+= "):
+        return None
+    match = re.match(r"^(\d+(?:\.\d+)*)(?:[._-]([A-Za-z0-9]+))?$", v)
+    if match is None:
+        return None
+    core = [int(part) for part in match.group(1).split(".")]
+    qualifier = (match.group(2) or "").lower()
+    return core, _MAVEN_QUALIFIER_RANK.get(qualifier, 8), qualifier
+
+
+def choose_java_target_version(vulnerabilities: list[DependencyVulnerability]) -> str | None:
+    """
+    Get the smallest Maven version that fixes all the given vulnerabilities of one package.
+
+    Mirrors :func:`choose_target_version` for the Gradle ecosystem, using a Maven-aware
+    comparison. Returns None when the installed or a candidate version cannot be ordered
+    safely, or when no candidate is above the installed version.
+    """
+    target_key: tuple[list[int], int, str] | None = None
+    target_version: str | None = None
+    for vulnerability in vulnerabilities:
+        installed_key = _maven_sort_key(vulnerability.installed_version)
+        if installed_key is None:
+            return None
+        best_key: tuple[list[int], int, str] | None = None
+        best_version: str | None = None
+        for version in vulnerability.fixed_versions:
+            key = _maven_sort_key(version)
+            if key is None or key <= installed_key:
+                continue
+            if best_key is None or key < best_key:
+                best_key, best_version = key, version
+        if best_key is None:
+            return None
+        if target_key is None or best_key > target_key:
+            target_key, target_version = best_key, best_version
+    return target_version
+
+
 def fixed_dependency_vulnerabilities(
     before: dict[str, list[VulnerabilityData]],
     after: dict[str, list[VulnerabilityData]],
@@ -2661,6 +2739,8 @@ async def _trivy_fs_scan(
 
 def _is_fixable_file(vulnerability: DependencyVulnerability) -> bool:
     """Tell whether the dependency file of a vulnerability is in the scope of the fix engine."""
+    if vulnerability.dependency_type in _TRIVY_JAVA_TYPES:
+        return vulnerability.file.endswith("gradle.lockfile")
     if vulnerability.dependency_type == "poetry":
         return vulnerability.file.endswith("poetry.lock")
     if vulnerability.dependency_type == "pip":
@@ -2706,7 +2786,10 @@ def build_dependency_fix_plans(
         if not _is_fixable_file(fixable[0]):
             skipped.append(f"{package_name} in `{file_name}`: not auto-fixable, unsupported file type")
             continue
-        target = choose_target_version(fixable)
+        if fixable[0].dependency_type in _TRIVY_JAVA_TYPES:
+            target = choose_java_target_version(fixable)
+        else:
+            target = choose_target_version(fixable)
         if target is None:
             skipped.append(
                 f"{fixable[0].package_name} {fixable[0].installed_version} in `{file_name}`:"
@@ -3249,6 +3332,387 @@ async def _fix_npm_project(
     return applied, skipped, logs
 
 
+# ---------------------------------------------------------------------------
+# Gradle (Java) dependency detection, fix and locking bootstrap
+# ---------------------------------------------------------------------------
+
+_GRADLE_LOCKING_MARKER = "GHCI security audit: enable Gradle dependency locking"
+"""Marker comment added to a build script by the lockfile bootstrap, for idempotency."""
+
+
+async def _git_ls_files(cwd: anyio.Path, patterns: list[str]) -> list[str]:
+    """List the tracked files matching the given git pathspecs, relative to the repository root."""
+    command = ["git", "ls-files", *patterns]
+    stdout, success, _ = await module_utils.run_timeout(
+        command,
+        None,
+        _TIMEOUT_GIT_LSFILES,
+        "List the tracked files",
+        "Error listing the tracked files",
+        "Timeout listing the tracked files",
+        cwd,
+        error=False,
+    )
+    if not success or stdout is None:
+        return []
+    return sorted({line.strip() for line in stdout.splitlines() if line.strip()})
+
+
+async def find_gradle_lockfiles(cwd: anyio.Path) -> list[str]:
+    """List the committed ``gradle.lockfile`` files of the repository, relative to its root."""
+    return await _git_ls_files(cwd, ["gradle.lockfile", "**/gradle.lockfile"])
+
+
+async def _gradle_lockfiles_on_disk(cwd: anyio.Path) -> list[str]:
+    """List the ``gradle.lockfile`` files present on the filesystem, relative to the repository root."""
+    return [str(path.relative_to(cwd)) async for path in cwd.glob("**/gradle.lockfile")]
+
+
+async def _gradle_root_build_file(cwd: anyio.Path) -> tuple[anyio.Path | None, bool]:
+    """Get the root build script and whether it uses the Kotlin DSL (``build.gradle.kts``)."""
+    for name in ("build.gradle.kts", "build.gradle"):
+        path = cwd / name
+        if await path.exists():
+            return path, name.endswith(".kts")
+    return None, False
+
+
+async def _find_version_catalog(cwd: anyio.Path) -> anyio.Path | None:
+    """Get the root Gradle version catalog, ``gradle/libs.versions.toml`` when it exists."""
+    path = cwd / "gradle" / "libs.versions.toml"
+    return path if await path.exists() else None
+
+
+async def _select_java_for_gradlew(cwd: anyio.Path, env: dict[str, str]) -> None:
+    """Prepend the JDK able to run the project Gradle version to the ``PATH`` of the environment."""
+    if not await (cwd / "gradlew").exists():
+        return
+    stdout, success, _ = await module_utils.run_timeout(
+        ["./gradlew", "--version"],
+        env,
+        _TIMEOUT_GRADLE,
+        "Gradle version",
+        "Error getting the Gradle version",
+        "Timeout getting the Gradle version",
+        cwd,
+        error=False,
+    )
+    if not success or stdout is None:
+        return
+    line = next((item for item in stdout.splitlines() if item.startswith("Gradle ")), "")
+    parts = line.split()
+    if len(parts) < 2:
+        return
+    java_path = await find_compatible_java_path(parts[1])
+    if java_path is not None:
+        env["PATH"] = f"{java_path}:{env['PATH']}"
+
+
+def _toml_table_bounds(content: str, table: str) -> tuple[int, int] | None:
+    """Get the ``(start, end)`` offsets of a ``[table]`` section body, None when it is absent."""
+    match = re.search(rf"^\[{re.escape(table)}\][ \t]*$", content, re.MULTILINE)
+    if match is None:
+        return None
+    start = match.end()
+    following = re.search(r"^\[", content[start:], re.MULTILINE)
+    end = start + following.start() if following is not None else len(content)
+    return start, end
+
+
+def _replace_versions_table_key(content: str, key: str, target: str) -> tuple[str, int]:
+    """Replace the value of a ``[versions]`` table key, return the new content and the count."""
+    bounds = _toml_table_bounds(content, "versions")
+    if bounds is None:
+        return content, 0
+    start, end = bounds
+    section = content[start:end]
+    pattern = re.compile(rf'^({re.escape(key)}\s*=\s*")[^"]*(")', re.MULTILINE)
+    new_section, count = pattern.subn(rf"\g<1>{target}\g<2>", section, count=1)
+    if count == 0:
+        return content, 0
+    return content[:start] + new_section + content[end:], count
+
+
+def _replace_catalog_alias_version(content: str, alias: str, target: str) -> tuple[str, int]:
+    """Replace a literal ``version = "..."`` of a single-line ``[libraries]`` alias entry."""
+    pattern = re.compile(
+        rf'(?m)^(\s*{re.escape(alias)}\s*=\s*\{{[^}}\n]*?version\s*=\s*")[^"]*("[^}}\n]*\}}.*)$',
+    )
+    return pattern.subn(rf"\g<1>{target}\g<2>", content, count=1)
+
+
+def bump_version_catalog(content: str, coordinate: str, target: str) -> tuple[str, str]:
+    """
+    Bump a Maven coordinate in a Gradle version catalog content.
+
+    Supports a single-line library entry declaring the coordinate with ``module = "group:artifact"``
+    (or ``group``/``name``), referenced either by ``version.ref`` to a ``[versions]`` key or by a
+    literal ``version = "..."``. Returns the new content and an outcome among ``bumped``, ``already``,
+    ``not-in-catalog`` or a ``skip:`` reason.
+    """
+    if ":" not in coordinate:
+        return content, "skip: invalid Maven coordinate"
+    try:
+        data = tomllib.loads(content)
+    except tomllib.TOMLDecodeError:
+        return content, "skip: unparsable version catalog"
+    group, artifact = coordinate.split(":", 1)
+    libraries = data.get("libraries")
+    versions = data.get("versions")
+    if not isinstance(libraries, dict):
+        return content, "not-in-catalog"
+    for alias, entry in libraries.items():
+        if not isinstance(entry, dict):
+            continue
+        module = entry.get("module")
+        matches = module == coordinate or (entry.get("group") == group and entry.get("name") == artifact)
+        if not matches:
+            continue
+        version = entry.get("version")
+        if isinstance(version, dict):
+            ref = version.get("ref")
+            if not isinstance(ref, str):
+                return content, "skip: the catalog version is a range, not a reference"
+            current = versions.get(ref) if isinstance(versions, dict) else None
+            if not isinstance(current, str):
+                return content, f"skip: the catalog version reference `{ref}` is not a plain string"
+            if current == target:
+                return content, "already"
+            new_content, count = _replace_versions_table_key(content, ref, target)
+            if count == 0:
+                return content, f"skip: the catalog version key `{ref}` was not found"
+            return new_content, "bumped"
+        if isinstance(version, str):
+            if version == target:
+                return content, "already"
+            new_content, count = _replace_catalog_alias_version(content, alias, target)
+            if count == 0:
+                return content, f"skip: the catalog alias `{alias}` version is not on a single line"
+            return new_content, "bumped"
+        return content, "skip: the catalog library has no version"
+    return content, "not-in-catalog"
+
+
+def bump_gradle_inline(content: str, coordinate: str, installed: str, target: str) -> tuple[str, int]:
+    """
+    Bump a ``group:artifact:installed`` coordinate in a build script content.
+
+    Replaces every occurrence of the exact ``group:artifact:installed`` coordinate (not bounded by
+    other version characters) with ``group:artifact:target``; returns the new content and the count.
+    """
+    token = f"{re.escape(coordinate)}:{re.escape(installed)}"
+    pattern = re.compile(rf"{token}(?![A-Za-z0-9._+-])")
+    return pattern.subn(f"{coordinate}:{target}", content)
+
+
+async def _fix_gradle_projects(
+    cwd: anyio.Path,
+    plans: list[DependencyFixPlan],
+    env: dict[str, str],
+) -> tuple[list[str], list[str], list[str]]:
+    """
+    Bump the vulnerable Maven coordinates in the Gradle sources and regenerate the locks.
+
+    The source of truth (the version catalog, then the inline ``build.gradle(.kts)`` declarations) is
+    edited for each planned coordinate, then ``./gradlew --write-locks`` regenerates the
+    ``gradle.lockfile`` files; when the wrapper is absent, when no version can be located, or when the
+    regeneration fails, the sources are reverted and the plan is reported as skipped. The applied
+    fixes are confirmed by the rescan done by the caller.
+    """
+    applied: list[str] = []
+    skipped: list[str] = []
+    logs: list[str] = []
+    if not plans:
+        return applied, skipped, logs
+    if not await (cwd / "gradlew").exists():
+        return (
+            applied,
+            [
+                f"{plan.package_name} in `{plan.file}`: no Gradle wrapper (gradlew), the locks cannot"
+                " be regenerated"
+                for plan in plans
+            ],
+            logs,
+        )
+
+    lockfiles: dict[str, str] = {}
+    for plan in plans:
+        lock_path = cwd / plan.file
+        key = str(lock_path)
+        if key not in lockfiles and await lock_path.exists():
+            lockfiles[key] = await lock_path.read_text(encoding="utf-8")
+
+    catalog_path = await _find_version_catalog(cwd)
+    catalog_original = await catalog_path.read_text(encoding="utf-8") if catalog_path is not None else None
+    catalog_content = catalog_original
+    inline_files: dict[str, list[str]] = {}
+    changed_plans: list[DependencyFixPlan] = []
+
+    for plan in plans:
+        coordinate = plan.package_name
+        handled = False
+        if catalog_content is not None:
+            catalog_content, outcome = bump_version_catalog(catalog_content, coordinate, plan.target_version)
+            if outcome == "bumped":
+                changed_plans.append(plan)
+                handled = True
+            elif outcome == "already":
+                handled = True
+            elif outcome != "not-in-catalog":
+                skipped.append(f"{coordinate} in `{plan.file}`: {outcome}")
+                handled = True
+        if handled:
+            continue
+        project_dir = plan.file[: -len("gradle.lockfile")].rstrip("/")
+        for build_name in ("build.gradle", "build.gradle.kts"):
+            build_path = (cwd / project_dir / build_name) if project_dir else (cwd / build_name)
+            key = str(build_path)
+            if key not in inline_files:
+                if not await build_path.exists():
+                    continue
+                original = await build_path.read_text(encoding="utf-8")
+                inline_files[key] = [original, original]
+            new_content, count = bump_gradle_inline(
+                inline_files[key][1],
+                coordinate,
+                plan.installed_version,
+                plan.target_version,
+            )
+            if count:
+                inline_files[key][1] = new_content
+                changed_plans.append(plan)
+                break
+        else:
+            skipped.append(
+                f"{coordinate} {plan.installed_version} in `{plan.file}`: not declared in the version"
+                " catalog or the build files, left to the dependency updates"
+            )
+
+    catalog_changed = catalog_content is not None and catalog_content != catalog_original
+    if not changed_plans and not catalog_changed:
+        return applied, skipped, logs
+
+    if catalog_changed and catalog_path is not None:
+        await catalog_path.write_text(catalog_content or "", encoding="utf-8")
+    for key, (original, current) in inline_files.items():
+        if current != original:
+            await anyio.Path(key).write_text(current, encoding="utf-8")
+
+    gradle_env = dict(env)
+    await _select_java_for_gradlew(cwd, gradle_env)
+    _, success, message = await module_utils.run_timeout(
+        ["./gradlew", "--write-locks", "dependencies"],
+        gradle_env,
+        _TIMEOUT_GRADLE_LOCKS,
+        "Gradle write-locks",
+        "Gradle write-locks failed",
+        "Gradle write-locks timeout",
+        cwd,
+        error=False,
+    )
+    if message is not None:
+        logs.append(message.to_plain_text())
+
+    if not success:
+        if catalog_changed and catalog_path is not None:
+            await catalog_path.write_text(catalog_original or "", encoding="utf-8")
+        for key, (original, current) in inline_files.items():
+            if current != original:
+                await anyio.Path(key).write_text(original, encoding="utf-8")
+        for key, original in lockfiles.items():
+            await anyio.Path(key).write_text(original, encoding="utf-8")
+        skipped.extend(
+            f"{plan.package_name} {plan.installed_version} -> {plan.target_version} in `{plan.file}`:"
+            " ./gradlew --write-locks failed, reverted"
+            for plan in changed_plans
+        )
+        return applied, skipped, logs
+
+    applied.extend(
+        f"{plan.package_name} {plan.installed_version} -> {plan.target_version} in `{plan.file}`"
+        for plan in changed_plans
+    )
+    return applied, skipped, logs
+
+
+def gradle_locking_block(is_kotlin: bool) -> str:
+    """Build the dependency locking block enabling locking on the resolvable runtime/compile configs."""
+    header = f"// {_GRADLE_LOCKING_MARKER}"
+    if is_kotlin:
+        body = dedent(
+            """
+            allprojects {
+                configurations.configureEach {
+                    if (isCanBeResolved && (name == "compileClasspath" || name == "runtimeClasspath")) {
+                        resolutionStrategy.activateDependencyLocking()
+                    }
+                }
+            }
+            """
+        ).strip()
+    else:
+        body = dedent(
+            """
+            allprojects {
+                configurations.configureEach { configuration ->
+                    if (configuration.canBeResolved
+                            && (configuration.name == 'compileClasspath' || configuration.name == 'runtimeClasspath')) {
+                        configuration.resolutionStrategy.activateDependencyLocking()
+                    }
+                }
+            }
+            """
+        ).strip()
+    return f"{header}\n{body}\n"
+
+
+async def bootstrap_gradle_lockfile(
+    cwd: anyio.Path,
+    env: dict[str, str],
+) -> tuple[bool, str]:
+    """
+    Enable targeted Gradle dependency locking and generate the missing lock files.
+
+    When the repository is a Gradle project without any committed ``gradle.lockfile``, a locking block
+    is added to the root build script (only the resolvable runtime/compile configurations, default
+    lock mode) and ``./gradlew --write-locks`` generates the lock files. Returns whether lock files
+    were produced (the caller commits them to a separate, not auto-merged, pull request) and a detail
+    message. The build script is reverted when the generation produces no lock file.
+    """
+    if not await (cwd / "gradlew").exists():
+        return False, "not a Gradle project"
+    if await find_gradle_lockfiles(cwd):
+        return False, "dependency locking already in place"
+    build_path, is_kotlin = await _gradle_root_build_file(cwd)
+    if build_path is None:
+        return False, "no root build.gradle or build.gradle.kts to enable locking"
+    original = await build_path.read_text(encoding="utf-8")
+    already_injected = _GRADLE_LOCKING_MARKER in original
+    content = original if already_injected else f"{original.rstrip()}\n\n{gradle_locking_block(is_kotlin)}"
+    if content != original:
+        await build_path.write_text(content, encoding="utf-8")
+
+    gradle_env = dict(env)
+    await _select_java_for_gradlew(cwd, gradle_env)
+    _, success, message = await module_utils.run_timeout(
+        ["./gradlew", "--write-locks", "dependencies"],
+        gradle_env,
+        _TIMEOUT_GRADLE_LOCKS,
+        "Gradle write-locks (bootstrap)",
+        "Gradle write-locks (bootstrap) failed",
+        "Gradle write-locks (bootstrap) timeout",
+        cwd,
+        error=False,
+    )
+    generated = await _gradle_lockfiles_on_disk(cwd) if success else []
+    if not success or not generated:
+        if content != original:
+            await build_path.write_text(original, encoding="utf-8")
+        detail = message.to_plain_text() if message is not None else "no lock file produced"
+        return False, f"the lock files could not be generated: {detail}"
+    return True, f"enabled dependency locking, generated {len(generated)} lock file(s)"
+
+
 async def trivy_filesystem(
     branch: str,
     config: configuration.TrivyFilesystemConfiguration,
@@ -3258,16 +3722,17 @@ async def trivy_filesystem(
     python_version: str,
 ) -> TrivyFilesystemResult:
     """
-    Audit the Python and npm dependencies of the checked out branch with Trivy and fix what can be.
+    Audit the Python, npm and Gradle dependencies of a branch with Trivy and fix them.
 
     The vulnerabilities are scanned with ``trivy fs``, the fixes of the packages at or above
     the fix severity threshold are applied to the ``poetry.lock`` files (conservative lock,
     the pyproject.toml left untouched), to the requirements files (bumped pins and added
-    floors, validated with ``pip install --dry-run``) and to the npm ``package-lock.json``
-    files (``npm audit fix --package-lock-only --ignore-scripts``, with the Node.js version
-    pinned by the repository), then a rescan confirms the fixed
-    vulnerabilities. ``python_version`` is the branch Python ``major.minor``: target versions
-    requiring a newer Python are never pinned.
+    floors, validated with ``pip install --dry-run``), to the npm ``package-lock.json`` files
+    (``npm audit fix --package-lock-only --ignore-scripts``, with the Node.js version pinned by
+    the repository) and to the Gradle projects (bumped version catalog / build file coordinates,
+    locks regenerated with ``./gradlew --write-locks``), then a rescan confirms the fixed
+    vulnerabilities. ``python_version`` is the branch Python ``major.minor``: target Python
+    versions requiring a newer Python are never pinned.
     """
     result: list[module_utils.Message] = []
     fix_threshold = local_config.get(
@@ -3313,11 +3778,15 @@ async def trivy_filesystem(
     applied_fixes = 0
 
     plans: list[DependencyFixPlan] = []
+    gradle_plans: list[DependencyFixPlan] = []
     if auto_fix:
         plans, plan_skipped = build_dependency_fix_plans(reported, fix_threshold, files_no_fix)
         skipped_fixes.extend(plan_skipped)
-        plans, python_skipped = await filter_python_incompatible_plans(plans, python_version)
+        gradle_plans = [plan for plan in plans if plan.file.endswith("gradle.lockfile")]
+        python_plans = [plan for plan in plans if not plan.file.endswith("gradle.lockfile")]
+        python_plans, python_skipped = await filter_python_incompatible_plans(python_plans, python_version)
         skipped_fixes.extend(python_skipped)
+        plans = python_plans
 
     if auto_fix and plans:
         poetry_plans: dict[str, list[DependencyFixPlan]] = {}
@@ -3358,6 +3827,12 @@ async def trivy_filesystem(
                 fix_messages.extend(applied)
                 skipped_fixes.extend(skipped)
                 fix_logs.extend(logs)
+
+    if auto_fix and gradle_plans:
+        applied, skipped, logs = await _fix_gradle_projects(cwd, gradle_plans, env)
+        fix_messages.extend(applied)
+        skipped_fixes.extend(skipped)
+        fix_logs.extend(logs)
 
     fix_message: module_utils.HtmlMessage | None = None
     lines = []
