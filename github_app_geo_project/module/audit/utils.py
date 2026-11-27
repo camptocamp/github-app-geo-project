@@ -2144,8 +2144,12 @@ async def application_images(
     app_dir = cwd / application
     env = {**os.environ, "HELM_CACHE_HOME": _TRIVY_CACHE_DIR.replace("trivy", "helm")}
 
+    # No `--skip-refresh`: the dependency repositories of the ArgoCD applications are not added
+    # with `helm repo add`, and Helm then fails to resolve them with that flag (it looks for an
+    # index cache of the ad hoc `helm-manager-<hash>` repository that is never written), see
+    # https://github.com/helm/helm/issues/11001 and https://github.com/helm/helm/issues/12921.
     await module_utils.run_timeout(
-        ["helm", "dependency", "update", "--skip-refresh"],
+        ["helm", "dependency", "update"],
         env,
         _TIMEOUT_HELM_TEMPLATE,
         f"Helm dependency update {application}",

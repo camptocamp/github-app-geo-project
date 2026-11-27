@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-27
+
+### Fixed
+
+- **Audit**: The Trivy images scan no more fails to render the Helm charts of the applications that have remote subchart dependencies. The `helm dependency update` was run with `--skip-refresh`, and for the repositories that are not added with `helm repo add` (the usual case in the ArgoCD application repositories, where the dependencies are referenced by URL), Helm then looks for the index cache of the ad hoc `helm-manager-<hash>` repository that is never written and fails with `no cached repository for helm-manager-<hash> found` (see [helm/helm#11001](https://github.com/helm/helm/issues/11001) and [helm/helm#12921](https://github.com/helm/helm/issues/12921)), reported as `chart rendering failed` on the output page (127 of the 148 applications of `argocd-gs-gmf-apps`). The flag is dropped so that Helm downloads the missing repository indexes into its cached Helm home.
+
 ## 2026-11-25
 
 ### Added
