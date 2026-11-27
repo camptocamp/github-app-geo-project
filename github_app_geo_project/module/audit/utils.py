@@ -2552,9 +2552,9 @@ async def _docker_config_dir(hosts: set[str], github_token: str) -> str:
     Returns the path of the directory to be set as ``DOCKER_CONFIG``.
     """
     auths: dict[str, dict[str, str]] = {}
-    if "ghcr.io" in hosts:
+    if any(host == "ghcr.io" for host in hosts):
         auths["ghcr.io"] = {"auth": base64.b64encode(f"ghci:{github_token}".encode()).decode()}
-    if "docker.io" in hosts:
+    if any(host == "docker.io" for host in hosts):
         username = os.environ.get("DOCKERHUB_USERNAME")
         password = os.environ.get("DOCKERHUB_PASSWORD")
         if username and password:
