@@ -8,10 +8,14 @@ A module that does some audit stuff on the project:
   - Create an issue if the pull request is open for more than 5 days
 - Scan the container images used by the ArgoCD applications (Trivy)
   - Report the list of images of each application and their critical vulnerabilities in the dashboard
+- Scan the pull request code for secrets and misconfigurations (Trivy)
+  - Report the findings as an action required check on the pull request
 
 The dependency CVEs are checked with Snyk. The container images used by the ArgoCD
 applications of the deployment repositories (`argocd-gs-gmf-apps`, `argocd-gs-ugsp-apps`) are
-discovered by rendering the Helm charts and scanned with Trivy. The module does not check the code.
+discovered by rendering the Helm charts and scanned with Trivy. The pull requests are scanned
+with Trivy, only for the secrets and the configuration files misconfigurations, not for the
+dependency vulnerabilities (which are handled by Snyk on the stabilization branches).
 
 The result will be put in the transversal dashboard.
 
@@ -19,31 +23,36 @@ The result will be put in the transversal dashboard.
 
 This module will be triggered by the `daily` event.
 
-It also reacts to `pull_request` events with action `closed` to close related issues.
+It also reacts to `pull_request` events with action `closed` to close related issues,
+and with the actions `opened`, `reopened` and `synchronize` to scan the pull request with Trivy.
 When `SECURITY.md` is changed on a `push` to the default branch, it also triggers the same `Renovate` workflow as the `daily` event.
 
 ### Job deduplication
 
-To avoid piling up redundant audits, at most one audit job per type and branch can wait in the queue (`new` status) for a given repository: when a new matching job is queued, the previous similar jobs in `new` status are replaced (marked as `skipped`). For example, only one `snyk (1.21)` job at a time; the jobs to close the related issues are deduplicated per pull request.
+To avoid piling up redundant audits, at most one audit job per type and branch can wait in the queue (`new` status) for a given repository: when a new matching job is queued, the previous similar jobs in `new` status are replaced (marked as `skipped`). For example, only one `snyk (1.21)` job at a time; the jobs to close the related issues and the Trivy pull request scans are deduplicated per pull request.
 
 ### Job priorities
 
 The lower the priority number, the sooner the job is processed. The priorities are ordered to run the shortest jobs first, to not block the fast jobs behind the slower audit scans:
 
-| Job                         | Priority                | Value |
-| --------------------------- | ----------------------- | ----- |
-| `close-pull-request-issues` | `PRIORITY_STANDARD`     | 30    |
-| `cleanup`                   | `PRIORITY_STANDARD + 1` | 31    |
-| `outdated`                  | `PRIORITY_STANDARD + 2` | 32    |
-| `renovate`                  | `PRIORITY_STANDARD + 3` | 33    |
-| Snyk/dpkg/Trivy fan-out     | `PRIORITY_CRON`         | 40    |
-| `renovate (<version>)`      | `PRIORITY_CRON + 1`     | 41    |
-| `dpkg (<version>)`          | `PRIORITY_CRON + 2`     | 42    |
-| `snyk (<version>)`          | `PRIORITY_CRON + 3`     | 43    |
-| `trivy (<branch>)`          | `PRIORITY_CRON + 4`     | 44    |
+| Job                             | Priority                | Value |
+| ------------------------------- | ----------------------- | ----- |
+| `trivy-pull-request (<number>)` | `PRIORITY_STATUS`       | 10    |
+| `close-pull-request-issues`     | `PRIORITY_STANDARD`     | 30    |
+| `cleanup`                       | `PRIORITY_STANDARD + 1` | 31    |
+| `outdated`                      | `PRIORITY_STANDARD + 2` | 32    |
+| `renovate`                      | `PRIORITY_STANDARD + 3` | 33    |
+| Snyk/dpkg/Trivy fan-out         | `PRIORITY_CRON`         | 40    |
+| `renovate (<version>)`          | `PRIORITY_CRON + 1`     | 41    |
+| `dpkg (<version>)`              | `PRIORITY_CRON + 2`     | 42    |
+| `snyk (<version>)`              | `PRIORITY_CRON + 3`     | 43    |
+| `trivy (<branch>)`              | `PRIORITY_CRON + 4`     | 44    |
 
 The `snyk (<version>)` and `trivy (<branch>)` jobs are the slowest and are serialized
-(`_SNYK_LOCK`, `_TRIVY_LOCK`), that is why they have the highest priority numbers.
+(`_SNYK_LOCK`, `_TRIVY_LOCK`), that is why they have the highest priority numbers. The
+`trivy-pull-request (<number>)` jobs are serialized by their own lock too
+(`_TRIVY_PULL_REQUEST_LOCK`), but they keep the fast `PRIORITY_STATUS` value because they
+are pull request checks.
 
 ### Other files used by the module
 
@@ -132,6 +141,44 @@ The fan-out also handles the case of a repository **without `SECURITY.md`** (bot
 repositories): instead of pruning all transversal entries, it keeps the `Trivy images <branch>`
 entries in `known_types` and continues the daily cleanup, so that a scan result is not erased
 every day.
+
+#### Pull Request Scan (Trivy)
+
+Every `opened`, `reopened` or `synchronize` pull request event spawns a
+`trivy-pull-request (<number>)` job that scans the head of the pull request in the worker:
+
+- The head is fetched with the `refs/pull/<number>/head` ref of the repository cache, which
+  also covers the pull requests opened from a fork.
+- `trivy fs --scanners=<scanners> --severity=<severity> --format=json .` scans the whole tree
+  for the configured scanners (`secret` and `misconfig` by default).
+- `trivy config <file> --severity=<severity> --format=json` runs on each of the
+  `config-targets` files (`Dockerfile` by default) that exists in the pull request.
+- The `--ignorefile` argument is added with the configured `ignore-file` path
+  (`.github/.trivyignore.yaml` by default, in `audit.trivy.pull-request`) only if the file
+  exists in the pull request.
+- The scan is serialized by `_TRIVY_PULL_REQUEST_LOCK` and uses the same Trivy database cache
+  as the container images scans (`/var/www/.cache/trivy`).
+
+The findings do not fail the pull request: the check run is completed with the
+`action_required` conclusion (orange warning) and lists up to 50 findings per command
+(severity, rule, file, line, title) in its summary. The check run is red only when Trivy
+itself failed to run (tool error or timeout), and green when there is no finding. The scan is
+enabled by default; set `audit.trivy.pull-request.enabled` to `false` in `.github/ghci.yaml`
+to disable it (the check run then succeeds with a `disabled` message).
+
+Add a `.github/.trivyignore.yaml` file in the repository to ignore known false positives, for
+example:
+
+```yaml
+ignores:
+  - ids:
+      - generic-api-key
+    paths:
+      - tests/**
+```
+
+The check is advisory: required status checks should not be configured on it, it is meant to
+attract attention on new secrets or Dockerfile misconfigurations.
 
 #### Version Update Pull Requests
 

@@ -381,6 +381,11 @@ class ProcessOutput[EVENT_DATA, INTERMEDIATE_STATUS]:
     """The new actions that should be done."""
     success: bool
     """The success of the process."""
+    action_required: bool
+    """
+    If the process succeeded but the check run should be completed with the
+    ``action_required`` conclusion (orange warning) instead of ``success``.
+    """
     check_output: dict[str, Any] | None
     """The check run output of the process."""
 
@@ -391,6 +396,7 @@ class ProcessOutput[EVENT_DATA, INTERMEDIATE_STATUS]:
         updated_transversal_status: bool = False,
         actions: list[Action[EVENT_DATA]] | None = None,
         success: bool = True,
+        action_required: bool = False,
         check_output: dict[str, Any] | None = None,
     ) -> None:
         """Create the output of the process method."""
@@ -399,6 +405,7 @@ class ProcessOutput[EVENT_DATA, INTERMEDIATE_STATUS]:
         self.updated_transversal_status = updated_transversal_status
         self.actions = actions or []
         self.success = success
+        self.action_required = action_required
         self.check_output = check_output
 
 

@@ -277,6 +277,7 @@ async def test_process_job_dashboard_issue_renamed_with_application_name(
 async def _run_mock_module_job(
     check_run_id: int | None,
     check_run_update_side_effect: Exception | list[Exception] | None = None,
+    process_output: ProcessOutput | None = None,
 ) -> tuple[MagicMock, AsyncMock]:
     """
     Run a job of a mock module and return the mocked GitHub project and create_checks mock.
@@ -324,7 +325,7 @@ async def _run_mock_module_job(
     mock_module.check_name_per_action.return_value = False
     mock_module.configuration_from_json.return_value = {}
     mock_module.event_data_from_json.return_value = {}
-    mock_module.process = AsyncMock(return_value=ProcessOutput())
+    mock_module.process = AsyncMock(return_value=process_output or ProcessOutput())
 
     root_logger = logging.getLogger()
     handler = _Handler(42, [], "INFO")
@@ -437,3 +438,16 @@ async def test_process_job_stays_done_when_completed_update_always_fails() -> No
         )
 
     assert len(github_project.aio_github.rest.checks.async_update.await_args_list) == 4
+
+
+@pytest.mark.asyncio
+async def test_process_job_completes_check_run_action_required() -> None:
+    """Test that a successful result with action_required completes the check run with action_required."""
+    github_project, _create_checks = await _run_mock_module_job(
+        check_run_id=None,
+        process_output=ProcessOutput(action_required=True),
+    )
+
+    assert github_project.aio_github.rest.checks.async_update.await_args.kwargs["conclusion"] == (
+        "action_required"
+    )

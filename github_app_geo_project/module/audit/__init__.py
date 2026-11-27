@@ -35,6 +35,7 @@ from github_app_geo_project import models, module
 from github_app_geo_project.module import ProcessOutput
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import configuration
+from github_app_geo_project.module.audit import pull_request as audit_pull_request
 from github_app_geo_project.module.audit import utils as audit_utils
 from github_app_geo_project.settings import settings
 
@@ -799,6 +800,38 @@ async def _process_trivy(
     return short_message, success
 
 
+async def _process_trivy_pull_request(
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
+) -> module.ProcessOutput[_EventData, _IntermediateStatus]:
+    """
+    Scan the head of the pull request for secrets and misconfigurations with Trivy.
+
+    The findings do not fail the pull request: the check run is completed with the
+    ``action_required`` conclusion (orange warning), and is red only when Trivy itself
+    failed to run.
+    """
+    trivy_config = context.module_config.get("trivy", {}).get("pull-request", {})
+    if not trivy_config.get("enabled", configuration.ENABLE_TRIVY_PULL_REQUEST_SCAN_DEFAULT):
+        return module.ProcessOutput(
+            check_output={"summary": "Trivy pull request scan disabled for this repository."},
+        )
+
+    event_data_pull_request = githubkit.webhooks.parse_obj(
+        "pull_request",
+        context.github_event_data,
+    )
+    succeeded, action_required, summary = await audit_pull_request.scan(
+        context.github_project,
+        event_data_pull_request.pull_request.number,
+        trivy_config,
+    )
+    return module.ProcessOutput(
+        success=succeeded,
+        action_required=action_required,
+        check_output={"summary": summary},
+    )
+
+
 async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str, str]:
     # Lazily install the Python version, pyenv versions are no more installed at image build.
     await module_utils.ensure_pyenv_python(python_version)
@@ -1107,6 +1140,14 @@ class Audit(
                         title=f"close-pull-request-issues ({event_data_pull_request.pull_request.number})",
                     )
                 ]
+            if event_data_pull_request.action in ("opened", "reopened", "synchronize"):
+                return [
+                    module.Action(
+                        priority=module.PRIORITY_STATUS,
+                        data=_EventData(type="trivy-pull-request"),
+                        title=f"trivy-pull-request ({event_data_pull_request.pull_request.number})",
+                    )
+                ]
 
         if context.module_event_name == "push":
             event_data_push = githubkit.webhooks.parse_obj(
@@ -1249,6 +1290,11 @@ class Audit(
                 event_data_pull_request.pull_request.title,
             )
             return module.ProcessOutput(success=True)
+
+        # Scan the pull request with Trivy, reported as an action required check,
+        # this job does not touch the issue dashboard
+        if context.module_event_data.type == "trivy-pull-request":
+            return await _process_trivy_pull_request(context)
 
         # Handle cleanup when SECURITY.md is removed on default branch
         if context.module_event_data.type == "cleanup":

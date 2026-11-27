@@ -1520,8 +1520,49 @@ class GitWorktreeCache:
         ------
         The path to the working tree
         """
+        async with self._checkout_working_tree(github_project, branch, f"origin/{branch}") as path:
+            yield path
+
+    @asynccontextmanager
+    async def pull_request_working_tree(
+        self,
+        github_project: configuration.GithubProject,
+        pull_request_number: int,
+    ) -> AsyncIterator[anyio.Path]:
+        """Context manager that provides a working tree for the head of the given pull request.
+
+        The head is fetched into the ``refs/pull/<number>/head`` ref of the cache repository,
+        this ref exists on the base repository also for the pull requests opened from a fork.
+
+        Arguments:
+        ---------
+        github_project: The GitHub project information
+        pull_request_number: The number of the pull request to check out
+
+        Yields
+        ------
+        The path to the working tree
+        """
+        ref = f"refs/pull/{pull_request_number}/head"
+        async with self._checkout_working_tree(
+            github_project,
+            ref,
+            ref,
+            fetch_refspec=f"+{ref}:{ref}",
+        ) as path:
+            yield path
+
+    @asynccontextmanager
+    async def _checkout_working_tree(
+        self,
+        github_project: configuration.GithubProject,
+        name: str,
+        checkout_ref: str,
+        fetch_refspec: str | None = None,
+    ) -> AsyncIterator[anyio.Path]:
+        """Create a detached working tree for the ref, and clean it up on exit."""
         cache_key = f"{github_project.owner}/{github_project.repository}"
-        branch_key = f"{cache_key}/{branch}"
+        branch_key = f"{cache_key}/{name}"
         branch_lock = await self._get_branch_lock(branch_key)
         lock = await self._get_lock(cache_key)
 
@@ -1529,14 +1570,29 @@ class GitWorktreeCache:
             async with lock:
                 cache_path = await self._ensure_cache(github_project)
 
-                worktree_path = await self._get_worktree_path(github_project, branch)
+                if fetch_refspec is not None:
+                    _, success, _ = await run_timeout(
+                        ["git", "fetch", "--force", "origin", fetch_refspec],
+                        None,
+                        settings.utils.timeouts.git_fetch,
+                        f"Fetch {name}",
+                        f"Error fetching {name}",
+                        f"Timeout fetching {name}",
+                        cache_path,
+                        error=False,
+                    )
+                    if not success:
+                        message = f"Failed to fetch {name}"
+                        raise module.GHCIError(message)
+
+                worktree_path = await self._get_worktree_path(github_project, name)
                 # Remove the leftovers of a previously interrupted run
                 if await worktree_path.exists():
                     await run_timeout(
                         ["git", "worktree", "remove", "--force", str(worktree_path)],
                         None,
                         settings.utils.timeouts.git_worktree_remove,
-                        f"Remove leftover worktree for {branch}",
+                        f"Remove leftover worktree for {name}",
                         "Error removing the leftover worktree",
                         "Timeout removing the leftover worktree",
                         cache_path,
@@ -1559,19 +1615,19 @@ class GitWorktreeCache:
                 await worktree_path.parent.mkdir(parents=True, exist_ok=True)
                 # Create worktree in detached HEAD to avoid conflicts with other worktrees
                 _, success, _ = await run_timeout(
-                    ["git", "worktree", "add", "--detach", str(worktree_path), f"origin/{branch}"],
+                    ["git", "worktree", "add", "--detach", str(worktree_path), checkout_ref],
                     None,
                     settings.utils.timeouts.git_worktree_add,
-                    f"Add worktree for {branch}",
-                    f"Error adding worktree for {branch}",
-                    f"Timeout adding worktree for {branch}",
+                    f"Add worktree for {name}",
+                    f"Error adding worktree for {name}",
+                    f"Timeout adding worktree for {name}",
                     cache_path,
                 )
                 if not success:
                     await anyio.to_thread.run_sync(
                         lambda: shutil.rmtree(worktree_path, ignore_errors=True),
                     )
-                    message = f"Failed to add worktree for branch {branch}"
+                    message = f"Failed to add worktree for branch {name}"
                     raise module.GHCIError(message)
 
             try:
@@ -1583,9 +1639,9 @@ class GitWorktreeCache:
                         ["git", "worktree", "remove", "--force", str(worktree_path)],
                         None,
                         settings.utils.timeouts.git_worktree_remove,
-                        f"Remove worktree for {branch}",
-                        f"Error removing worktree for {branch}",
-                        f"Timeout removing worktree for {branch}",
+                        f"Remove worktree for {name}",
+                        f"Error removing worktree for {name}",
+                        f"Timeout removing worktree for {name}",
                         cache_path,
                         error=False,
                     )
