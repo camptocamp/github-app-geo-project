@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 import urllib.parse
-from typing import TYPE_CHECKING, Any, NamedTuple, cast
+from typing import TYPE_CHECKING, Any, Literal, NamedTuple, cast
 
 import aiomonitor
 import anyio
@@ -544,6 +544,13 @@ async def _process_job(
                     "title", utils.check_output_title(current_module, job)
                 )
                 _LOGGER.debug("Update check run %s", job.check_run_id)
+                conclusion: Literal["success", "failure", "action_required"] = (
+                    "failure"
+                    if result is not None and not result.success
+                    else "action_required"
+                    if result is not None and result.action_required
+                    else "success"
+                )
                 tasks.append(
                     asyncio.create_task(
                         utils.complete_check_run(
@@ -551,7 +558,7 @@ async def _process_job(
                             job.owner,
                             job.repository,
                             check_run.id,
-                            "success" if result is None or result.success else "failure",
+                            conclusion,
                             {
                                 "title": check_output["title"],
                                 "summary": check_output["summary"],

@@ -239,6 +239,9 @@ class _PullRequestTimeouts(BaseModel):
     spellcheck_pull_request: Annotated[Duration, Field(description="Spellcheck pull request timeout")] = (
         dt.timedelta(seconds=60)
     )
+    trivy_scan: Annotated[Duration, Field(description="Trivy pull request scan timeout")] = dt.timedelta(
+        minutes=15
+    )
 
 
 class _PatchTimeouts(BaseModel):

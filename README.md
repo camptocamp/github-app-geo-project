@@ -5,6 +5,7 @@ This application will manage:
 - The Changelog in the release
 - The Backports
 - The pull request checks
+- Scanning the pull requests with Trivy (secrets and misconfigurations, as a warning)
 - Adding useful links into the pull request
 - Manage auto review and auto merge of pull requests
 - Workflow trigger between repository

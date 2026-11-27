@@ -372,7 +372,7 @@ async def complete_check_run(
     owner: str,
     repository: str,
     check_run_id: int,
-    conclusion: Literal["success", "failure", "skipped"],
+    conclusion: Literal["success", "failure", "skipped", "action_required"],
     output: CheckRunOutput | None = None,
 ) -> bool:
     """

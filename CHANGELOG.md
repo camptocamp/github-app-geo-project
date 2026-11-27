@@ -2,10 +2,13 @@
 
 ## 2026-11-27
 
+### Added
+
+- **Pull request trivy**: New `pull-request-trivy` module that scans the head of every pull request with Trivy in the GHCI worker pods: `trivy fs` with the `secret` and `misconfig` scanners and `trivy config` on the `Dockerfile`, restricted to the `HIGH` and `CRITICAL` severities. The findings do not fail the pull request: the check is created with the `action_required` conclusion (orange warning) with the list of the findings in its summary, and is red only when Trivy itself failed. The `--ignorefile=.github/.trivyignore.yaml` argument is added only when the file exists in the pull request, and the module is enabled by default (disable it with `pull-request-trivy: enabled: false` in `.github/ghci.yaml`). The check runs are now completed with a `success`, `failure` or `action_required` conclusion, according to the new `action_required` field of the module result.
+
 ### Fixed
 
 - **Audit**: The Trivy images scan no more fails to render the Helm charts of the applications that have remote subchart dependencies. The `helm dependency update` was run with `--skip-refresh`, and for the repositories that are not added with `helm repo add` (the usual case in the ArgoCD application repositories, where the dependencies are referenced by URL), Helm then looks for the index cache of the ad hoc `helm-manager-<hash>` repository that is never written and fails with `no cached repository for helm-manager-<hash> found` (see [helm/helm#11001](https://github.com/helm/helm/issues/11001) and [helm/helm#12921](https://github.com/helm/helm/issues/12921)), reported as `chart rendering failed` on the output page (127 of the 148 applications of `argocd-gs-gmf-apps`). The flag is dropped so that Helm downloads the missing repository indexes into its cached Helm home.
-
 ## 2026-11-25
 
 ### Added
