@@ -19,6 +19,7 @@ import aiohttp
 import anyio
 import apt_repo
 import debian_inspector.version
+import packaging.requirements
 import packaging.specifiers
 import packaging.version
 import security_md
@@ -47,6 +48,10 @@ _TIMEOUT_NPM_AUDIT = settings.audit.timeouts.npm_audit
 _TIMEOUT_NODE_INSTALL = settings.audit.timeouts.node_install
 _TIMEOUT_HELM_TEMPLATE = settings.audit.timeouts.helm_template
 _TIMEOUT_TRIVY_IMAGE = settings.audit.timeouts.trivy_image
+_TIMEOUT_TRIVY_FS = settings.audit.timeouts.trivy_fs
+_TIMEOUT_POETRY_LOCK = settings.audit.timeouts.poetry_lock
+_TIMEOUT_POETRY_CHECK_LOCK = settings.audit.timeouts.poetry_check_lock
+_TIMEOUT_PIP_DRY_RUN = settings.audit.timeouts.pip_dry_run
 
 _TRIVY_CONCURRENCY = 4
 """Number of container images scanned by Trivy at the same time."""
@@ -82,6 +87,8 @@ class VulnerabilityData(NamedTuple):
     """Whether the vulnerability is upgradable"""
     is_patchable: bool
     """Whether the vulnerability is patchable"""
+    id_url: str = ""
+    """The URL of the vulnerability page for the main ID, empty for Snyk (the Snyk URL is built from the ID)"""
 
 
 class PinnedVulnerability(NamedTuple):
@@ -115,6 +122,7 @@ class SnykAuditResult(NamedTuple):
 # Map Snyk package managers to GitHub advisory ecosystems
 ECOSYSTEM_MAP: dict[str, str] = {
     "pip": "pip",
+    "poetry": "pip",
     "npm": "npm",
     "maven": "maven",
     "nuget": "nuget",
@@ -2271,8 +2279,8 @@ async def scan_image(
 async def trivy_images(
     branch: str,
     cwd: anyio.Path,
-    config: configuration.TrivyConfiguration,
-    local_config: configuration.TrivyConfiguration,
+    config: configuration.TrivyImageConfiguration,
+    local_config: configuration.TrivyImageConfiguration,
 ) -> tuple[TrivyReport, list[module_utils.Message]]:
     """
     Scan the container images used by the ArgoCD applications of the checked out branch.
@@ -2367,3 +2375,959 @@ async def trivy_images(
         scan_errors=scan_errors,
     )
     return report, messages
+
+
+# ---------------------------------------------------------------------------
+# Trivy dependencies scan and fix (the Python replacements of the Snyk auto-fix)
+# ---------------------------------------------------------------------------
+
+_TRIVY_PYTHON_TYPES = {"pip", "poetry", "pipenv"}
+"""The Trivy result types of the Python dependency files, the scope of the dependencies audit."""
+
+_TRIVY_ALL_SEVERITIES = "LOW,MEDIUM,HIGH,CRITICAL,UNKNOWN"
+"""Trivy reports UNKNOWN severities only when they are part of the requested severity list."""
+
+
+class DependencyVulnerability(BaseModel):
+    """A single Python dependency vulnerability reported by ``trivy fs``."""
+
+    file: str
+    """The dependency file the package comes from, relative to the repository root."""
+    package_name: str
+    """The vulnerable package name."""
+    installed_version: str
+    """The vulnerable version in the dependency file."""
+    dependency_type: str
+    """The Trivy dependency type (``pip``, ``poetry``, ``pipenv``)."""
+    severity: str
+    """The vulnerability severity (lowercase)."""
+    trivy_id: str
+    """The Trivy vulnerability ID (CVE when known, otherwise the database ID)."""
+    fixed_versions: list[str] = []
+    """The versions that fix the vulnerability, empty when there is no fix yet."""
+    cve_ids: list[str] = []
+    """The CVE identifiers of the vulnerability."""
+    cwe_ids: list[str] = []
+    """The CWE identifiers of the vulnerability."""
+    title: str = ""
+    """A short description of the vulnerability."""
+    id_url: str = ""
+    """The URL of the vulnerability page in the Trivy vulnerability database."""
+
+
+class DependencyFixPlan(BaseModel):
+    """The planned fix of one vulnerable package in one dependency file."""
+
+    file: str
+    """The dependency file to fix, relative to the repository root."""
+    package_name: str
+    """The package to bump."""
+    installed_version: str
+    """The currently vulnerable version."""
+    target_version: str
+    """The smallest version fixing all the selected vulnerabilities of the package."""
+    vulnerabilities: list[DependencyVulnerability] = []
+    """The vulnerabilities the fix addresses."""
+
+
+class TrivyFilesystemResult(NamedTuple):
+    """The result of a Trivy dependencies audit run on a branch."""
+
+    messages: list[module_utils.Message]
+    """The output messages (scan and fix details)."""
+    fix_message: module_utils.HtmlMessage | None
+    """The message of the fix step, rendered in the pull request."""
+    short_messages: list[str]
+    """The dashboard's messages (with a resume of the vulnerabilities)."""
+    success: bool
+    """Is on success (scan errors only, skipped fixes are reported but not errors)."""
+    vulnerabilities: dict[str, list[VulnerabilityData]]
+    """The file-grouped remaining vulnerability data, after the fixes and the ignore policies."""
+    fixed_vulnerabilities: dict[str, list[VulnerabilityData]]
+    """The file-grouped vulnerabilities fixed by this run, confirmed by the rescan."""
+    pinned_vulnerabilities: dict[str, list[PinnedVulnerability]]
+    """The file-grouped vulnerabilities addressed by floor pins added to the requirements files."""
+    skipped_fixes: list[str]
+    """The human readable reasons of the fixes that were not applied."""
+
+
+def parse_trivy_fs_report(stdout: str | None) -> list[DependencyVulnerability]:
+    """Parse the Python dependency vulnerabilities of a ``trivy fs --format json`` output."""
+    vulnerabilities: list[DependencyVulnerability] = []
+    if not stdout:
+        return vulnerabilities
+    try:
+        report = json.loads(stdout)
+    except json.JSONDecodeError:
+        _LOGGER.warning("Invalid Trivy JSON output")
+        return vulnerabilities
+    results = report.get("Results") if isinstance(report, dict) else None
+    if not isinstance(results, list):
+        return vulnerabilities
+    for result in results:
+        if not isinstance(result, dict) or result.get("Type") not in _TRIVY_PYTHON_TYPES:
+            continue
+        target = _normalize_file_name(str(result.get("Target", "")))
+        if not target:
+            continue
+        found = result.get("Vulnerabilities")
+        if not isinstance(found, list):
+            continue
+        for vulnerability in found:
+            if not isinstance(vulnerability, dict):
+                continue
+            trivy_id = str(vulnerability.get("VulnerabilityID", ""))
+            aliases = [str(alias) for alias in vulnerability.get("Aliases", []) if isinstance(alias, str)]
+            cve_ids = sorted({alias for alias in aliases if alias.startswith("CVE-")})
+            if trivy_id.startswith("CVE-") and trivy_id not in cve_ids:
+                cve_ids.append(trivy_id)
+            fixed_versions = [
+                version.strip()
+                for version in str(vulnerability.get("FixedVersion", "") or "").split(",")
+                if version.strip()
+            ]
+            severity = str(vulnerability.get("Severity", "unknown")).lower()
+            vulnerabilities.append(
+                DependencyVulnerability(
+                    file=target,
+                    package_name=str(vulnerability.get("PkgName", "")),
+                    installed_version=str(vulnerability.get("InstalledVersion", "")),
+                    dependency_type=str(result.get("Type", "")),
+                    severity=severity,
+                    trivy_id=trivy_id,
+                    fixed_versions=fixed_versions,
+                    cve_ids=cve_ids,
+                    cwe_ids=[str(cwe) for cwe in vulnerability.get("CweIDs", []) if isinstance(cwe, str)],
+                    title=str(vulnerability.get("Title", "")),
+                    id_url=str(vulnerability.get("PrimaryURL", "")),
+                ),
+            )
+    return vulnerabilities
+
+
+def _dependency_title(vulnerability: DependencyVulnerability) -> str:
+    """Build the dashboard title of a Trivy dependency vulnerability, like the Snyk one."""
+    title = (
+        f"[{vulnerability.severity.upper()}] "
+        f"{vulnerability.package_name}@{vulnerability.installed_version}: "
+        f"{vulnerability.trivy_id}"
+    )
+    if vulnerability.cwe_ids:
+        title += " " + " ".join(vulnerability.cwe_ids)
+    if vulnerability.fixed_versions:
+        title += " [Fixed in: " + ", ".join(vulnerability.fixed_versions) + "]"
+    else:
+        title += " [No fix yet]"
+    return title + "."
+
+
+def dependency_to_vulnerability_data(vulnerability: DependencyVulnerability) -> VulnerabilityData:
+    """Convert a Trivy dependency vulnerability to the generic report structure."""
+    return VulnerabilityData(
+        file=vulnerability.file,
+        package_name=vulnerability.package_name,
+        package_version=vulnerability.installed_version,
+        package_manager=vulnerability.dependency_type,
+        severity=vulnerability.severity,
+        snyk_id=vulnerability.trivy_id,
+        cve_ids=vulnerability.cve_ids,
+        cwe_ids=vulnerability.cwe_ids,
+        title=_dependency_title(vulnerability),
+        fixed_in=vulnerability.fixed_versions,
+        is_upgradable=bool(vulnerability.fixed_versions),
+        is_patchable=False,
+        id_url=vulnerability.id_url,
+    )
+
+
+def dependency_file_vulnerabilities(
+    vulnerabilities: list[DependencyVulnerability],
+) -> dict[str, list[VulnerabilityData]]:
+    """Group the Trivy dependency vulnerabilities by file, as the Snyk report structure."""
+    grouped: dict[str, list[VulnerabilityData]] = {}
+    for vulnerability in sorted(vulnerabilities, key=_vulnerability_sort_key_dependency):
+        grouped.setdefault(vulnerability.file, []).append(
+            dependency_to_vulnerability_data(vulnerability),
+        )
+    return dict(sorted(grouped.items()))
+
+
+def _vulnerability_sort_key_dependency(vulnerability: DependencyVulnerability) -> tuple[int, str, str, str]:
+    """Sort the vulnerabilities by descending severity, then by file, package and ID."""
+    return (
+        -SEVERITY_ORDER.get(vulnerability.severity, 0),
+        vulnerability.file,
+        vulnerability.package_name,
+        vulnerability.trivy_id,
+    )
+
+
+def choose_target_version(vulnerabilities: list[DependencyVulnerability]) -> str | None:
+    """
+    Get the smallest version that fixes all the given vulnerabilities of one package.
+
+    Each vulnerability lists the fixed versions of its release lines; the smallest candidate
+    above the installed version is selected per vulnerability, and the greatest of them becomes
+    the target. No candidate above the installed version means the package cannot be fixed by a
+    bump, None is returned.
+    """
+    target: packaging.version.Version | None = None
+    for vulnerability in vulnerabilities:
+        try:
+            installed = packaging.version.Version(vulnerability.installed_version)
+            candidates = sorted(
+                candidate
+                for candidate in (
+                    packaging.version.Version(version) for version in vulnerability.fixed_versions
+                )
+                if candidate > installed
+            )
+        except packaging.version.InvalidVersion:
+            return None
+        if not candidates:
+            return None
+        target = candidates[0] if target is None else max(target, candidates[0])
+    return str(target) if target is not None else None
+
+
+def fixed_dependency_vulnerabilities(
+    before: dict[str, list[VulnerabilityData]],
+    after: dict[str, list[VulnerabilityData]],
+) -> dict[str, list[VulnerabilityData]]:
+    """
+    Get the Trivy vulnerabilities fixed by the fixes, confirmed by the rescan.
+
+    A vulnerability is fixed when the rescan does not report it anymore for the file and
+    package, on any version: a vulnerability still reported on the bumped version is not a fix.
+    """
+    after_keys = {
+        (file_name, vulnerability.package_name, vulnerability.snyk_id)
+        for file_name, vulnerabilities in after.items()
+        for vulnerability in vulnerabilities
+    }
+    fixed: dict[str, list[VulnerabilityData]] = {}
+    for file_name, vulnerabilities in before.items():
+        for vulnerability in vulnerabilities:
+            if (file_name, vulnerability.package_name, vulnerability.snyk_id) in after_keys:
+                continue
+            fixed.setdefault(file_name, []).append(vulnerability)
+    for vulnerabilities in fixed.values():
+        vulnerabilities.sort(key=_vulnerability_sort_key)
+    return dict(sorted(fixed.items()))
+
+
+async def _trivy_fs_scan(
+    env: dict[str, str],
+    cwd: anyio.Path,
+    *,
+    ignore_policies: bool,
+    message_title: str,
+    severity: str = _TRIVY_ALL_SEVERITIES,
+) -> tuple[list[DependencyVulnerability], bool]:
+    """
+    Scan the repository dependency files with ``trivy fs``, filtering the policies when asked.
+
+    With ``ignore_policies`` the ``.trivyignore`` files are bypassed (``--ignorefile=/dev/null``)
+    to get the complete list, including the ignored vulnerabilities.
+    """
+    await anyio.Path(_TRIVY_CACHE_DIR).mkdir(parents=True, exist_ok=True)
+    command = [
+        "trivy",
+        "fs",
+        "--scanners=vuln",
+        "--format=json",
+        f"--severity={severity}",
+        "--exit-code=0",
+        *(["--ignorefile=/dev/null"] if ignore_policies else []),
+        ".",
+    ]
+    run_env = {**env, "TRIVY_CACHE_DIR": _TRIVY_CACHE_DIR}
+    stdout, success, message = await module_utils.run_timeout(
+        command,
+        run_env,
+        _TIMEOUT_TRIVY_FS,
+        message_title,
+        f"Error while running {message_title}",
+        f"Timeout while running {message_title}",
+        cwd,
+        error=False,
+    )
+    if not success:
+        if message is not None:
+            _LOGGER.warning(message)
+        return [], False
+    return parse_trivy_fs_report(stdout), True
+
+
+def _is_fixable_file(vulnerability: DependencyVulnerability) -> bool:
+    """Tell whether the dependency file of a vulnerability is in the scope of the fix engine."""
+    if vulnerability.dependency_type == "poetry":
+        return vulnerability.file.endswith("poetry.lock")
+    if vulnerability.dependency_type == "pip":
+        return vulnerability.file.endswith(".txt")
+    return False
+
+
+def build_dependency_fix_plans(
+    vulnerabilities: list[DependencyVulnerability],
+    fix_threshold: str,
+    files_no_fix: list[str],
+) -> tuple[list[DependencyFixPlan], list[str]]:
+    """
+    Build the fix plan of the vulnerable packages, and the reasons of the skipped fixes.
+
+    A plan bumps one package of one dependency file to the smallest version fixing all the
+    vulnerabilities of that package at or above ``fix_threshold``. The vulnerabilities below
+    the threshold, in the ``files_no_fix`` files, in unsupported files, or without a usable
+    fixed version are skipped with a reason.
+    """
+    min_fix_severity = SEVERITY_ORDER.get(fix_threshold, 2)
+    grouped: dict[tuple[str, str], list[DependencyVulnerability]] = {}
+    for vulnerability in vulnerabilities:
+        grouped.setdefault((vulnerability.file, vulnerability.package_name), []).append(vulnerability)
+
+    plans: list[DependencyFixPlan] = []
+    skipped: list[str] = []
+    for (file_name, package_name), file_vulnerabilities in sorted(grouped.items()):
+        fixable = [
+            vulnerability
+            for vulnerability in file_vulnerabilities
+            if SEVERITY_ORDER.get(vulnerability.severity, 0) >= min_fix_severity
+        ]
+        if not fixable:
+            continue
+        if file_name in files_no_fix:
+            skipped.append(
+                f"{package_name} in `{file_name}`: fixes are disabled for this file (`files-no-fix`)"
+            )
+            continue
+        if not _is_fixable_file(fixable[0]):
+            skipped.append(f"{package_name} in `{file_name}`: not auto-fixable, unsupported file type")
+            continue
+        target = choose_target_version(fixable)
+        if target is None:
+            skipped.append(
+                f"{fixable[0].package_name} {fixable[0].installed_version} in `{file_name}`:"
+                " no fixed version available"
+            )
+            continue
+        plans.append(
+            DependencyFixPlan(
+                file=file_name,
+                package_name=package_name,
+                installed_version=fixable[0].installed_version,
+                target_version=target,
+                vulnerabilities=fixable,
+            ),
+        )
+    return plans, skipped
+
+
+async def filter_python_incompatible_plans(
+    plans: list[DependencyFixPlan],
+    python_version: str,
+) -> tuple[list[DependencyFixPlan], list[str]]:
+    """Split the plans between those installable on the branch Python and those that are not."""
+    if not python_version:
+        return plans, []
+    unique = sorted({(plan.package_name, plan.target_version) for plan in plans})
+    requires_python: dict[tuple[str, str], str | None] = {}
+    timeout = aiohttp.ClientTimeout(total=settings.audit.timeouts.snyk_api.total_seconds())
+    async with aiohttp.ClientSession(timeout=timeout) as session:
+        async with asyncio.TaskGroup() as group:
+            fetch_tasks = {
+                key: group.create_task(_fetch_requires_python(session, key[0], key[1])) for key in unique
+            }
+        for key, fetch_task in fetch_tasks.items():
+            requires_python[key] = fetch_task.result()
+
+    kept: list[DependencyFixPlan] = []
+    skipped: list[str] = []
+    for plan in plans:
+        spec = requires_python.get((plan.package_name, plan.target_version))
+        if is_python_incompatible(spec, python_version):
+            skipped.append(
+                f"{plan.package_name} {plan.installed_version} -> {plan.target_version}:"
+                f" requires a newer Python than the branch Python {python_version}"
+            )
+        else:
+            kept.append(plan)
+    return kept, skipped
+
+
+_PYPROJECT_CLASSIC_ENTRY_RE = r'^(?P<prefix>\s*{name}\s*=\s*")(?P<spec>[^"]*)(?P<suffix>"\s*(?:#.*)?)$'
+"""A `[tool.poetry.dependencies]` style entry line of a pyproject.toml file."""
+
+_PYPROJECT_PEP621_ENTRY_RE = (
+    r'^(?P<prefix>\s*")(?P<package>{name}(?:\s*\[[^\]]*\])?\s*)'
+    r'(?P<spec>(?:==|>=|~=|<=|<|>|!=)[^"]*)'
+    r'(?P<suffix>"\s*,?\s*(?:#.*)?)$'
+)
+"""A `"name>=version"` style entry line of a PEP 621 `dependencies` array."""
+
+_POETRY_DEPS_SECTION_RE = re.compile(
+    r"^\[tool\.poetry\.dependencies\]$",
+    re.MULTILINE,
+)
+"""The classical Poetry main dependencies section header."""
+
+
+def _poetry_entry_regex(name: str, entry_regex: str) -> re.Pattern[str]:
+    """Build the entry line pattern of a package name, tolerant to case."""
+    return re.compile(
+        entry_regex.format(name="".join(f"[{char.upper()}{char.lower()}]" for char in name)),
+        re.MULTILINE,
+    )
+
+
+def find_pyproject_constraint(pyproject_content: str, package_name: str) -> str | None:
+    """
+    Get the declared PEP 508 requirement of a package in a pyproject.toml content.
+
+    Supports the `[tool.poetry.dependencies]` table entries and the PEP 621
+    `dependencies = [...]` string entries. None when the package is not a direct dependency.
+    """
+    match = _poetry_entry_regex(package_name, _PYPROJECT_CLASSIC_ENTRY_RE).search(pyproject_content)
+    if match is not None:
+        return f"{package_name} {match['spec']}"
+    match = _poetry_entry_regex(package_name, _PYPROJECT_PEP621_ENTRY_RE).search(pyproject_content)
+    if match is not None:
+        return f"{match['package'].strip()} {match['spec']}"
+    return None
+
+
+def apply_temp_poetry_constraint(pyproject_content: str, package_name: str, version: str) -> str | None:
+    """
+    Return the pyproject content with a temporary `==version` constraint for the package.
+
+    An existing direct constraint is replaced, otherwise a dependency entry is injected in the
+    `[tool.poetry.dependencies]` section or in the PEP 621 `dependencies` array, to force the
+    conservative `poetry lock` to move a transitive dependency. None when the file format is
+    not supported.
+    """
+    for entry_regex in (_PYPROJECT_CLASSIC_ENTRY_RE, _PYPROJECT_PEP621_ENTRY_RE):
+        pattern = _poetry_entry_regex(package_name, entry_regex)
+        match = pattern.search(pyproject_content)
+        if match is not None:
+            start, end = match.span("spec")
+            return pyproject_content[:start] + f"=={version}" + pyproject_content[end:]
+
+    section_match = _POETRY_DEPS_SECTION_RE.search(pyproject_content)
+    if section_match is not None:
+        end = pyproject_content.find("\n[", section_match.end())
+        insert_at = len(pyproject_content) if end == -1 else end
+        return (
+            pyproject_content[:insert_at].rstrip("\n")
+            + f'\n{package_name} = "=={version}"\n'
+            + pyproject_content[insert_at:]
+        )
+    pep621_match = re.search(r"^dependencies\s*=\s*\[", pyproject_content, re.MULTILINE)
+    if pep621_match is not None:
+        end = pyproject_content.find("]", pep621_match.end())
+        if end != -1:
+            return (
+                pyproject_content[:end].rstrip()
+                + f'\n    "{package_name}=={version}",\n'
+                + pyproject_content[end:]
+            )
+    return None
+
+
+def locked_poetry_version(lock_content: str, package_name: str) -> str | None:
+    """Get the locked version of a package in a poetry.lock content, None when it is not locked."""
+    pattern = re.compile(
+        r'^name = "'
+        + "".join(f"[{char.upper()}{char.lower()}]" for char in package_name)
+        + r'"[ \t]*\nversion = "([^"]+)"',
+        re.MULTILINE,
+    )
+    match = pattern.search(lock_content)
+    return match.group(1) if match is not None else None
+
+
+async def _fix_poetry_project(
+    cwd: anyio.Path,
+    directory: str,
+    plans: list[DependencyFixPlan],
+    env: dict[str, str],
+) -> tuple[list[str], list[str], list[str]]:
+    """
+    Bump the locked versions of the planned packages, leaving the pyproject.toml untouched.
+
+    For each package: a temporary `==target` constraint is written in the pyproject.toml (an
+    existing constraint or an injected transitive dependency), `poetry lock` moves only that
+    entry, the original pyproject.toml is restored and `poetry lock` is run again to keep the
+    bumped version with the original constraints, validated by `poetry check --lock`.
+    """
+    applied: list[str] = []
+    skipped: list[str] = []
+    logs: list[str] = []
+    project_dir = cwd / directory if directory else cwd
+    pyproject_path = project_dir / "pyproject.toml"
+    lock_path = project_dir / "poetry.lock"
+    if not await pyproject_path.exists():
+        return (
+            applied,
+            [
+                f"{plan.package_name} in `{plan.file}`: no pyproject.toml next to the lock file"
+                for plan in plans
+            ],
+            logs,
+        )
+    original_pyproject = await pyproject_path.read_text(encoding="utf-8")
+    original_lock = await lock_path.read_text(encoding="utf-8")
+
+    for plan in plans:
+        constraint = find_pyproject_constraint(original_pyproject, plan.package_name)
+        if constraint is not None:
+            try:
+                allowed = packaging.requirements.Requirement(constraint).specifier
+            except packaging.requirements.InvalidRequirement:
+                allowed = None
+            if allowed is not None and not allowed.contains(
+                packaging.version.Version(plan.target_version),
+                prereleases=True,
+            ):
+                skipped.append(
+                    f"{plan.package_name} {plan.installed_version} -> {plan.target_version}:"
+                    f" the pyproject.toml constraint `{constraint}` does not allow it,"
+                    " handled by the dependency updates"
+                )
+                continue
+
+        temp_pyproject = apply_temp_poetry_constraint(
+            original_pyproject,
+            plan.package_name,
+            plan.target_version,
+        )
+        if temp_pyproject is None:
+            skipped.append(
+                f"{plan.package_name} in `{plan.file}`: unsupported pyproject.toml format for the fix"
+            )
+            continue
+
+        await pyproject_path.write_text(temp_pyproject, encoding="utf-8")
+        _, lock_success, message = await module_utils.run_timeout(
+            ["poetry", "lock"],
+            env,
+            _TIMEOUT_POETRY_LOCK,
+            f"Poetry lock {directory} {plan.package_name}=={plan.target_version}",
+            f"Poetry lock failed {directory} {plan.package_name}",
+            f"Poetry lock timeout {directory} {plan.package_name}",
+            project_dir,
+            error=False,
+        )
+        if message is not None:
+            logs.append(message.to_plain_text())
+        if not lock_success:
+            await pyproject_path.write_text(original_pyproject, encoding="utf-8")
+            await lock_path.write_text(original_lock, encoding="utf-8")
+            skipped.append(
+                f"{plan.package_name} {plan.installed_version} -> {plan.target_version}:"
+                " version solving failed, the fixed version is not installable"
+                " with the other constraints"
+            )
+            continue
+
+        await pyproject_path.write_text(original_pyproject, encoding="utf-8")
+        _, lock_success, message = await module_utils.run_timeout(
+            ["poetry", "lock"],
+            env,
+            _TIMEOUT_POETRY_LOCK,
+            f"Poetry lock restore {directory} {plan.package_name}",
+            f"Poetry lock restore failed {directory} {plan.package_name}",
+            f"Poetry lock restore timeout {directory} {plan.package_name}",
+            project_dir,
+            error=False,
+        )
+        if message is not None:
+            logs.append(message.to_plain_text())
+        if not lock_success:
+            await pyproject_path.write_text(original_pyproject, encoding="utf-8")
+            await lock_path.write_text(original_lock, encoding="utf-8")
+            skipped.append(
+                f"{plan.package_name} in `{plan.file}`: the lock file could not be regenerated"
+                " with the original constraints, reverted"
+            )
+            continue
+
+        _, check_success, message = await module_utils.run_timeout(
+            ["poetry", "check", "--lock"],
+            env,
+            _TIMEOUT_POETRY_CHECK_LOCK,
+            f"Poetry check {directory}",
+            f"Poetry check failed {directory}",
+            f"Poetry check timeout {directory}",
+            project_dir,
+            error=False,
+        )
+        if not check_success:
+            await pyproject_path.write_text(original_pyproject, encoding="utf-8")
+            await lock_path.write_text(original_lock, encoding="utf-8")
+            skipped.append(
+                f"{plan.package_name} in `{plan.file}`: the regenerated lock file is not consistent"
+                " with the pyproject.toml, reverted"
+            )
+            continue
+
+        new_lock = await lock_path.read_text(encoding="utf-8")
+        locked = locked_poetry_version(new_lock, plan.package_name)
+        if locked != plan.target_version:
+            await pyproject_path.write_text(original_pyproject, encoding="utf-8")
+            await lock_path.write_text(original_lock, encoding="utf-8")
+            skipped.append(
+                f"{plan.package_name} in `{plan.file}`: the lock kept the version `{locked}`"
+                f" instead of `{plan.target_version}`, reverted"
+            )
+            continue
+        applied.append(f"{plan.package_name} {plan.installed_version} -> {locked} in `{plan.file}`")
+
+    return applied, skipped, logs
+
+
+_REQUIREMENT_LINE_RE_EXTENDED = re.compile(
+    r"^(?P<pre>\s*)(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)"
+    r"(?P<extras>\s*\[[^\]]*\])?"
+    r"(?P<gap1>\s*)(?P<first_op>==|>=|~=|<=|<|>|!=)(?P<first_version>[^#;\s]*)"
+    r"(?P<rest>[^#;]*)"
+    r"(?P<post>.*)$",
+)
+"""A requirement line with a version constraint, keeping the parts around the first version."""
+
+
+def bump_requirement_content(
+    content: str,
+    package_name: str,
+    target_version: str,
+) -> tuple[str, str]:
+    """
+    Bump or append the requirement of a package in a requirements file content.
+
+    Returns the new content and an outcome among `bumped`, `appended`, `already` or a skip
+    reason prefixed by `skip:`. A direct `==`/`>=` constraint is bumped in place, a package
+    that is not listed gets a `>=` floor line appended, bounded or unpinned requirements
+    are skipped.
+    """
+    lines = content.splitlines(keepends=True)
+    for index, line in enumerate(lines):
+        match = _REQUIREMENT_LINE_RE_EXTENDED.match(line.rstrip("\n"))
+        if match is None or _normalize_package_name(match["name"]) != _normalize_package_name(package_name):
+            continue
+        if match["first_op"] not in ("==", ">=") or "," in match["rest"]:
+            return content, f"skip: `{package_name}` has a bounded or complex constraint in the file"
+        try:
+            current = packaging.version.Version(match["first_version"])
+            target = packaging.version.Version(target_version)
+        except packaging.version.InvalidVersion:
+            return content, f"skip: `{package_name}` has an unparsable version in the file"
+        if current >= target:
+            return content, "already"
+        new_line = (
+            f"{match['pre']}{match['name']}{match['extras'] or ''}{match['gap1']}"
+            f"{match['first_op']}{target_version}{match['rest']}{match['post']}\n"
+        )
+        lines[index] = new_line
+        return "".join(lines), "bumped"
+    suffix = "" if content.endswith("\n") or not content else "\n"
+    return f"{content}{suffix}{package_name}>={target_version}\n", "appended"
+
+
+async def _fix_requirements_files(
+    cwd: anyio.Path,
+    plans: list[DependencyFixPlan],
+    env: dict[str, str],
+    pip_install_arguments: list[str],
+) -> tuple[list[str], list[str], list[PinnedVulnerability]]:
+    """
+    Apply the requirement bumps and floors, validating the resolution of each edited file.
+
+    A file whose `pip install --dry-run` no longer resolves is reverted entirely, the added
+    floor pins are returned as the pinned vulnerabilities of the report.
+    """
+    applied: list[str] = []
+    skipped: list[str] = []
+    pinned: list[PinnedVulnerability] = []
+    by_file: dict[str, list[DependencyFixPlan]] = {}
+    for plan in plans:
+        by_file.setdefault(plan.file, []).append(plan)
+
+    for file_name, file_plans in sorted(by_file.items()):
+        path = cwd / file_name
+        if not await path.exists():
+            skipped.extend(
+                f"{plan.package_name} in `{file_name}`: the file does not exist anymore"
+                for plan in file_plans
+            )
+            continue
+        original_content = await path.read_text(encoding="utf-8")
+        content = original_content
+        edited = False
+        file_pinned: list[PinnedVulnerability] = []
+        file_bumped: list[str] = []
+        for plan in file_plans:
+            content, outcome = bump_requirement_content(content, plan.package_name, plan.target_version)
+            if outcome.startswith("skip:"):
+                skipped.append(
+                    f"{plan.package_name} {plan.installed_version} in `{file_name}`:" + outcome[5:]
+                )
+                continue
+            if outcome == "appended":
+                edited = True
+                file_pinned.extend(
+                    PinnedVulnerability(
+                        vulnerability=dependency_to_vulnerability_data(vulnerability),
+                        pinned_version=plan.target_version,
+                    )
+                    for vulnerability in plan.vulnerabilities
+                )
+            elif outcome == "bumped":
+                edited = True
+                file_bumped.append(
+                    f"{plan.package_name} {plan.installed_version} -> {plan.target_version} in `{file_name}`"
+                )
+
+        if not edited:
+            continue
+        await path.write_text(content, encoding="utf-8")
+        _, valid, _ = await module_utils.run_timeout(
+            [
+                "python",
+                "-m",
+                "pip",
+                "install",
+                "--dry-run",
+                "--ignore-installed",
+                *pip_install_arguments,
+                f"--requirement={file_name}",
+            ],
+            env,
+            _TIMEOUT_PIP_DRY_RUN,
+            f"Requirements resolution check {file_name}",
+            f"Requirements resolution failed {file_name}",
+            f"Requirements resolution timeout {file_name}",
+            cwd,
+            error=False,
+        )
+        if not valid:
+            await path.write_text(original_content, encoding="utf-8")
+            skipped.append(
+                f"`{file_name}`: the fixes do not resolve (`pip install --dry-run` failed), reverted"
+            )
+            continue
+        applied.extend(file_bumped)
+        applied.extend(
+            f"{item.vulnerability.package_name} pinned >=`{item.pinned_version}` in `{file_name}`"
+            for item in file_pinned
+        )
+        pinned.extend(file_pinned)
+
+    return applied, skipped, pinned
+
+
+async def trivy_filesystem(
+    branch: str,
+    config: configuration.TrivyFilesystemConfiguration,
+    local_config: configuration.TrivyFilesystemConfiguration,
+    env: dict[str, str],
+    cwd: anyio.Path,
+    python_version: str,
+) -> TrivyFilesystemResult:
+    """
+    Audit the Python dependencies of the checked out branch with Trivy and fix what can be.
+
+    The vulnerabilities are scanned with ``trivy fs``, the fixes of the packages at or above
+    the fix severity threshold are applied to the ``poetry.lock`` files (conservative lock,
+    the pyproject.toml left untouched) and to the requirements files (bumped pins and added
+    floors, validated with ``pip install --dry-run``), then a rescan confirms the fixed
+    vulnerabilities. ``python_version`` is the branch Python ``major.minor``: target versions
+    requiring a newer Python are never pinned.
+    """
+    result: list[module_utils.Message] = []
+    fix_threshold = local_config.get(
+        "fix-severity-threshold",
+        config.get("fix-severity-threshold", configuration.FIX_SEVERITY_THRESHOLD_DEFAULT),
+    )
+    files_no_fix = local_config.get("files-no-fix", config.get("files-no-fix", []))
+    auto_fix = local_config.get("auto-fix", config.get("auto-fix", configuration.AUTOMATIC_FIX0_DEFAULT))
+
+    before, scan_success = await _trivy_fs_scan(
+        env, cwd, ignore_policies=False, message_title=f"Trivy dependencies scan {branch}"
+    )
+    if not scan_success:
+        return TrivyFilesystemResult(
+            messages=[
+                *result,
+                module_utils.HtmlMessage(
+                    f"The Trivy dependencies scan failed on branch {branch}, see the logs",
+                ),
+            ],
+            fix_message=None,
+            short_messages=["Error while scanning the dependencies"],
+            success=False,
+            vulnerabilities={},
+            fixed_vulnerabilities={},
+            pinned_vulnerabilities={},
+            skipped_fixes=[],
+        )
+
+    # All the scanned severities (low and above, unknown included) are reported, the display
+    # filtering is done by the dashboard threshold in the module
+    reported = before
+    vulnerabilities_before = dependency_file_vulnerabilities(reported)
+
+    counts: dict[str, int] = {}
+    for vulnerability in reported:
+        counts[vulnerability.severity] = counts.get(vulnerability.severity, 0) + 1
+
+    fix_messages: list[str] = []
+    skipped_fixes: list[str] = []
+    fix_logs: list[str] = []
+    pinned_by_file: dict[str, list[PinnedVulnerability]] = {}
+    applied_fixes = 0
+
+    plans: list[DependencyFixPlan] = []
+    if auto_fix:
+        plans, plan_skipped = build_dependency_fix_plans(reported, fix_threshold, files_no_fix)
+        skipped_fixes.extend(plan_skipped)
+        plans, python_skipped = await filter_python_incompatible_plans(plans, python_version)
+        skipped_fixes.extend(python_skipped)
+
+    if auto_fix and plans:
+        poetry_plans: dict[str, list[DependencyFixPlan]] = {}
+        requirements_plans: list[DependencyFixPlan] = []
+        for plan in plans:
+            if plan.file.endswith("poetry.lock"):
+                directory = plan.file[: -len("poetry.lock")].rstrip("/")
+                poetry_plans.setdefault(directory, []).append(plan)
+            else:
+                requirements_plans.append(plan)
+
+        for directory, directory_plans in sorted(poetry_plans.items()):
+            applied, skipped, logs = await _fix_poetry_project(cwd, directory, directory_plans, env)
+            fix_messages.extend(applied)
+            skipped_fixes.extend(skipped)
+            fix_logs.extend(logs)
+
+        if requirements_plans:
+            applied, skipped, pinned = await _fix_requirements_files(
+                cwd,
+                requirements_plans,
+                env,
+                local_config.get("pip-install-arguments", config.get("pip-install-arguments", [])),
+            )
+            fix_messages.extend(applied)
+            skipped_fixes.extend(skipped)
+            for item in pinned:
+                pinned_by_file.setdefault(item.vulnerability.file, []).append(item)
+
+    fix_message: module_utils.HtmlMessage | None = None
+    lines = []
+    if not auto_fix:
+        lines.append(
+            "The automatic fixes are disabled by the `trivy.filesystem.auto-fix` configuration, "
+            "the fixable vulnerabilities are only reported."
+        )
+    lines.extend(f"Applied: {html.escape(message)}" for message in fix_messages)
+    lines.extend(f"Skipped: {html.escape(message)}" for message in skipped_fixes)
+    if lines or fix_logs:
+        html_body = "<br>\n".join(lines)
+        if fix_logs:
+            html_body += f"\n<pre>{html.escape('\n'.join(fix_logs[:200]))}</pre>"
+        fix_message = module_utils.HtmlMessage(html_body)
+        fix_message.title = "Trivy dependencies fix output"
+
+    success = True
+    vulnerabilities_after = vulnerabilities_before
+    fixed: dict[str, list[VulnerabilityData]] = {}
+    if fix_messages:
+        after_vulnerabilities, rescan_success = await _trivy_fs_scan(
+            env,
+            cwd,
+            ignore_policies=False,
+            message_title=f"Trivy dependencies rescan {branch}",
+        )
+        if not rescan_success:
+            success = False
+        else:
+            vulnerabilities_after = dependency_file_vulnerabilities(after_vulnerabilities)
+            fixed = fixed_dependency_vulnerabilities(vulnerabilities_before, vulnerabilities_after)
+            applied_fixes = sum(len(items) for items in fixed.values())
+
+    short_messages = [
+        f"{number} {severity} vulnerabilities" for severity, number in sorted(counts.items()) if number
+    ]
+    if applied_fixes:
+        fixed_word = "vulnerability" if applied_fixes == 1 else "vulnerabilities"
+        short_messages.append(f"{applied_fixes} {fixed_word} fixed")
+    if pinned_by_file:
+        short_messages.append(
+            f"{sum(len(items) for items in pinned_by_file.values())} fixes pinned",
+        )
+    if skipped_fixes:
+        short_messages.append(f"{len(skipped_fixes)} fixes skipped")
+
+    return TrivyFilesystemResult(
+        messages=result,
+        fix_message=fix_message,
+        short_messages=short_messages,
+        success=success,
+        vulnerabilities=vulnerabilities_after,
+        fixed_vulnerabilities=fixed,
+        pinned_vulnerabilities=dict(sorted(pinned_by_file.items())),
+        skipped_fixes=skipped_fixes,
+    )
+
+
+async def trivy_filesystem_ignored(
+    branch: str,
+    env: dict[str, str],
+    cwd: anyio.Path,
+) -> dict[str, list[VulnerabilityData]]:
+    """Scan with the ignore policies bypassed and return the file-grouped vulnerability data."""
+    all_vulnerabilities, scan_success = await _trivy_fs_scan(
+        env,
+        cwd,
+        ignore_policies=True,
+        message_title=f"Trivy dependencies full scan {branch}",
+    )
+    if not scan_success:
+        return {}
+    return dependency_file_vulnerabilities(all_vulnerabilities)
+
+
+async def find_trivyignore_files(cwd: anyio.Path) -> list[anyio.Path]:
+    """Find all the .trivyignore.yaml files in the repository."""
+    command = ["git", "ls-files", ".trivyignore.yaml", "**/.trivyignore.yaml"]
+    proc = await asyncio.create_subprocess_exec(
+        *command,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        cwd=cwd,
+    )  # nosec
+    async with asyncio.timeout(settings.audit.timeouts.git_lsfiles.total_seconds()):
+        stdout, _ = await proc.communicate()
+    result = stdout.decode().strip()
+    return [cwd / file for file in result.split("\n") if file] if result else []
+
+
+async def parse_trivyignore_reasons(trivyignore_file: anyio.Path) -> dict[str, str]:
+    """Parse a .trivyignore.yaml file and return a dict mapping vulnerability IDs to reasons."""
+    if not await trivyignore_file.exists():
+        return {}
+    data = yaml.safe_load(await trivyignore_file.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        return {}
+    reasons: dict[str, str] = {}
+    for entry in data.get("vulnerabilities", []):
+        if not isinstance(entry, dict):
+            continue
+        vulnerability_id = entry.get("id")
+        if not isinstance(vulnerability_id, str):
+            continue
+        reason = entry.get("reason")
+        expire = entry.get("expire")
+        parts = [str(reason)] if isinstance(reason, str) else []
+        if expire is not None:
+            parts.append(f"until {expire}")
+        reasons[vulnerability_id] = ", ".join(parts) if parts else ""
+    return reasons

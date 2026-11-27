@@ -40,7 +40,7 @@ renderer_data['low_severity_vulnerabilities'] %}
   <li>
     <span class="audit-severity-{{ vuln.severity }}">[{{ vuln.severity | upper }}]</span>
     {{ vuln.package_name }}@{{ vuln.package_version }}:
-    <a href="https://security.snyk.io/vuln/{{ vuln.snyk_id }}">{{ vuln.snyk_id }}</a>
+    <a href="{{ vuln.id_url or 'https://security.snyk.io/vuln/' + vuln.snyk_id }}">{{ vuln.snyk_id }}</a>
     {% if vuln.cwe_ids %}
     <!---->
     {% for cwe in vuln.cwe_ids %}{{ cwe }}{% endfor %}
@@ -70,7 +70,7 @@ renderer_data['low_severity_vulnerabilities'] %}
   <li>
     <span class="audit-severity-{{ vuln.severity }}">[{{ vuln.severity | upper }}]</span>
     {{ vuln.package_name }}@{{ vuln.package_version }}:
-    <a href="https://security.snyk.io/vuln/{{ vuln.snyk_id }}">{{ vuln.snyk_id }}</a>
+    <a href="{{ vuln.id_url or 'https://security.snyk.io/vuln/' + vuln.snyk_id }}">{{ vuln.snyk_id }}</a>
     {% if vuln.fixed_in %}
     <span class="audit-fixed-in">[Fixed in: {{ vuln.fixed_in | join(', ') }}]</span>
     {% endif %}
@@ -85,7 +85,7 @@ renderer_data['low_severity_vulnerabilities'] %}
 <!---->
 {% if renderer_data['low_severity_vulnerabilities'] %}
 <details>
-  <summary>Low severity vulnerabilities (below threshold)</summary>
+  <summary>Vulnerabilities below the display threshold</summary>
   {% for file_name, vulns in renderer_data['low_severity_vulnerabilities'].items() %}
   <h4>{{ file_name }}</h4>
   <ul>
@@ -93,7 +93,7 @@ renderer_data['low_severity_vulnerabilities'] %}
     <li>
       <span class="audit-severity-{{ vuln.severity }}">[{{ vuln.severity | upper }}]</span>
       {{ vuln.package_name }}@{{ vuln.package_version }}:
-      <a href="https://security.snyk.io/vuln/{{ vuln.snyk_id }}">{{ vuln.snyk_id }}</a>
+      <a href="{{ vuln.id_url or 'https://security.snyk.io/vuln/' + vuln.snyk_id }}">{{ vuln.snyk_id }}</a>
       {% if vuln.fixed_in %}
       <span class="audit-fixed-in">[Fixed in: {{ vuln.fixed_in | join(', ') }}]</span>
       {% endif %}

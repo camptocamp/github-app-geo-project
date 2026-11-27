@@ -11,7 +11,7 @@ import os
 import re
 import shutil
 import urllib.parse
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import anyio
 import githubkit.exception
@@ -20,13 +20,6 @@ import githubkit_schemas.latest.models
 import security_md
 import sqlalchemy
 import yaml
-from githubkit.compat import type_validate_python
-from githubkit_schemas.v2026_03_10.models import RepositoryAdvisory
-from githubkit_schemas.v2026_03_10.types import (
-    RepositoryAdvisoryCreatePropVulnerabilitiesItemsPropPackageType,
-    RepositoryAdvisoryCreatePropVulnerabilitiesItemsType,
-    RepositoryAdvisoryCreateType,
-)
 from multi_repo_automation import aio_editor as editor
 from multi_repo_automation.editor import JSON5Item
 from pydantic import BaseModel
@@ -44,14 +37,16 @@ _LOGGER = logging.getLogger(__name__)
 # Don't run Snyk in parallel
 _SNYK_LOCK = asyncio.Lock()
 
-# Don't run two Trivy image scans in parallel (the scan is long and resource hungry)
+# Don't run two Trivy scans in parallel (the scans are long and resource hungry,
+# the image scan and the dependencies scan share the vulnerability database cache)
 _TRIVY_LOCK = asyncio.Lock()
 
 _OUTDATED = "Outdated version"
 _TRIVY_KEY = "Trivy images"
 """Prefix of the transversal dashboard check listing the scanned container images."""
+_TRIVY_FILESYSTEM_KEY = "Trivy filesystem check/fix"
+"""Prefix of the transversal dashboard entry and pull request title of the dependencies audit."""
 _CLEANUP = "Cleanup"
-_ADVISORY = False
 
 _PRIORITY_CLEANUP = module.PRIORITY_STANDARD + 1
 """Priority of the audit `cleanup` jobs (fast, API calls only)."""
@@ -69,6 +64,8 @@ _PRIORITY_SNYK = module.PRIORITY_CRON + 3
 """Priority of the audit `snyk` jobs (the slowest, serialized by `_SNYK_LOCK`)."""
 _PRIORITY_TRIVY = module.PRIORITY_CRON + 4
 """Priority of the audit `trivy` container images scan jobs (serialized by `_TRIVY_LOCK`)."""
+_PRIORITY_TRIVY_FILESYSTEM = module.PRIORITY_CRON + 5
+"""Priority of the audit `trivy-filesystem` jobs (serialized by `_TRIVY_LOCK`)."""
 
 
 class _TransversalStatusTool(BaseModel):
@@ -98,6 +95,8 @@ class _VulnerabilityStatus(BaseModel):
     is_patchable: bool = False
     reason: str = ""
     """The reason the vulnerability is ignored (from .snyk file)."""
+    id_url: str = ""
+    """The URL of the vulnerability page for the main ID, empty for Snyk IDs."""
 
 
 class _OutputRendererData(BaseModel):
@@ -127,6 +126,7 @@ def _vulnerability_status(
         is_upgradable=vulnerability.is_upgradable,
         is_patchable=vulnerability.is_patchable,
         reason=reason,
+        id_url=vulnerability.id_url,
     )
 
 
@@ -156,6 +156,7 @@ class _EventData(BaseModel):
     type: str | None = None
     snyk: bool = False
     dpkg: bool = False
+    trivy_filesystem: bool = False
     is_dashboard: bool = False
     version: str | None = None
     known_versions: list[str] | None = None  # for cleanup
@@ -257,7 +258,12 @@ def _details_markdown(summary: str, content: str) -> str:
 
 
 def _vulnerability_identifiers(vulnerability: audit_utils.VulnerabilityData) -> list[str]:
-    """Build the markdown links to the CVE and Snyk pages of a vulnerability."""
+    """Build the markdown links to the CVE and database pages of a vulnerability."""
+    if vulnerability.id_url:
+        return [
+            *[f"[{cve_id}](https://nvd.nist.gov/vuln/detail/{cve_id})" for cve_id in vulnerability.cve_ids],
+            f"[{vulnerability.snyk_id}]({vulnerability.id_url})",
+        ]
     return [
         *[f"[{cve_id}](https://nvd.nist.gov/vuln/detail/{cve_id})" for cve_id in vulnerability.cve_ids],
         f"[{vulnerability.snyk_id}](https://security.snyk.io/vuln/{vulnerability.snyk_id})",
@@ -297,6 +303,10 @@ def _fixed_vulnerabilities_markdown(
 
 def _pinned_vulnerabilities_markdown(
     pinned_vulnerabilities: dict[str, list[audit_utils.PinnedVulnerability]],
+    note: str = (
+        "The rescan still reports these vulnerabilities because Snyk builds the pip dependency tree\n"
+        "from the packages installed in the audit environment, which is not reinstalled after the fix."
+    ),
 ) -> str:
     """Build the markdown list of the vulnerabilities addressed by pins added to the requirements files."""
     if not pinned_vulnerabilities:
@@ -304,8 +314,7 @@ def _pinned_vulnerabilities_markdown(
     lines = [
         "## Fixes applied (pins added to requirements files)",
         "",
-        "The rescan still reports these vulnerabilities because Snyk builds the pip dependency tree",
-        "from the packages installed in the audit environment, which is not reinstalled after the fix.",
+        note,
         "",
     ]
     lines.extend(
@@ -317,6 +326,15 @@ def _pinned_vulnerabilities_markdown(
         for file_name, pinned in pinned_vulnerabilities.items()
         for item in pinned
     )
+    return "\n".join(lines)
+
+
+def _skipped_fixes_markdown(skipped_fixes: list[str]) -> str:
+    """Build the markdown list of the fixes that were not applied, with their reasons."""
+    if not skipped_fixes:
+        return ""
+    lines = ["## Fixes not applied", ""]
+    lines.extend(f"- {skipped}" for skipped in skipped_fixes)
     return "\n".join(lines)
 
 
@@ -506,16 +524,7 @@ async def _process_snyk_dpkg(
         )
         if context.module_event_data.type == "snyk":
             async with _SNYK_LOCK:
-                python_version = ""
-                tool_versions = cwd / ".tool-versions"
-                if await tool_versions.exists():
-                    async with await tool_versions.open("r", encoding="utf-8") as file:
-                        for line in (await file.read()).splitlines():
-                            if line.startswith("python "):
-                                python_version = ".".join(
-                                    line.split(" ")[1].split(".")[0:2],
-                                ).strip()
-                                break
+                python_version = await _get_branch_python_version(cwd)
 
                 env = await _use_python_version(python_version, cwd) if python_version else os.environ.copy()
 
@@ -606,19 +615,11 @@ async def _process_snyk_dpkg(
                 "dashboard-severity-threshold",
                 configuration.DASHBOARD_SEVERITY_THRESHOLD_DEFAULT,
             )
-            advisory_threshold = audit_utils.get_severity_config(
-                snyk_config,
-                local_snyk_config,
-                "advisory-severity-threshold",
-                configuration.ADVISORY_SEVERITY_THRESHOLD_DEFAULT,
-            )
             min_dashboard_severity = audit_utils.SEVERITY_ORDER.get(dashboard_threshold, 1)
-            min_advisory_severity = audit_utils.SEVERITY_ORDER.get(advisory_threshold, 2)
 
             # Filter vulnerabilities by excluded files and thresholds
             filtered_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
             low_severity_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
-            high_critical_vulns: list[audit_utils.VulnerabilityData] = []
             for file_name, vulns in file_vulnerabilities.items():
                 if any(p.search(file_name) for p in excluded_patterns):
                     continue
@@ -628,8 +629,6 @@ async def _process_snyk_dpkg(
                         filtered_vulns.setdefault(file_name, []).append(vuln)
                     else:
                         low_severity_vulns.setdefault(file_name, []).append(vuln)
-                    if vuln_severity >= min_advisory_severity:
-                        high_critical_vulns.append(vuln)
 
             vuln_data = {
                 file_name: [_vulnerability_status(vuln) for vuln in vulns]
@@ -674,10 +673,6 @@ async def _process_snyk_dpkg(
             message.title = "Output URL"
             _LOGGER.debug(message)
 
-            # Create security advisories for HIGH and CRITICAL CVEs
-            if high_critical_vulns and _ADVISORY:
-                await _create_security_advisories(context, high_critical_vulns)
-
         if context.module_event_data.type == "dpkg":
             body_md = "Update dpkg packages"
 
@@ -710,6 +705,203 @@ async def _process_snyk_dpkg(
         # The transversal dashboard summary is plain text, the pull request link is
         # rendered by the dashboard template from `pull_request_url`.
         transversal_message = ", ".join(short_message)
+        short_message.extend(pr_messages)
+
+    intermediate_status.status.types[key] = _TransversalStatusTool(
+        name=key,
+        summary=transversal_message,
+        status="success" if success else "error",
+        logs_url=logs_url,
+        output_url=output_tool.output_url,
+        pull_request_url=pull_request_url,
+    )
+
+    return short_message, success
+
+
+async def _process_trivy_filesystem(
+    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
+    issue_check: module_utils.DashboardIssue,
+    intermediate_status: _IntermediateStatus,
+) -> tuple[list[str], bool]:
+    """
+    Audit and fix the Python dependencies of a stabilization branch with Trivy.
+
+    The scan result is stored as an output page (remaining, ignored and low severity
+    vulnerabilities), the applied fixes are pushed as a pull request, and a
+    `Trivy filesystem check/fix <version>` entry is added to the transversal dashboard.
+    """
+    assert context.module_event_data.version is not None
+    branch: str = context.module_event_data.version
+    key = f"{_TRIVY_FILESYSTEM_KEY} {branch}"
+    new_branch = f"ghci/audit/trivy-filesystem/{branch}"
+    short_message: list[str] = []
+    success = True
+    output_tool = _TransversalStatusTool()
+    pull_request_url: str | None = None
+
+    async with module_utils.GIT_WORKTREE_CACHE.working_tree(
+        context.github_project,
+        branch,
+    ) as cwd:
+        local_config: configuration.AuditConfiguration = {}
+        ghci_config_path = cwd / ".github" / "ghci.yaml"
+        if await ghci_config_path.exists():
+            async with await ghci_config_path.open("r", encoding="utf-8") as file:
+                local_config = yaml.load(
+                    await file.read(),
+                    Loader=yaml.SafeLoader,
+                ).get("audit", {})
+
+        logs_url = urllib.parse.urljoin(
+            context.service_url,
+            f"logs/{context.job_id}",
+        )
+
+        filesystem_config = context.module_config.get("trivy", {}).get("filesystem", {})
+        local_filesystem_config = local_config.get("trivy", {}).get("filesystem", {})
+
+        async with _TRIVY_LOCK:
+            python_version = await _get_branch_python_version(cwd)
+            env = await _use_python_version(python_version, cwd) if python_version else os.environ.copy()
+
+            audit_result = await audit_utils.trivy_filesystem(
+                branch,
+                filesystem_config,
+                local_filesystem_config,
+                env,
+                cwd,
+                python_version,
+            )
+            # A second scan with the ignore policies bypassed to list the ignored vulnerabilities
+            all_file_vulns = await audit_utils.trivy_filesystem_ignored(branch, env, cwd)
+
+        non_ignored_keys: set[tuple[str, str, str]] = set()
+        for file_name, vulns in audit_result.vulnerabilities.items():
+            for vuln in vulns:
+                non_ignored_keys.add((vuln.snyk_id, vuln.package_version, file_name))
+        ignored_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
+        for file_name, vulns in all_file_vulns.items():
+            for vuln in vulns:
+                if (vuln.snyk_id, vuln.package_version, file_name) not in non_ignored_keys:
+                    ignored_vulns.setdefault(file_name, []).append(vuln)
+
+        trivyignore_reasons: dict[str, str] = {}
+        for trivyignore_file in await audit_utils.find_trivyignore_files(cwd):
+            trivyignore_reasons.update(await audit_utils.parse_trivyignore_reasons(trivyignore_file))
+
+        body_md = _fixed_vulnerabilities_markdown(audit_result.fixed_vulnerabilities)
+        pinned_md = _pinned_vulnerabilities_markdown(
+            audit_result.pinned_vulnerabilities,
+            note=(
+                "The floor pins added to the requirements files force the fixed version when the image\n"
+                "installs the dependencies."
+            ),
+        )
+        skipped_md = _skipped_fixes_markdown(audit_result.skipped_fixes)
+        for part in (pinned_md, skipped_md):
+            if part:
+                body_md = f"{body_md}\n\n{part}" if body_md else part
+        if audit_result.fix_message is not None:
+            details = _details_markdown(
+                audit_result.fix_message.title or "Fix output",
+                audit_result.fix_message.to_markdown(),
+            )
+            body_md = f"{body_md}\n\n{details}" if body_md else details
+
+        output_tool = await _process_error(
+            context,
+            key,
+            issue_check,
+            [{"title": m.title, "children": [m.to_html("no-title")]} for m in audit_result.messages],
+            ", ".join(audit_result.short_messages),
+        )
+        success &= audit_result.success
+
+        excluded_files = local_filesystem_config.get(
+            "excluded-files",
+            filesystem_config.get("excluded-files", configuration.EXCLUDED_FILES0_DEFAULT),
+        )
+        excluded_patterns = [re.compile(pattern) for pattern in excluded_files]
+        dashboard_threshold = local_filesystem_config.get(
+            "dashboard-severity-threshold",
+            filesystem_config.get(
+                "dashboard-severity-threshold",
+                configuration.DASHBOARD_SEVERITY_THRESHOLD0_DEFAULT,
+            ),
+        )
+        min_dashboard_severity = audit_utils.SEVERITY_ORDER.get(dashboard_threshold, 1)
+
+        filtered_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
+        low_severity_vulns: dict[str, list[audit_utils.VulnerabilityData]] = {}
+        for file_name, vulns in audit_result.vulnerabilities.items():
+            if any(p.search(file_name) for p in excluded_patterns):
+                continue
+            for vuln in vulns:
+                vuln_severity = audit_utils.SEVERITY_ORDER.get(vuln.severity, 0)
+                if vuln_severity >= min_dashboard_severity:
+                    filtered_vulns.setdefault(file_name, []).append(vuln)
+                else:
+                    low_severity_vulns.setdefault(file_name, []).append(vuln)
+
+        vuln_data = {
+            file_name: [_vulnerability_status(vuln) for vuln in vulns]
+            for file_name, vulns in sorted(filtered_vulns.items())
+        }
+        ignored_data = {
+            file_name: [
+                _vulnerability_status(
+                    vuln,
+                    trivyignore_reasons.get(vuln.snyk_id, "No reason provided") or "No reason provided",
+                )
+                for vuln in vulns
+            ]
+            for file_name, vulns in sorted(ignored_vulns.items())
+        }
+        low_severity_data = {
+            file_name: [_vulnerability_status(vuln) for vuln in vulns]
+            for file_name, vulns in sorted(low_severity_vulns.items())
+        }
+        output_renderer_data = _OutputRendererData(
+            branch=branch,
+            vulnerabilities=vuln_data,
+            ignored_vulnerabilities=ignored_data,
+            low_severity_vulnerabilities=low_severity_data,
+        )
+
+        # Create the output even when everything was fixed, to have a stable output URL
+        output_name = f"trivy-filesystem-{branch}"
+        await module_utils.add_output(
+            context,
+            f"Trivy filesystem summary report {branch}",
+            output_name,
+            "github_app_geo_project:module/audit/output.html",
+            status=models.OutputStatus.SUCCESS,
+            renderer_data=output_renderer_data,
+        )
+        output_tool.output_url = urllib.parse.urljoin(
+            context.service_url,
+            f"output/{context.github_project.owner}/{context.github_project.repository}/{output_name}",
+        )
+
+        body_md += "\n\n" if body_md else ""
+        body_md += f"[Logs]({logs_url})"
+        if output_tool.output_url:
+            body_md += f" | [Output]({output_tool.output_url})"
+
+        new_success, pr_messages, pull_request_url = await _create_pull_request_if_changes(
+            branch,
+            new_branch,
+            key,
+            body_md,
+            context,
+            local_config,
+            cwd,
+            issue_check,
+        )
+        success &= new_success
+        transversal_message = ", ".join(audit_result.short_messages)
+        short_message.extend(audit_result.short_messages)
         short_message.extend(pr_messages)
 
     intermediate_status.status.types[key] = _TransversalStatusTool(
@@ -763,8 +955,8 @@ async def _process_trivy(
             report, messages = await audit_utils.trivy_images(
                 branch,
                 cwd,
-                context.module_config.get("trivy", {}),
-                local_config.get("trivy", {}),
+                context.module_config.get("trivy", {}).get("image", {}),
+                local_config.get("trivy", {}).get("image", {}),
             )
         for message in messages:
             _LOGGER.info(message)
@@ -830,6 +1022,18 @@ async def _process_trivy_pull_request(
         action_required=action_required,
         check_output={"summary": summary},
     )
+
+
+async def _get_branch_python_version(cwd: anyio.Path) -> str:
+    """Get the branch Python major.minor from the `.tool-versions` file, empty when not pinned."""
+    tool_versions = cwd / ".tool-versions"
+    if not await tool_versions.exists():
+        return ""
+    async with await tool_versions.open("r", encoding="utf-8") as file:
+        for line in (await file.read()).splitlines():
+            if line.startswith("python "):
+                return ".".join(line.split(" ")[1].split(".")[0:2]).strip()
+    return ""
 
 
 async def _use_python_version(python_version: str, cwd: anyio.Path) -> dict[str, str]:
@@ -994,95 +1198,6 @@ async def _create_pull_request_if_changes(
     return success, short_message, pull_request_url
 
 
-def _add_missing_fields(item: dict[str, Any]) -> dict[str, Any]:
-    return {**item, "publisher": None, "author": None}
-
-
-async def _create_security_advisories(
-    context: module.ProcessContext[configuration.AuditConfiguration, _EventData],
-    vulnerabilities: list[audit_utils.VulnerabilityData],
-) -> None:
-    """Create GitHub Security Advisories for the given vulnerabilities."""
-    # List existing advisories to avoid duplicates
-    existing_advisory_ids: set[str] = set()
-    paginator = context.github_project.aio_github.rest.paginate(
-        context.github_project.aio_github.rest.security_advisories.async_list_repository_advisories,
-        map_func=lambda response: type_validate_python(
-            list[RepositoryAdvisory],
-            [_add_missing_fields(item) for item in response.json()],
-        ),
-        owner=context.github_project.owner,
-        repo=context.github_project.repository,
-        state="published",
-    )
-    async for advisory in paginator:
-        if advisory.identifiers:
-            for identifier in advisory.identifiers:
-                if identifier.type == "CVE":
-                    existing_advisory_ids.add(identifier.value)
-                    break
-
-    for vuln in vulnerabilities:
-        cve_id = vuln.cve_ids[0] if vuln.cve_ids else None
-        if cve_id and cve_id in existing_advisory_ids:
-            _LOGGER.debug("Security advisory already exists for %s", cve_id)
-            continue
-
-        try:
-            ecosystem = cast(
-                "Literal['rubygems', 'npm', 'pip', 'maven', 'nuget', 'composer', 'go', 'rust', 'erlang', 'actions', 'pub', 'other', 'swift']",
-                audit_utils.ECOSYSTEM_MAP.get(vuln.package_manager, "other"),
-            )
-
-            vulnerability_package = RepositoryAdvisoryCreatePropVulnerabilitiesItemsPropPackageType(
-                ecosystem=ecosystem,
-                name=vuln.package_name,
-            )
-            vuln_version_range = f">= {vuln.package_version}"
-            patched_versions = ", ".join(vuln.fixed_in) if vuln.fixed_in else None
-            vulnerability_item = RepositoryAdvisoryCreatePropVulnerabilitiesItemsType(
-                package=vulnerability_package,
-                vulnerable_version_range=vuln_version_range,
-                patched_versions=patched_versions,
-            )
-
-            severity = vuln.severity if vuln.severity in ("critical", "high", "medium", "low") else "high"
-            cwe_ids = [cwe for cwe in vuln.cwe_ids if cwe.startswith("CWE-")] or None
-
-            data: RepositoryAdvisoryCreateType = {
-                "summary": vuln.package_name if cve_id is None else f"{cve_id} in {vuln.package_name}",
-                "description": (
-                    f"Vulnerability detected in {vuln.file}:\n\n"
-                    f"Package: {vuln.package_name}@{vuln.package_version}\n"
-                    f"Snyk ID: {vuln.snyk_id}\n"
-                    f"Severity: {vuln.severity}\n"
-                    f"File: {vuln.file}"
-                ),
-                "vulnerabilities": [vulnerability_item],
-                "severity": cast(
-                    "Literal['critical', 'high', 'medium', 'low'] | None",
-                    severity,
-                ),
-                "cve_id": cve_id,
-                "cwe_ids": cwe_ids,
-            }
-            await context.github_project.aio_github.rest.security_advisories.async_create_repository_advisory(
-                owner=context.github_project.owner,
-                repo=context.github_project.repository,
-                data=data,
-            )
-            if cve_id:
-                existing_advisory_ids.add(cve_id)
-            _LOGGER.info("Created security advisory for %s", vuln.snyk_id)
-        except githubkit.exception.RequestFailed as exception:
-            _LOGGER.warning(
-                "Failed to create security advisory for %s: %s",
-                vuln.snyk_id,
-                exception.response.text if exception.response else str(exception),
-            )
-            raise
-
-
 class Audit(
     module.Module[
         configuration.AuditConfiguration,
@@ -1095,11 +1210,15 @@ class Audit(
 
     def title(self) -> str:
         """Get the title of the module."""
-        return "Audit (Snyk/dpkg/Renovate)"
+        return "Audit (Snyk/dpkg/Renovate/Trivy)"
 
     def description(self) -> str:
         """Get the description of the module."""
-        return "Audit the project with Snyk (for CVE in dependency) and update dpkg package version to trigger a rebuild, also update the Renovate configuration"
+        return (
+            "Audit the project with Snyk (for CVE in dependency), Trivy (for the container images "
+            "and the Python dependencies CVEs), update the dpkg package versions to trigger a "
+            "rebuild, and update the Renovate configuration"
+        )
 
     def documentation_url(self) -> str:
         """Get the URL to the documentation page of the module."""
@@ -1195,6 +1314,7 @@ class Audit(
         results: list[module.Action[_EventData]] = []
         snyk = False
         dpkg = False
+        trivy_filesystem = False
         is_dashboard = context.module_event_name == "dashboard"
         if is_dashboard:
             old_check = module_utils.DashboardIssue(
@@ -1218,6 +1338,8 @@ class Audit(
                 snyk = True
             if not old_check.is_checked("dpkg") and new_check.is_checked("dpkg"):
                 dpkg = True
+            if not old_check.is_checked("trivy-filesystem") and new_check.is_checked("trivy-filesystem"):
+                trivy_filesystem = True
 
         if (
             context.github_event_data.get("type") == "event"
@@ -1239,12 +1361,15 @@ class Audit(
             )
             snyk = True
             dpkg = True
+            trivy_filesystem = True
 
-        if dpkg or snyk:
+        if dpkg or snyk or trivy_filesystem:
             results.append(
                 module.Action(
                     priority=_PRIORITY_FAN_OUT,
-                    data=_EventData(snyk=snyk, dpkg=dpkg, is_dashboard=is_dashboard),
+                    data=_EventData(
+                        snyk=snyk, dpkg=dpkg, trivy_filesystem=trivy_filesystem, is_dashboard=is_dashboard
+                    ),
                 ),
             )
         return results
@@ -1308,18 +1433,17 @@ class Audit(
                 repo=context.github_project.repository,
             ):
                 branch_name = branch.name
-                for key_prefix in ["snyk", "dpkg", "renovate"]:
+                for key_prefix in ["snyk", "dpkg", "renovate", "trivy-filesystem"]:
                     if branch_name.startswith(f"ghci/audit/{key_prefix}/"):
                         version = branch_name.split("/", 3)[-1]
                         if version not in known_versions:
                             _LOGGER.debug("Closing pull requests for branch %s", branch_name)
-                            issue_message = (
-                                f"Audit Snyk check/fix {version}"
-                                if key_prefix == "snyk"
-                                else f"Audit Dpkg {version}"
-                                if key_prefix == "dpkg"
-                                else f"Audit Cleanup Renovate configuration for version {version}"
-                            )
+                            issue_message = {
+                                "snyk": f"Audit Snyk check/fix {version}",
+                                "dpkg": f"Audit Dpkg {version}",
+                                "renovate": f"Audit Cleanup Renovate configuration for version {version}",
+                                "trivy-filesystem": f"Audit {_TRIVY_FILESYSTEM_KEY} {version}",
+                            }[key_prefix]
                             await module_utils.close_pull_request_issues(
                                 branch_name,
                                 issue_message,
@@ -1338,7 +1462,7 @@ class Audit(
             ):
                 issue_title: str = issue.title
                 issue_version: str | None = None
-                for key_prefix in ["Snyk check/fix", "Dpkg"]:
+                for key_prefix in ["Snyk check/fix", "Dpkg", _TRIVY_FILESYSTEM_KEY]:
                     prefix = f"Pull request Audit {key_prefix} "
                     if issue_title.startswith(prefix):
                         issue_version = issue_title[len(prefix) :].split(" ", 1)[0]
@@ -1363,7 +1487,7 @@ class Audit(
                 )
             )
             for output in outputs_result.scalars():
-                for output_prefix in ("snyk-", "trivy-images-"):
+                for output_prefix in ("snyk-", "trivy-images-", "trivy-filesystem-"):
                     if (
                         output.name.startswith(output_prefix)
                         and output.name[len(output_prefix) :] not in known_versions
@@ -1397,6 +1521,7 @@ class Audit(
                 issue_check.remove_check("outdated")
                 issue_check.remove_check("snyk")
                 issue_check.remove_check("dpkg")
+                issue_check.remove_check("trivy-filesystem")
 
             logs_url = urllib.parse.urljoin(context.service_url, f"logs/{context.job_id}")
             summary_parts = []
@@ -1465,6 +1590,19 @@ class Audit(
             key_starts.append("Snyk check/fix ")
         else:
             issue_check.remove_check("snyk")
+
+        filesystem_settings = context.module_config.get("trivy", {}).get("filesystem", {})
+        if security_file is not None and filesystem_settings.get(
+            "enabled", configuration.ENABLE_TRIVY_DEPENDENCIES_DEFAULT
+        ):
+            issue_check.add_check(
+                "trivy-filesystem",
+                "Check security vulnerabilities in the Python dependencies with Trivy",
+                checked=False,
+            )
+            key_starts.append(f"{_TRIVY_FILESYSTEM_KEY} ")
+        else:
+            issue_check.remove_check("trivy-filesystem")
 
         dpkg_version = None
         try:
@@ -1548,9 +1686,11 @@ class Audit(
             # Determine whether the container images scan (Trivy) applies to this repository:
             # it is enabled by default but only relevant for repositories that have an `apps/`
             # directory of ArgoCD Helm applications.
-            trivy_config = context.module_config.get("trivy", {})
-            trivy_enabled = trivy_config.get("enabled", configuration.ENABLE_TRIVY_DEFAULT)
-            trivy_apps_root = trivy_config.get("apps-root", configuration.APPLICATIONS_ROOT_DIRECTORY_DEFAULT)
+            trivy_image_config = context.module_config.get("trivy", {}).get("image", {})
+            trivy_enabled = trivy_image_config.get("enabled", configuration.ENABLE_TRIVY_DEFAULT)
+            trivy_apps_root = trivy_image_config.get(
+                "apps-root", configuration.APPLICATIONS_ROOT_DIRECTORY_DEFAULT
+            )
             trivy_branches: list[str] = []
             if trivy_enabled:
                 apps_present = False
@@ -1654,6 +1794,19 @@ class Audit(
                             title=f"snyk ({version})",
                         ),
                     )
+                if context.module_event_data.trivy_filesystem and context.module_config.get("trivy", {}).get(
+                    "filesystem", {}
+                ).get(
+                    "enabled",
+                    configuration.ENABLE_TRIVY_DEPENDENCIES_DEFAULT,
+                ):
+                    actions.append(
+                        module.Action(
+                            priority=_PRIORITY_TRIVY_FILESYSTEM,
+                            data=_EventData(type="trivy-filesystem", version=version),
+                            title=f"trivy-filesystem ({version})",
+                        ),
+                    )
                 if context.module_event_data.dpkg and context.module_config.get(
                     "dpkg",
                     {},
@@ -1684,6 +1837,12 @@ class Audit(
             )
         elif context.module_event_data.type == "trivy":
             short_message, success = await _process_trivy(
+                context,
+                issue_check,
+                intermediate_status,
+            )
+        elif context.module_event_data.type == "trivy-filesystem":
+            short_message, success = await _process_trivy_filesystem(
                 context,
                 issue_check,
                 intermediate_status,
@@ -1745,7 +1904,6 @@ class Audit(
                 "issues": "write",
                 "contents": "write",
                 "workflows": "write",
-                **({"repository_security_advisories": "write"} if _ADVISORY else {}),
             },
             {"push", "pull_request"},
         )

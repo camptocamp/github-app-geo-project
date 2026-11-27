@@ -5,7 +5,10 @@
 import asyncio
 import base64
 import datetime as dt
+import html as html_module
 import json
+import os
+import re
 import tempfile
 from pathlib import Path
 from typing import Any, Self
@@ -20,6 +23,7 @@ from multi_repo_automation.editor import JSON5List
 from github_app_geo_project import module
 from github_app_geo_project.module import utils as module_utils
 from github_app_geo_project.module.audit import (
+    _PRIORITY_TRIVY_FILESYSTEM,
     Audit,
     _create_pull_request_if_changes,
     _dashboard_vuln_section_versions,
@@ -32,6 +36,7 @@ from github_app_geo_project.module.audit import (
     _process_renovate,
     _process_snyk_dpkg,
     _process_trivy,
+    _process_trivy_filesystem,
     _remove_dashboard_vuln_section,
     _TransversalStatus,
     _TransversalStatusRepo,
@@ -1133,11 +1138,13 @@ def _make_freeze_proc_mock() -> MagicMock:
     return mock_proc
 
 
-@pytest.mark.parametrize("local_config", [{}, {"auto-fix": False}])
+@pytest.mark.parametrize(
+    ("local_config", "expect_fix"),
+    [({}, False), ({"auto-fix": False}, False), ({"auto-fix": True}, True)],
+)
 @pytest.mark.asyncio
-async def test_snyk_auto_fix(tmp_path: Path, local_config: dict) -> None:
+async def test_snyk_auto_fix(tmp_path: Path, local_config: dict, expect_fix: bool) -> None:
     """With `auto-fix` disabled the fix commands are skipped, the vulnerabilities are only reported."""
-    expect_fix = "auto-fix" not in local_config
     env = {"HOME": str(tmp_path), "PATH": "/usr/bin"}
     test_result = (
         {"high": 1},
@@ -1524,6 +1531,7 @@ async def test_process_fan_out_prunes_stale_sections_and_types() -> None:
     assert result.intermediate_status.known_types == [
         "Outdated version",
         "Snyk check/fix 1.2",
+        "Trivy filesystem check/fix 1.2",
         "Cleanup",
     ]
     assert result.actions[0].data == _EventData(type="cleanup", known_versions=["1.2", "master"])
@@ -2276,6 +2284,7 @@ def test_vulnerability_status() -> None:
         "is_upgradable": True,
         "is_patchable": False,
         "reason": "Not compatible with the used Poetry version",
+        "id_url": "",
     }
 
 
@@ -3152,3 +3161,723 @@ async def test_render_trivy_images_template() -> None:
     assert "libssl@3.0.1" in html
     assert "Fixed in: 3.0.2" in html
     assert "no vulnerability" in html
+
+
+def _dependency_vulnerability(
+    file: str = "poetry.lock",
+    package: str = "urllib3",
+    installed: str = "1.22",
+    fixed: str = "2.2.2",
+    severity: str = "high",
+    vuln_id: str = "CVE-2023-45803",
+    dependency_type: str = "poetry",
+) -> audit_utils.DependencyVulnerability:
+    """Build a Trivy dependency vulnerability for the tests."""
+    return audit_utils.DependencyVulnerability(
+        file=file,
+        package_name=package,
+        installed_version=installed,
+        dependency_type=dependency_type,
+        severity=severity,
+        trivy_id=vuln_id,
+        fixed_versions=[version.strip() for version in fixed.split(",") if version.strip()],
+        cve_ids=[vuln_id] if vuln_id.startswith("CVE-") else [],
+        title="Some title",
+        id_url=f"https://avd.aquasec.com/nvd/{vuln_id.lower()}",
+    )
+
+
+def test_parse_trivy_fs_report() -> None:
+    """Only the Python dependency results are parsed, with the CVE aliases and fix candidates."""
+    report = {
+        "Results": [
+            {
+                "Target": "poetry.lock",
+                "Type": "poetry",
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2023-45803",
+                        "PkgName": "urllib3",
+                        "InstalledVersion": "1.22",
+                        "FixedVersion": "2.0.6, 1.26.17",
+                        "Severity": "HIGH",
+                        "Aliases": ["CVE-2023-45803", "GHSA-2xjv-v924-q3f7"],
+                        "CweIDs": ["CWE-770"],
+                        "Title": "Compression bomb",
+                        "PrimaryURL": "https://avd.aquasec.com/nvd/cve-2023-45803",
+                    },
+                ],
+            },
+            {
+                "Target": "ci/requirements.txt",
+                "Type": "pip",
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "SNYK-PYTHON-REQUESTS-1",
+                        "PkgName": "requests",
+                        "InstalledVersion": "2.19.0",
+                        "FixedVersion": "2.20.0",
+                        "Severity": "CRITICAL",
+                        "Aliases": ["CVE-2018-18074"],
+                    },
+                ],
+            },
+            {"Target": "package-lock.json", "Type": "npm", "Vulnerabilities": [{"PkgName": "x"}]},
+        ],
+    }
+    vulnerabilities = audit_utils.parse_trivy_fs_report(json.dumps(report))
+    assert len(vulnerabilities) == 2
+    urllib3 = vulnerabilities[0]
+    assert urllib3.file == "poetry.lock"
+    assert urllib3.fixed_versions == ["2.0.6", "1.26.17"]
+    assert urllib3.severity == "high"
+    assert urllib3.cve_ids == ["CVE-2023-45803"]
+    assert urllib3.cwe_ids == ["CWE-770"]
+    requests_vuln = vulnerabilities[1]
+    assert requests_vuln.file == "ci/requirements.txt"
+    assert requests_vuln.cve_ids == ["CVE-2018-18074"]
+    assert audit_utils.parse_trivy_fs_report(None) == []
+    assert audit_utils.parse_trivy_fs_report("not json") == []
+
+
+def test_choose_target_version() -> None:
+    """The target is the smallest version fixing all the vulnerabilities of the package."""
+    assert (
+        audit_utils.choose_target_version(
+            [
+                _dependency_vulnerability(fixed="2.0.6, 1.26.17"),
+                _dependency_vulnerability(vuln_id="CVE-2025-66471", fixed="2.6.0"),
+            ],
+        )
+        == "2.6.0"
+    )
+    assert audit_utils.choose_target_version([_dependency_vulnerability(fixed="1.26.17, 2.0.6")]) == "1.26.17"
+    assert audit_utils.choose_target_version([_dependency_vulnerability(fixed="1.10")]) is None
+    assert audit_utils.choose_target_version([_dependency_vulnerability(fixed="")]) is None
+    assert audit_utils.choose_target_version([_dependency_vulnerability(installed="not-a-version")]) is None
+
+
+def test_build_dependency_fix_plans() -> None:
+    """Plans group the vulnerabilities per file and package, below the threshold or unsupported are skipped."""
+    vulnerabilities = [
+        _dependency_vulnerability(),
+        _dependency_vulnerability(vuln_id="CVE-2024-1", fixed="2.6.0"),
+        _dependency_vulnerability(severity="medium", vuln_id="CVE-2024-2", fixed="2.7.1"),
+        _dependency_vulnerability(
+            file="requirements.txt",
+            package="django",
+            installed="3.2",
+            fixed="4.0",
+            dependency_type="pip",
+        ),
+        _dependency_vulnerability(
+            file="Pipfile.lock",
+            package="pyyaml",
+            installed="5.0",
+            fixed="6.0",
+            severity="critical",
+            dependency_type="pipenv",
+        ),
+        _dependency_vulnerability(file="ci/requirements.txt", package="black", fixed="24.0"),
+    ]
+    plans, skipped = audit_utils.build_dependency_fix_plans(vulnerabilities, "high", ["ci/requirements.txt"])
+    assert [(plan.file, plan.package_name, plan.target_version) for plan in plans] == [
+        ("poetry.lock", "urllib3", "2.6.0"),
+        ("requirements.txt", "django", "4.0"),
+    ]
+    assert any("Pipfile.lock" in reason and "unsupported" in reason for reason in skipped)
+    assert any("black" in reason and "files-no-fix" in reason for reason in skipped)
+
+
+def test_find_and_apply_temp_poetry_constraint_classic() -> None:
+    """The classical `[tool.poetry.dependencies]` entries are found and replaced."""
+    content = """
+[tool.poetry]
+name = "p"
+
+[tool.poetry.dependencies]
+python = ">=3.10"
+urllib3 = ">=1.26,<2"
+requests = { version = ">=2.0", extras = ["security"] }
+
+[tool.poetry.group.dev.dependencies]
+black = ">=23"
+"""
+    assert audit_utils.find_pyproject_constraint(content, "urllib3") == "urllib3 >=1.26,<2"
+    assert audit_utils.find_pyproject_constraint(content, "python") == "python >=3.10"
+    assert audit_utils.find_pyproject_constraint(content, "black") == "black >=23"
+    assert audit_utils.find_pyproject_constraint(content, "pyyaml") is None
+    modified = audit_utils.apply_temp_poetry_constraint(content, "urllib3", "2.2.2")
+    assert 'urllib3 = "==2.2.2"' in modified
+    assert ">=1.26,<2" not in modified
+    assert "[tool.poetry.dependencies]" in modified
+    assert 'python = ">=3.10"' in modified
+    injected = audit_utils.apply_temp_poetry_constraint(content, "pyyaml", "6.0.1")
+    assert 'pyyaml = "==6.0.1"' in injected
+    assert injected.count("[tool.poetry.dependencies]") == 1
+    assert "[tool.poetry.group.dev.dependencies]" in injected
+
+
+def test_find_and_apply_temp_poetry_constraint_pep621() -> None:
+    """The PEP 621 `dependencies` array entries are found, replaced and injected."""
+    content = """
+[project]
+name = "p"
+dependencies = [
+    "requests>=2.19.0",
+    "urllib3 >=1.26,<3",  # bounded
+]
+
+[tool.poetry]
+package-mode = false
+"""
+    assert audit_utils.find_pyproject_constraint(content, "requests") == "requests >=2.19.0"
+    assert audit_utils.find_pyproject_constraint(content, "urllib3") == "urllib3 >=1.26,<3"
+    assert audit_utils.find_pyproject_constraint(content, "pyyaml") is None
+    modified = audit_utils.apply_temp_poetry_constraint(content, "requests", "2.31.0")
+    assert '"requests==2.31.0"' in modified
+    assert ">=2.19.0" not in modified
+    assert "# bounded" in modified
+    injected = audit_utils.apply_temp_poetry_constraint(content, "pyyaml", "6.0.1")
+    assert '"pyyaml==6.0.1",' in injected
+
+
+def test_locked_poetry_version() -> None:
+    """The locked version of a package is extracted from a poetry.lock content."""
+    content = """
+[[package]]
+name = "requests"
+version = "2.31.0"
+description = "x"
+
+[[package]]
+name = "urllib3"
+version = "2.2.2"
+description = "y"
+"""
+    assert audit_utils.locked_poetry_version(content, "urllib3") == "2.2.2"
+    assert audit_utils.locked_poetry_version(content, "pyyaml") is None
+
+
+def test_bump_requirement_content() -> None:
+    """Pins are bumped in place, missing packages get a floor, bounded constraints are skipped."""
+    content = "# header\nurllib3==1.22  # http\nDjango>=3.2,<4.0\nblack==24.0.0\n"
+
+    new_content, outcome = audit_utils.bump_requirement_content(content, "urllib3", "2.2.2")
+    assert outcome == "bumped"
+    assert "urllib3==2.2.2  # http" in new_content
+
+    new_content, outcome = audit_utils.bump_requirement_content(content, "requests", "2.31.0")
+    assert outcome == "appended"
+    assert new_content.endswith("black==24.0.0\nrequests>=2.31.0\n")
+
+    _, outcome = audit_utils.bump_requirement_content(content, "django", "4.2")
+    assert outcome.startswith("skip:")
+
+    _, outcome = audit_utils.bump_requirement_content(content, "black", "24.0.0")
+    assert outcome == "already"
+
+    _, outcome = audit_utils.bump_requirement_content(content, "urllib3", "1.21")
+    assert outcome == "already"
+
+
+@pytest.mark.asyncio
+async def test_filter_python_incompatible_plans() -> None:
+    """Target versions requiring a newer Python than the branch are dropped from the plans."""
+    plans = [
+        audit_utils.DependencyFixPlan(
+            file="poetry.lock",
+            package_name="urllib3",
+            installed_version="1.22",
+            target_version="2.6.0",
+            vulnerabilities=[_dependency_vulnerability(fixed="2.6.0")],
+        ),
+        audit_utils.DependencyFixPlan(
+            file="poetry.lock",
+            package_name="black",
+            installed_version="22.0",
+            target_version="24.0.0",
+            vulnerabilities=[_dependency_vulnerability(package="black", fixed="24.0.0")],
+        ),
+    ]
+
+    async def fake_fetch(session: Any, name: str, version: str) -> str:
+        return ">=3.10" if name == "black" else ""
+
+    with patch.object(
+        audit_utils,
+        "_fetch_requires_python",
+        new=AsyncMock(side_effect=fake_fetch),
+    ):
+        kept, skipped = await audit_utils.filter_python_incompatible_plans(plans, "3.9")
+    assert [plan.package_name for plan in kept] == ["urllib3"]
+    assert len(skipped) == 1
+    assert "black" in skipped[0]
+    assert "Python 3.9" in skipped[0]
+
+    kept, skipped = await audit_utils.filter_python_incompatible_plans(plans, "")
+    assert len(kept) == 2
+    assert not skipped
+
+
+def _make_poetry_run_timeout(lock_success: bool = True) -> AsyncMock:
+    """Build a `run_timeout` mock simulating the conservative Poetry lock behaviour."""
+
+    async def fake_run(
+        command, env, timeout, success_message, error_message, timeout_message, cwd, error=True
+    ):
+        directory = Path(cwd)
+        if command == ["poetry", "lock"]:
+            if not lock_success:
+                return "version solving failed", False, None
+            pyproject = (directory / "pyproject.toml").read_text(encoding="utf-8")
+            match = re.search(r'(\n[a-zA-Z0-9._-]+) = "==([^"]+)"', pyproject)
+            if match:
+                lock = directory / "poetry.lock"
+                content = lock.read_text(encoding="utf-8")
+                name = match[1][1:].lstrip()
+                content = re.sub(
+                    rf'name = "{name}"\nversion = "[^"]+"',
+                    f'name = "{name}"\nversion = "{match[2]}"',
+                    content,
+                )
+                lock.write_text(content, encoding="utf-8")
+            return "", True, None
+        if command == ["poetry", "check", "--lock"]:
+            return "", True, None
+        msg = f"Unexpected command {command}"
+        raise AssertionError(msg)
+
+    return AsyncMock(side_effect=fake_run)
+
+
+@pytest.mark.asyncio
+async def test_fix_poetry_project(tmp_path: Path) -> None:
+    """The lock is bumped to the target version and the pyproject.toml is left untouched."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject_content = (
+        '[tool.poetry]\nname = "p"\n\n[tool.poetry.dependencies]\npython = ">=3.10"\nurllib3 = ">=1.26"\n'
+    )
+    pyproject.write_text(pyproject_content, encoding="utf-8")
+    lock = tmp_path / "poetry.lock"
+    lock_content = '[[package]]\nname = "urllib3"\nversion = "1.22"\ndescription = "HTTP library"\n'
+    lock.write_text(lock_content, encoding="utf-8")
+
+    plan = audit_utils.DependencyFixPlan(
+        file="poetry.lock",
+        package_name="urllib3",
+        installed_version="1.22",
+        target_version="2.2.2",
+        vulnerabilities=[_dependency_vulnerability()],
+    )
+    with patch.object(audit_utils.module_utils, "run_timeout", new=_make_poetry_run_timeout()):
+        applied, skipped, _logs = await audit_utils._fix_poetry_project(
+            anyio.Path(str(tmp_path)), "", [plan], os.environ.copy()
+        )
+    assert applied == ["urllib3 1.22 -> 2.2.2 in `poetry.lock`"]
+    assert not skipped
+    assert pyproject.read_text(encoding="utf-8") == pyproject_content
+    assert 'version = "2.2.2"' in lock.read_text(encoding="utf-8")
+
+
+@pytest.mark.asyncio
+async def test_fix_poetry_project_version_solving_failed(tmp_path: Path) -> None:
+    """A package that cannot be resolved to the fixed version is skipped and the files reverted."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject_content = '[tool.poetry.dependencies]\npython = ">=3.10"\n'
+    pyproject.write_text(pyproject_content, encoding="utf-8")
+    lock = tmp_path / "poetry.lock"
+    lock_content = '[[package]]\nname = "urllib3"\nversion = "1.22"\n'
+    lock.write_text(lock_content, encoding="utf-8")
+
+    plan = audit_utils.DependencyFixPlan(
+        file="poetry.lock",
+        package_name="urllib3",
+        installed_version="1.22",
+        target_version="2.2.2",
+        vulnerabilities=[_dependency_vulnerability()],
+    )
+    with patch.object(
+        audit_utils.module_utils, "run_timeout", new=_make_poetry_run_timeout(lock_success=False)
+    ):
+        applied, skipped, _logs = await audit_utils._fix_poetry_project(
+            anyio.Path(str(tmp_path)), "", [plan], os.environ.copy()
+        )
+    assert applied == []
+    assert "version solving failed" in skipped[0]
+    assert pyproject.read_text(encoding="utf-8") == pyproject_content
+    assert lock.read_text(encoding="utf-8") == lock_content
+
+
+@pytest.mark.asyncio
+async def test_fix_poetry_project_constraint_too_strict(tmp_path: Path) -> None:
+    """A direct dependency whose constraint forbids the fixed version is left to the dependency updates."""
+    pyproject = tmp_path / "pyproject.toml"
+    pyproject_content = '[tool.poetry.dependencies]\nurllib3 = ">=1.22,<2"\n'
+    pyproject.write_text(pyproject_content, encoding="utf-8")
+    (tmp_path / "poetry.lock").write_text(
+        '[[package]]\nname = "urllib3"\nversion = "1.22"\n', encoding="utf-8"
+    )
+
+    plan = audit_utils.DependencyFixPlan(
+        file="poetry.lock",
+        package_name="urllib3",
+        installed_version="1.22",
+        target_version="2.2.2",
+        vulnerabilities=[_dependency_vulnerability()],
+    )
+    with patch.object(audit_utils.module_utils, "run_timeout", new=_make_poetry_run_timeout()):
+        applied, skipped, _logs = await audit_utils._fix_poetry_project(
+            anyio.Path(str(tmp_path)), "", [plan], os.environ.copy()
+        )
+    assert applied == []
+    assert "does not allow it" in skipped[0]
+
+
+@pytest.mark.asyncio
+async def test_fix_requirements_files(tmp_path: Path) -> None:
+    """The requirements files are edited and validated, a failing resolution is reverted."""
+    requirements = tmp_path / "requirements.txt"
+    original = "requests==2.19.0\n"
+    requirements.write_text(original, encoding="utf-8")
+
+    plans = [
+        audit_utils.DependencyFixPlan(
+            file="requirements.txt",
+            package_name="requests",
+            installed_version="2.19.0",
+            target_version="2.31.0",
+            vulnerabilities=[
+                _dependency_vulnerability(
+                    file="requirements.txt",
+                    package="requests",
+                    installed="2.19.0",
+                    fixed="2.31.0",
+                    dependency_type="pip",
+                ),
+            ],
+        ),
+        audit_utils.DependencyFixPlan(
+            file="requirements.txt",
+            package_name="urllib3",
+            installed_version="1.22",
+            target_version="2.2.2",
+            vulnerabilities=[
+                _dependency_vulnerability(
+                    file="requirements.txt", installed="1.22", fixed="2.2.2", dependency_type="pip"
+                ),
+            ],
+        ),
+    ]
+
+    run_mock = AsyncMock(return_value=("", True, None))
+    with patch.object(audit_utils.module_utils, "run_timeout", new=run_mock):
+        applied, skipped, pinned = await audit_utils._fix_requirements_files(
+            anyio.Path(str(tmp_path)), plans, os.environ.copy(), ["--only-binary=:all:"]
+        )
+    assert not skipped
+    assert any("requests 2.19.0 -> 2.31.0" in message for message in applied)
+    assert any("urllib3 pinned" in message for message in applied)
+    assert [item.pinned_version for item in pinned] == ["2.2.2"]
+    content = requirements.read_text(encoding="utf-8")
+    assert "requests==2.31.0" in content
+    assert "urllib3>=2.2.2" in content
+    assert run_mock.await_args_list[0].args[0][:5] == ["python", "-m", "pip", "install", "--dry-run"]
+    assert "--only-binary=:all:" in run_mock.await_args_list[0].args[0]
+
+    requirements.write_text(original, encoding="utf-8")
+    with patch.object(
+        audit_utils.module_utils,
+        "run_timeout",
+        new=AsyncMock(return_value=("ResolutionImpossible", False, None)),
+    ):
+        _applied, skipped, _pinned = await audit_utils._fix_requirements_files(
+            anyio.Path(str(tmp_path)), plans, os.environ.copy(), []
+        )
+    assert "reverted" in skipped[0]
+    assert requirements.read_text(encoding="utf-8") == original
+
+
+@pytest.mark.asyncio
+async def test_trivy_filesystem_flow(tmp_path: Path) -> None:
+    """The dependencies audit fixes the lock, rescans and reports the fixed vulnerabilities."""
+    before = [
+        _dependency_vulnerability(),
+        _dependency_vulnerability(severity="medium", vuln_id="CVE-MED", fixed="1.26.5"),
+    ]
+    with (
+        patch.object(
+            audit_utils,
+            "_trivy_fs_scan",
+            new=AsyncMock(side_effect=[(before, True), ([], True)]),
+        ),
+        patch.object(
+            audit_utils,
+            "_fix_poetry_project",
+            new=AsyncMock(
+                return_value=(["urllib3 1.22 -> 2.2.2 in `poetry.lock`"], [], ["poetry lock log"]),
+            ),
+        ) as mock_fix,
+    ):
+        result = await audit_utils.trivy_filesystem(
+            "1.0",
+            {},
+            {},
+            os.environ.copy(),
+            anyio.Path(str(tmp_path)),
+            "",
+        )
+    assert result.success
+    mock_fix.assert_awaited_once()
+    assert [vuln.snyk_id for vulns in result.fixed_vulnerabilities.values() for vuln in vulns] == [
+        "CVE-2023-45803",
+        "CVE-MED",
+    ]
+    assert result.vulnerabilities == {}
+    assert result.skipped_fixes == []
+    fix_html = html_module.unescape(result.fix_message.html)
+    assert "Applied: urllib3 1.22 -> 2.2.2" in fix_html
+    assert "poetry lock log" in fix_html
+    assert "1 high vulnerabilities" in result.short_messages
+    assert "2 vulnerabilities fixed" in result.short_messages
+
+
+@pytest.mark.asyncio
+async def test_trivy_filesystem_auto_fix_disabled(tmp_path: Path) -> None:
+    """With the automatic fixes disabled no file is touched and the vulnerabilities are reported."""
+    before = [_dependency_vulnerability()]
+    with (
+        patch.object(
+            audit_utils,
+            "_trivy_fs_scan",
+            new=AsyncMock(side_effect=[(before, True)]),
+        ),
+        patch.object(audit_utils, "_fix_poetry_project", new=AsyncMock()) as mock_fix,
+    ):
+        result = await audit_utils.trivy_filesystem(
+            "1.0",
+            {"auto-fix": False},
+            {},
+            os.environ.copy(),
+            anyio.Path(str(tmp_path)),
+            "",
+        )
+    mock_fix.assert_not_awaited()
+    assert result.success
+    assert result.fixed_vulnerabilities == {}
+    assert "auto-fix" in result.fix_message.html
+    assert len(result.vulnerabilities["poetry.lock"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_trivy_filesystem_scan_failure(tmp_path: Path) -> None:
+    """A scan failure is reported as an error of the job."""
+    with patch.object(audit_utils, "_trivy_fs_scan", new=AsyncMock(return_value=([], False))):
+        result = await audit_utils.trivy_filesystem(
+            "1.0",
+            {},
+            {},
+            os.environ.copy(),
+            anyio.Path(str(tmp_path)),
+            "",
+        )
+    assert not result.success
+    assert result.short_messages == ["Error while scanning the dependencies"]
+
+
+@pytest.mark.asyncio
+async def test_parse_trivyignore_reasons(tmp_path: Path) -> None:
+    """The reasons and expiries of the .trivyignore.yaml entries are extracted."""
+    ignore_file = tmp_path / ".trivyignore.yaml"
+    ignore_file.write_text(
+        "vulnerabilities:\n"
+        "  - id: CVE-2023-45803\n"
+        "    reason: Not compatible with the used Python version\n"
+        "    expire: 2026-12-31\n"
+        "  - id: CVE-2024-1234\n",
+        encoding="utf-8",
+    )
+    reasons = await audit_utils.parse_trivyignore_reasons(anyio.Path(str(ignore_file)))
+    assert reasons["CVE-2023-45803"] == "Not compatible with the used Python version, until 2026-12-31"
+    assert reasons["CVE-2024-1234"] == ""
+
+
+@pytest.mark.asyncio
+async def test_trivy_filesystem_output_rendering() -> None:
+    """The summary report output renders the Trivy vulnerability IDs with their own URL."""
+    data = _OutputRendererData(
+        branch="1.2",
+        vulnerabilities={
+            "poetry.lock": [
+                _vulnerability_status(
+                    audit_utils.dependency_to_vulnerability_data(_dependency_vulnerability()),
+                ),
+            ],
+        },
+        ignored_vulnerabilities={},
+        low_severity_vulnerabilities={},
+    )
+    html = await render_template(
+        "github_app_geo_project:module/audit/output.html",
+        {"renderer_data": data.model_dump()},
+        nonce="test-nonce",
+    )
+    assert "urllib3@1.22" in html
+    assert "https://avd.aquasec.com/nvd/cve-2023-45803" in html
+    assert "security.snyk.io" not in html
+
+
+@pytest.mark.asyncio
+async def test_process_fan_out_trivy_filesystem_jobs() -> None:
+    """The fan-out creates one `trivy-filesystem` job per supported version."""
+    context = Mock()
+    context.module_event_data = _EventData(trivy_filesystem=True)
+    context.github_event_data = {}
+    context.module_config = {"version-mapping": {}}
+    context.issue_data = "- [ ] <!-- outdated --> Check outdated version\n"
+    context.github_project = MagicMock()
+    context.github_project.owner = "owner"
+    context.github_project.repository = "repo"
+    context.github_project.default_branch = AsyncMock(return_value="master")
+
+    security_file = MagicMock(spec=githubkit_schemas.latest.models.ContentFile)
+    security_file.content = base64.b64encode(b"# Security policy").decode("utf-8")
+
+    async def async_get_content(owner, repo, path):
+        if path == "SECURITY.md":
+            return MagicMock(parsed_data=security_file)
+        raise _make_request_failed_exception(404)
+
+    context.github_project.aio_github.rest.repos.async_get_content = AsyncMock(side_effect=async_get_content)
+
+    with patch("github_app_geo_project.module.audit.security_md.Security") as mock_security:
+        mock_security.return_value.branches.return_value = ["1.2", "1.3"]
+        result = await Audit().process(context)
+
+    actions = [action for action in result.actions if action.data.type == "trivy-filesystem"]
+    assert [action.data.version for action in actions] == ["1.2", "1.3"]
+    assert [action.priority for action in actions] == [
+        _PRIORITY_TRIVY_FILESYSTEM,
+        _PRIORITY_TRIVY_FILESYSTEM,
+    ]
+    assert not [action for action in result.actions if action.data.type == "snyk"]
+    assert "<!-- trivy-filesystem -->" in result.dashboard
+
+
+@pytest.mark.asyncio
+async def test_process_trivy_filesystem_flow() -> None:
+    """`_process_trivy_filesystem` renders the pull request body, the output and the transversal entry."""
+    context = Mock()
+    context.module_event_data = _EventData(type="trivy-filesystem", version="1.2")
+    context.module_config = {}
+    context.github_project = Mock()
+    context.github_project.owner = "owner"
+    context.github_project.repository = "repo"
+    context.service_url = "https://example.com/"
+    context.job_id = 42
+
+    remaining = audit_utils.dependency_to_vulnerability_data(_dependency_vulnerability())
+    fixed = audit_utils.dependency_to_vulnerability_data(
+        _dependency_vulnerability(
+            vuln_id="CVE-2018-18074", package="requests", installed="2.19.0", fixed="2.20.0"
+        ),
+    )
+    ignored_vulnerability = audit_utils.DependencyVulnerability(
+        file="requirements.txt",
+        package_name="pyyaml",
+        installed_version="5.0",
+        dependency_type="pip",
+        severity="critical",
+        trivy_id="CVE-2099-9999",
+        fixed_versions=["6.0"],
+    )
+    fix_message = module_utils.HtmlMessage("Applied: requests 2.19.0 -&gt; 2.20.0")
+    fix_message.title = "Trivy dependencies fix output"
+    audit_result = audit_utils.TrivyFilesystemResult(
+        messages=[],
+        fix_message=fix_message,
+        short_messages=["1 high vulnerabilities", "1 vulnerability fixed", "1 fixes skipped"],
+        success=True,
+        vulnerabilities={"poetry.lock": [remaining]},
+        fixed_vulnerabilities={"requirements.txt": [fixed]},
+        pinned_vulnerabilities={},
+        skipped_fixes=["pyyaml in `Pipfile.lock`: not auto-fixable, unsupported file type"],
+    )
+
+    issue_check = module_utils.DashboardIssue("")
+    intermediate_status = _IntermediateStatus(status=_TransversalStatusRepo())
+
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        mock_cm = _make_worktree_mock(Path(tmpdirname))
+        with (
+            patch(
+                "github_app_geo_project.module.audit.module_utils.GIT_WORKTREE_CACHE.working_tree",
+                return_value=mock_cm,
+            ),
+            patch.object(audit_utils, "trivy_filesystem", new=AsyncMock(return_value=audit_result)),
+            patch.object(
+                audit_utils,
+                "trivy_filesystem_ignored",
+                new=AsyncMock(
+                    return_value={
+                        "poetry.lock": [remaining],
+                        "requirements.txt": [
+                            audit_utils.dependency_to_vulnerability_data(ignored_vulnerability),
+                        ],
+                    },
+                ),
+            ),
+            patch.object(audit_utils, "find_trivyignore_files", new=AsyncMock(return_value=[])),
+            patch(
+                "github_app_geo_project.module.audit.module_utils.add_output",
+                new=AsyncMock(),
+            ) as mock_add_output,
+            patch("github_app_geo_project.module.audit._create_pull_request_if_changes") as mock_create_pr,
+        ):
+            mock_create_pr.return_value = (
+                True,
+                ["[Pull request](https://github.com/owner/repo/pull/1)"],
+                "https://github.com/owner/repo/pull/1",
+            )
+
+            short_message, success = await _process_trivy_filesystem(
+                context,
+                issue_check,
+                intermediate_status,
+            )
+
+    assert success is True
+    assert short_message[:3] == [
+        "1 high vulnerabilities",
+        "1 vulnerability fixed",
+        "1 fixes skipped",
+    ]
+
+    mock_add_output.assert_awaited_once()
+    call = mock_add_output.await_args
+    assert call is not None
+    assert call.args[2] == "trivy-filesystem-1.2"
+    renderer_data = call.kwargs["renderer_data"]
+    assert renderer_data.vulnerabilities["poetry.lock"][0].snyk_id == "CVE-2023-45803"
+    assert renderer_data.ignored_vulnerabilities["requirements.txt"][0].snyk_id == "CVE-2099-9999"
+
+    mock_create_pr.assert_awaited_once()
+    args = mock_create_pr.await_args.args
+    assert args[0] == "1.2"
+    assert args[1] == "ghci/audit/trivy-filesystem/1.2"
+    assert args[2] == "Trivy filesystem check/fix 1.2"
+    body = args[3]
+    assert "## Fixed vulnerabilities" in body
+    assert "requests" in body
+    assert "## Fixes not applied" in body
+    assert "unsupported file type" in body
+    assert "Applied: requests 2.19.0 -> 2.20.0" in body
+    assert "[Logs](https://example.com/logs/42)" in body
+    assert "[Output](https://example.com/output/owner/repo/trivy-filesystem-1.2)" in body
+
+    types = intermediate_status.status.types
+    assert "Trivy filesystem check/fix 1.2" in types
+    entry = types["Trivy filesystem check/fix 1.2"]
+    assert entry.status == "success"
+    assert entry.output_url == "https://example.com/output/owner/repo/trivy-filesystem-1.2"
+    assert entry.pull_request_url == "https://github.com/owner/repo/pull/1"
