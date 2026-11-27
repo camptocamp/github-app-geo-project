@@ -4648,3 +4648,121 @@ async def test_render_trivy_published_images_template() -> None:
     assert "CVE-2026-0001" in rendered
     assert "libssl@3.0.1" in rendered
     assert "Fixed in: 3.0.2" in rendered
+
+
+def test_sbom_identity_regexp() -> None:
+    assert (
+        audit_utils._sbom_identity_regexp("ghcr.io/camptocamp/img@sha256:d1")
+        == "^https://github.com/camptocamp/"
+    )
+    assert audit_utils._sbom_identity_regexp("docker.io/camptocamp/img:latest") is None
+    assert audit_utils._sbom_identity_regexp("ghcr.io/") is None
+
+
+def _cosign_attestation_stdout(sbom: dict[str, Any]) -> str:
+    """Build a cosign ``verify-attestation`` JSON output with the SBOM in the payload."""
+    payload = base64.b64encode(json.dumps({"predicate": sbom}).encode()).decode()
+    return json.dumps([{"critical": {}, "optional": {}, "payload": payload}])
+
+
+@pytest.mark.asyncio
+async def test_fetch_sbom_extracts_the_cyclonedx_predicate() -> None:
+    sbom = {"bomFormat": "CycloneDX", "components": [{"name": "libssl", "version": "3.0.1"}]}
+    mock_run = AsyncMock(return_value=(_cosign_attestation_stdout(sbom), True, None))
+    with patch.object(module_utils, "run_timeout", mock_run):
+        result = await audit_utils._fetch_sbom("ghcr.io/camptocamp/img@sha256:d1", {}, anyio.Path("."))
+
+    assert result is not None
+    assert json.loads(result) == sbom
+    command = mock_run.await_args.args[0]
+    assert command[:3] == ["cosign", "verify-attestation", "ghcr.io/camptocamp/img@sha256:d1"]
+    assert "--type=cyclonedx" in command
+    assert "--certificate-oidc-issuer=https://token.actions.githubusercontent.com" in command
+    assert "--certificate-identity-regexp=^https://github.com/camptocamp/" in command
+
+
+@pytest.mark.asyncio
+async def test_fetch_sbom_none_without_attestation() -> None:
+    with patch.object(module_utils, "run_timeout", AsyncMock(return_value=("", False, None))):
+        assert await audit_utils._fetch_sbom("ghcr.io/camptocamp/img@sha256:d1", {}, anyio.Path(".")) is None
+    with patch.object(module_utils, "run_timeout", AsyncMock(return_value=("[]", True, None))):
+        assert await audit_utils._fetch_sbom("ghcr.io/camptocamp/img@sha256:d1", {}, anyio.Path(".")) is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_sbom_none_for_unmapped_registry() -> None:
+    mock_run = AsyncMock(return_value=("", True, None))
+    with patch.object(module_utils, "run_timeout", mock_run):
+        assert await audit_utils._fetch_sbom("docker.io/camptocamp/img:latest", {}, anyio.Path(".")) is None
+    mock_run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_scan_image_uses_the_sbom_when_attested() -> None:
+    sbom = {"bomFormat": "CycloneDX", "components": [{"name": "libssl"}]}
+    cosign_stdout = _cosign_attestation_stdout(sbom)
+    trivy_stdout = json.dumps(
+        {
+            "Results": [
+                {
+                    "Vulnerabilities": [
+                        {
+                            "VulnerabilityID": "CVE-2026-0001",
+                            "PkgName": "libssl",
+                            "InstalledVersion": "3.0.1",
+                            "Severity": "CRITICAL",
+                        }
+                    ]
+                }
+            ]
+        }
+    )
+    commands: list[list[str]] = []
+
+    async def fake_run_timeout(command, *args, **kwargs):
+        commands.append(list(command))
+        if command[0] == "cosign":
+            return (cosign_stdout, True, None)
+        return (trivy_stdout, True, None)
+
+    with patch.object(module_utils, "run_timeout", side_effect=fake_run_timeout):
+        result = await audit_utils.scan_image(
+            "ghcr.io/camptocamp/img@sha256:d1", "critical", False, {}, anyio.Path(".")
+        )
+
+    assert commands[1][:2] == ["trivy", "sbom"]
+    assert commands[1][-1].endswith("sbom.cdx.json")
+    assert result.via_sbom is True
+    assert result.critical_count == 1
+    assert result.vulnerabilities[0].cve == "CVE-2026-0001"
+
+
+@pytest.mark.asyncio
+async def test_scan_image_falls_back_to_the_image() -> None:
+    commands: list[list[str]] = []
+
+    async def fake_run_timeout(command, *args, **kwargs):
+        commands.append(list(command))
+        if command[0] == "cosign":
+            return ("", False, None)
+        return (json.dumps({"Results": []}), True, None)
+
+    with patch.object(module_utils, "run_timeout", side_effect=fake_run_timeout):
+        result = await audit_utils.scan_image(
+            "docker.io/library/postgres:17", "critical", True, {}, anyio.Path(".")
+        )
+
+    assert commands == [
+        [
+            "trivy",
+            "image",
+            "--format=json",
+            "--severity=CRITICAL",
+            "--exit-code=0",
+            "--ignore-unfixed",
+            "docker.io/library/postgres:17",
+        ]
+    ]
+    assert result.via_sbom is False
+    assert result.critical_count == 0
+    assert not result.scan_error

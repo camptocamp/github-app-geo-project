@@ -51,6 +51,10 @@
 <p>
   <code>{{ image['image'] or 'chart rendering failed' }}</code>
   <!---->
+  {% if image['via_sbom'] %}
+  <small class="audit-image-count">[via SBOM]</small>
+  {% endif %}
+  <!---->
   {% if image['scan_error'] %}
   <span class="audit-scan-error">[{{ image['scan_error'] }}]</span>
   {% elif image['critical_count'] %}
