@@ -725,7 +725,7 @@ async def _process_trivy_filesystem(
     intermediate_status: _IntermediateStatus,
 ) -> tuple[list[str], bool]:
     """
-    Audit and fix the Python dependencies of a stabilization branch with Trivy.
+    Audit and fix the Python and npm dependencies of a stabilization branch with Trivy.
 
     The scan result is stored as an output page (remaining, ignored and low severity
     vulnerabilities), the applied fixes are pushed as a pull request, and a
@@ -1597,7 +1597,7 @@ class Audit(
         ):
             issue_check.add_check(
                 "trivy-filesystem",
-                "Check security vulnerabilities in the Python dependencies with Trivy",
+                "Check security vulnerabilities in the dependencies with Trivy",
                 checked=False,
             )
             key_starts.append(f"{_TRIVY_FILESYSTEM_KEY} ")

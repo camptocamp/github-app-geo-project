@@ -2378,18 +2378,18 @@ async def trivy_images(
 
 
 # ---------------------------------------------------------------------------
-# Trivy dependencies scan and fix (the Python replacements of the Snyk auto-fix)
+# Trivy dependencies scan and fix (the replacements of the Snyk auto-fix)
 # ---------------------------------------------------------------------------
 
-_TRIVY_PYTHON_TYPES = {"pip", "poetry", "pipenv"}
-"""The Trivy result types of the Python dependency files, the scope of the dependencies audit."""
+_TRIVY_DEPENDENCY_TYPES = {"pip", "poetry", "pipenv", "npm"}
+"""The Trivy result types of the dependency files, the scope of the dependencies audit."""
 
 _TRIVY_ALL_SEVERITIES = "LOW,MEDIUM,HIGH,CRITICAL,UNKNOWN"
 """Trivy reports UNKNOWN severities only when they are part of the requested severity list."""
 
 
 class DependencyVulnerability(BaseModel):
-    """A single Python dependency vulnerability reported by ``trivy fs``."""
+    """A single dependency vulnerability reported by ``trivy fs``."""
 
     file: str
     """The dependency file the package comes from, relative to the repository root."""
@@ -2398,7 +2398,7 @@ class DependencyVulnerability(BaseModel):
     installed_version: str
     """The vulnerable version in the dependency file."""
     dependency_type: str
-    """The Trivy dependency type (``pip``, ``poetry``, ``pipenv``)."""
+    """The Trivy dependency type (``pip``, ``poetry``, ``pipenv``, ``npm``)."""
     severity: str
     """The vulnerability severity (lowercase)."""
     trivy_id: str
@@ -2452,7 +2452,7 @@ class TrivyFilesystemResult(NamedTuple):
 
 
 def parse_trivy_fs_report(stdout: str | None) -> list[DependencyVulnerability]:
-    """Parse the Python dependency vulnerabilities of a ``trivy fs --format json`` output."""
+    """Parse the dependency vulnerabilities of a ``trivy fs --format json`` output."""
     vulnerabilities: list[DependencyVulnerability] = []
     if not stdout:
         return vulnerabilities
@@ -2465,7 +2465,7 @@ def parse_trivy_fs_report(stdout: str | None) -> list[DependencyVulnerability]:
     if not isinstance(results, list):
         return vulnerabilities
     for result in results:
-        if not isinstance(result, dict) or result.get("Type") not in _TRIVY_PYTHON_TYPES:
+        if not isinstance(result, dict) or result.get("Type") not in _TRIVY_DEPENDENCY_TYPES:
             continue
         target = _normalize_file_name(str(result.get("Target", "")))
         if not target:
@@ -2665,6 +2665,8 @@ def _is_fixable_file(vulnerability: DependencyVulnerability) -> bool:
         return vulnerability.file.endswith("poetry.lock")
     if vulnerability.dependency_type == "pip":
         return vulnerability.file.endswith(".txt")
+    if vulnerability.dependency_type == "npm":
+        return vulnerability.file.endswith("package-lock.json")
     return False
 
 
@@ -2727,10 +2729,17 @@ async def filter_python_incompatible_plans(
     plans: list[DependencyFixPlan],
     python_version: str,
 ) -> tuple[list[DependencyFixPlan], list[str]]:
-    """Split the plans between those installable on the branch Python and those that are not."""
+    """
+    Split the plans between those installable on the branch Python and those that are not.
+
+    Only the Python plans are checked against PyPI `Requires-Python`; the npm plans are always
+    kept, as the branch Python version does not constrain them.
+    """
     if not python_version:
         return plans, []
-    unique = sorted({(plan.package_name, plan.target_version) for plan in plans})
+    python_plans = [plan for plan in plans if not plan.file.endswith("package-lock.json")]
+    npm_plans = [plan for plan in plans if plan.file.endswith("package-lock.json")]
+    unique = sorted({(plan.package_name, plan.target_version) for plan in python_plans})
     requires_python: dict[tuple[str, str], str | None] = {}
     timeout = aiohttp.ClientTimeout(total=settings.audit.timeouts.snyk_api.total_seconds())
     async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -2741,9 +2750,9 @@ async def filter_python_incompatible_plans(
         for key, fetch_task in fetch_tasks.items():
             requires_python[key] = fetch_task.result()
 
-    kept: list[DependencyFixPlan] = []
+    kept: list[DependencyFixPlan] = list(npm_plans)
     skipped: list[str] = []
-    for plan in plans:
+    for plan in python_plans:
         spec = requires_python.get((plan.package_name, plan.target_version))
         if is_python_incompatible(spec, python_version):
             skipped.append(
@@ -3124,6 +3133,122 @@ async def _fix_requirements_files(
     return applied, skipped, pinned
 
 
+def restore_exact_npm_versions(original: str, updated: str) -> str | None:
+    """
+    Remove the range prefixes added by npm to the exact pinned versions of a package.json.
+
+    Returns the restored content, or None when no exact version gained a `^` or `~` prefix
+    (nothing to do, the file is left untouched to keep the diff minimal).
+    """
+    try:
+        original_json = json.loads(original)
+        updated_json = json.loads(updated)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(original_json, dict) or not isinstance(updated_json, dict):
+        return None
+    changed = False
+    for section_name in ("dependencies", "devDependencies"):
+        original_section = original_json.get(section_name)
+        updated_section = updated_json.get(section_name)
+        if not isinstance(original_section, dict) or not isinstance(updated_section, dict):
+            continue
+        for package, version in updated_section.items():
+            original_version = original_section.get(package)
+            if (
+                isinstance(version, str)
+                and isinstance(original_version, str)
+                and original_version[:1] not in ("^", "~", ">", "=", "<")
+                and version.startswith(("^", "~"))
+            ):
+                updated_section[package] = version[1:]
+                changed = True
+    if not changed:
+        return None
+    restored = json.dumps(updated_json, indent=2)
+    if original.endswith("\n"):
+        restored += "\n"
+    return restored
+
+
+async def _fix_npm_project(
+    cwd: anyio.Path,
+    directory: str,
+    plans: list[DependencyFixPlan],
+    env: dict[str, str],
+) -> tuple[list[str], list[str], list[str]]:
+    """
+    Fix the vulnerable packages of an npm project with ``npm audit fix``.
+
+    A single ``npm audit fix --package-lock-only --ignore-scripts`` call fixes all the planned
+    packages of the ``package-lock.json``: only the lock file is rewritten, no ``node_modules``
+    is installed and no lifecycle script is run, the Trivy rescan reads the lock file directly.
+    The range prefixes added by npm to the exact pins of the ``package.json`` are removed to keep
+    the pinning style of the repository. On failure the project files are reverted and the fixes
+    are reported as skipped, and packages with no fix inside the current ranges are left to the
+    dependency updates (Renovate), as for the Poetry projects.
+    """
+    applied: list[str] = []
+    skipped: list[str] = []
+    logs: list[str] = []
+    project_dir = cwd / directory if directory else cwd
+    lock_path = project_dir / "package-lock.json"
+    package_json_path = project_dir / "package.json"
+    if not await lock_path.exists():
+        return (
+            applied,
+            [f"{plan.package_name} in `{plan.file}`: the lock file does not exist anymore" for plan in plans],
+            logs,
+        )
+    original_lock = await lock_path.read_text(encoding="utf-8")
+    original_package_json = (
+        await package_json_path.read_text(encoding="utf-8") if await package_json_path.exists() else None
+    )
+
+    _, success, message = await module_utils.run_timeout(
+        ["npm", "audit", "fix", "--package-lock-only", "--ignore-scripts"],
+        env,
+        _TIMEOUT_NPM_AUDIT,
+        f"Npm audit fix {directory or '.'}",
+        f"Npm audit fix failed {directory or '.'}",
+        f"Npm audit fix timeout {directory or '.'}",
+        project_dir,
+        error=False,
+    )
+    if message is not None:
+        logs.append(message.to_plain_text())
+    if not success:
+        await lock_path.write_text(original_lock, encoding="utf-8")
+        if original_package_json is not None:
+            await package_json_path.write_text(original_package_json, encoding="utf-8")
+        skipped.append(f"`{directory or '.'}`: `npm audit fix` failed, the files are reverted")
+        return applied, skipped, logs
+
+    if original_package_json is not None:
+        updated_package_json = await package_json_path.read_text(encoding="utf-8")
+        restored = restore_exact_npm_versions(original_package_json, updated_package_json)
+        if restored is not None:
+            await package_json_path.write_text(restored, encoding="utf-8")
+
+    if await lock_path.read_text(encoding="utf-8") == original_lock and (
+        original_package_json is None
+        or await package_json_path.read_text(encoding="utf-8") == original_package_json
+    ):
+        skipped.extend(
+            f"{plan.package_name} {plan.installed_version} in `{plan.file}`:"
+            " `npm audit fix` has no fix inside the current ranges,"
+            " handled by the dependency updates"
+            for plan in plans
+        )
+        return applied, skipped, logs
+
+    applied.extend(
+        f"{plan.package_name} {plan.installed_version} in `{plan.file}`: fixed by `npm audit fix`"
+        for plan in plans
+    )
+    return applied, skipped, logs
+
+
 async def trivy_filesystem(
     branch: str,
     config: configuration.TrivyFilesystemConfiguration,
@@ -3133,12 +3258,14 @@ async def trivy_filesystem(
     python_version: str,
 ) -> TrivyFilesystemResult:
     """
-    Audit the Python dependencies of the checked out branch with Trivy and fix what can be.
+    Audit the Python and npm dependencies of the checked out branch with Trivy and fix what can be.
 
     The vulnerabilities are scanned with ``trivy fs``, the fixes of the packages at or above
     the fix severity threshold are applied to the ``poetry.lock`` files (conservative lock,
-    the pyproject.toml left untouched) and to the requirements files (bumped pins and added
-    floors, validated with ``pip install --dry-run``), then a rescan confirms the fixed
+    the pyproject.toml left untouched), to the requirements files (bumped pins and added
+    floors, validated with ``pip install --dry-run``) and to the npm ``package-lock.json``
+    files (``npm audit fix --package-lock-only --ignore-scripts``, with the Node.js version
+    pinned by the repository), then a rescan confirms the fixed
     vulnerabilities. ``python_version`` is the branch Python ``major.minor``: target versions
     requiring a newer Python are never pinned.
     """
@@ -3194,11 +3321,15 @@ async def trivy_filesystem(
 
     if auto_fix and plans:
         poetry_plans: dict[str, list[DependencyFixPlan]] = {}
+        npm_plans: dict[str, list[DependencyFixPlan]] = {}
         requirements_plans: list[DependencyFixPlan] = []
         for plan in plans:
             if plan.file.endswith("poetry.lock"):
                 directory = plan.file[: -len("poetry.lock")].rstrip("/")
                 poetry_plans.setdefault(directory, []).append(plan)
+            elif plan.file.endswith("package-lock.json"):
+                directory = plan.file[: -len("package-lock.json")].rstrip("/")
+                npm_plans.setdefault(directory, []).append(plan)
             else:
                 requirements_plans.append(plan)
 
@@ -3219,6 +3350,14 @@ async def trivy_filesystem(
             skipped_fixes.extend(skipped)
             for item in pinned:
                 pinned_by_file.setdefault(item.vulnerability.file, []).append(item)
+
+        if npm_plans:
+            await _select_node_version(env, cwd)
+            for directory, directory_plans in sorted(npm_plans.items()):
+                applied, skipped, logs = await _fix_npm_project(cwd, directory, directory_plans, env)
+                fix_messages.extend(applied)
+                skipped_fixes.extend(skipped)
+                fix_logs.extend(logs)
 
     fix_message: module_utils.HtmlMessage | None = None
     lines = []

@@ -1,7 +1,7 @@
 A module that does some audit stuff on the project:
 
 - Check for critical vulnerabilities (Snyk)
-- Check and fix the Python dependency vulnerabilities (Trivy)
+- Check and fix the Python and npm dependency vulnerabilities (Trivy)
   - Create a pull request for the auto fixable issues
   - Create an issue if the pull request is open for more than 5 days
 - Create a pull request for auto fixable issues (Snyk, disabled by default, see `snyk.auto-fix`)
@@ -14,8 +14,8 @@ A module that does some audit stuff on the project:
 - Scan the pull request code for secrets and misconfigurations (Trivy)
   - Report the findings as an action required check on the pull request
 
-The dependency CVEs are checked with Snyk, and the Python dependency CVEs with Trivy, which also
-fixes them. The container images used by the ArgoCD applications of the deployment repositories
+The dependency CVEs are checked with Snyk, and the Python and npm dependency CVEs with Trivy, which
+also fixes them. The container images used by the ArgoCD applications of the deployment repositories
 (`argocd-gs-gmf-apps`, `argocd-gs-ugsp-apps`) are discovered by rendering the Helm charts and
 scanned with Trivy. The pull requests are scanned with Trivy, only for the secrets and the
 configuration files misconfigurations, not for the dependency vulnerabilities (which are handled
@@ -78,12 +78,12 @@ The module uses Snyk to scan for vulnerabilities in project dependencies. It foc
 
 When Snyk identifies vulnerabilities that can be automatically fixed, the module creates a pull request with the necessary changes. This helps maintain project security by streamlining the remediation process.
 
-The automatic fixes are disabled by default (`snyk.auto-fix` is `false`): the Python dependency
-fixes are done by the Trivy dependencies audit (see below), and the fixable vulnerabilities found
-by Snyk are only reported. Setting `snyk.auto-fix` to `true` restores the `snyk fix` and
-`npm audit fix` commands, the file changes and the pull requests. As for the other Snyk options,
-it can be set globally in the `.github/ghci.yaml` file of the default branch, or for a single
-stabilization branch in its own `.github/ghci.yaml` file, where it takes precedence.
+The automatic fixes are disabled by default (`snyk.auto-fix` is `false`): the Python and npm
+dependency fixes are done by the Trivy dependencies audit (see below), and the fixable
+vulnerabilities found by Snyk are only reported. Setting `snyk.auto-fix` to `true` restores the
+`snyk fix` and `npm audit fix` commands, the file changes and the pull requests. As for the other
+Snyk options, it can be set globally in the `.github/ghci.yaml` file of the default branch, or for
+a single stabilization branch in its own `.github/ghci.yaml` file, where it takes precedence.
 
 The pull request body contains:
 
@@ -105,14 +105,15 @@ message.
 
 Every `snyk (<version>)` job creates or updates the `/output/<owner>/<repository>/snyk-<version>` output, even when every vulnerability was fixed or when only vulnerabilities below the dashboard threshold remain. The page lists the remaining vulnerabilities, the ignored ones (with the reason found in the `.snyk` policy files) and, collapsed, the low severity ones. It displays `No vulnerability found.` when the three sections are empty. The output URL is stable, it is linked from the pull request body and from the transversal dashboard.
 
-#### Python Dependencies Scan and Fix (Trivy filesystem)
+#### Python and npm Dependencies Scan and Fix (Trivy filesystem)
 
-The `trivy-filesystem (<version>)` job scans the Python dependencies of each stabilization branch with
-`trivy fs --scanners vuln --format json` and fixes them, which replaces the Snyk auto-fix for this
-ecosystem. The scan reads the dependency files (`poetry.lock`, `requirements*.txt`) directly: the
-dependencies are not installed in the audit environment, and the rescan done after the fixes is
-therefore a real confirmation of what was fixed, unlike the Snyk rescan which could not confirm the
-pins added to the requirements files. Every vulnerability from the LOW severity is reported; only
+The `trivy-filesystem (<version>)` job scans the Python and npm dependencies of each stabilization
+branch with `trivy fs --scanners vuln --format json` and fixes them, which replaces the Snyk auto-fix
+for these ecosystems. The scan reads the dependency files (`poetry.lock`, `requirements*.txt`,
+`package-lock.json`) directly: the dependencies are not installed in the audit environment, and the
+rescan done after the fixes is therefore a real confirmation of what was fixed, unlike the Snyk
+rescan which could not confirm the pins added to the requirements files. Every vulnerability from
+the LOW severity is reported; only
 those at or above `trivy.filesystem.fix-severity-threshold` (default `high`) are fixed, to limit the
 churn of the transitive fixes, and those at or above `trivy.filesystem.dashboard-severity-threshold`
 (default `high`) are listed directly on the transversal dashboard, the others being displayed in a
@@ -134,11 +135,18 @@ The project type is auto-detected per directory:
   file is validated with `pip install --dry-run --ignore-installed` (extra arguments from
   `trivy.filesystem.pip-install-arguments`); a file that does not resolve anymore is fully reverted and
   reported as a skipped fix.
+- **npm** (a `package-lock.json` file): a single `npm audit fix --package-lock-only --ignore-scripts`
+  run per lock file fixes all the selected packages of the project, with the Node.js version pinned by
+  the repository (`.nvmrc`, `.node-version`, `.tool-versions`) installed on demand with
+  [fnm](https://github.com/Schniz/fnm). No `node_modules` is installed and no lifecycle script is
+  run, the rescan confirms what was really fixed in the lock file. Range prefixes added by npm to
+  exact `package.json` pins are stripped back; packages with no fix inside the current ranges are not
+  forced: they are reported as a skipped fix (the direct dependency updates are the job of Renovate).
 
-In both modes the fixed releases are checked against the branch Python version (`.tool-versions`):
+The Python modes check the fixed releases against the branch Python version (`.tool-versions`):
 a version whose PyPI `Requires-Python` is newer than the branch interpreter is never pinned, the
-vulnerability stays handled by the ignore policies. Pipenv (`Pipfile.lock`) and the other ecosystems
-are reported, not fixed.
+vulnerability stays handled by the ignore policies. Pipenv (`Pipfile.lock`), Yarn and pnpm, and the
+other ecosystems are reported, not fixed.
 
 The fixes are pushed to the `ghci/audit/trivy-filesystem/<version>` branch with auto-merge enabled, and
 the pull request body contains the `Fixed vulnerabilities` section (confirmed by the rescan), the

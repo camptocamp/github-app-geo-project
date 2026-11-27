@@ -3188,7 +3188,7 @@ def _dependency_vulnerability(
 
 
 def test_parse_trivy_fs_report() -> None:
-    """Only the Python dependency results are parsed, with the CVE aliases and fix candidates."""
+    """The Python and npm dependency results are parsed, the other ecosystems are filtered out."""
     report = {
         "Results": [
             {
@@ -3222,11 +3222,29 @@ def test_parse_trivy_fs_report() -> None:
                     },
                 ],
             },
-            {"Target": "package-lock.json", "Type": "npm", "Vulnerabilities": [{"PkgName": "x"}]},
+            {
+                "Target": "frontend/package-lock.json",
+                "Type": "npm",
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "GHSA-9qwh-w84q-p57q",
+                        "PkgName": "postcss",
+                        "InstalledVersion": "8.4.31",
+                        "FixedVersion": "8.4.32",
+                        "Severity": "HIGH",
+                        "Aliases": ["CVE-2023-44270", "GHSA-9qwh-w84q-p57q"],
+                    },
+                ],
+            },
+            {
+                "Target": "yarn.lock",
+                "Type": "yarn",
+                "Vulnerabilities": [{"PkgName": "x"}],
+            },
         ],
     }
     vulnerabilities = audit_utils.parse_trivy_fs_report(json.dumps(report))
-    assert len(vulnerabilities) == 2
+    assert len(vulnerabilities) == 3
     urllib3 = vulnerabilities[0]
     assert urllib3.file == "poetry.lock"
     assert urllib3.fixed_versions == ["2.0.6", "1.26.17"]
@@ -3236,6 +3254,12 @@ def test_parse_trivy_fs_report() -> None:
     requests_vuln = vulnerabilities[1]
     assert requests_vuln.file == "ci/requirements.txt"
     assert requests_vuln.cve_ids == ["CVE-2018-18074"]
+    postcss = vulnerabilities[2]
+    assert postcss.file == "frontend/package-lock.json"
+    assert postcss.dependency_type == "npm"
+    assert postcss.package_name == "postcss"
+    assert postcss.fixed_versions == ["8.4.32"]
+    assert postcss.cve_ids == ["CVE-2023-44270"]
     assert audit_utils.parse_trivy_fs_report(None) == []
     assert audit_utils.parse_trivy_fs_report("not json") == []
 
@@ -3278,14 +3302,31 @@ def test_build_dependency_fix_plans() -> None:
             severity="critical",
             dependency_type="pipenv",
         ),
+        _dependency_vulnerability(
+            file="frontend/package-lock.json",
+            package="postcss",
+            installed="8.4.31",
+            fixed="8.4.32",
+            dependency_type="npm",
+        ),
+        _dependency_vulnerability(
+            file="yarn.lock",
+            package="xlsx",
+            installed="0.18.5",
+            fixed="0.20.2",
+            severity="critical",
+            dependency_type="yarn",
+        ),
         _dependency_vulnerability(file="ci/requirements.txt", package="black", fixed="24.0"),
     ]
     plans, skipped = audit_utils.build_dependency_fix_plans(vulnerabilities, "high", ["ci/requirements.txt"])
     assert [(plan.file, plan.package_name, plan.target_version) for plan in plans] == [
+        ("frontend/package-lock.json", "postcss", "8.4.32"),
         ("poetry.lock", "urllib3", "2.6.0"),
         ("requirements.txt", "django", "4.0"),
     ]
     assert any("Pipfile.lock" in reason and "unsupported" in reason for reason in skipped)
+    assert any("yarn.lock" in reason and "unsupported" in reason for reason in skipped)
     assert any("black" in reason and "files-no-fix" in reason for reason in skipped)
 
 
@@ -3383,7 +3424,7 @@ def test_bump_requirement_content() -> None:
 
 @pytest.mark.asyncio
 async def test_filter_python_incompatible_plans() -> None:
-    """Target versions requiring a newer Python than the branch are dropped from the plans."""
+    """Target versions requiring a newer Python than the branch are dropped, npm plans are kept."""
     plans = [
         audit_utils.DependencyFixPlan(
             file="poetry.lock",
@@ -3399,9 +3440,25 @@ async def test_filter_python_incompatible_plans() -> None:
             target_version="24.0.0",
             vulnerabilities=[_dependency_vulnerability(package="black", fixed="24.0.0")],
         ),
+        audit_utils.DependencyFixPlan(
+            file="frontend/package-lock.json",
+            package_name="postcss",
+            installed_version="8.4.31",
+            target_version="8.4.32",
+            vulnerabilities=[
+                _dependency_vulnerability(
+                    file="frontend/package-lock.json",
+                    package="postcss",
+                    installed="8.4.31",
+                    fixed="8.4.32",
+                    dependency_type="npm",
+                )
+            ],
+        ),
     ]
 
     async def fake_fetch(session: Any, name: str, version: str) -> str:
+        assert name != "postcss", "npm plans must not be checked against PyPI"
         return ">=3.10" if name == "black" else ""
 
     with patch.object(
@@ -3410,13 +3467,13 @@ async def test_filter_python_incompatible_plans() -> None:
         new=AsyncMock(side_effect=fake_fetch),
     ):
         kept, skipped = await audit_utils.filter_python_incompatible_plans(plans, "3.9")
-    assert [plan.package_name for plan in kept] == ["urllib3"]
+    assert [plan.package_name for plan in kept] == ["postcss", "urllib3"]
     assert len(skipped) == 1
     assert "black" in skipped[0]
     assert "Python 3.9" in skipped[0]
 
     kept, skipped = await audit_utils.filter_python_incompatible_plans(plans, "")
-    assert len(kept) == 2
+    assert len(kept) == 3
     assert not skipped
 
 
@@ -3596,6 +3653,167 @@ async def test_fix_requirements_files(tmp_path: Path) -> None:
         )
     assert "reverted" in skipped[0]
     assert requirements.read_text(encoding="utf-8") == original
+
+
+def test_restore_exact_npm_versions() -> None:
+    """Only the range prefixes added by npm to exact pins are restored, None when nothing changed."""
+    original = json.dumps({"name": "p", "dependencies": {"postcss": "8.4.31", "webpack": "^5.0.0"}}) + "\n"
+    widened = json.dumps({"name": "p", "dependencies": {"postcss": "^8.4.32", "webpack": "^5.90.0"}}) + "\n"
+    restored = audit_utils.restore_exact_npm_versions(original, widened)
+    assert restored is not None
+    assert '"postcss": "8.4.32"' in restored
+    assert '"webpack": "^5.90.0"' in restored
+    assert restored.endswith("\n")
+    assert audit_utils.restore_exact_npm_versions(original, original) is None
+    exact = json.dumps({"dependencies": {"postcss": "8.4.32"}})
+    assert (
+        audit_utils.restore_exact_npm_versions(json.dumps({"dependencies": {"postcss": "8.4.31"}}), exact)
+        is None
+    )
+    assert audit_utils.restore_exact_npm_versions("not json", exact) is None
+    tilde = audit_utils.restore_exact_npm_versions(
+        json.dumps({"devDependencies": {"vite": "5.0.0"}}),
+        json.dumps({"devDependencies": {"vite": "~5.0.12"}}),
+    )
+    assert tilde is not None
+    assert '"vite": "5.0.12"' in tilde
+
+
+@pytest.mark.asyncio
+async def test_fix_npm_project(tmp_path: Path) -> None:
+    """The lock is fixed by npm, the widened pins are restored, a failure is reverted."""
+    package_json = tmp_path / "package.json"
+    original_json = json.dumps({"name": "p", "dependencies": {"postcss": "8.4.31"}}, indent=2) + "\n"
+    package_json.write_text(original_json, encoding="utf-8")
+    lock = tmp_path / "package-lock.json"
+    original_lock = json.dumps({"name": "p", "lockfileVersion": 3, "packages": {}}, indent=2) + "\n"
+    lock.write_text(original_lock, encoding="utf-8")
+    plans = [
+        audit_utils.DependencyFixPlan(
+            file="package-lock.json",
+            package_name="postcss",
+            installed_version="8.4.31",
+            target_version="8.4.32",
+            vulnerabilities=[
+                _dependency_vulnerability(
+                    file="package-lock.json",
+                    package="postcss",
+                    installed="8.4.31",
+                    fixed="8.4.32",
+                    dependency_type="npm",
+                ),
+            ],
+        ),
+    ]
+
+    async def fixed_run(
+        command, env, timeout, success_message, error_message, timeout_message, cwd, error=True
+    ):
+        assert command == ["npm", "audit", "fix", "--package-lock-only", "--ignore-scripts"]
+        fixed_lock = json.loads(original_lock)
+        fixed_lock["packages"]["node_modules/postcss"] = {"version": "8.4.32"}
+        (Path(cwd) / "package-lock.json").write_text(
+            json.dumps(fixed_lock, indent=2) + "\n", encoding="utf-8"
+        )
+        (Path(cwd) / "package.json").write_text(
+            json.dumps({"name": "p", "dependencies": {"postcss": "^8.4.32"}}, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return "", True, None
+
+    with patch.object(audit_utils.module_utils, "run_timeout", new=AsyncMock(side_effect=fixed_run)):
+        applied, skipped, _logs = await audit_utils._fix_npm_project(
+            anyio.Path(str(tmp_path)), "", plans, os.environ.copy()
+        )
+    assert skipped == []
+    assert applied == ["postcss 8.4.31 in `package-lock.json`: fixed by `npm audit fix`"]
+    assert "8.4.32" in lock.read_text(encoding="utf-8")
+    assert json.loads(package_json.read_text(encoding="utf-8"))["dependencies"]["postcss"] == "8.4.32"
+
+    async def failing_run(
+        command, env, timeout, success_message, error_message, timeout_message, cwd, error=True
+    ):
+        (Path(cwd) / "package-lock.json").write_text("broken", encoding="utf-8")
+        return "npm error", False, None
+
+    lock.write_text(original_lock, encoding="utf-8")
+    package_json.write_text(original_json, encoding="utf-8")
+    with patch.object(audit_utils.module_utils, "run_timeout", new=AsyncMock(side_effect=failing_run)):
+        applied, skipped, _logs = await audit_utils._fix_npm_project(
+            anyio.Path(str(tmp_path)), "", plans, os.environ.copy()
+        )
+    assert applied == []
+    assert skipped == ["`.`: `npm audit fix` failed, the files are reverted"]
+    assert lock.read_text(encoding="utf-8") == original_lock
+    assert package_json.read_text(encoding="utf-8") == original_json
+
+    with patch.object(audit_utils.module_utils, "run_timeout", new=AsyncMock(return_value=("", True, None))):
+        applied, skipped, _logs = await audit_utils._fix_npm_project(
+            anyio.Path(str(tmp_path)), "", plans, os.environ.copy()
+        )
+    assert applied == []
+    assert "no fix inside the current ranges" in skipped[0]
+
+    missing = tmp_path / "sub"
+    missing.mkdir()
+    with patch.object(audit_utils.module_utils, "run_timeout", new=AsyncMock()) as not_run:
+        applied, skipped, _logs = await audit_utils._fix_npm_project(
+            anyio.Path(str(tmp_path)), "sub", plans, os.environ.copy()
+        )
+    not_run.assert_not_awaited()
+    assert applied == []
+    assert "does not exist anymore" in skipped[0]
+
+
+@pytest.mark.asyncio
+async def test_trivy_filesystem_npm_flow(tmp_path: Path) -> None:
+    """The npm plans are fixed with npm audit fix after selecting the Node.js version with fnm."""
+    (tmp_path / "frontend").mkdir()
+    before = [
+        _dependency_vulnerability(
+            file="frontend/package-lock.json",
+            package="postcss",
+            installed="8.4.31",
+            fixed="8.4.32",
+            dependency_type="npm",
+        ),
+    ]
+    with (
+        patch.object(
+            audit_utils,
+            "_trivy_fs_scan",
+            new=AsyncMock(side_effect=[(before, True), ([], True)]),
+        ),
+        patch.object(audit_utils, "_select_node_version", new=AsyncMock()) as mock_select,
+        patch.object(
+            audit_utils,
+            "_fix_npm_project",
+            new=AsyncMock(
+                return_value=(
+                    ["postcss 8.4.31 in `frontend/package-lock.json`: fixed by `npm audit fix`"],
+                    [],
+                    ["npm audit fix log"],
+                ),
+            ),
+        ) as mock_fix,
+    ):
+        result = await audit_utils.trivy_filesystem(
+            "1.0",
+            {},
+            {},
+            os.environ.copy(),
+            anyio.Path(str(tmp_path)),
+            "3.13",
+        )
+    mock_select.assert_awaited_once()
+    assert mock_fix.await_args.args[1] == "frontend"
+    assert result.success
+    assert result.skipped_fixes == []
+    fix_html = html_module.unescape(result.fix_message.html)
+    assert "Applied: postcss 8.4.31" in fix_html
+    assert "npm audit fix log" in fix_html
+    assert "1 high vulnerabilities" in result.short_messages
+    assert "1 vulnerability fixed" in result.short_messages
 
 
 @pytest.mark.asyncio

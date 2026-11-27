@@ -57,7 +57,7 @@ AuditConfiguration = TypedDict('AuditConfiguration', {
     'renovate': "RenovateConfiguration",
     # | Trivy configuration.
     # | 
-    # | Trivy scans: the container images of the ArgoCD applications, the Python dependencies of the branches, and the pull requests
+    # | Trivy scans: the container images of the ArgoCD applications, the Python and npm dependencies of the branches, and the pull requests
     'trivy': "TrivyConfiguration",
     # | Version mapping.
     # | 
@@ -445,7 +445,7 @@ SnykConfiguration = TypedDict('SnykConfiguration', {
     'enabled': bool,
     # | Automatic fix.
     # | 
-    # | Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch. Disabled by default, the Python dependency fixes are done by the Trivy dependencies audit
+    # | Apply the fixes and open a pull request with them, when false the vulnerabilities are only reported. Can be set per branch in the .github/ghci.yaml file of the stabilization branch. Disabled by default, the Python and npm dependency fixes are done by the Trivy dependencies audit
     # | 
     # | default: False
     'auto-fix': bool,
@@ -571,7 +571,7 @@ r""" Default value of the field path 'Trivy pull request configuration severity'
 
 # | Trivy configuration.
 # | 
-# | Trivy scans: the container images of the ArgoCD applications, the Python dependencies of the branches, and the pull requests
+# | Trivy scans: the container images of the ArgoCD applications, the Python and npm dependencies of the branches, and the pull requests
 TrivyConfiguration = TypedDict('TrivyConfiguration', {
     # | Trivy image configuration.
     # | 
@@ -583,18 +583,18 @@ TrivyConfiguration = TypedDict('TrivyConfiguration', {
     'pull-request': "TrivyPullRequestConfiguration",
     # | Trivy filesystem configuration.
     # | 
-    # | Scan the Python dependencies (poetry.lock and requirements files) with Trivy and fix the vulnerabilities
+    # | Scan the Python and npm dependencies (poetry.lock, requirements files and package-lock.json) with Trivy and fix the vulnerabilities
     'filesystem': "TrivyFilesystemConfiguration",
 }, total=False)
 
 
 # | Trivy filesystem configuration.
 # | 
-# | Scan the Python dependencies (poetry.lock and requirements files) with Trivy and fix the vulnerabilities
+# | Scan the Python and npm dependencies (poetry.lock, requirements files and package-lock.json) with Trivy and fix the vulnerabilities
 TrivyFilesystemConfiguration = TypedDict('TrivyFilesystemConfiguration', {
     # | Enable Trivy dependencies.
     # | 
-    # | Enable the Trivy dependencies audit, only applied to branches that have a `poetry.lock` or a requirements file
+    # | Enable the Trivy dependencies audit, only applied to branches that have a `poetry.lock`, a requirements file or a `package-lock.json`
     # | 
     # | default: True
     'enabled': bool,
