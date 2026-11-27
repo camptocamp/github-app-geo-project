@@ -1,7 +1,7 @@
 A module that does some audit stuff on the project:
 
 - Check for critical vulnerabilities (Snyk)
-- Check and fix the Python and npm dependency vulnerabilities (Trivy)
+- Check and fix the Python, npm and Gradle (Java) dependency vulnerabilities (Trivy)
   - Create a pull request for the auto fixable issues
   - Create an issue if the pull request is open for more than 5 days
 - Create a pull request for auto fixable issues (Snyk, disabled by default, see `snyk.auto-fix`)
@@ -105,19 +105,18 @@ message.
 
 Every `snyk (<version>)` job creates or updates the `/output/<owner>/<repository>/snyk-<version>` output, even when every vulnerability was fixed or when only vulnerabilities below the dashboard threshold remain. The page lists the remaining vulnerabilities, the ignored ones (with the reason found in the `.snyk` policy files) and, collapsed, the low severity ones. It displays `No vulnerability found.` when the three sections are empty. The output URL is stable, it is linked from the pull request body and from the transversal dashboard.
 
-#### Python and npm Dependencies Scan and Fix (Trivy filesystem)
+#### Python, npm and Gradle Dependencies Scan and Fix (Trivy filesystem)
 
-The `trivy-filesystem (<version>)` job scans the Python and npm dependencies of each stabilization
+The `trivy-filesystem (<version>)` job scans the Python, npm and Gradle dependencies of each stabilization
 branch with `trivy fs --scanners vuln --format json` and fixes them, which replaces the Snyk auto-fix
 for these ecosystems. The scan reads the dependency files (`poetry.lock`, `requirements*.txt`,
-`package-lock.json`) directly: the dependencies are not installed in the audit environment, and the
-rescan done after the fixes is therefore a real confirmation of what was fixed, unlike the Snyk
-rescan which could not confirm the pins added to the requirements files. Every vulnerability from
-the LOW severity is reported; only
-those at or above `trivy.filesystem.fix-severity-threshold` (default `high`) are fixed, to limit the
-churn of the transitive fixes, and those at or above `trivy.filesystem.dashboard-severity-threshold`
-(default `high`) are listed directly on the transversal dashboard, the others being displayed in a
-collapsed section of the output page.
+`package-lock.json`, `gradle.lockfile`) directly: the dependencies are not installed in the audit
+environment, and the rescan done after the fixes is therefore a real confirmation of what was fixed,
+unlike the Snyk rescan which could not confirm the pins added to the requirements files. Every
+vulnerability from the LOW severity is reported; only those at or above
+`trivy.filesystem.fix-severity-threshold` (default `high`) are fixed, to limit the churn of the transitive
+fixes, and those at or above `trivy.filesystem.dashboard-severity-threshold` (default `high`) are listed
+directly on the transversal dashboard, the others being displayed in a collapsed section of the output page.
 
 The project type is auto-detected per directory:
 
@@ -142,11 +141,31 @@ The project type is auto-detected per directory:
   run, the rescan confirms what was really fixed in the lock file. Range prefixes added by npm to
   exact `package.json` pins are stripped back; packages with no fix inside the current ranges are not
   forced: they are reported as a skipped fix (the direct dependency updates are the job of Renovate).
+- **Gradle** (`gradle.lockfile` files, Trivy result type `gradle`): the vulnerable Maven coordinate
+  (`group:artifact`) is bumped in the source of truth — first the version catalog
+  (`gradle/libs.versions.toml`, a `version.ref` key or a literal `version`), then an inline
+  `group:artifact:version` coordinate in the `build.gradle` / `build.gradle.kts` scripts — and the
+  lock files are regenerated with `./gradlew --write-locks dependencies` (the JDK compatible with the
+  project Gradle version is selected automatically). The applied fixes are confirmed by the rescan. A
+  coordinate that cannot be located in the catalog or the build files, or a regeneration that fails, is
+  reverted and reported as a skipped fix. The fixed releases are ordered with a Maven-aware comparison;
+  the versions it cannot model safely (ranges, unusual qualifiers) are skipped.
 
 The Python modes check the fixed releases against the branch Python version (`.tool-versions`):
 a version whose PyPI `Requires-Python` is newer than the branch interpreter is never pinned, the
 vulnerability stays handled by the ignore policies. Pipenv (`Pipfile.lock`), Yarn and pnpm, and the
 other ecosystems are reported, not fixed.
+
+Gradle projects are auditable only when their `gradle.lockfile` files are committed (Gradle dependency
+locking). When a Gradle project (a `gradlew` wrapper) has no committed lock file, a separate bootstrap
+pull request is opened on the `ghci/audit/trivy-gradle-lock/<version>` branch: it adds a
+`dependencyLocking` activation for the resolvable runtime and compile configurations to the root build
+script and runs `./gradlew --write-locks` to generate the lock files. **This pull request is intentionally
+never auto-merged** (it changes the build behavior and must be reviewed). The dependency fixes then follow
+on a later audit run once it is merged. The bootstrap is idempotent: it is skipped as soon as a lock file
+is committed, and reverted when the generation produces none. When a repository enables Gradle dependency
+locking, the dependency update tooling (Renovate) must regenerate the lock files after bumping a version,
+otherwise the locked build fails on the resolution drift.
 
 The fixes are pushed to the `ghci/audit/trivy-filesystem/<version>` branch with auto-merge enabled, and
 the pull request body contains the `Fixed vulnerabilities` section (confirmed by the rescan), the
@@ -160,7 +179,7 @@ Every `trivy-filesystem (<version>)` job creates or updates the
 `/output/<owner>/<repository>/trivy-filesystem-<version>` page, listing the remaining and the ignored
 vulnerabilities with their CVE links, and the transversal dashboard gets a
 `Trivy filesystem check/fix <version>` entry. When `trivy.filesystem.auto-fix` is set to `false`, the
-vulnerabilities are only reported and no pull request is created.
+vulnerabilities are only reported, no pull request (fix or locking bootstrap) is created.
 
 #### Container Images Scan (Trivy)
 

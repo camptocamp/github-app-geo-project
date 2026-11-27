@@ -303,7 +303,7 @@
         "trivy": {
           "type": "object",
           "title": "Trivy configuration",
-          "description": "Trivy scans: the container images of the ArgoCD applications, the Python and npm dependencies of the branches, and the pull requests",
+          "description": "Trivy scans: the container images of the ArgoCD applications, the Python, npm and Gradle dependencies of the branches, and the pull requests",
           "additionalProperties": false,
           "properties": {
             "image": {
@@ -411,13 +411,13 @@
             "filesystem": {
               "type": "object",
               "title": "Trivy filesystem configuration",
-              "description": "Scan the Python and npm dependencies (poetry.lock, requirements files and package-lock.json) with Trivy and fix the vulnerabilities",
+              "description": "Scan the Python, npm and Gradle dependencies (poetry.lock, requirements files, package-lock.json and gradle.lockfile) with Trivy and fix the vulnerabilities",
               "additionalProperties": false,
               "properties": {
                 "enabled": {
                   "type": "boolean",
                   "title": "Enable Trivy dependencies",
-                  "description": "Enable the Trivy dependencies audit, only applied to branches that have a `poetry.lock`, a requirements file or a `package-lock.json`",
+                  "description": "Enable the Trivy dependencies audit, only applied to branches that have a `poetry.lock`, a requirements file, a `package-lock.json` or a Gradle project",
                   "default": true
                 },
                 "auto-fix": {

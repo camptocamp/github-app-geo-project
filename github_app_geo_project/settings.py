@@ -123,6 +123,9 @@ class _AuditTimeouts(BaseModel):
     prek: Annotated[Duration, Field(description="prek timeout")] = dt.timedelta(minutes=20)
     git_diff: Annotated[Duration, Field(description="git diff timeout")] = dt.timedelta(minutes=1)
     gradle: Annotated[Duration, Field(description="Gradle timeout")] = dt.timedelta(minutes=1)
+    gradle_locks: Annotated[
+        Duration, Field(description="Gradle dependency resolution and --write-locks timeout")
+    ] = dt.timedelta(minutes=15)
     git_lsfiles: Annotated[Duration, Field(description="git ls-files timeout")] = dt.timedelta(minutes=1)
     python_install: Annotated[Duration, Field(description="Python install timeout")] = dt.timedelta(
         minutes=10
