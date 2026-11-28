@@ -214,6 +214,8 @@ works). The whole feature runs **inside the GHCI worker pods**:
   `trivy image --format=json --severity=<SEVERITY> <image>`, with a semaphore of 4 concurrent
   scans and a module-wide `_TRIVY_LOCK` so that two scans never overlap. An image shared by
   several applications is therefore **not scanned twice**.
+- The image scans prefer the **SBOM attestation** over pulling the image (see
+  [SBOM attestation scans](#sbom-attestation-scans)).
 - The Trivy database cache is written to `/var/www/.cache/trivy` (the same writable directory
   pattern as `/opt/fnm/node-versions`), the container entrypoint does not need any extra
   `emptyDir` mount.
@@ -263,6 +265,29 @@ vulnerabilities. The transversal dashboard gets a `Trivy published images <branc
 the scan (`N images (M tags), K critical`) with `Logs` and `Output` links. The scan shares the
 `trivy.image` configuration (and its `severity-threshold` / `ignore-unfixed` options) with the ArgoCD
 container images scan; there is no separate configuration block.
+
+#### SBOM attestation scans
+
+Before pulling an image, both container image scans (`trivy` and `trivy-published`) try to scan
+the **SBOM attestation** instead, which avoids downloading the image layers:
+
+- On `ghcr.io` images only (the registry we can map back to a GitHub organization), cosign is
+  run: `cosign verify-attestation <image> --type=cyclonedx`, with the certificate OIDC issuer
+  restricted to `https://token.actions.githubusercontent.com` and the certificate identity to
+  `^https://github.com/<organization>/`, the organization owning the image namespace. An
+  attestation published from another account is therefore never trusted.
+- When the verification succeeds, the CycloneDX document (a few megabytes, against hundreds for
+  the full image) is extracted from the attestation payload and scanned with
+  `trivy sbom --format=json --severity=<SEVERITY> <file>`; the pages mark those results with
+  `[via SBOM]`.
+- When there is no attestation, when the signature does not verify, or when cosign fails, the
+  scan silently falls back to `trivy image`, which is the only possibility for most third-party
+  images.
+
+The SBOM attestations of our images are published automatically by
+[tag-publish](https://github.com/camptocamp/tag-publish) since version 1.4.0 (the `sbom` property
+of the Docker images, enabled by default); the images published before that version have none
+until they are published again.
 
 #### Pull Request Scan (Trivy)
 

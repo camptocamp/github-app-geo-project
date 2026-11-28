@@ -168,6 +168,9 @@ class _AuditTimeouts(BaseModel):
     registry: Annotated[
         Duration, Field(description="Container registry API request timeout (published images digest lookup)")
     ] = dt.timedelta(minutes=1)
+    cosign_attestation: Annotated[
+        Duration, Field(description="Cosign SBOM attestation download and verification timeout")
+    ] = dt.timedelta(minutes=2)
     poetry_lock: Annotated[Duration, Field(description="poetry lock timeout")] = dt.timedelta(minutes=15)
     poetry_check_lock: Annotated[Duration, Field(description="poetry check --lock timeout")] = dt.timedelta(
         minutes=2

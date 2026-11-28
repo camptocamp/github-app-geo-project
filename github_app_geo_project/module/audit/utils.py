@@ -59,12 +59,19 @@ _TIMEOUT_REGISTRY = settings.audit.timeouts.registry
 _TIMEOUT_POETRY_LOCK = settings.audit.timeouts.poetry_lock
 _TIMEOUT_POETRY_CHECK_LOCK = settings.audit.timeouts.poetry_check_lock
 _TIMEOUT_PIP_DRY_RUN = settings.audit.timeouts.pip_dry_run
+_TIMEOUT_COSIGN = settings.audit.timeouts.cosign_attestation
 
 _TRIVY_CONCURRENCY = 4
 """Number of container images scanned by Trivy at the same time."""
 
 _TRIVY_CACHE_DIR = "/var/www/.cache/trivy"
 """The Trivy cache (vulnerability DB) directory, writable by the worker user."""
+
+_COSIGN_OIDC_ISSUER = "https://token.actions.githubusercontent.com"
+"""The OIDC issuer of the keyless cosign signatures created by the GitHub Actions publishing jobs."""
+
+_GHCR_HOST = "ghcr.io"
+"""The only registry host we can map back to a GitHub organization for the attestation policy."""
 
 
 class VulnerabilityData(NamedTuple):
@@ -2040,6 +2047,8 @@ class TrivyImage(BaseModel):
     """The reported vulnerabilities."""
     scan_error: str = ""
     """The scan failure reason, empty when the image was scanned successfully."""
+    via_sbom: bool = False
+    """True when the scan was performed on the downloaded SBOM attestation instead of the image."""
 
 
 class TrivyApplication(BaseModel):
@@ -2081,6 +2090,8 @@ class TrivyPublishedImage(BaseModel):
     """The reported vulnerabilities."""
     scan_error: str = ""
     """The scan failure reason, empty when the image was scanned successfully."""
+    via_sbom: bool = False
+    """True when the scan was performed on the downloaded SBOM attestation instead of the image."""
 
 
 class TrivyPublishedReport(BaseModel):
@@ -2278,6 +2289,81 @@ def _parse_trivy_report(stdout: str) -> list[TrivyVulnerability]:
     return vulnerabilities
 
 
+def _sbom_identity_regexp(image: str) -> str | None:
+    """
+    Return the cosign certificate identity regexp of an image.
+
+    ``None`` is returned when the image registry cannot be mapped to a GitHub
+    organization. The SBOM attestations of our images are signed keylessly by the
+    publishing GitHub Actions workflow of their own repository; restricting the
+    certificate identity to the organization that owns the image namespace prevents a
+    forged attestation published from another account from being trusted.
+    """
+    if not image.startswith(f"{_GHCR_HOST}/"):
+        return None
+    organization = image[len(_GHCR_HOST) + 1 :].split("/", 1)[0]
+    if not organization:
+        return None
+    return f"^https://github.com/{re.escape(organization)}/"
+
+
+async def _fetch_sbom(image: str, env: dict[str, str], cwd: anyio.Path) -> str | None:
+    """
+    Fetch the CycloneDX SBOM attestation of an image, verified by cosign.
+
+    Returns the SBOM document as a JSON string, or ``None`` when the image has no
+    attestation, when the signature does not verify, or when cosign failed: the caller
+    then falls back to scanning the whole image.
+    """
+    identity_regexp = _sbom_identity_regexp(image)
+    if identity_regexp is None:
+        return None
+    command = [
+        "cosign",
+        "verify-attestation",
+        image,
+        "--type=cyclonedx",
+        f"--certificate-oidc-issuer={_COSIGN_OIDC_ISSUER}",
+        f"--certificate-identity-regexp={identity_regexp}",
+    ]
+    stdout, success, _ = await module_utils.run_timeout(
+        command,
+        env,
+        _TIMEOUT_COSIGN,
+        f"Cosign attestation {image}",
+        f"Cosign attestation failed {image}",
+        f"Cosign attestation timeout {image}",
+        cwd,
+        error=False,
+    )
+    if not success or stdout is None:
+        return None
+    try:
+        attestations = json.loads(stdout)
+    except json.JSONDecodeError:
+        _LOGGER.warning("Could not parse the cosign output for %s", image)
+        return None
+    if not isinstance(attestations, list):
+        return None
+    for attestation in attestations:
+        if not isinstance(attestation, dict):
+            continue
+        payload = attestation.get("payload")
+        if not isinstance(payload, str):
+            continue
+        try:
+            # The binascii.Error raised on an invalid base64 payload is a ValueError.
+            statement = json.loads(base64.b64decode(payload))
+        except ValueError:
+            continue
+        if not isinstance(statement, dict):
+            continue
+        predicate = statement.get("predicate")
+        if isinstance(predicate, dict) and predicate.get("components") is not None:
+            return json.dumps(predicate)
+    return None
+
+
 async def scan_image(
     image: str,
     severity: str,
@@ -2285,28 +2371,50 @@ async def scan_image(
     env: dict[str, str],
     cwd: anyio.Path,
 ) -> TrivyImage:
-    """Scan a single container image with Trivy and return the reported vulnerabilities."""
-    command = [
-        "trivy",
-        "image",
+    """
+    Scan a single container image with Trivy and return the reported vulnerabilities.
+
+    When the image has a SBOM attestation signed by the GitHub organization owning its
+    namespace, the (small) attestation is downloaded and scanned with ``trivy sbom``
+    instead of pulling the whole image with ``trivy image``.
+    """
+    arguments = [
         "--format=json",
         f"--severity={_SEVERITY_TRIVY.get(severity, 'CRITICAL')}",
         "--exit-code=0",
     ]
     if ignore_unfixed:
-        command.append("--ignore-unfixed")
-    command.append(image)
+        arguments.append("--ignore-unfixed")
 
-    stdout, success, _ = await module_utils.run_timeout(
-        command,
-        env,
-        _TIMEOUT_TRIVY_IMAGE,
-        f"Trivy scan {image}",
-        f"Trivy scan failed {image}",
-        f"Trivy scan timeout {image}",
-        cwd,
-        error=False,
-    )
+    sbom = await _fetch_sbom(image, env, cwd)
+    via_sbom = sbom is not None
+    folder: str | None = None
+    if sbom is None:
+        command = ["trivy", "image", *arguments, image]
+    else:
+        folder = tempfile.mkdtemp(prefix="ghci-sbom-")
+        filename = anyio.Path(folder) / "sbom.cdx.json"
+        async with await filename.open("w", encoding="utf-8") as sbom_file:
+            await sbom_file.write(sbom)
+        command = ["trivy", "sbom", *arguments, str(filename)]
+
+    try:
+        stdout, success, _ = await module_utils.run_timeout(
+            command,
+            env,
+            _TIMEOUT_TRIVY_IMAGE,
+            f"Trivy scan {image}",
+            f"Trivy scan failed {image}",
+            f"Trivy scan timeout {image}",
+            cwd,
+            error=False,
+        )
+    finally:
+        if folder is not None:
+            # The temporary directory only holds the generated sbom.cdx.json.
+            await (anyio.Path(folder) / "sbom.cdx.json").unlink(missing_ok=True)
+            await anyio.Path(folder).rmdir()
+
     if not success or stdout is None:
         return TrivyImage(image=image, scan_error=f"Failed to scan the image `{image}`")
     vulnerabilities = _parse_trivy_report(stdout)
@@ -2314,6 +2422,7 @@ async def scan_image(
         image=image,
         critical_count=len(vulnerabilities),
         vulnerabilities=vulnerabilities,
+        via_sbom=via_sbom,
     )
 
 
@@ -2665,6 +2774,7 @@ async def trivy_published_images(
                 critical_count=result.critical_count,
                 vulnerabilities=result.vulnerabilities,
                 scan_error=result.scan_error,
+                via_sbom=result.via_sbom,
             )
         )
 

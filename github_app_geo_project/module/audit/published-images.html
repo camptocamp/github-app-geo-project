@@ -47,7 +47,8 @@
 <!---->
 {% for image in renderer_data['images'] %}
 <h3>
-  {{ image['repository'] }}{% if image['digest'] %}<small>@{{ image['digest'][:19] }}…</small>{% endif %}
+  {{ image['repository'] }}{% if image['digest'] %}<small>@{{ image['digest'][:19] }}…</small>{% endif %} {%
+  if image['via_sbom'] %}<small>[via SBOM]</small>{% endif %}
 </h3>
 <!---->
 {% if image['tags'] %}

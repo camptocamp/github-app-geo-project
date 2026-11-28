@@ -175,7 +175,8 @@ RUN case "$(uname -m)" in \
 
 # helm and trivy are used by the `audit` module to template the ArgoCD applications
 # (to discover the container images they reference) and to scan those images for
-# vulnerabilities. They are downloaded from their GitHub releases, with the checksum
+# vulnerabilities; cosign is used to download and verify the SBOM attestations of the
+# published images. They are downloaded from their GitHub releases, with the checksum
 # verified against the pinned digest; Renovate keeps both the version and the digest
 # up to date through the `github-release-attachments` datasource (see the
 # `regexManagers` in `.github/renovate.json5`).
@@ -209,6 +210,17 @@ RUN curl --location --fail --silent --show-error \
     && trivy --version \
     && mkdir --parents /var/www/.cache/trivy \
     && chown --recursive 33:33 /var/www/.cache
+
+ARG COSIGN_VERSION=v3.1.2
+# renovate: datasource=github-release-attachments depName=sigstore/cosign packageName=sigstore/cosign
+ARG COSIGN_SHA256=f7622ed3cf22e55e1ae6377c080979ff77a22da9981c11df222a2e444991e7cf
+RUN curl --location --fail --silent --show-error \
+        --output=/tmp/cosign \
+        "https://github.com/sigstore/cosign/releases/download/${COSIGN_VERSION}/cosign-linux-amd64" \
+    && printf '%s  %s\n' "${COSIGN_SHA256}" "/tmp/cosign" | sha256sum --check \
+    && mv /tmp/cosign /usr/local/bin/cosign \
+    && chmod +x /usr/local/bin/cosign \
+    && cosign version
 
 RUN mkdir -p /prometheus-metrics \
     && chmod a+rwx /prometheus-metrics
